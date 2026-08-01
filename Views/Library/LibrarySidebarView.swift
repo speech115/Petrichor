@@ -1,0 +1,333 @@
+import SwiftUI
+
+struct LibrarySidebarView: View {
+    @EnvironmentObject var libraryManager: LibraryManager
+    @Binding var selectedFilterType: LibraryFilterType
+    @Binding var selectedFilterItem: LibraryFilterItem?
+    @Binding var pendingSearchText: String?
+    @Binding var filteredItems: [LibraryFilterItem]
+    @Binding var selectedSidebarItem: LibrarySidebarItem?
+
+    @State private var searchText = ""
+    @State private var sortAscending = true
+    @State private var sortCache: SortCache?
+
+    private struct SortCache {
+        let input: [LibraryFilterItem]
+        let sortAscending: Bool
+        let filterType: LibraryFilterType
+        let output: [LibraryFilterItem]
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header with filter type and search
+            headerSection
+
+            Divider()
+
+            // Sidebar content
+            SidebarView(
+                filterItems: filteredItems,
+                filterType: selectedFilterType,
+                totalTracksCount: libraryManager.globalSearchText.isEmpty ?
+                    libraryManager.totalTrackCount :
+                    libraryManager.searchResults.count,
+                selectedItem: $selectedSidebarItem,
+                showAllItem: !libraryManager.globalSearchText.isEmpty,
+                onItemTap: { item in
+                    handleItemSelection(item)
+                },
+                contextMenuItems: { item in
+                    createContextMenuItems(for: item)
+                }
+            )
+        }
+        .onAppear {
+            // First update the filtered items
+            updateFilteredItems()
+
+            // Then initialize selection after items are available
+            DispatchQueue.main.async {
+               initializeSelection()
+            }
+        }
+        .onChange(of: searchText) {
+            updateFilteredItems()
+        }
+        .onChange(of: selectedFilterType) { _, newType in
+            handleFilterTypeChange(newType)
+        }
+        .onChange(of: libraryManager.tracks) {
+            updateFilteredItems()
+        }
+        .onChange(of: sortAscending) {
+            // Re-sort items when sort order changes
+            updateFilteredItems()
+        }
+        .onChange(of: libraryManager.globalSearchText) { oldValue, newValue in
+            Task {
+                try? await Task.sleep(nanoseconds: TimeConstants.searchDebounceDuration)
+                await MainActor.run {
+                    updateFilteredItems()
+                    
+                    // Handle transition between search and non-search modes
+                    if oldValue.isEmpty && !newValue.isEmpty {
+                        // Entering search mode - select "All" item
+                        let totalCount = libraryManager.searchResults.count
+                        let allItem = LibraryFilterItem.allItem(for: selectedFilterType, totalCount: totalCount)
+                        selectedFilterItem = allItem
+                        selectedSidebarItem = LibrarySidebarItem(allItemFor: selectedFilterType, count: totalCount)
+                    } else if !oldValue.isEmpty && newValue.isEmpty {
+                        // Exiting search mode - select first available item if current selection is "All"
+                        if let currentSelection = selectedFilterItem, currentSelection.isAllItem {
+                            if !filteredItems.isEmpty {
+                                selectedFilterItem = filteredItems.first
+                                if let filterItem = selectedFilterItem {
+                                    selectedSidebarItem = LibrarySidebarItem(filterItem: filterItem)
+                                }
+                            } else {
+                                selectedFilterItem = nil
+                                selectedSidebarItem = nil
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .onChange(of: pendingSearchText) { _, newValue in
+            if let searchValue = newValue {
+                pendingSearchText = nil
+                
+                let allItems = libraryManager.getLibraryFilterItems(for: selectedFilterType)
+                
+                let matchingItem = allItems.first { item in
+                    if selectedFilterType.usesMultiArtistParsing {
+                        return ArtistParser.normalizeArtistName(item.name) == ArtistParser.normalizeArtistName(searchValue)
+                    } else {
+                        return item.name == searchValue
+                    }
+                }
+                
+                if let item = matchingItem {
+                    searchText = item.name
+                    selectedFilterItem = item
+                    selectedSidebarItem = LibrarySidebarItem(filterItem: item)
+                    updateFilteredItems()
+                }
+            }
+        }
+        .onChange(of: libraryManager.searchResults) {
+            updateFilteredItems()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .libraryDataDidChange)) { _ in
+            updateFilteredItems()
+        }
+    }
+
+    // MARK: - Header Section
+
+    private var headerSection: some View {
+        ListHeader(opaque: true) {
+            // Filter type dropdown - now icons-only
+            IconOnlyDropdown(
+                items: LibraryFilterType.allCases,
+                selection: $selectedFilterType,
+                iconProvider: { $0.icon },
+                tooltipProvider: { $0.pluralDisplayName }
+            )
+
+            // Filter bar
+            SearchInputField(
+                text: $searchText,
+                placeholder: selectedFilterType.filterPlaceholder,
+                fontSize: 11
+            )
+
+            // Sort button
+            Button {
+                sortAscending.toggle()
+            } label: {
+                Image(Icons.sortIcon(for: sortAscending))
+                    .renderingMode(.template)
+                    .scaleEffect(0.8)
+            }
+            .buttonStyle(.borderless)
+            .hoverEffect(scale: 1.1)
+            .help(sortAscending ? String(localized: "Sort descending") : String(localized: "Sort ascending"))
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func initializeSelection() {
+        // When not in search mode and no selection exists, select the first item if available
+        if selectedFilterItem == nil {
+            if !libraryManager.globalSearchText.isEmpty {
+                // In search mode, we can still use the "All" item
+                let allItem = LibraryFilterItem.allItem(for: selectedFilterType, totalCount: libraryManager.searchResults.count)
+                selectedFilterItem = allItem
+            } else if !filteredItems.isEmpty {
+                // Not in search mode, select the first available item
+                selectedFilterItem = filteredItems.first
+            }
+        } else if let current = selectedFilterItem, !current.isAllItem,
+                  let matching = filteredItems.first(where: { $0.name == current.name && $0.albumId == current.albumId }) {
+            // Re-anchor to the current filteredItems instance so selection IDs align after the
+            // sidebar was destroyed and recreated (e.g., after switching tabs).
+            selectedFilterItem = matching
+        }
+
+        // Always sync the sidebar selection with the filter selection
+        if let filterItem = selectedFilterItem {
+            if filterItem.isAllItem {
+                selectedSidebarItem = LibrarySidebarItem(allItemFor: selectedFilterType, count: libraryManager.searchResults.count)
+            } else {
+                selectedSidebarItem = LibrarySidebarItem(filterItem: filterItem)
+            }
+        }
+    }
+
+    private func handleItemSelection(_ item: LibrarySidebarItem) {
+        if selectedSidebarItem?.id == item.id &&
+           selectedFilterItem?.name == item.filterName {
+            return
+        }
+        
+        // Update the selected sidebar item
+        selectedSidebarItem = item
+
+        if item.filterName.isEmpty {
+            // "All" item selected - use appropriate track count based on search state
+            let totalCount = libraryManager.searchResults.count
+            selectedFilterItem = LibraryFilterItem.allItem(for: selectedFilterType, totalCount: totalCount)
+        } else {
+            // Regular filter item - calculate actual count based on current search
+            let tracksToFilter = libraryManager.searchResults
+            let matchingTracks = tracksToFilter.filter { track in
+                selectedFilterType.trackMatches(track, filterValue: item.filterName)
+            }
+
+            selectedFilterItem = LibraryFilterItem(
+                name: item.filterName,
+                count: matchingTracks.count,
+                filterType: selectedFilterType
+            )
+        }
+    }
+
+    private func handleFilterTypeChange(_ newType: LibraryFilterType) {
+        // Update filtered items first to get the available items
+        updateFilteredItems()
+        
+        // Reset selection when filter type changes
+        if !libraryManager.globalSearchText.isEmpty {
+            // In search mode, select "All"
+            let totalCount = libraryManager.searchResults.count
+            let allItem = LibraryFilterItem.allItem(for: newType, totalCount: totalCount)
+            selectedFilterItem = allItem
+            selectedSidebarItem = LibrarySidebarItem(allItemFor: newType, count: totalCount)
+        } else if !filteredItems.isEmpty {
+            // Not in search mode, select the first available item
+            selectedFilterItem = filteredItems.first
+            if let filterItem = selectedFilterItem {
+                selectedSidebarItem = LibrarySidebarItem(filterItem: filterItem)
+            }
+        } else {
+            // No items available
+            selectedFilterItem = nil
+            selectedSidebarItem = nil
+        }
+
+        searchText = ""
+    }
+
+    private func updateFilteredItems() {
+        // Get items based on whether we're in search mode or not
+        var items: [LibraryFilterItem]
+
+        if !libraryManager.globalSearchText.isEmpty {
+            items = selectedFilterType.getFilterItems(from: libraryManager.searchResults)
+        } else {
+            items = libraryManager.getLibraryFilterItems(for: selectedFilterType)
+        }
+
+        // Apply local sidebar search filter if present
+        if !searchText.isEmpty {
+            let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            items = items.filter { item in
+                item.name.localizedCaseInsensitiveContains(trimmedSearch)
+            }
+        }
+
+        // Apply custom sorting
+        filteredItems = sortItemsWithUnknownLast(items)
+    }
+
+    // MARK: - Custom Sorting
+
+    private func sortItemsWithUnknownLast(_ items: [LibraryFilterItem]) -> [LibraryFilterItem] {
+        if let cache = sortCache,
+           cache.sortAscending == sortAscending,
+           cache.filterType == selectedFilterType,
+           cache.input == items {
+            return cache.output
+        }
+
+        var unknownItems: [LibraryFilterItem] = []
+        var regularItems: [LibraryFilterItem] = []
+
+        for item in items {
+            if isUnknownItem(item) {
+                unknownItems.append(item)
+            } else {
+                regularItems.append(item)
+            }
+        }
+
+        // Sort regular items based on sortAscending state
+        regularItems.sort { item1, item2 in
+            let comparison = item1.name.localizedCaseInsensitiveCompare(item2.name)
+            return sortAscending ?
+                comparison == .orderedAscending :
+                comparison == .orderedDescending
+        }
+
+        let result = regularItems + unknownItems
+        sortCache = SortCache(
+            input: items,
+            sortAscending: sortAscending,
+            filterType: selectedFilterType,
+            output: result
+        )
+        return result
+    }
+
+    private func isUnknownItem(_ item: LibraryFilterItem) -> Bool {
+        item.name == selectedFilterType.unknownPlaceholder
+    }
+
+    private func createContextMenuItems(for item: LibrarySidebarItem) -> [ContextMenuItem] {
+        // Don't show context menu for "All" items
+        guard !item.filterName.isEmpty else { return [] }
+        return libraryManager.contextMenuItems(filterType: item.filterType, filterValue: item.filterName, albumId: item.albumId)
+    }
+}
+
+#Preview {
+    @Previewable @State var selectedFilterType: LibraryFilterType = .artists
+    @Previewable @State var selectedFilterItem: LibraryFilterItem?
+    @Previewable @State var pendingSearchText: String?
+    @Previewable @State var filteredItems: [LibraryFilterItem] = []
+    @Previewable @State var selectedSidebarItem: LibrarySidebarItem?
+
+    LibrarySidebarView(
+        selectedFilterType: $selectedFilterType,
+        selectedFilterItem: $selectedFilterItem,
+        pendingSearchText: $pendingSearchText,
+        filteredItems: $filteredItems,
+        selectedSidebarItem: $selectedSidebarItem
+    )
+    .environmentObject(LibraryManager())
+    .frame(width: 250, height: 500)
+}

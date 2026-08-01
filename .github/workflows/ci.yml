@@ -1,0 +1,237 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+    paths-ignore:
+      - 'README.md'
+      - 'ACKNOWLEDGEMENTS.md'
+      - 'Scripts/**'
+      - '.github/assets/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '**/*.md'
+  pull_request:
+    branches: [ "main" ]
+    paths-ignore:
+      - 'README.md'
+      - 'ACKNOWLEDGEMENTS.md'
+      - 'Scripts/**'
+      - '.github/assets/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '**/*.md'
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref. PRs cancel-in-progress (push a new
+# commit, the old run dies); main/tag runs are left to finish so release checks
+# aren't interrupted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # Pinned and bumped deliberately; matches the local/ship toolchain. The
+  # SwiftLint image tag in the lint job is the single lint-version pin.
+  XCODE_VERSION: '26.5'
+  SCHEME: 'Petrichor'
+  PROJECT: 'Petrichor.xcodeproj'
+
+jobs:
+  # Fast, free Linux gate via the official SwiftLint container. Runs first; the
+  # macOS build depends on it.
+  lint:
+    name: SwiftLint (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/realm/swiftlint:0.63.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # No --strict: gates on error-level violations only; warnings surface as
+      # inline PR annotations. Tighten to --strict (or a baseline) once the
+      # existing warning backlog is addressed.
+      - name: Run SwiftLint
+        run: swiftlint lint --reporter github-actions-logging
+
+  # Lint the workflow YAML itself (also shellcheck's the run: blocks).
+  actionlint:
+    name: Workflow Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run actionlint
+        run: docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:1.7.12 -color
+
+  # Single macOS job: compile once, analyze in the same pass. Debug only on PRs
+  # for fast feedback; Release is covered by release-build on main/tags.
+  build-analyze:
+    name: Build & Analyze (Debug)
+    runs-on: macos-26
+    timeout-minutes: 45
+    needs: [lint, actionlint]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: .spm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-dd-debug-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-debug-
+
+      - name: Create Secrets placeholder
+        run: |
+          {
+            echo "// CI placeholder - online features disabled"
+            echo "LASTFM_API_KEY = "
+            echo "LASTFM_SHARED_SECRET = "
+          } > Configuration/Secrets.xcconfig
+
+      - name: Ensure xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Resolve dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -clonedSourcePackagesDirPath .spm
+
+      # No `clean`, so the DerivedData cache actually serves incremental builds.
+      - name: Build & Analyze
+        run: |
+          set -o pipefail
+          xcodebuild build analyze \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -clonedSourcePackagesDirPath .spm \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -resultBundlePath "$RUNNER_TEMP/Debug.xcresult" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      - name: Upload xcresult on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-xcresult
+          path: ${{ runner.temp }}/Debug.xcresult
+          retention-days: 5
+          if-no-files-found: ignore
+
+  # Ad-hoc Release compile check (no secrets, not distributable). Catches
+  # Release-only breaks before you tag and run Scripts/build-installer.sh.
+  # Signing/notarization/DMG/Sparkle stay in the local release flow.
+  release-build:
+    name: Release Build Check
+    runs-on: macos-26
+    timeout-minutes: 45
+    needs: [build-analyze]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: .spm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-dd-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-release-
+
+      - name: Create Secrets placeholder
+        run: |
+          {
+            echo "// CI placeholder - online features disabled"
+            echo "LASTFM_API_KEY = "
+            echo "LASTFM_SHARED_SECRET = "
+          } > Configuration/Secrets.xcconfig
+
+      - name: Ensure xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Resolve dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -clonedSourcePackagesDirPath .spm
+
+      # Universal (both archs) to mirror what actually ships; ad-hoc signed.
+      - name: Build (Release)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -clonedSourcePackagesDirPath .spm \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+  # Single required status for branch protection. release-build is intentionally
+  # excluded (it only runs on push to main/tags, never on PRs).
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [lint, actionlint, build-analyze]
+    if: always()
+    steps:
+      - name: Verify required jobs
+        run: |
+          echo "lint=${{ needs.lint.result }}"
+          echo "actionlint=${{ needs.actionlint.result }}"
+          echo "build-analyze=${{ needs.build-analyze.result }}"
+          if [ "${{ needs.lint.result }}" != "success" ] || \
+             [ "${{ needs.actionlint.result }}" != "success" ] || \
+             [ "${{ needs.build-analyze.result }}" != "success" ]; then
+            echo "::error::One or more required checks failed"
+            exit 1
+          fi
+          echo "All required checks passed ✅"

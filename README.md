@@ -1,0 +1,403 @@
+<img width="170" src=".github/assets/DefaultAppIcon.png" alt="Petrichor App Icon" align="left"/>
+
+<div>
+<h3>Petrichor</h3>
+<p>An offline music player for macOS</p>
+<a href="https://github.com/kushalpandya/Petrichor/releases/latest"><img src=".github/assets/macos_download.png" width="140" alt="Download for macOS"/></a>
+</div>
+
+<br/><br/>
+
+<div align="center">
+<a href="https://github.com/kushalpandya/Petrichor/releases"><img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/kushalpandya/Petrichor/total?label=Downloads&style=flat-square&color=ba68c8"></a>
+<a href="https://github.com/kushalpandya/Petrichor/actions/workflows/ci.yml"><img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/kushalpandya/Petrichor/ci.yml?label=CI&style=flat-square"></a>
+<a href="https://github.com/kushalpandya/Petrichor/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/kushalpandya/Petrichor?label=License&style=flat-square&color=ffa726"></a>
+<a href="https://github.com/kushalpandya/Petrichor/"><img src="https://img.shields.io/badge/platform-macOS-blue.svg?label=Platform&style=flat-square&logo=apple" alt="Platform"/></a>
+<br/>
+<br/>
+<a href="https://github.com/kushalpandya/Petrichor/releases/latest"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/kushalpandya/Petrichor?display_name=release&style=flat-square&label=Latest%20Release&color=26a69a"></a>
+
+<br/>
+<br/>
+
+<img src=".github/assets/hero_screenshot.png" width="824" alt="Screenshot"/><br/>
+
+</div>
+
+---
+
+## Summary
+
+### ✨ Features
+
+- Everything you'd expect from an offline music player!
+- Supports over 20 audio file formats;
+  - MP3, AAC/M4A, WAV, AIFF, AIF, ALAC
+  - Ogg Vorbis, Speex, Opus, and FLAC
+  - APE (Monkey's Audio)
+  - MPC (Musepack)
+  - TTA (True Audio)
+  - WV (WavPack)
+  - DSF/DFF (Direct Stream Digital)
+  - ... MOD, IT, S3M, XM, and AU
+- Map your music folders and browse your library in an organized view.
+- Synced lyrics of a playing track when available, including ability to download missing lyrics.
+- Create, import or export playlists.
+- Smart playlists with conditional rules.
+- Manage the play queue interactively using drag and drop.
+- Browse music using folder view when needed.
+- Pin _anything_ (almost!) to the sidebar for quick access to your favorite music.
+- Navigate easily: right-click a track to go to its album, artist, year, etc.
+- Native macOS integration with menubar and dock playback controls, plus dark mode support.
+- Miniplayer and immersive mode.
+- Last.fm scrobbling support.
+- Shortcuts and Automation API support along with Siri.
+- Works well with large libraries containing thousands of songs.
+
+💡 **Tip**: Petrichor relies heavily on tracks having good metadata for all its features to work well.
+
+### ⌛ Upcoming Features
+
+- ~~Automatic in-app updates~~ (✅ [v1.0.0](https://github.com/kushalpandya/Petrichor/releases/tag/v1.0.0) )
+- ~~Better file format support (eg; Opus & OGG)~~ (✅ [v.1.2.0](https://github.com/kushalpandya/Petrichor/releases/tag/v1.2.0))
+- ~~Audio Equalizer~~ (✅ [v.1.2.0](https://github.com/kushalpandya/Petrichor/releases/tag/v1.2.0))
+- ~~Miniplayer and full-screen modes~~ (✅ [v.1.6.0](https://github.com/kushalpandya/Petrichor/releases/tag/v1.6.0))
+- ~~Smart playlists with user-configurable conditional filters~~ (✅ [v.1.6.0](https://github.com/kushalpandya/Petrichor/releases/tag/v1.6.0))
+- ~~Spatial Audio & Gapless playback~~ (✅ [v.1.6.0](https://github.com/kushalpandya/Petrichor/releases/tag/v1.6.0))
+- Crossfading support
+- AirPlay 2 casting support
+- Internet Streaming Radio
+- Natural language search and smart playlists using Apple Intelligence
+- ... and much more!
+
+###  Requirements
+
+- macOS 14 or later (Apple Silicon or Intel)
+
+### ⚙️ Installation
+
+#### Manually
+
+- Go to [Releases](https://github.com/kushalpandya/Petrichor/releases) and download the latest `.dmg`.
+- Open the it and drag the app icon into the Applications folder.
+- In Applications, right-click **Petrichor > Open**.
+
+#### Homebrew
+
+```
+brew install --cask petrichor
+```
+
+### 🚀 Get Started
+
+[Petrichor User Guide](https://github.com/kushalpandya/Petrichor/wiki)
+
+### 📷 Screenshots
+
+Refer to [official website](https://petrichor.page/features)
+
+### 🔒 Privacy & Data Access
+
+- Petrichor is sandboxed and notarized by Apple.
+- It has two permissions on macOS as follows;
+  - **Read-write access**
+    - To read and write into user-selected files and folders,
+      write access is only used for exporting M3U playlist files.
+  - **Network access**
+    - To check for and install app updates.
+    - Fetch artist images and bios from online sources (disabled by default)
+    - Download track lyrics from the internet (disabled by default)
+    - Last.fm scrobbling (disabled by default)
+        - When enabled, app may ask to store your Last.fm session information in macOS Keychain, if you choose to allow it, macOS will ask for your user account password to store the information in Keychain.
+        - App **does not** store your Last.fm username or password, you still have to provide it on Last.fm website that opens in browser during configuration, once done, app only receives a session key to scrobble track playbacks with your account.
+    - Reporting issues from within the app (user opt-in only)
+        - Users can report a problem from within the app by going to Menu > Help > Report a Problem..., this opens a form where user is asked to fill out a few details, including detailed app diagnostics, along with app's log file.
+        - This is optional feature and uses network only when user manually initiates this action and sends the information over the internet to app's backend server securely.
+- It doesn't (and never will) have any analytics on how you use the app.
+- It never changes your audio files or folder structure in any way.
+- Your library data remains offline always.
+
+## 🏗️ Development
+
+### Motivation
+
+I have a large collection of music files that I’ve gathered over the years, and I missed having a good offline
+music player on macOS. I've used several free and paid options but I missed the simplicity and features commonly
+found in streaming apps; so I built Petrichor to scratch that itch and learn Swift and macOS app development
+along the way!
+
+### Implementation Overview
+
+- Built with Swift and SwiftUI with some parts in AppKit for the best macOS integration.
+- Once folders containing music files are added, the app scans them, extracts required metadata, and populates the SQLite database.
+- The app does **not** alter your music files, it only reads from the directories you add.
+- Tracks searching is handled by [SQLite FTS5](https://www.sqlite.org/fts5.html).
+- Playback is handled by [AVFoundation](https://developer.apple.com/av-foundation/) and third-party audio decoders.
+
+<details>
+<summary>View Database Schema</summary>
+
+```mermaid
+erDiagram
+    folders {
+        INTEGER id PK "AUTO_INCREMENT"
+        TEXT name "NOT NULL"
+        TEXT path "NOT NULL UNIQUE"
+        INTEGER track_count "NOT NULL DEFAULT 0"
+        DATETIME date_added "NOT NULL"
+        DATETIME date_updated "NOT NULL"
+        BLOB bookmark_data "Security-scoped bookmark"
+        TEXT shasum_hash "Folder content hash"
+    }
+
+    artists {
+        INTEGER id PK "AUTO_INCREMENT"
+        TEXT name "NOT NULL"
+        TEXT normalized_name "NOT NULL UNIQUE"
+        TEXT sort_name
+        BLOB artwork_data
+        TEXT bio
+        TEXT bio_source
+        DATETIME bio_updated_at
+        TEXT image_url
+        TEXT image_source
+        DATETIME image_updated_at
+        TEXT discogs_id
+        TEXT musicbrainz_id
+        TEXT spotify_id
+        TEXT apple_music_id
+        TEXT country
+        INTEGER formed_year
+        INTEGER disbanded_year
+        TEXT genres "JSON array"
+        TEXT websites "JSON array"
+        TEXT members "JSON array"
+        INTEGER total_tracks "NOT NULL DEFAULT 0 CHECK >= 0"
+        INTEGER total_albums "NOT NULL DEFAULT 0 CHECK >= 0"
+        DATETIME created_at "NOT NULL"
+        DATETIME updated_at "NOT NULL"
+    }
+
+    albums {
+        INTEGER id PK "AUTO_INCREMENT"
+        TEXT title "NOT NULL"
+        TEXT normalized_title "NOT NULL"
+        TEXT sort_title
+        BLOB artwork_data
+        TEXT release_date
+        INTEGER release_year "CHECK 1900-2100"
+        TEXT album_type
+        INTEGER total_tracks "CHECK >= 0"
+        INTEGER total_discs "CHECK >= 0"
+        TEXT description
+        TEXT review
+        TEXT review_source
+        TEXT cover_art_url
+        TEXT thumbnail_url
+        TEXT discogs_id
+        TEXT musicbrainz_id
+        TEXT spotify_id
+        TEXT apple_music_id
+        TEXT label
+        TEXT catalog_number
+        TEXT barcode
+        TEXT genres "JSON array"
+        DATETIME created_at "NOT NULL"
+        DATETIME updated_at "NOT NULL"
+    }
+
+    album_artists {
+        INTEGER album_id FK "NOT NULL"
+        INTEGER artist_id FK "NOT NULL"
+        TEXT role "NOT NULL DEFAULT 'primary'"
+        INTEGER position "NOT NULL DEFAULT 0"
+    }
+
+    genres {
+        INTEGER id PK "AUTO_INCREMENT"
+        TEXT name "NOT NULL UNIQUE"
+    }
+
+    tracks {
+        INTEGER id PK "AUTO_INCREMENT"
+        INTEGER folder_id FK "NOT NULL"
+        INTEGER album_id FK
+        TEXT path "NOT NULL UNIQUE"
+        TEXT filename "NOT NULL"
+        TEXT title
+        TEXT artist
+        TEXT album
+        TEXT composer
+        TEXT genre
+        TEXT year
+        REAL duration "CHECK >= 0"
+        TEXT format
+        INTEGER file_size
+        DATETIME date_added "NOT NULL"
+        DATETIME date_modified
+        BLOB track_artwork_data
+        BOOLEAN is_favorite "NOT NULL DEFAULT false"
+        INTEGER play_count "NOT NULL DEFAULT 0"
+        DATETIME last_played_date
+        BOOLEAN is_duplicate "NOT NULL DEFAULT false"
+        INTEGER primary_track_id FK
+        TEXT duplicate_group_id
+        TEXT album_artist
+        INTEGER track_number
+        INTEGER total_tracks
+        INTEGER disc_number
+        INTEGER total_discs
+        INTEGER rating "CHECK 0-5"
+        BOOLEAN compilation "DEFAULT false"
+        TEXT release_date
+        TEXT original_release_date
+        INTEGER bpm
+        TEXT media_type "Music/Audiobook/Podcast"
+        INTEGER bitrate "CHECK > 0"
+        INTEGER sample_rate
+        INTEGER channels "1=mono, 2=stereo"
+        TEXT codec
+        INTEGER bit_depth
+        TEXT sort_title
+        TEXT sort_artist
+        TEXT sort_album
+        TEXT sort_album_artist
+        TEXT extended_metadata "JSON"
+        BOOLEAN lossless
+    }
+
+    playlists {
+        TEXT id PK "UUID"
+        TEXT name "NOT NULL"
+        TEXT type "NOT NULL (regular/smart)"
+        BOOLEAN is_user_editable "NOT NULL"
+        BOOLEAN is_content_editable "NOT NULL"
+        DATETIME date_created "NOT NULL"
+        DATETIME date_modified "NOT NULL"
+        BLOB cover_artwork_data
+        TEXT smart_criteria "JSON"
+        INTEGER sort_order "NOT NULL DEFAULT 0"
+    }
+
+    playlist_tracks {
+        TEXT playlist_id FK "NOT NULL"
+        INTEGER track_id FK "NOT NULL"
+        INTEGER position "NOT NULL"
+        DATETIME date_added "NOT NULL"
+    }
+
+    track_artists {
+        INTEGER track_id FK "NOT NULL"
+        INTEGER artist_id FK "NOT NULL"
+        TEXT role "NOT NULL DEFAULT 'artist'"
+        INTEGER position "NOT NULL DEFAULT 0"
+    }
+
+    track_genres {
+        INTEGER track_id FK "NOT NULL"
+        INTEGER genre_id FK "NOT NULL"
+    }
+
+    pinned_items {
+        INTEGER id PK "AUTO_INCREMENT"
+        TEXT item_type "NOT NULL (library/playlist)"
+        TEXT filter_type "For library items"
+        TEXT filter_value "Artist/album name"
+        TEXT entity_id "UUID for entities"
+        INTEGER artist_id "Database ID"
+        INTEGER album_id "Database ID"
+        TEXT playlist_id "For playlist items"
+        TEXT display_name "NOT NULL"
+        TEXT subtitle "For albums"
+        INTEGER sort_order "NOT NULL DEFAULT 0"
+        DATETIME date_added "NOT NULL"
+    }
+
+    artist_aliases {
+        TEXT normalized_alias PK
+        TEXT display_name "NOT NULL"
+        INTEGER canonical_artist_id FK "NOT NULL"
+        DATETIME created_at "NOT NULL"
+    }
+
+    album_aliases {
+        TEXT normalized_key PK
+        TEXT display_title "NOT NULL"
+        INTEGER canonical_album_id FK "NOT NULL"
+        DATETIME created_at "NOT NULL"
+    }
+
+    background_migrations {
+        TEXT identifier PK
+        DATETIME completed_at
+        TEXT progress
+        BOOLEAN resumable "DEFAULT true"
+    }
+
+    tracks_fts {
+        INTEGER track_id "NOT INDEXED"
+        TEXT title
+        TEXT artist
+        TEXT album
+        TEXT album_artist
+        TEXT composer
+        TEXT genre
+        TEXT year
+    }
+
+    folders ||--o{ tracks : contains
+    albums ||--o{ album_artists : "has artists"
+    artists ||--o{ album_artists : "appears on"
+    albums ||--o{ tracks : contains
+    artists ||--o{ track_artists : "appears in"
+    tracks ||--o{ track_artists : "has artists"
+    tracks ||--o{ tracks : "duplicate of"
+    genres ||--o{ track_genres : "categorizes"
+    tracks ||--o{ track_genres : "has genres"
+    playlists ||--o{ playlist_tracks : contains
+    tracks ||--o{ playlist_tracks : "appears in"
+    tracks ||--|| tracks_fts : "searchable in"
+    artists ||--o{ artist_aliases : "merged into"
+    albums ||--o{ album_aliases : "merged into"
+```
+
+</details>
+
+### Credits
+
+Petrichor wouldn't be possible without following open source projects!
+
+- [GRDB.swift](https://github.com/groue/GRDB.swift/)
+- [Sparkle](https://github.com/sparkle-project/Sparkle)
+
+### Development Setup
+
+- Make sure you’re running macOS 14 or later.
+- Install [Xcode](https://developer.apple.com/xcode/).
+- Clone the repository and open `Petrichor.xcodeproj`
+
+#### Build & Release
+
+You can build your own `.dmg` installer using the [`build-installer.sh`](Scripts/build-installer.sh) script,
+although it requires you to have a paid Apple Developer account to notarize the compiled binary and installer,
+you can use `--bypass-notary` option if you don't want to notarize. To use the script, make sure you have
+following tools installed along with Xcode;
+
+- [xcpretty](https://github.com/xcpretty/xcpretty)
+- [create-dmg](https://github.com/sindresorhus/create-dmg)
+
+## 💖 Sponsors
+
+Thank you to all the sponsors for supporting Petrichor's development!
+
+<p align="center">
+  <img src=".github/assets/sponsors.svg" alt="Sponsors" />
+</p>
+
+## 📝 License
+
+- Petrichor is licensed under [MIT](LICENSE)
+- Core dependencies (GRDB, Sparkle) are licensed under MIT
+- The playback engine and metadata reader come from [CrescendoKit](https://github.com/kushalpandya/CrescendoKit) (proprietary, binary distribution), which dynamically links FFmpeg (LGPL-2.1-or-later) and statically embeds TagLib (MPL-1.1)
+
+For complete third-party license information, see [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md)

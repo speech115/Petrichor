@@ -1,0 +1,231 @@
+# SwiftLint configuration for Petrichor
+
+# Paths to include
+included:
+  - Application
+  - Managers
+  - Models
+  - Views
+  - Utilities
+  - PetrichorApp.swift
+
+# Paths to exclude
+excluded:
+  - Carthage
+  - Pods
+  - .build
+  - DerivedData
+  - ${PWD}/.build
+  - ${PWD}/DerivedData
+  - ${PWD}/Petrichor.xcodeproj
+  - ${PWD}/Resources
+  - ${PWD}/Configuration
+
+# Disable rules
+disabled_rules:
+  - todo # Allow TODO comments during development
+  - trailing_comma # Allow trailing commas in arrays/dictionaries
+  - identifier_name # Temporarily disable while setting up
+  - redundant_nil_coalescing
+
+# Opt-in rules
+opt_in_rules:
+  - array_init
+  - attributes
+  - closure_end_indentation
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - convenience_type
+  - discouraged_object_literal
+  - empty_collection_literal
+  - empty_count
+  - enum_case_associated_values_count
+  - explicit_init
+  - extension_access_modifier
+  - fallthrough
+  - fatal_error_message
+  - file_header
+  - file_name_no_space
+  - first_where
+  - flatmap_over_map_reduce
+  - force_unwrapping
+  - implicit_return
+  - joined_default_parameter
+  - last_where
+  - legacy_multiple
+  - legacy_random
+  - literal_expression_end_indentation
+  - lower_acl_than_parent
+  - modifier_order
+  - multiline_arguments
+  - multiline_function_chains
+  - multiline_literal_brackets
+  - multiline_parameters
+  - multiline_parameters_brackets
+  - operator_usage_whitespace
+  - overridden_super_call
+  - pattern_matching_keywords
+  - prefer_self_type_over_type_of_self
+  - prefer_zero_over_explicit_init
+  - private_action
+  - private_outlet
+  - prohibited_super_call
+  - redundant_type_annotation
+  - single_test_class
+  - sorted_first_last
+  - static_operator
+  - strong_iboutlet
+  - toggle_bool
+  - trailing_closure
+  - unavailable_function
+  - unneeded_parentheses_in_closure_argument
+  - unowned_variable_capture
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+  - yoda_condition
+
+# Analyzer rules (require 'swiftlint analyze' to run)
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+# Rule configurations
+line_length:
+  warning: 150
+  error: 200
+  ignores_urls: true
+  ignores_function_declarations: false
+  ignores_comments: true
+
+file_length:
+  warning: 1000
+  error: 1500
+
+function_body_length:
+  warning: 150
+  error: 250
+
+type_body_length:
+  warning: 500
+  error: 750
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+cyclomatic_complexity:
+  warning: 20
+  error: 25
+
+nesting:
+  type_level:
+    warning: 2
+  function_level:
+    warning: 3
+
+large_tuple:
+  warning: 3
+  error: 4
+
+trailing_whitespace:
+  ignores_empty_lines: true
+  ignores_comments: false
+
+vertical_whitespace:
+  max_empty_lines: 2
+
+empty_count:
+  only_after_dot: true
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+# Custom rules
+custom_rules:
+  no_print_statements:
+    included: ".*\\.swift"
+    excluded: ".*Tests?\\.swift"
+    name: "Print Statement"
+    regex: '^\s*print\('
+    message: "Use proper logging instead of print statements"
+    severity: warning
+  
+  no_force_cast:
+    included: ".*\\.swift"
+    name: "Force Cast"
+    regex: 'as! '
+    message: "Avoid force casting, use conditional casting instead"
+    severity: error
+  
+  no_force_try:
+    included: ".*\\.swift"
+    name: "Force Try"
+    regex: 'try!'
+    message: "Avoid force try, use do-catch or try? instead"
+    severity: error
+  
+  space_after_comment:
+    included: ".*\\.swift"
+    name: "Space After Comment"
+    regex: '(?<!:)(\/\/\w+)'
+    message: "Add a space after //"
+    severity: warning
+  
+  mark_format:
+    included: ".*\\.swift"
+    name: "MARK Format"
+    regex: '\/\/\s*MARK:[^\s]'
+    message: "Add a space after MARK:"
+    severity: warning
+
+  # --- Localization guards ---
+  # These catch the common ways an un-localized, user-facing string slips in.
+  # They are deliberately scoped to specific "sink" APIs so they do NOT fire on
+  # already-correct code (a literal wrapped in String(localized:) or a plain
+  # SwiftUI Text("…")/Button("…") literal, both of which ARE localized).
+  # They cannot catch every case — run the app under the Accented Pseudolanguage
+  # before a release to find anything these miss (see docs/LOCALIZATION.md).
+
+  localized_view_string_ternary:
+    included: ".*\\.swift"
+    name: "Unlocalized View String Ternary"
+    # Text/Button/Label/.help/.navigationTitle whose argument is a ternary of
+    # two string literals. Swift resolves this to the verbatim String overload,
+    # so it is NOT localized. Use a ternary of Text(...) values, or wrap each
+    # branch in String(localized:).
+    regex: '(Text|Button|Label|\.help|\.navigationTitle)\([^"\n]*\?\s*"[^"]*"\s*:\s*"'
+    message: "Ternary of string literals in a SwiftUI view is not localized. Use Text(...) branches or String(localized:) per branch."
+    severity: warning
+
+  localized_notification_message:
+    included: ".*\\.swift"
+    name: "Unlocalized Notification Message"
+    # A hardcoded literal passed to NotificationManager. Wrap it in String(localized:).
+    regex: '\.(addMessage\([^,)\n]+,|startActivity\()\s*"'
+    message: "Pass a String(localized:) value to NotificationManager, not a hardcoded literal."
+    severity: warning
+
+  localized_context_menu_title:
+    included: ".*\\.swift"
+    name: "Unlocalized Context Menu Title"
+    # ContextMenuItem .button(title:)/.menu(title:) with a hardcoded literal.
+    regex: '\.(button|menu)\(\s*title:\s*"'
+    message: "Localize context menu titles with String(localized:)."
+    severity: warning
+
+  localized_appkit_string:
+    included: ".*\\.swift"
+    name: "Unlocalized AppKit String"
+    # AppKit menu/alert/panel UI strings assigned a hardcoded literal.
+    regex: '(NSMenuItem\(\s*title:|addButton\(withTitle:|\.messageText\s*=|\.informativeText\s*=|\.prompt\s*=)\s*"'
+    message: "Localize AppKit UI strings (menu item / alert / panel) with String(localized:)."
+    severity: warning
+
+# Reporter type
+reporter: "xcode" # Use "json" for CI environments

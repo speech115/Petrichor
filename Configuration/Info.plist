@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Basic App Info -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIconFile</key>
+    <string>$(ASSETCATALOG_COMPILER_APPICON_NAME)</string>
+    <key>CFBundleIconName</key>
+    <string>$(ASSETCATALOG_COMPILER_APPICON_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>org.Petrichor.callback</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>$(PETRICHOR_URL_SCHEME)</string>
+            </array>
+        </dict>
+    </array>
+    
+    <!-- macOS Specific -->
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.music</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+		<key>NSHumanReadableCopyright</key>
+		<string>© 2025 Kushal Sunil Pandya</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    
+    <!-- Sparkle Configuration -->
+    <key>SUPublicEDKey</key>
+    <string>YPobXg0pi8vxrnsOk3ApMu2QF46GSFW68vwXjzuNEz4=</string>
+    <key>SUFeedURL</key>
+    <string>https://kushalpandya.github.io/Petrichor/appcast.xml</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUEnableInstallerLauncherService</key>
+    <true/>
+    
+    <!--  Last.fm Scrobble  -->
+    <key>LASTFM_API_KEY</key>
+    <string>$(LASTFM_API_KEY)</string>
+    <key>LASTFM_SHARED_SECRET</key>
+    <string>$(LASTFM_SHARED_SECRET)</string>
+
+    <!--  TMDB  -->
+    <key>TMDB_READ_ACCESS_TOKEN</key>
+    <string>$(TMDB_READ_ACCESS_TOKEN)</string>
+
+    <!--  Report a Problem (Sluice worker)  -->
+    <key>REPORT_ENDPOINT_URL</key>
+    <string>$(REPORT_ENDPOINT_URL)</string>
+    <key>REPORT_APP_KEY</key>
+    <string>$(REPORT_APP_KEY)</string>
+</dict>
+</plist>

@@ -1,0 +1,127 @@
+//
+// DatabaseManager class extension
+//
+// This extension contains all search-related query methods using FTS5.
+//
+
+import Foundation
+import GRDB
+
+extension DatabaseManager {
+    /// Search tracks using FTS5 with language-aware query strategy
+    func searchTracksUsingFTS(_ searchText: String) -> [Track] {
+        do {
+            var tracks = try dbQueue.read { db in
+                let ftsQuery = buildFTS5Query(searchText)
+
+                let matchingTrackIds = try Int64.fetchAll(
+                    db,
+                    sql: """
+                        SELECT track_id
+                        FROM tracks_fts
+                        WHERE tracks_fts MATCH ?
+                        ORDER BY rank
+                        """,
+                    arguments: [ftsQuery]
+                )
+                
+                guard !matchingTrackIds.isEmpty else { return [Track]() }
+                
+                return try Track.lightweightRequest()
+                    .filter(matchingTrackIds.contains(Track.Columns.trackId))
+                    .fetchAll(db)
+            }
+            
+            populateAlbumArtworkForTracks(&tracks)
+            
+            return tracks
+        } catch {
+            Logger.error("FTS search failed: \(error)")
+            return []
+        }
+    }
+
+    /// Search tracks for playlist addition with exclusions
+    func searchTracksForPlaylist(_ searchText: String, excludingTrackIds: Set<Int64> = []) -> [Track] {
+        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return []
+        }
+        
+        do {
+            var tracks = try dbQueue.read { db in
+                let prefixQuery = buildFTS5Query(searchText)
+                
+                // Respect the "hide duplicate songs" setting so playlist search results
+                // match what the rest of the library shows.
+                let duplicateClause = UserDefaults.standard.bool(forKey: "hideDuplicateTracks") ? " AND t.is_duplicate = 0" : ""
+
+                // Build the WHERE clause based on exclusions
+                let whereClause: String
+                let arguments: StatementArguments
+
+                if excludingTrackIds.isEmpty {
+                    whereClause = "WHERE tracks_fts MATCH ?\(duplicateClause)"
+                    arguments = [prefixQuery]
+                } else {
+                    let excludedIds = Array(excludingTrackIds)
+                    let placeholders = databaseQuestionMarks(count: excludedIds.count)
+                    whereClause = "WHERE tracks_fts MATCH ? AND t.id NOT IN (\(placeholders))\(duplicateClause)"
+
+                    var args: [DatabaseValueConvertible] = [prefixQuery]
+                    args.append(contentsOf: excludedIds)
+                    arguments = StatementArguments(args)
+                }
+                
+                return try Track.fetchAll(
+                    db,
+                    sql: """
+                    SELECT t.*
+                    FROM tracks t
+                    JOIN tracks_fts fts ON t.id = fts.track_id
+                    \(whereClause)
+                    ORDER BY rank
+                    LIMIT 200
+                    """,
+                    arguments: arguments
+                )
+            }
+            
+            populateAlbumArtworkForTracks(&tracks)
+            
+            return tracks
+        } catch {
+            Logger.error("FTS playlist search failed: \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Helper Methods
+    
+    /// FTS query builder with support for handling special characters
+    private func buildFTS5Query(_ searchText: String) -> String {
+        let tokens = searchText.split(separator: " ").map { String($0) }
+        
+        let processedTokens = tokens.map { token -> String in
+            let tokenStr = String(token)
+            
+            let problematicChars = CharacterSet(charactersIn: "\"*^:()[]{}~-")
+            
+            if tokenStr.rangeOfCharacter(from: problematicChars) != nil {
+                let escaped = tokenStr.replacingOccurrences(of: "\"", with: "\"\"")
+                return "\"\(escaped)\""
+            } else if tokenStr.contains(".") {
+                let escaped = tokenStr.replacingOccurrences(of: "\"", with: "\"\"")
+                return "\"\(escaped)\" OR \"\(escaped)\"*"
+            } else {
+                return "\(tokenStr)*"
+            }
+        }
+        
+        return processedTokens.joined(separator: " AND ")
+    }
+    
+    /// Generate SQL placeholders for IN clause
+    func databaseQuestionMarks(count: Int) -> String {
+        Array(repeating: "?", count: count).joined(separator: ",")
+    }
+}

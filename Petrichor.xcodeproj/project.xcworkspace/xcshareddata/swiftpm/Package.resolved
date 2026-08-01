@@ -1,0 +1,33 @@
+{
+  "originHash" : "1b23217648a21157bbdf207d1a0a369f913c81f912bca6a021d916875e5f12c6",
+  "pins" : [
+    {
+      "identity" : "crescendokit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/kushalpandya/CrescendoKit",
+      "state" : {
+        "revision" : "c87f1cb7b47ebecf7197ff990ac47415967a0e7a",
+        "version" : "1.2.2"
+      }
+    },
+    {
+      "identity" : "grdb.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groue/GRDB.swift",
+      "state" : {
+        "revision" : "b83108d10f42680d78f23fe4d4d80fc88dab3212",
+        "version" : "7.11.1"
+      }
+    },
+    {
+      "identity" : "sparkle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sparkle-project/Sparkle",
+      "state" : {
+        "revision" : "b6496a74a087257ef5e6da1c5b29a447a60f5bd7",
+        "version" : "2.9.4"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -1,0 +1,637 @@
+//
+// DatabaseManager class extension
+//
+// This extension contains the data normalization methods which clean up any missing details in tracks,
+// isolate duplicate album names as well as update track metadata across different db tables for album,
+// artist, etc.
+//
+
+import Foundation
+import GRDB
+
+/// Cache for entity lookups within a single write transaction to avoid redundant SELECTs
+class ScanLookupCache {
+    var artists: [String: Artist] = [:]        // normalizedName -> Artist
+    var albums: [String: Album] = [:]          // compositeKey -> Album
+    var genres: [String: Genre] = [:]          // name -> Genre
+
+    static func albumKey(_ normalizedTitle: String, _ normalizedArtist: String?) -> String {
+        "\(normalizedTitle)|\(normalizedArtist ?? "")"
+    }
+}
+
+extension DatabaseManager {
+    // MARK: - Artist Management
+
+    /// Find or create an artist by name
+    func findOrCreateArtist(_ name: String, in db: Database, cache: ScanLookupCache? = nil) throws -> Artist {
+        let normalizedName = ArtistParser.normalizeArtistName(name)
+
+        // Check cache first
+        if let cached = cache?.artists[normalizedName] {
+            return cached
+        }
+
+        // Try to find existing artist
+        if let existing = try Artist
+            .filter(Artist.Columns.normalizedName == normalizedName)
+            .fetchOne(db) {
+            cache?.artists[normalizedName] = existing
+            return existing
+        }
+
+        // Resolve a merged-away name to its canonical artist via alias (see DMMerge).
+        if let alias = try ArtistAlias.filter(ArtistAlias.Columns.normalizedAlias == normalizedName).fetchOne(db),
+           let canonical = try Artist.fetchOne(db, key: alias.canonicalArtistId) {
+            cache?.artists[normalizedName] = canonical
+            return canonical
+        }
+
+        // Create new artist
+        let artist = Artist(name: name)
+        try artist.insert(db)
+        cache?.artists[normalizedName] = artist
+        return artist
+    }
+
+    /// Process all artists for a track (artists, composers, album artists)
+    func processTrackArtists(_ track: FullTrack, in db: Database, cache: ScanLookupCache? = nil) throws {
+        guard let trackId = track.trackId else { return }
+
+        // Process main artists
+        if !track.artist.isEmpty && track.artist != "Unknown Artist" {
+            try processArtistsForField(
+                track.artist,
+                trackId: trackId,
+                role: TrackArtist.Role.artist,
+                in: db,
+                cache: cache
+            )
+        }
+
+        // Process composers
+        if !track.composer.isEmpty && track.composer != "Unknown Composer" {
+            try processArtistsForField(
+                track.composer,
+                trackId: trackId,
+                role: TrackArtist.Role.composer,
+                in: db,
+                cache: cache
+            )
+        }
+
+        // Process album artists; fall back to the track artist when there's no
+        // album-artist tag so the track still groups under an album artist (matches
+        // how most players treat a missing album-artist). See resolvedAlbumArtistField.
+        if let albumArtistField = resolvedAlbumArtistField(for: track) {
+            try processArtistsForField(
+                albumArtistField,
+                trackId: trackId,
+                role: TrackArtist.Role.albumArtist,
+                in: db,
+                cache: cache
+            )
+        }
+    }
+
+    /// The album-artist field for a track: the album-artist tag when present, else the
+    /// track artist as a fallback (nil when neither is meaningful). Shared by ingestion
+    /// and the v12 backfill so both apply the same rule.
+    func resolvedAlbumArtistField(for track: FullTrack) -> String? {
+        if let albumArtist = track.albumArtist, !albumArtist.isEmpty {
+            return albumArtist
+        }
+        guard !track.artist.isEmpty, track.artist != "Unknown Artist" else { return nil }
+        return track.artist
+    }
+
+    func processArtistsForField(_ field: String, trackId: Int64, role: String, in db: Database, cache: ScanLookupCache? = nil) throws {
+        // Pass the role so a name the user merged away resolves to its canonical artist here too.
+        // `findOrCreateArtist` already does that for whole names, but only for names that survive
+        // parsing intact - without the lookup, a merged name with a separator is split first.
+        let artistNames = ArtistParser.parse(field, role: role)
+
+        for (index, artistName) in artistNames.enumerated() {
+            let artist = try findOrCreateArtist(artistName, in: db, cache: cache)
+
+            guard let artistId = artist.id else { continue }
+
+            // Create track-artist relationship
+            let trackArtist = TrackArtist(
+                trackId: trackId,
+                artistId: artistId,
+                role: role,
+                position: index
+            )
+
+            try trackArtist.insert(db)
+        }
+    }
+
+    /// Update artist artwork
+    func updateArtistArtwork(_ artistId: Int64, artworkData: Data?, in db: Database) throws {
+        guard let artworkData = artworkData, !artworkData.isEmpty else { return }
+
+        // Only update if artist doesn't already have artwork
+        try Artist
+            .filter(Artist.Columns.id == artistId && Artist.Columns.artworkData == nil)
+            .updateAll(
+                db,
+                Artist.Columns.artworkData.set(to: artworkData),
+                Artist.Columns.updatedAt.set(to: Date())
+            )
+    }
+
+    // MARK: - Album Management
+
+    /// Find or create an album with better duplicate prevention
+    func findOrCreateAlbum(_ title: String, albumArtist: String?, in db: Database, cache: ScanLookupCache? = nil) throws -> Album {
+        let normalizedTitle = Album.normalizeTitle(title)
+        let normalizedArtistName = albumArtist.flatMap { artist in
+            (!artist.isEmpty && artist != "Unknown Artist") ? ArtistParser.normalizeArtistName(artist) : nil
+        }
+
+        // Check cache first
+        let cacheKey = ScanLookupCache.albumKey(normalizedTitle, normalizedArtistName)
+        if let cached = cache?.albums[cacheKey] {
+            return cached
+        }
+
+        // Resolve a merged-away album to its canonical album via alias (see DMMerge).
+        if let alias = try AlbumAlias.filter(AlbumAlias.Columns.normalizedKey == cacheKey).fetchOne(db),
+           let canonical = try Album.fetchOne(db, key: alias.canonicalAlbumId) {
+            cache?.albums[cacheKey] = canonical
+            return canonical
+        }
+
+        let query = Album.filter(Album.Columns.normalizedTitle == normalizedTitle)
+
+        if let albumArtist = albumArtist, !albumArtist.isEmpty, albumArtist != "Unknown Artist",
+           let normalizedArtist = normalizedArtistName {
+            if let artist = try Artist
+                .filter((Artist.Columns.name == albumArtist) || (Artist.Columns.normalizedName == normalizedArtist))
+                .fetchOne(db),
+               let artistId = artist.id {
+                // Find albums that have this artist as an album artist
+                let albumIdsWithArtist = try AlbumArtist
+                    .filter(AlbumArtist.Columns.artistId == artistId)
+                    .select(AlbumArtist.Columns.albumId, as: Int64.self)
+                    .fetchSet(db)
+
+                // Filter to albums with matching title AND this artist
+                if let existingAlbum = try Album
+                    .filter(Album.Columns.normalizedTitle == normalizedTitle)
+                    .filter(albumIdsWithArtist.contains(Album.Columns.id))
+                    .fetchOne(db) {
+                    cache?.albums[cacheKey] = existingAlbum
+                    return existingAlbum
+                }
+            }
+        } else {
+            // No album artist info, fall back to title-only matching
+            if let existingAlbum = try query.fetchOne(db) {
+                cache?.albums[cacheKey] = existingAlbum
+                return existingAlbum
+            }
+        }
+
+        // No existing album found, create new one
+        let album = Album(title: title)
+        try album.insert(db)
+
+        // If we have an album artist, create the relationship
+        if let albumArtist = albumArtist, !albumArtist.isEmpty, albumArtist != "Unknown Artist" {
+            let artist = try findOrCreateArtist(albumArtist, in: db, cache: cache)
+            if let artistId = artist.id, let albumId = album.id {
+                let albumArtist = AlbumArtist(
+                    albumId: albumId,
+                    artistId: artistId,
+                    role: AlbumArtist.Role.primary,
+                    position: 0
+                )
+                try albumArtist.insert(db)
+            }
+        }
+
+        cache?.albums[cacheKey] = album
+        return album
+    }
+
+    /// Process album for a track
+    func processTrackAlbum(_ track: inout FullTrack, in db: Database, cache: ScanLookupCache? = nil) throws {
+        guard !track.album.isEmpty && track.album != "Unknown Album" else { return }
+
+        // Determine the album artist (prefer albumArtist field, then compilation flag, then first artist from multi-artist string)
+        let albumArtistName: String?
+        if let albumArtist = track.albumArtist, !albumArtist.isEmpty {
+            albumArtistName = albumArtist
+        } else if track.compilation {
+            // Compilation flag set but no album artist tag; group all tracks under a canonical name
+            // so a Various Artists comp doesn't fragment into one album per track artist.
+            albumArtistName = "Various Artists"
+        } else if !track.artist.isEmpty && track.artist != "Unknown Artist" {
+            // Parse the artist field and use the first artist as the album artist
+            let artists = ArtistParser.parse(track.artist, role: TrackArtist.Role.artist)
+            albumArtistName = artists.first
+        } else {
+            albumArtistName = nil
+        }
+
+        let album = try findOrCreateAlbum(track.album, albumArtist: albumArtistName, in: db, cache: cache)
+        track.albumId = album.id
+
+        // Update album metadata if we have more info
+        if let albumId = album.id {
+            try updateAlbumMetadata(albumId: albumId, from: track, in: db)
+
+            // Process all artists from the track as album artists
+            if !track.artist.isEmpty && track.artist != "Unknown Artist" {
+                try processAlbumArtists(albumId, artistString: track.artist, in: db, cache: cache)
+            }
+        }
+    }
+
+    /// Process all artists for an album
+    private func processAlbumArtists(_ albumId: Int64, artistString: String, in db: Database, cache: ScanLookupCache? = nil) throws {
+        // Parse all artists from the string; the string is the artist tag, so that's the lookup.
+        let artistNames = ArtistParser.parse(artistString, role: TrackArtist.Role.artist)
+
+        // Get existing album artists
+        let existingAlbumArtists = try AlbumArtist
+            .filter(AlbumArtist.Columns.albumId == albumId)
+            .fetchAll(db)
+        
+        // Create a set of existing artist IDs for this album
+        let existingArtistIds = Set(existingAlbumArtists.map { $0.artistId })
+        
+        for (index, artistName) in artistNames.enumerated() {
+            let artist = try findOrCreateArtist(artistName, in: db, cache: cache)
+
+            guard let artistId = artist.id else { continue }
+
+            // Skip if this artist is already associated with the album
+            if existingArtistIds.contains(artistId) {
+                continue
+            }
+            
+            // Determine role - primary for first artist if no artists exist yet
+            let role: String
+            if existingAlbumArtists.isEmpty && index == 0 {
+                role = AlbumArtist.Role.primary
+            } else {
+                role = AlbumArtist.Role.featured
+            }
+            
+            // Calculate position
+            let position = existingAlbumArtists.count + index
+            
+            // Create album-artist relationship
+            let albumArtist = AlbumArtist(
+                albumId: albumId,
+                artistId: artistId,
+                role: role,
+                position: position
+            )
+            
+            try albumArtist.insert(db)
+        }
+    }
+
+    private func updateAlbumMetadata(albumId: Int64, from track: FullTrack, in db: Database) throws {
+        guard let album = try Album.fetchOne(db, key: albumId) else { return }
+
+        var needsUpdate = false
+
+        // Update release year if not set
+        if album.releaseYear == nil && !track.year.isEmpty && track.year != "Unknown Year" {
+            if let year = Int(track.year) {
+                album.releaseYear = year
+                needsUpdate = true
+            }
+        }
+
+        // Update release date if not set
+        if album.releaseDate == nil && track.releaseDate != nil {
+            album.releaseDate = track.releaseDate
+            needsUpdate = true
+        }
+
+        // Update total tracks/discs if we have more complete info
+        if let trackTotal = track.totalTracks,
+           let albumTotal = album.totalTracks,
+           trackTotal > albumTotal {
+            album.totalTracks = trackTotal
+            needsUpdate = true
+        }
+
+        if let discTotal = track.totalDiscs,
+           let albumTotal = album.totalDiscs,
+           discTotal > albumTotal {
+            album.totalDiscs = discTotal
+            needsUpdate = true
+        }
+
+        // Copy extended metadata that might be useful
+        if album.label == nil, let label = track.extendedMetadata?.label {
+            album.label = label
+            needsUpdate = true
+        }
+
+        if needsUpdate {
+            try album.update(db)
+        }
+    }
+
+    /// Update album artwork
+    func updateAlbumArtwork(_ albumId: Int64, artworkData: Data?, in db: Database) throws {
+        guard let artworkData = artworkData, !artworkData.isEmpty else { return }
+
+        // Check if album already has artwork, don't overwrite existing artwork
+        if let existingArtwork = try Album
+            .select(Album.Columns.artworkData)
+            .filter(Album.Columns.id == albumId)
+            .fetchOne(db)?[Album.Columns.artworkData] as Data?,
+           !existingArtwork.isEmpty {
+            // Album already has artwork, skip update
+            return
+        }
+
+        try db.execute(
+            sql: "UPDATE albums SET artwork_data = ?, updated_at = ? WHERE id = ? AND artwork_data IS NULL",
+            arguments: [artworkData, Date(), albumId]
+        )
+    }
+
+    // MARK: - Genre Management
+
+    /// Find or create genres for a track
+    func processTrackGenres(_ track: FullTrack, in db: Database, cache: ScanLookupCache? = nil) throws {
+        guard let trackId = track.trackId,
+              !track.genre.isEmpty && track.genre != "Unknown Genre" else { return }
+
+        // Genres might be separated by various delimiters
+        let genreNames = track.genre
+            .split(separator: ";")
+            .flatMap { $0.split(separator: "/") }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for genreName in genreNames {
+            let genre = try findOrCreateGenre(String(genreName), in: db, cache: cache)
+
+            guard let genreId = genre.id else { continue }
+
+            // Create track-genre relationship
+            let trackGenre = TrackGenre(trackId: trackId, genreId: genreId)
+            try trackGenre.insert(db)
+        }
+    }
+
+    private func findOrCreateGenre(_ name: String, in db: Database, cache: ScanLookupCache? = nil) throws -> Genre {
+        // Check cache first
+        if let cached = cache?.genres[name] {
+            return cached
+        }
+
+        if let existing = try Genre
+            .filter(Genre.Columns.name == name)
+            .fetchOne(db) {
+            cache?.genres[name] = existing
+            return existing
+        }
+
+        let genre = Genre(name: name)
+        try genre.insert(db)
+        cache?.genres[name] = genre
+        return genre
+    }
+
+    // MARK: - Stats Update
+
+    /// Update artist and album statistics
+    func updateEntityStats(in db: Database) throws {
+        try updateArtistStats(in: db)
+        try updateAlbumStats(in: db)
+    }
+
+    /// Recompute totalTracks and totalAlbums for every artist in a single SQL statement.
+    func updateArtistStats(in db: Database) throws {
+        // GRDB's query interface can't express correlated subqueries bound
+        // to the UPDATE's outer row so we're using raw SQL here.
+        try db.execute(sql: """
+            UPDATE artists
+            SET total_tracks = (
+                    SELECT COUNT(DISTINCT ta.track_id)
+                    FROM track_artists ta
+                    JOIN tracks t ON t.id = ta.track_id
+                    WHERE ta.artist_id = artists.id
+                      AND ta.role = 'artist'
+                      AND t.is_duplicate = 0
+                ),
+                total_albums = (
+                    SELECT COUNT(DISTINCT album_id)
+                    FROM album_artists
+                    WHERE artist_id = artists.id
+                ),
+                updated_at = ?
+            """, arguments: [Date()])
+    }
+
+    /// Recompute totalTracks for every album in a single SQL statement.
+    func updateAlbumStats(in db: Database) throws {
+        // GRDB's query interface can't express correlated subqueries bound
+        // to the UPDATE's outer row so we're using raw SQL here.
+        try db.execute(sql: """
+            UPDATE albums
+            SET total_tracks = (
+                    SELECT COUNT(*)
+                    FROM tracks
+                    WHERE tracks.album_id = albums.id
+                      AND tracks.is_duplicate = 0
+                ),
+                updated_at = ?
+            """, arguments: [Date()])
+    }
+
+    // MARK: - Query Methods for Normalized Data
+
+    /// Get all artists with track counts
+    func getAllArtists() throws -> [Artist] {
+        try dbQueue.read { db in
+            try Artist
+                .order(Artist.Columns.sortName)
+                .fetchAll(db)
+        }
+    }
+
+    /// Get all albums with track counts
+    func getAllAlbums() throws -> [Album] {
+        try dbQueue.read { db in
+            try Album
+                .order(Album.Columns.sortTitle)
+                .fetchAll(db)
+        }
+    }
+
+    /// Get all genres with track counts
+    func getAllGenres() throws -> [Genre] {
+        try dbQueue.read { db in
+            try Genre
+                .order(Genre.Columns.name)
+                .fetchAll(db)
+        }
+    }
+
+    /// Get tracks by artist (including all roles)
+    func getTracksByArtist(_ artistId: Int64) throws -> [Track] {
+        try dbQueue.read { db in
+            let trackIds = try TrackArtist
+                .filter(TrackArtist.Columns.artistId == artistId)
+                .select(TrackArtist.Columns.trackId, as: Int64.self)
+                .fetchAll(db)
+
+            return try Track
+                .filter(trackIds.contains(Track.Columns.trackId))
+                .fetchAll(db)
+        }
+    }
+
+    /// Get tracks by album
+    func getTracksByAlbum(_ albumId: Int64) throws -> [Track] {
+        try dbQueue.read { db in
+            try Track
+                .filter(Track.Columns.albumId == albumId)
+                .order(Track.Columns.discNumber, Track.Columns.trackNumber)
+                .fetchAll(db)
+        }
+    }
+
+    /// Get tracks by genre
+    func getTracksByGenre(_ genreId: Int64) throws -> [Track] {
+        try dbQueue.read { db in
+            let trackIds = try TrackGenre
+                .filter(TrackGenre.Columns.genreId == genreId)
+                .select(TrackGenre.Columns.trackId, as: Int64.self)
+                .fetchAll(db)
+
+            return try Track
+                .filter(trackIds.contains(Track.Columns.trackId))
+                .fetchAll(db)
+        }
+    }
+
+    /// Get tracks by decade
+    func getTracksByDecade(_ decade: Int) throws -> [Track] {
+        try dbQueue.read { db in
+            let startYear = String(decade)
+            let endYear = String(decade + 9)
+
+            return try Track
+                .filter(Track.Columns.year >= startYear)
+                .filter(Track.Columns.year <= endYear)
+                .filter(Track.Columns.year != "")
+                .filter(Track.Columns.year != "Unknown Year")
+                .order(Track.Columns.year, Track.Columns.album)
+                .fetchAll(db)
+        }
+    }
+
+    /// Get decade statistics
+    func getDecadeStats() throws -> [(decade: Int, count: Int)] {
+        try dbQueue.read { db in
+            // First, get all valid years
+            let validYears = try Track
+                .select(Track.Columns.year, as: String.self)
+                .filter(Track.Columns.year != "")
+                .filter(Track.Columns.year != "Unknown Year")
+                .distinct()
+                .fetchAll(db)
+
+            // Group by decade
+            var decadeStats: [Int: Int] = [:]
+
+            for yearString in validYears {
+                guard let year = Int(yearString), year > 0 else { continue }
+                let decade = (year / 10) * 10
+
+                let count = try Track
+                    .filter(Track.Columns.year == yearString)
+                    .fetchCount(db)
+
+                decadeStats[decade, default: 0] += count
+            }
+
+            // Convert to array and sort
+            return decadeStats
+                .map { (decade: $0.key, count: $0.value) }
+                .sorted { $0.decade > $1.decade }
+        }
+    }
+
+    // MARK: - Compilation Albums
+
+    /// Group tracks that share a parent directory and album title under a single album.
+    func normalizeCompilationAlbums() async throws {
+        try await dbQueue.write { db in
+            let tracks = try Track
+                .filter(Track.Columns.isDuplicate == false)
+                .filter(Track.Columns.albumId != nil)
+                .fetchAll(db)
+
+            // Bucket by (parent directory, normalized album title).
+            var buckets: [String: [Track]] = [:]
+            for track in tracks {
+                let title = Album.normalizeTitle(track.album)
+                guard !title.isEmpty else { continue }
+                let dir = track.url.deletingLastPathComponent().path
+                buckets["\(dir)|\(title)", default: []].append(track)
+            }
+
+            var groupedAlbums = 0
+
+            for bucket in buckets.values {
+                let albumIds = Set(bucket.compactMap { $0.albumId })
+                guard albumIds.count > 1 else { continue }  // already a single album
+
+                // Canonical album: the one with the most tracks (ties -> lowest id).
+                let counts = bucket.reduce(into: [Int64: Int]()) { tally, track in
+                    if let id = track.albumId { tally[id, default: 0] += 1 }
+                }
+                guard let canonicalId = counts.max(by: {
+                    $0.value != $1.value ? $0.value < $1.value : $0.key > $1.key
+                })?.key else { continue }
+
+                // Move the bucket's remaining tracks onto the canonical album.
+                let strays = bucket.filter { $0.albumId != canonicalId }.compactMap { $0.trackId }
+                try Track.filter(strays.contains(Track.Columns.trackId))
+                    .updateAll(db, Track.Columns.albumId.set(to: canonicalId))
+
+                try self.assignAlbumArtists(albumId: canonicalId, tracks: bucket, in: db)
+                groupedAlbums += 1
+            }
+
+            if groupedAlbums > 0 {
+                Logger.info("Normalized \(groupedAlbums) compilation album(s)")
+            }
+        }
+    }
+
+    /// Rebuild album_artists for a grouped album, using "Various Artists" as primary when tracks span multiple artists.
+    private func assignAlbumArtists(albumId: Int64, tracks: [Track], in db: Database) throws {
+        var names: [String] = []
+        var seen = Set<String>()
+        for track in tracks where !track.artist.isEmpty && track.artist != "Unknown Artist" {
+            guard let primary = ArtistParser.parse(track.artist, role: TrackArtist.Role.artist).first else { continue }
+            if seen.insert(ArtistParser.normalizeArtistName(primary)).inserted { names.append(primary) }
+        }
+
+        try AlbumArtist.filter(AlbumArtist.Columns.albumId == albumId).deleteAll(db)
+
+        let ordered = names.count > 1 ? ["Various Artists"] + names : names
+        for (index, name) in ordered.enumerated() {
+            guard let artistId = try findOrCreateArtist(name, in: db).id else { continue }
+            let role = index == 0 ? AlbumArtist.Role.primary : AlbumArtist.Role.featured
+            try AlbumArtist(albumId: albumId, artistId: artistId, role: role, position: index).insert(db)
+        }
+    }
+}

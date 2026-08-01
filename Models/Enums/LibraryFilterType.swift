@@ -1,0 +1,293 @@
+import Foundation
+
+enum LibraryFilterType: String, CaseIterable {
+    case artists = "Artists"
+    case albums = "Albums"
+    case albumArtists = "Album Artists"
+    case composers = "Composers"
+    case genres = "Genres"
+    case decades = "Decades"
+    case years = "Years"
+
+    // MARK: - Computed Props
+
+    var databaseColumn: String {
+        switch self {
+        case .artists: return "artist"
+        case .albums: return "album"
+        case .albumArtists: return "album_artist"
+        case .composers: return "composer"
+        case .genres: return "genre"
+        case .decades: return "year"
+        case .years: return "year"
+        }
+    }
+
+    var stableIndex: Int {
+        switch self {
+        case .artists: return 0
+        case .albums: return 1
+        case .albumArtists: return 2
+        case .composers: return 3
+        case .genres: return 4
+        case .decades: return 5
+        case .years: return 6
+        }
+    }
+
+    var unknownPlaceholder: String {
+        switch self {
+        case .artists: return "Unknown Artist"
+        case .albums: return "Unknown Album"
+        case .albumArtists: return "Unknown Album Artist"
+        case .composers: return "Unknown Composer"
+        case .genres: return "Unknown Genre"
+        case .decades: return "Unknown Decade"
+        case .years: return "Unknown Year"
+        }
+    }
+
+    var singularDisplayName: String {
+        switch self {
+        case .artists: return String(localized: "Artist")
+        case .albums: return String(localized: "Album")
+        case .albumArtists: return String(localized: "Album Artist")
+        case .composers: return String(localized: "Composer")
+        case .genres: return String(localized: "Genre")
+        case .decades: return String(localized: "Decade")
+        case .years: return String(localized: "Year")
+        }
+    }
+
+    /// Localized plural label for display (e.g. sidebar section, menu title).
+    /// Distinct from `rawValue`, which stays English and is used as a stable
+    /// identifier for persistence and queries.
+    var pluralDisplayName: String {
+        switch self {
+        case .artists: return String(localized: "Artists")
+        case .albums: return String(localized: "Albums")
+        case .albumArtists: return String(localized: "Album Artists")
+        case .composers: return String(localized: "Composers")
+        case .genres: return String(localized: "Genres")
+        case .decades: return String(localized: "Decades")
+        case .years: return String(localized: "Years")
+        }
+    }
+
+    /// Localized label shown in place of the stored English `unknownPlaceholder`
+    /// at display sites. The stored value stays English so grouping, queries,
+    /// and persistence remain stable.
+    var localizedUnknownPlaceholder: String {
+        switch self {
+        case .artists: return String(localized: "Unknown Artist")
+        case .albums: return String(localized: "Unknown Album")
+        case .albumArtists: return String(localized: "Unknown Album Artist")
+        case .composers: return String(localized: "Unknown Composer")
+        case .genres: return String(localized: "Unknown Genre")
+        case .decades: return String(localized: "Unknown Decade")
+        case .years: return String(localized: "Unknown Year")
+        }
+    }
+
+    /// Maps a stored value to its display label, translating only the English
+    /// "Unknown X" sentinel and leaving real metadata untouched. Use at display
+    /// sites only — never for sorting, grouping, querying, or persistence.
+    func localizedDisplay(_ value: String) -> String {
+        value == unknownPlaceholder ? localizedUnknownPlaceholder : value
+    }
+
+    /// Localized title for the "all items" row (full phrase for correct word
+    /// order across languages).
+    var allItemsTitle: String {
+        switch self {
+        case .artists: return String(localized: "All Artists")
+        case .albums: return String(localized: "All Albums")
+        case .albumArtists: return String(localized: "All Album Artists")
+        case .composers: return String(localized: "All Composers")
+        case .genres: return String(localized: "All Genres")
+        case .decades: return String(localized: "All Decades")
+        case .years: return String(localized: "All Years")
+        }
+    }
+
+    var filterPlaceholder: String {
+        switch self {
+        case .artists: return String(localized: "Filter Artists...")
+        case .albums: return String(localized: "Filter Albums...")
+        case .albumArtists: return String(localized: "Filter Album Artists...")
+        case .composers: return String(localized: "Filter Composers...")
+        case .genres: return String(localized: "Filter Genres...")
+        case .decades: return String(localized: "Filter Decades...")
+        case .years: return String(localized: "Filter Years...")
+        }
+    }
+
+    var allItemIcon: String {
+        switch self {
+        case .artists: return Icons.person2Fill
+        case .albums: return Icons.opticalDiscFill
+        case .albumArtists: return Icons.person2CropSquareStackFill
+        case .composers: return Icons.person2Wave2Fill
+        case .genres: return Icons.musicPagesFill
+        case .decades: return Icons.calendarBadgeClock
+        case .years: return Icons.calendarCircleFill
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .artists: return Icons.personFill
+        case .albums: return Icons.opticalDiscFill
+        case .albumArtists: return Icons.person2CropSquareStackFill
+        case .composers: return Icons.person2Wave2Fill
+        case .genres: return Icons.musicPagesFill
+        case .decades: return Icons.calendarBadgeClock
+        case .years: return Icons.calendarCircleFill
+        }
+    }
+
+    var emptyStateMessage: String {
+        switch self {
+        case .artists: return String(localized: "No artists found in your library")
+        case .albums: return String(localized: "No albums found in your library")
+        case .albumArtists: return String(localized: "No album artists found in your library")
+        case .composers: return String(localized: "No composers found in your library")
+        case .genres: return String(localized: "No genres found in your library")
+        case .decades: return String(localized: "No decades found in your library")
+        case .years: return String(localized: "No release years found in your library")
+        }
+    }
+
+    var usesMultiArtistParsing: Bool {
+        artistRole != nil
+    }
+
+    /// The `TrackArtist.Role` this category's tracks relate through, for categories whose value is
+    /// a multi-artist string. Also selects the name lookup `ArtistParser` parses against.
+    var artistRole: String? {
+        switch self {
+        case .artists: return TrackArtist.Role.artist
+        case .albumArtists: return TrackArtist.Role.albumArtist
+        case .composers: return TrackArtist.Role.composer
+        default: return nil
+        }
+    }
+
+    // MARK: - Methods
+
+    func getValue(from track: Track) -> String {
+        switch self {
+        case .artists: return track.artist
+        case .albums: return track.album
+        case .albumArtists: return track.albumArtist ?? ""
+        case .composers: return track.composer
+        case .genres: return track.genre
+        case .decades:
+            // Compute decade from year
+            if let yearInt = Int(track.year.prefix(4)) {
+                let decade = (yearInt / 10) * 10
+                return "\(decade)s"
+            }
+            return unknownPlaceholder
+        case .years: return track.year
+        }
+    }
+
+    func getFilterItems(from tracks: [Track]) -> [LibraryFilterItem] {
+        if usesMultiArtistParsing {
+            // Multi-artist parsing with deduplication
+            var normalizedToArtistInfo: [String: (displayName: String, tracks: Set<Track>)] = [:]
+
+            for track in tracks {
+                let value = getValue(from: track)
+                let artists = ArtistParser.parse(value, unknownPlaceholder: unknownPlaceholder, role: artistRole)
+
+                for artist in artists {
+                    let normalizedName = ArtistParser.normalizeArtistName(artist)
+
+                    if var existing = normalizedToArtistInfo[normalizedName] {
+                        // Add track to existing artist
+                        existing.tracks.insert(track)
+
+                        // Keep the "better" display name (usually longer with more formatting)
+                        if artist.count > existing.displayName.count {
+                            existing.displayName = artist
+                        }
+
+                        normalizedToArtistInfo[normalizedName] = existing
+                    } else {
+                        // New artist
+                        normalizedToArtistInfo[normalizedName] = (displayName: artist, tracks: [track])
+                    }
+                }
+            }
+
+            // Convert to filter items using the best display name
+            return normalizedToArtistInfo.map { _, info in
+                LibraryFilterItem(name: info.displayName, count: info.tracks.count, filterType: self)
+            }
+        } else {
+            // Generic handling (unchanged)
+            var itemCounts: [String: Int] = [:]
+
+            for track in tracks {
+                let value = getValue(from: track)
+                let normalizedValue = value.isEmpty ? unknownPlaceholder : value
+                itemCounts[normalizedValue, default: 0] += 1
+            }
+
+            return itemCounts.map { name, count in
+                LibraryFilterItem(name: name, count: count, filterType: self)
+            }
+        }
+    }
+
+    func trackMatches(_ track: Track, filterValue: String) -> Bool {
+        if self == .decades {
+            if filterValue == unknownPlaceholder {
+                // For unknown decade, check if year is empty or invalid
+                let year = track.year
+                if year.isEmpty || year == "Unknown Year" {
+                    return true
+                }
+                // Also check if year is invalid (not a valid decade)
+                if let yearInt = Int(year.prefix(4)) {
+                    return yearInt < 1900 || yearInt > 2100
+                }
+                return true // If can't parse as int, it's unknown
+            } else {
+                // Regular decade matching
+                if let yearInt = Int(track.year.prefix(4)) {
+                    let trackDecade = (yearInt / 10) * 10
+                    let trackDecadeString = "\(trackDecade)s"
+                    return trackDecadeString == filterValue
+                }
+                return false
+            }
+        }
+
+        if usesMultiArtistParsing && filterValue != unknownPlaceholder {
+            // Multi-artist parsing with normalization
+            let value = getValue(from: track)
+            let artists = ArtistParser.parse(value, unknownPlaceholder: unknownPlaceholder, role: artistRole)
+
+            // Check if any parsed artist matches the filter value
+            return artists.contains { artist in
+                artist == filterValue || ArtistParser.normalizeArtistName(artist) == ArtistParser.normalizeArtistName(filterValue)
+            }
+        } else if filterValue == unknownPlaceholder {
+            // Handle unknown values
+            let value = getValue(from: track)
+            return value.isEmpty || value == unknownPlaceholder
+        } else {
+            // Exact match
+            let value = getValue(from: track)
+            return value == filterValue
+        }
+    }
+}
+
+struct LibraryFilterRequest: Equatable {
+    let filterType: LibraryFilterType
+    let value: String
+}
