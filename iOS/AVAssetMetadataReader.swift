@@ -8,6 +8,43 @@
 import AVFoundation
 import Foundation
 
+/// Разбор имени файла как источник метаданных, когда теги их не содержат.
+///
+/// Библиотека пользователя смешивает два стиля имён: `#### - Исполнитель -
+/// Название` (числовой префикс задаёт порядок в плейлистах и остаётся частью
+/// заголовка) и обычный `Исполнитель - Название` без префикса — именно этот
+/// второй случай встречается чаще всего там, где тег исполнителя реально
+/// отсутствует.
+enum FilenameMetadataFallback {
+    private static let separator = " - "
+
+    static func parse(_ url: URL) -> (artist: String?, title: String) {
+        let base = url.deletingPathExtension().lastPathComponent
+            .trimmingCharacters(in: .whitespaces)
+        let parts = base.components(separatedBy: separator)
+
+        guard parts.count >= 2 else {
+            return (nil, base)
+        }
+
+        // `#### - Исполнитель - Название`: префикс остаётся частью заголовка.
+        if parts.count >= 3, !parts[0].isEmpty, parts[0].allSatisfy(\.isNumber) {
+            let artist = parts[1].trimmingCharacters(in: .whitespaces)
+            return (artist, base)
+        }
+
+        // `Исполнитель - Название`.
+        guard !parts[0].isEmpty, !parts[0].allSatisfy(\.isNumber) else {
+            return (nil, base)
+        }
+
+        let artist = parts[0].trimmingCharacters(in: .whitespaces)
+        let title = parts.dropFirst().joined(separator: separator)
+            .trimmingCharacters(in: .whitespaces)
+        return (artist, title)
+    }
+}
+
 struct AVAssetMetadataReader: MetadataReader {
     /// MP3 is the only format the iOS port plays.
     static var supportedFileExtensions: [String] {
@@ -80,6 +117,20 @@ struct AVAssetMetadataReader: MetadataReader {
         // Artwork: prefer the embedded front cover, fall back to external.
         if metadata.artworkData == nil, let externalArtwork = externalArtwork {
             metadata.artworkData = externalArtwork
+        }
+
+        // Filename fallback: only for whatever the tags left empty. The
+        // "Unknown Artist" placeholder is applied later, in shared code
+        // (`DMMetadata.swift`) — here we only care whether a real value is
+        // still missing.
+        if metadata.artist?.nilIfEmpty == nil || metadata.title?.nilIfEmpty == nil {
+            let parsed = FilenameMetadataFallback.parse(url)
+            if metadata.artist?.nilIfEmpty == nil {
+                metadata.artist = parsed.artist
+            }
+            if metadata.title?.nilIfEmpty == nil {
+                metadata.title = parsed.title
+            }
         }
 
         return metadata
