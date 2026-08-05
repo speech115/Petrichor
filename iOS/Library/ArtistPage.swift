@@ -220,7 +220,7 @@ struct ArtistPage: View {
         bio = loaded.bio
     }
 
-    private static func albums(from tracks: [Track]) -> [AlbumEntity] {
+    private static nonisolated func albums(from tracks: [Track]) -> [AlbumEntity] {
         let grouped = Dictionary(grouping: tracks) { track in
             track.albumId.map { "album:\($0)" } ?? "name:\(track.album)|\(track.albumArtist ?? "")"
         }

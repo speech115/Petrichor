@@ -64,6 +64,16 @@ struct SearchView: View {
                 .autocorrectionDisabled()
                 .navigationTitle(String(localized: "Search"))
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(for: LibraryDestination.self) { destination in
+                    switch destination {
+                    case .artist(let name):
+                        ArtistPage(artistName: name)
+                    case .album(let album):
+                        AlbumPage(album: album)
+                    case .category, .tracks, .allTracks:
+                        EmptyView()
+                    }
+                }
         }
     }
 
@@ -120,9 +130,7 @@ struct SearchView: View {
     }
 
     private func artistRow(_ artist: ArtistEntity) -> some View {
-        Button {
-            // TODO: ticket 06 — artist page navigation lands on integration
-        } label: {
+        NavigationLink(value: LibraryDestination.artist(name: artist.displayName)) {
             entityRow(
                 title: artist.displayName,
                 subtitle: artist.subtitle,
@@ -134,9 +142,7 @@ struct SearchView: View {
     }
 
     private func albumRow(_ album: AlbumEntity) -> some View {
-        Button {
-            // TODO: ticket 06 — album page navigation lands on integration
-        } label: {
+        NavigationLink(value: LibraryDestination.album(album)) {
             entityRow(
                 title: album.displayName,
                 subtitle: album.artistName ?? album.subtitle,
