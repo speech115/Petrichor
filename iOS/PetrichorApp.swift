@@ -26,6 +26,11 @@ struct PetrichorApp: App {
                 .environmentObject(appCoordinator.libraryManager)
                 .environmentObject(appCoordinator.playlistManager)
                 .tint(.pink)
+                .onAppear {
+                    // Re-apply the stored color scheme: overrideUserInterfaceStyle
+                    // does not survive a relaunch on its own.
+                    ColorMode.current.apply()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .background || phase == .inactive {
                         appCoordinator.savePlaybackState()

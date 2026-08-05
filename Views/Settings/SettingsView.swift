@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var libraryManager: LibraryManager
     @State private var selectedTab: SettingsTab = .general
     
     @Environment(\.dismiss)
@@ -36,9 +35,6 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        #if os(iOS)
-        iOSSettingsList
-        #else
         VStack(spacing: 0) {
             ZStack {
                 HStack {
@@ -88,51 +84,8 @@ struct SettingsView: View {
                 selectedTab = tab
             }
         }
-        #endif
     }
 
-    #if os(iOS)
-    private var iOSSettingsList: some View {
-        List {
-            Section {
-                ForEach(SettingsTab.allCases, id: \.self) { tab in
-                    NavigationLink(value: tab) {
-                        Label(tab.rawValue, systemImage: tab.icon)
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-        .navigationTitle(String(localized: "Settings"))
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: SettingsTab.self) { tab in
-            switch tab {
-            case .general:
-                GeneralTabView()
-                    .navigationTitle(tab.rawValue)
-                    .navigationBarTitleDisplayMode(.inline)
-            case .appearance:
-                AppearanceTabView()
-                    .navigationTitle(tab.rawValue)
-                    .navigationBarTitleDisplayMode(.inline)
-            case .library:
-                LibraryTabView()
-                    .environmentObject(libraryManager)
-                    .navigationTitle(tab.rawValue)
-                    .navigationBarTitleDisplayMode(.inline)
-            case .integrations:
-                IntegrationsTabView()
-                    .navigationTitle(tab.rawValue)
-                    .navigationBarTitleDisplayMode(.inline)
-            case .about:
-                AboutTabView()
-                    .navigationTitle(tab.rawValue)
-                    .navigationBarTitleDisplayMode(.inline)
-            }
-        }
-    }
-    #endif
-    
     private var tabbedButtonStyle: TabbedButtonStyle {
         if #available(macOS 26.0, *) {
             return .moderncompact
@@ -144,8 +97,4 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
-        .environmentObject({
-            let manager = LibraryManager()
-            return manager
-        }())
 }

@@ -75,8 +75,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
-                SettingsView()
-                    .environmentObject(libraryManager)
+                SettingsScreen()
             }
         }
         .sheet(isPresented: $showingNowPlaying) {

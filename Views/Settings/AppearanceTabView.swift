@@ -30,33 +30,6 @@ struct AppearanceTabView: View {
     /// Leading inset used to nest the options that depend on the master tint toggle.
     private let dependentIndent: CGFloat = 20
 
-    enum ColorMode: String, CaseIterable, TabbedItem {
-        case light = "Light"
-        case dark = "Dark"
-        case auto = "Auto"
-
-        var displayName: String {
-            switch self {
-            case .light: return String(localized: "Light")
-            case .dark: return String(localized: "Dark")
-            case .auto: return String(localized: "Auto")
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .light:
-                return "sun.max.fill"
-            case .dark:
-                return "moon.fill"
-            case .auto:
-                return "circle.lefthalf.filled"
-            }
-        }
-
-        var title: String { self.displayName }
-    }
-
     var body: some View {
         Form {
             Section("Visibility") {
@@ -118,10 +91,10 @@ struct AppearanceTabView: View {
         .scrollDisabled(true)
         .padding(5)
         .onChange(of: colorMode) { _, newValue in
-            updateAppearance(newValue)
+            newValue.apply()
         }
         .onAppear {
-            updateAppearance(colorMode)
+            colorMode.apply()
         }
     }
 
@@ -139,29 +112,10 @@ struct AppearanceTabView: View {
                 .frame(width: 240)
         }
     }
+}
 
-    private func updateAppearance(_ mode: ColorMode) {
-        #if os(macOS)
-        switch mode {
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        case .auto:
-            NSApp.appearance = nil
-        }
-        #else
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-        switch mode {
-        case .light:
-            windowScene.keyWindow?.overrideUserInterfaceStyle = .light
-        case .dark:
-            windowScene.keyWindow?.overrideUserInterfaceStyle = .dark
-        case .auto:
-            windowScene.keyWindow?.overrideUserInterfaceStyle = .unspecified
-        }
-        #endif
-    }
+extension ColorMode: TabbedItem {
+    var title: String { displayName }
 }
 
 #Preview {
