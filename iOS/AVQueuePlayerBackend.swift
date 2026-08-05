@@ -41,6 +41,23 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
 
+    // MARK: - Queue item failure tracking
+
+    /// Maps a live `AVPlayerItem`'s identity to the queue entry it was built
+    /// from, so a failure reported against the item (which carries no entry
+    /// id of its own) can be attributed back to an `AudioEntryId`.
+    private var itemEntryMap: [ObjectIdentifier: AudioEntryId] = [:]
+    private var itemStatusObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]
+    /// De-dupes a single item's failure being reported twice - `.status ==
+    /// .failed` (KVO) and `failedToPlayToEndTimeNotification` can both fire
+    /// for the same underlying failure.
+    private var failedItemKeys: Set<ObjectIdentifier> = []
+    /// Set right before this backend itself removes the *current* failed item
+    /// from the player (to skip past it). The resulting `currentItem` KVO
+    /// change is a consequence of that removal, not a normal end-of-track
+    /// advance, so `handleCurrentItemChange` must not report it as one.
+    private var suppressNextCurrentItemTransition = false
+
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
         onResume: { [weak self] in self?.resume() }
@@ -64,6 +81,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         player.actionAtItemEnd = .advance
         observeTrackChanges()
         observeStateChanges()
+        observeItemFailureNotifications()
 
         if !Self.isRunningUnitTests {
             audioSession.activate()
@@ -74,6 +92,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     deinit {
         currentItemObservation?.invalidate()
         timeControlObservation?.invalidate()
+        itemStatusObservations.values.forEach { $0.invalidate() }
+        NotificationCenter.default.removeObserver(self)
     }
 
     // MARK: - State
@@ -165,6 +185,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         entries.removeAll()
         currentIndex = 0
         player.removeAllItems()
+        clearItemTracking()
         runOnMain { self.notifyStateIfChanged() }
     }
 
@@ -188,6 +209,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// поэтому переход происходит без паузы.
     private func rebuildPlayerItems(startPaused: Bool) {
         player.removeAllItems()
+        clearItemTracking()
 
         guard !entries.isEmpty else {
             runOnMain { self.notifyStateIfChanged() }
@@ -195,7 +217,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
 
         for entry in entries[currentIndex...] {
-            player.insert(AVPlayerItem(url: entry.url), after: nil)
+            player.insert(makePlayerItem(for: entry), after: nil)
         }
         if startPaused {
             player.pause()
@@ -209,14 +231,47 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private func refillUpcomingItems() {
         guard !entries.isEmpty else {
             player.removeAllItems()
+            clearItemTracking()
             return
         }
         guard player.currentItem != nil else { return }
 
-        for item in player.items().dropFirst() { player.remove(item) }
-        for entry in entries.dropFirst(currentIndex + 1) {
-            player.insert(AVPlayerItem(url: entry.url), after: nil)
+        for item in player.items().dropFirst() {
+            player.remove(item)
+            removeTracking(for: item)
         }
+        for entry in entries.dropFirst(currentIndex + 1) {
+            player.insert(makePlayerItem(for: entry), after: nil)
+        }
+    }
+
+    /// Builds a fresh `AVPlayerItem` for `entry` and starts tracking it so a
+    /// later load/playback failure can be attributed back to `entry.entryId`.
+    private func makePlayerItem(for entry: QueueEntry) -> AVPlayerItem {
+        let item = AVPlayerItem(url: entry.url)
+        let key = ObjectIdentifier(item)
+        itemEntryMap[key] = entry.entryId
+        itemStatusObservations[key] = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            guard let self, item.status == .failed else { return }
+            self.runOnMain { self.handleItemFailure(item) }
+        }
+        return item
+    }
+
+    /// Stops tracking `item` - called once it has left the player, whether
+    /// because it finished, was skipped, or the whole queue was torn down.
+    private func removeTracking(for item: AVPlayerItem) {
+        let key = ObjectIdentifier(item)
+        itemStatusObservations.removeValue(forKey: key)?.invalidate()
+        itemEntryMap.removeValue(forKey: key)
+        failedItemKeys.remove(key)
+    }
+
+    private func clearItemTracking() {
+        itemStatusObservations.values.forEach { $0.invalidate() }
+        itemStatusObservations.removeAll()
+        itemEntryMap.removeAll()
+        failedItemKeys.removeAll()
     }
 
     // MARK: - KVO
@@ -237,22 +292,35 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     private func handleCurrentItemChange(old: AVPlayerItem?, new: AVPlayerItem?) {
         if let finished = old, finished !== new {
-            let finishedIndex = currentIndex
-            // Read the finished item's own duration - by the time this runs,
-            // `player.currentItem` already points at the next track, so the
-            // shared `duration` getter would report the wrong track's length.
-            let finishedSeconds = finished.duration.seconds
-            let finishedDuration = finishedSeconds.isFinite ? finishedSeconds : 0
+            defer { removeTracking(for: finished) }
 
-            if entries.indices.contains(finishedIndex) {
-                backendDelegate?.backendDidFinishPlaying(
-                    entryId: entries[finishedIndex].entryId,
-                    stopReason: .eof,
-                    progress: 1.0,
-                    duration: finishedDuration
-                )
+            if suppressNextCurrentItemTransition {
+                // This transition is the result of this backend removing a
+                // failed *current* item to skip past it - `handleItemFailure`
+                // already reported `backendDidSkipQueueEntry` and adjusted
+                // `currentIndex` for it. Reporting it again here as a normal
+                // finish would be wrong (it never finished) and would double
+                // the index advance.
+                suppressNextCurrentItemTransition = false
+                refillUpcomingItems()
+            } else {
+                let finishedIndex = currentIndex
+                // Read the finished item's own duration - by the time this runs,
+                // `player.currentItem` already points at the next track, so the
+                // shared `duration` getter would report the wrong track's length.
+                let finishedSeconds = finished.duration.seconds
+                let finishedDuration = finishedSeconds.isFinite ? finishedSeconds : 0
+
+                if entries.indices.contains(finishedIndex) {
+                    backendDelegate?.backendDidFinishPlaying(
+                        entryId: entries[finishedIndex].entryId,
+                        stopReason: .eof,
+                        progress: 1.0,
+                        duration: finishedDuration
+                    )
+                }
+                currentIndex = min(finishedIndex + 1, max(0, entries.count - 1))
             }
-            currentIndex = min(finishedIndex + 1, max(0, entries.count - 1))
         }
 
         guard new != nil, entries.indices.contains(currentIndex) else { return }
@@ -291,6 +359,125 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         @unknown default:
             return entries.isEmpty ? .stopped : .paused
         }
+    }
+
+    // MARK: - Queue item failures
+
+    /// Catches failures that happen *after* an item started playing (e.g. a
+    /// mid-file decode error). Load-time failures - a missing or unreadable
+    /// file, caught before the item ever became ready - are covered by the
+    /// `.status == .failed` KVO in `makePlayerItem(for:)` instead, since this
+    /// notification is only posted for items that had begun playing.
+    private func observeItemFailureNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFailedToPlayToEndTime(_:)),
+            name: AVPlayerItem.failedToPlayToEndTimeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleFailedToPlayToEndTime(_ notification: Notification) {
+        guard let item = notification.object as? AVPlayerItem else { return }
+        let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
+        runOnMain { self.handleItemFailure(item, explicitError: error) }
+    }
+
+    /// Reports a queue entry that could not play - a missing file, a
+    /// corrupt/unsupported one, or any other AVFoundation load/playback
+    /// failure - and drops it from the queue so a single bad file in a
+    /// 2000+ track library doesn't stall the player. Reports through the
+    /// same two delegate calls `CrescendoPlaybackBackend` uses for this on
+    /// macOS: `backendUnexpectedError` for the error itself, then
+    /// `backendDidSkipQueueEntry` for the entry that got dropped.
+    private func handleItemFailure(_ item: AVPlayerItem, explicitError: Error? = nil) {
+        let key = ObjectIdentifier(item)
+        guard !failedItemKeys.contains(key) else { return }
+        failedItemKeys.insert(key)
+
+        guard let entryId = itemEntryMap[key] else { return }
+
+        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(explicitError ?? item.error))
+
+        guard let index = queueIndex(of: entryId) else {
+            removeTracking(for: item)
+            return
+        }
+
+        let wasCurrent = index == currentIndex && player.currentItem === item
+
+        entries.remove(at: index)
+        if index < currentIndex {
+            currentIndex -= 1
+        } else if index == currentIndex {
+            currentIndex = min(currentIndex, max(0, entries.count - 1))
+        }
+
+        backendDelegate?.backendDidSkipQueueEntry(entryId: entryId)
+
+        if wasCurrent {
+            // `handleCurrentItemChange` finishes the cleanup (tracking +
+            // refilling the tail) once the resulting `currentItem` KVO fires.
+            suppressNextCurrentItemTransition = true
+            player.remove(item)
+        } else {
+            player.remove(item)
+            removeTracking(for: item)
+        }
+
+        runOnMain { self.notifyStateIfChanged() }
+    }
+
+    /// Maps an AVFoundation load/playback failure to the shared
+    /// `AudioPlayerError` the rest of the app understands. A pure function of
+    /// its input, so it is covered directly by a unit test without needing a
+    /// real failing `AVPlayerItem`.
+    static func mapPlaybackError(_ error: Error?) -> AudioPlayerError {
+        guard let error else {
+            return .engineError(NSError(
+                domain: "AVQueuePlayerBackend",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Unknown playback failure"]
+            ))
+        }
+
+        let nsError = error as NSError
+        if isFileNotFoundError(nsError) { return .fileNotFound }
+        if isUnsupportedFormatError(nsError) { return .invalidFormat }
+        return .engineError(error)
+    }
+
+    private static func isFileNotFoundError(_ error: NSError) -> Bool {
+        switch (error.domain, error.code) {
+        case (NSCocoaErrorDomain, NSFileReadNoSuchFileError),
+             (NSURLErrorDomain, NSURLErrorFileDoesNotExist):
+            return true
+        default:
+            break
+        }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return isFileNotFoundError(underlying)
+        }
+        return false
+    }
+
+    private static func isUnsupportedFormatError(_ error: NSError) -> Bool {
+        if error.domain == AVFoundationErrorDomain {
+            switch error.code {
+            case AVError.Code.fileFormatNotRecognized.rawValue,
+                 AVError.Code.fileFailedToParse.rawValue,
+                 AVError.Code.failedToParse.rawValue,
+                 AVError.Code.decodeFailed.rawValue,
+                 AVError.Code.undecodableMediaData.rawValue:
+                return true
+            default:
+                break
+            }
+        }
+        if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return isUnsupportedFormatError(underlying)
+        }
+        return false
     }
 
     // MARK: - Remote command center
