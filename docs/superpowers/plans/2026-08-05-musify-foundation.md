@@ -49,7 +49,7 @@
 | `Models/Core/Track.swift` | Кодирование пути через `LibraryPathStore` |
 | `Models/Core/Folder.swift` | То же + отказ от bookmarks на iOS |
 | `Managers/Database/DatabaseManager.swift` | Имя файла базы от bundle id |
-| `Managers/Library/LMFolders.swift` | Корневая папка на iOS — `Documents`, без bookmarks |
+| `Managers/Library/LMFolders.swift` | `scanLibraryRoot()`: регистрирует `Documents` через существующий конвейер `addFoldersAsync`/`scanFoldersForTracks`, без bookmarks |
 | `Core/Playback/PlaybackEngine.swift` | Выбор нового бэкенда на iOS |
 | `iOS/PetrichorApp.swift` | Переименование в `MusifyApp`, стартовый экран |
 
@@ -478,120 +478,98 @@ git commit -m "feat: expose the app documents folder to Finder and Files"
 
 ### Task 7: Сканирование папки Documents
 
+Изначальный вариант этой задачи предлагал написать новый `FolderScanner` с
+собственным обходом файловой системы и своим списком расширений, а также
+несуществующий метод `LibraryManager.processScannedFiles(_:in:)`. Это
+дублировало бы уже существующий конвейер сканирования
+(`DatabaseManager.addFoldersAsync` → `scanFoldersForTracks`), который на
+macOS запускается из `addFolder()` и уже умеет дедупликацию, метаданные,
+прогресс и удаление исчезнувших файлов. iOS-точка входа переиспользует этот
+конвейер напрямую, а не копирует его логику.
+
 **Files:**
 - Modify: `Managers/Library/LMFolders.swift`
+- Modify: `Utilities/LibraryPathStore.swift` — `storedPath(for:)` не обрабатывал
+  случай, когда переданный `URL` равен самому `libraryRoot` (проверка `hasPrefix`
+  требует конечный `/`, которого у самого корня нет), и в этом случае писал в базу
+  абсолютный путь. Это стало заметно только когда Task 7 впервые передала в
+  `storedPath(for:)` сам `libraryRoot` (регистрация корня как папки библиотеки)
 - Test: `Tests/MusifyTests/FolderScanTests.swift`
+- Test: `Tests/MusifyTests/LibraryPathStoreTests.swift` — тест на этот же edge case
 
 **Interfaces:**
-- Consumes: `LibraryPathStore.libraryRoot` из Task 3
-- Produces: `LibraryManager.scanLibraryRoot()` — обходит `Documents` и наполняет базу треками
+- Consumes: `LibraryPathStore.libraryRoot` из Task 3; `DatabaseManager.addFoldersAsync(_:bookmarkDataMap:)`
+  и `DatabaseManager.scanFoldersForTracks(_:showActivityInTray:isInitialScan:)` (существующий конвейер,
+  `Managers/Database/DMFolders.swift`); `AudioFormat.supportedExtensions` (`Utilities/Constants.swift`)
+  как канонический список расширений
+- Produces: `LibraryManager.scanLibraryRoot() async throws` — регистрирует `Documents`
+  как единственную папку библиотеки и сканирует её
 
-- [ ] **Step 1: Написать падающий тест**
+- [ ] **Step 1: Изучить существующий конвейер**
 
-Создать `Tests/MusifyTests/FolderScanTests.swift`:
+`addFolder(urls:)` (макошная версия и уже реализованная iOS-версия в
+`LMFolders.swift`) создают security-scoped bookmarks и обрабатывают
+iCloud-догрузку, затем вызывают `databaseManager.addFolders(urls:bookmarkDataMap:)`,
+который внутри вызывает `addFoldersAsync`, который сам вызывает
+`scanFoldersForTracks` для добавленных папок. Ни bookmarks, ни iCloud-логика
+iOS-корню не нужны: `Documents` лежит внутри контейнера приложения,
+разрешения не требуются.
 
-```swift
-import Foundation
-import Testing
-@testable import Musify
+- [ ] **Step 2: Добавить точку входа**
 
-@Test func scanFindsAudioFilesAndSkipsEverythingElse() throws {
-    let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let nested = root.appendingPathComponent("Spotify/Shazam", isDirectory: true)
-    try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
-
-    for name in ["0001 - A.mp3", "0002 - B.m4a", "cover.jpg", "playlist.m3u8"] {
-        try Data().write(to: nested.appendingPathComponent(name))
-    }
-
-    let found = FolderScanner.audioFiles(in: root)
-
-    #expect(found.count == 2)
-    #expect(found.allSatisfy { ["mp3", "m4a"].contains($0.pathExtension) })
-}
-
-@Test func scanIsResumableAndReportsProgress() throws {
-    let root = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    for index in 0..<5 {
-        try Data().write(to: root.appendingPathComponent("track\(index).mp3"))
-    }
-
-    var seen: [Int] = []
-    _ = FolderScanner.audioFiles(in: root) { done, total in
-        seen.append(done)
-        #expect(total == 5)
-    }
-
-    #expect(seen == [1, 2, 3, 4, 5])
-}
-```
-
-- [ ] **Step 2: Прогнать и убедиться, что падает**
-
-Expected: FAIL — `cannot find 'FolderScanner' in scope`
-
-- [ ] **Step 3: Реализовать сканер**
-
-Добавить в `Managers/Library/LMFolders.swift`:
+В `LMFolders.swift`, внутри существующего `#if os(macOS) ... #else ... #endif`
+(iOS-ветка), рядом с `addFolder(urls:)`:
 
 ```swift
-/// Обход папки библиотеки. Никаких security-scoped bookmarks: на iOS
-/// библиотека лежит внутри контейнера приложения, разрешения не нужны.
-enum FolderScanner {
-    static let audioExtensions: Set<String> = ["mp3", "m4a", "aac", "wav", "aiff", "alac"]
-
-    static func audioFiles(
-        in root: URL,
-        onProgress: ((Int, Int) -> Void)? = nil
-    ) -> [URL] {
-        let manager = FileManager.default
-        guard let walker = manager.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
-        ) else { return [] }
-
-        let all = walker.compactMap { $0 as? URL }
-            .filter { audioExtensions.contains($0.pathExtension.lowercased()) }
-
-        for (index, _) in all.enumerated() {
-            onProgress?(index + 1, all.count)
-        }
-        return all
+/// iOS entry point: the library *is* the app's own `Documents` folder — no
+/// picker, no security-scoped bookmark. Registers `LibraryPathStore.libraryRoot`
+/// as the library's folder and reuses the same `addFoldersAsync` →
+/// `scanFoldersForTracks` pipeline every other folder goes through.
+func scanLibraryRoot() async throws {
+    let root = LibraryPathStore.libraryRoot
+    let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
+    guard !folders.isEmpty else { return }
+    await MainActor.run {
+        self.scheduleLibraryReload()
     }
 }
 ```
 
-- [ ] **Step 4: Прогнать тесты**
+Вызывать повторно безопасно: `addFoldersAsync` находит уже
+зарегистрированную папку по хранимому пути (см. Часть А правки в
+`DMFolders.swift`) и просто пересканирует её.
 
-Expected: оба теста проходят.
+- [ ] **Step 3: Прогресс сканирования**
 
-- [ ] **Step 5: Подключить сканер к библиотеке на iOS**
+Отдельного колбэка прогресса не заводится. `scanFoldersForTracks` уже
+публикует прогресс двумя каналами: `DatabaseManager.isScanning` /
+`scanStatusMessage` (`@Published`) и `NotificationManager.shared`
+(`startActivity` / `updateActivityProgress` / `stopActivity`). Экран,
+показывающий прогресс сканирования, подписывается на них напрямую.
 
-В `LMFolders.swift` добавить точку входа, использующую корень из шва путей:
+- [ ] **Step 4: Тесты**
 
-```swift
-#if os(iOS)
-extension LibraryManager {
-    /// На iOS следить не за чем: библиотека — это папка Documents целиком.
-    func scanLibraryRoot(onProgress: ((Int, Int) -> Void)? = nil) async {
-        let root = LibraryPathStore.libraryRoot
-        let files = FolderScanner.audioFiles(in: root, onProgress: onProgress)
-        await processScannedFiles(files, in: root)
-    }
-}
-#endif
-```
+`DatabaseManager` не даёт подставить in-memory `DatabaseQueue` (единственный
+инициализатор — параметризованный `init() throws`, открывающий реальный файл
+в Application Support), поэтому `scanLibraryRoot()` целиком не покрыт
+модульным тестом. Тестами покрыто то, от чего он зависит:
 
-Метод `processScannedFiles(_:in:)` уже существует в `LibraryManager` для мак-сканирования — если его сигнатура отличается, привести вызов к фактической, не меняя саму реализацию.
+- `AudioFormat.supportedExtensions` — не пуст, не содержит ничего из
+  `unsupportedExtensions`/`withheldExtensions` (список расширений здесь берётся
+  из реального движка метаданных, а не выдуман, как в исходной версии задачи —
+  на iOS сейчас это только `mp3`, пока `AVAssetMetadataReader` не расширят в
+  Task 8);
+- регистрация корня библиотеки как `Folder` пишет в столбец `path` пустую
+  строку (относительный путь для самого корня), а не абсолютный путь
+  контейнера — через ту же in-memory GRDB-схему, что и `PathQueryTests.swift`;
+- `LibraryPathStore.storedPath(for: LibraryPathStore.libraryRoot) == ""` и
+  обратное преобразование возвращает исходный `libraryRoot`.
 
-- [ ] **Step 6: Коммит**
+- [ ] **Step 5: Коммит**
 
 ```bash
-git add Managers/Library/LMFolders.swift Tests/MusifyTests/FolderScanTests.swift
+git add Managers/Library/LMFolders.swift Utilities/LibraryPathStore.swift \
+    Tests/MusifyTests/FolderScanTests.swift Tests/MusifyTests/LibraryPathStoreTests.swift
 git commit -m "feat: scan the documents folder as the iOS library root"
 ```
 
