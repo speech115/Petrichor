@@ -1312,29 +1312,41 @@ sqlite3 "$CONT/Library/Application Support/org.Petrichor.ios/petrichor.db" \
 - Consumes: всё, что собрано в задачах 1-11
 - Produces: работающее приложение на iPhone 16 Pro Max
 
-- [ ] **Step 1: Подключить телефон и выбрать его целью**
+- [x] **Step 1: Подключить телефон и выбрать его целью**
 
 ```bash
 xcrun devicectl list devices | grep -i "iPhone 16 Pro Max"
 ```
 
-Expected: устройство в состоянии `available (paired)`.
+Результат: iPhone 16 Pro Max найден в состоянии `available (paired)`.
+CoreDevice identifier: `D1202962-31F6-5AB1-AA1B-F67D986F7C6C`.
 
-- [ ] **Step 2: Настроить подпись**
+- [x] **Step 2: Настроить подпись**
 
-В Xcode: таргет `PetrichoriOS` → Signing & Capabilities → Team: личный Apple ID, Automatically manage signing — включено. Убедиться, что профиль выписан на `org.Petrichor.ios`.
+Проверено через Xcode build settings: `CODE_SIGN_STYLE=Automatic`, Team `DQFRVE6G9U`, bundle id
+`org.Petrichor.ios`. Generic device build использовал identity `Apple Development:
+borshov.v@gmail.com (7ESDH3CW93)` и профиль `iOS Team Provisioning Profile:
+org.Petrichor.ios`.
 
-- [ ] **Step 3: Установить на устройство**
+- [x] **Step 3: Установить на устройство**
 
 ```bash
 xcodebuild -scheme PetrichoriOS -destination 'platform=iOS,name=iPhone' build
 ```
 
-Затем запустить с устройства — при первом запуске потребуется подтвердить доверие разработчику в Настройках → Основные → VPN и управление устройством.
+Прямой build с destination `id=...` остановился на внешнем несовпадении версий:
+iPhone работает на iOS 27.0 beta (`24A5390f`), а установленный Xcode 26.6 не может
+смонтировать соответствующий Developer Disk Image. Generic device build тем же
+проектом завершился с `** BUILD SUCCEEDED **`. Собранный `Petrichor.app` установлен
+через `devicectl` и запущен на устройстве; процесс `Petrichor` подтверждён в списке
+процессов (PID 933).
 
 - [ ] **Step 4: Залить тестовую папку**
 
 Подключить iPhone кабелем, открыть его в Finder → вкладка «Файлы» → перетащить папку с 20-30 треками в Petrichor.
+
+Не выполнялось: на устройстве уже была библиотека, но отдельная тестовая папка на
+20–30 треков через Finder в этой проверке не загружалась.
 
 - [ ] **Step 5: Проверить сценарии**
 
@@ -1346,7 +1358,12 @@ xcodebuild -scheme PetrichoriOS -destination 'platform=iOS,name=iPhone' build
 - пауза при отключении AirPods, без продолжения в динамик;
 - повторная установка из Xcode не обнуляет библиотеку.
 
-- [ ] **Step 6: Записать результат проверки**
+Частично подтверждено снимком экрана после запуска: библиотека альбомов отображается,
+обложки и теги читаются, мини-плеер Petrichor присутствует. Переходы без паузы,
+фон/lock screen, AirPods и сохранность библиотеки после повторной установки требуют
+отдельного ручного прогона.
+
+- [x] **Step 6: Записать результат проверки**
 
 Дописать раздел с результатами в `docs/superpowers/plans/2026-08-05-petrichor-ios-foundation.md` и закоммитить:
 
@@ -1354,6 +1371,11 @@ xcodebuild -scheme PetrichoriOS -destination 'platform=iOS,name=iPhone' build
 git add docs/superpowers/plans/2026-08-05-petrichor-ios-foundation.md
 git commit -m "docs: record the first device checkpoint results"
 ```
+
+Результат записан 2026-08-05. Task 12 закрыт частично: сборка, подпись,
+установка, запуск и базовый экран подтверждены; оставшиеся пункты требуют
+физической ручной приёмки с тестовой папкой и аксессуарами. Для запуска через
+обычный device destination понадобится Xcode с поддержкой iOS 27.0 beta.
 
 ---
 
