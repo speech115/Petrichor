@@ -73,6 +73,7 @@ enum Icons {
     
     // Smart Playlist Icons
     static let starFill = "star.fill"
+    static let starSlash = "star.slash"
     static let clockFill = "clock.fill"
     
     // Sort Icons
@@ -286,6 +287,8 @@ extension Notification.Name {
     static let initialScanCompleted = Notification.Name("initialScanCompleted")
     static let foldersAddedToDatabase = Notification.Name("foldersAddedToDatabase")
 
+    static let showFolderImporter = Notification.Name("showFolderImporter")
+
     static let libraryDataDidChange = Notification.Name("LibraryDataDidChange")
     static let goToLibraryFilter = Notification.Name("GoToLibraryFilter")
 
@@ -351,6 +354,7 @@ extension Icons {
             // User-created smart playlists use the dedicated smart-playlist symbol
             return Icons.smartPlaylist
         }
+
         return Icons.musicNoteList
     }
 }

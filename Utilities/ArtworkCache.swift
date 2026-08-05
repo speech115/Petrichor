@@ -1,14 +1,13 @@
-import AppKit
 import Foundation
 
 /// Operation subclass that guarantees its continuation is resumed
 /// even when cancelled, unlike `BlockOperation` whose execution blocks
 /// are skipped entirely for cancelled operations.
 final class ArtworkLoadOperation: Operation, @unchecked Sendable {
-    private let continuation: CheckedContinuation<NSImage?, Never>
-    private let work: () -> NSImage?
+    private let continuation: CheckedContinuation<PlatformImage?, Never>
+    private let work: () -> PlatformImage?
 
-    init(continuation: CheckedContinuation<NSImage?, Never>, work: @escaping () -> NSImage?) {
+    init(continuation: CheckedContinuation<PlatformImage?, Never>, work: @escaping () -> PlatformImage?) {
         self.continuation = continuation
         self.work = work
         super.init()
@@ -23,7 +22,7 @@ extension OperationQueue {
     /// Enqueues a render and resumes its continuation when complete.
     /// Cancelling the awaiting task cancels the queued operation; cancelled
     /// operations resume with `nil` without rendering.
-    func renderArtwork(_ work: @escaping () -> NSImage?) async -> NSImage? {
+    func renderArtwork(_ work: @escaping () -> PlatformImage?) async -> PlatformImage? {
         final class Holder: @unchecked Sendable {
             var operation: ArtworkLoadOperation?
         }
