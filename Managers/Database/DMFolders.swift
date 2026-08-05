@@ -120,7 +120,7 @@ extension DatabaseManager {
 
                 // Check if folder already exists
                 if let existing = try Folder
-                    .filter(Folder.Columns.path == url.path)
+                    .filter(Folder.Columns.path == LibraryPathStore.storedPath(for: url))
                     .fetchOne(db) {
                     // Update bookmark data if folder exists
                     var updatedFolder = existing
@@ -134,7 +134,7 @@ extension DatabaseManager {
 
                     // Fetch the inserted folder to get the generated ID
                     if let insertedFolder = try Folder
-                        .filter(Folder.Columns.path == url.path)
+                        .filter(Folder.Columns.path == LibraryPathStore.storedPath(for: url))
                         .fetchOne(db) {
                         folders.append(insertedFolder)
                         Logger.info("Added new folder: \(insertedFolder.name) with ID: \(insertedFolder.id ?? -1)")

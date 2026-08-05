@@ -760,15 +760,16 @@ extension DatabaseManager {
 
     /// Find a track by its file path
     func findTrackByPath(_ path: String) async -> Track? {
+        let storedPath = LibraryPathStore.storedPath(for: URL(fileURLWithPath: path))
         do {
             return try await dbQueue.read { db in
                 if let track = try Track
-                    .filter(Track.Columns.path == path)
+                    .filter(Track.Columns.path == storedPath)
                     .fetchOne(db) {
                     return track
                 }
                 return try Track
-                    .filter(Track.Columns.path.collating(.nocase) == path)
+                    .filter(Track.Columns.path.collating(.nocase) == storedPath)
                     .fetchOne(db)
             }
         } catch {
