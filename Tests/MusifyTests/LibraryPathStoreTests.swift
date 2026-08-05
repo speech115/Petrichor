@@ -32,3 +32,13 @@ import Testing
 
     #expect(LibraryPathStore.storedPath(for: outside) == "/tmp/somewhere/track.mp3")
 }
+
+@Test func libraryRootItselfStoresAsAnEmptyRelativePath() {
+    // Registering the library root as a Folder (the iOS scan entry point does
+    // exactly this) must not fall through to the "outside the root" branch and
+    // write an absolute, container-specific path.
+    let stored = LibraryPathStore.storedPath(for: LibraryPathStore.libraryRoot)
+
+    #expect(stored == "")
+    #expect(LibraryPathStore.url(fromStored: stored).standardizedFileURL == LibraryPathStore.libraryRoot.standardizedFileURL)
+}

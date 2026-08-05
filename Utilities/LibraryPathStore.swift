@@ -22,6 +22,9 @@ enum LibraryPathStore {
         let path = url.standardizedFileURL.path
 
         #if os(iOS)
+        // The library root itself (e.g. registering Documents as a Folder) has no
+        // trailing slash to strip, so it needs its own case: it stores as "".
+        if path == root { return "" }
         let prefix = root.hasSuffix("/") ? root : root + "/"
         guard path.hasPrefix(prefix) else { return path }
         return String(path.dropFirst(prefix.count))

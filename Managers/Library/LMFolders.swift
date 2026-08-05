@@ -142,6 +142,32 @@ extension LibraryManager {
             }
         }
     }
+
+    /// iOS entry point: the library *is* the app's own `Documents` folder, so
+    /// there is nothing to pick and no security-scoped bookmark to create —
+    /// unlike `addFolder(urls:)` above, which is built around bookmarks and
+    /// iCloud downloads for folders picked from outside the container.
+    ///
+    /// Registers `LibraryPathStore.libraryRoot` as the library's (only) folder
+    /// and scans it, reusing the same `addFoldersAsync` → `scanFoldersForTracks`
+    /// pipeline every other folder goes through — deduplication, metadata
+    /// extraction, and removal of vanished tracks all come for free. Calling
+    /// this again (e.g. after the user copies more files into Documents via
+    /// Finder/Files) re-registers the same folder row and rescans it.
+    ///
+    /// Progress is *not* reported through a callback: `scanFoldersForTracks`
+    /// already publishes it through `databaseManager.isScanning` /
+    /// `scanStatusMessage` (both `@Published`) and through
+    /// `NotificationManager.shared`'s activity tray, so adding a parallel
+    /// progress mechanism here would just be a second, redundant channel.
+    func scanLibraryRoot() async throws {
+        let root = LibraryPathStore.libraryRoot
+        let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
+        guard !folders.isEmpty else { return }
+        await MainActor.run {
+            self.scheduleLibraryReload()
+        }
+    }
     #endif
 
     func removeFolder(_ folder: Folder) {
