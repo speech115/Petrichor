@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func storedPathIsRelativeToLibraryRoot() {
     let url = LibraryPathStore.libraryRoot

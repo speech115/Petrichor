@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 /// `AVQueuePlayerBackend.mapPlaybackError(_:)` is a pure function of the
 /// `Error` AVFoundation hands back for a failed queue item, so it is testable

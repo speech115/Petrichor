@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 /// Covers what `LibraryManager.scanLibraryRoot()` (Managers/Library/LMFolders.swift)
 /// depends on, without touching the app's actual sandboxed filesystem: the extension

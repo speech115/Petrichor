@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func trackWritesRelativePathAndReadsItBack() throws {
     let dbQueue = try DatabaseQueue()

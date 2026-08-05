@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "55A000000000000000000020"
-               BuildableName = "Musify.app"
-               BlueprintName = "Musify"
+               BuildableName = "Petrichor.app"
+               BlueprintName = "PetrichoriOS"
                ReferencedContainer = "container:Petrichor.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -35,8 +35,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "55A000000000000000000043"
-               BuildableName = "MusifyTests.xctest"
-               BlueprintName = "MusifyTests"
+               BuildableName = "PetrichoriOSTests.xctest"
+               BlueprintName = "PetrichoriOSTests"
                ReferencedContainer = "container:Petrichor.xcodeproj">
             </BuildableReference>
          </TestableReference>
@@ -57,8 +57,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "55A000000000000000000020"
-            BuildableName = "Musify.app"
-            BlueprintName = "Musify"
+            BuildableName = "Petrichor.app"
+            BlueprintName = "PetrichoriOS"
             ReferencedContainer = "container:Petrichor.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -74,8 +74,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "55A000000000000000000020"
-            BuildableName = "Musify.app"
-            BlueprintName = "Musify"
+            BuildableName = "Petrichor.app"
+            BlueprintName = "PetrichoriOS"
             ReferencedContainer = "container:Petrichor.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 private func makeEntry(_ name: String) -> QueueEntry {
     QueueEntry(entryId: AudioEntryId(id: name), url: URL(fileURLWithPath: "/tmp/\(name).mp3"))

@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 /// Проверяет, что запросы, сравнивающие колонку `path` в базе, находят записи,
 /// написанные швом путей — то есть дедупликация папок и поиск трека по пути

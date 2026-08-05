@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func testTargetIsWiredUp() {
     #expect(Bundle.main.bundleIdentifier != nil)

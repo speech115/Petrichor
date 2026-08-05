@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func filenameFallbackExtractsArtistAndKeepsPrefixedTitle() {
     let url = URL(fileURLWithPath: "/tmp/0239 - Jeune Ras - Ruff Ryder - Remix.mp3")
