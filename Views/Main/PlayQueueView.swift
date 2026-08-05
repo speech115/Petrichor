@@ -9,10 +9,8 @@ struct PlayQueueView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            #if os(macOS)
             queueHeader
             Divider()
-            #endif
 
             PlayQueueContent()
         }
