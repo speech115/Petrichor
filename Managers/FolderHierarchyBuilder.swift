@@ -65,7 +65,7 @@ class FolderHierarchyBuilder {
 
             let finalSubfolders = subfolders
             let finalTrackCount = trackCount
-            let dbTrackCount = tracksByFolder[node.url.path] ?? 0
+            let dbTrackCount = tracksByFolder[LibraryPathStore.storedPath(for: node.url)] ?? 0
 
             await MainActor.run {
                 node.children = finalSubfolders.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
