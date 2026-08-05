@@ -44,6 +44,12 @@
         <string>audio</string>
     </array>
 
+    <!-- Expose the app documents folder to Finder and Files -->
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+
     <!--  Last.fm Scrobble  -->
     <key>LASTFM_API_KEY</key>
     <string>$(LASTFM_API_KEY)</string>
