@@ -65,7 +65,7 @@ struct ContentView: View {
             Tab(String(localized: "Folders"), systemImage: Icons.folder, value: IOSSection.folders) {
                 foldersTab
             }
-            Tab(String(localized: "Search"), systemImage: "magnifyingglass", value: IOSSection.search, role: .search) {
+            Tab(String(localized: "Search"), systemImage: Icons.magnifyingGlass, value: IOSSection.search, role: .search) {
                 searchTab
             }
         }
