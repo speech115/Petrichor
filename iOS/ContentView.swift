@@ -1,10 +1,9 @@
 //
 // ContentView (iOS)
 //
-// iPhone adaptation of the Petrichor main window: tab bar for the main sections,
-// a mini player floating above the tab bar, and a Now Playing sheet with the
-// shared player components. Library folders are added through the Files app
-// picker.
+// iPhone main window: four tabs per the design spec — Library, Playlists,
+// Folders, Search — with the system bottom tab accessory as the mini player.
+// The tab bar minimizes on scroll down and the accessory expands with it.
 //
 
 import SwiftUI
@@ -17,13 +16,18 @@ enum RightSidebarContent: Equatable {
     case lyrics
 }
 
+private enum IOSSection: Hashable {
+    case library
+    case playlists
+    case folders
+    case search
+}
+
 struct ContentView: View {
     @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
 
-    @AppStorage("showFoldersTab")
-    private var showFoldersTab = false
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
     @AppStorage("tintPlaybackControls")
@@ -32,9 +36,7 @@ struct ContentView: View {
     @Environment(\.colorScheme)
     private var colorScheme
 
-    @State private var selectedTab: Sections = .home
-    @State private var selectedHomeSidebarItem: HomeSidebarItem?
-    @State private var selectedPlaylist: Playlist?
+    @State private var selectedTab: IOSSection = .library
     @State private var selectedFolderNode: FolderNode?
 
     @AppStorage("librarySelectedFilterType")
@@ -43,7 +45,6 @@ struct ContentView: View {
     @State private var libraryPendingSearchText: String?
     @State private var libraryFilteredItems: [LibraryFilterItem] = []
     @State private var libraryCachedTracks: [Track] = []
-    @State private var librarySelectedSidebarItem: LibrarySidebarItem?
     @State private var pendingLibraryFilter: LibraryFilterRequest?
 
     @State private var showingSettings = false
@@ -55,24 +56,23 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            homeTab
-                .tag(Sections.home)
-            libraryTab
-                .tag(Sections.library)
-            playlistsTab
-                .tag(Sections.playlists)
-            if showFoldersTab {
+            Tab(String(localized: "Library"), systemImage: Icons.customMusicNoteRectangleStack, value: IOSSection.library) {
+                libraryTab
+            }
+            Tab(String(localized: "Playlists"), systemImage: Icons.musicNoteList, value: IOSSection.playlists) {
+                playlistsTab
+            }
+            Tab(String(localized: "Folders"), systemImage: Icons.folder, value: IOSSection.folders) {
                 foldersTab
-                    .tag(Sections.folders)
+            }
+            Tab(String(localized: "Search"), systemImage: "magnifyingglass", value: IOSSection.search, role: .search) {
+                searchTab
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if playbackManager.currentTrack != nil {
-                miniPlayerBar
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory(isEnabled: playbackManager.currentTrack != nil) {
+            MiniPlayerAccessory(showingNowPlaying: $showingNowPlaying)
         }
-        .animation(.easeInOut(duration: 0.25), value: playbackManager.currentTrack?.id)
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
                 SettingsView()
@@ -147,89 +147,12 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Home Tab
-
-    private var homeTab: some View {
-        NavigationStack {
-            HomeView(selectedSidebarItem: $selectedHomeSidebarItem, isShowingEntities: .constant(false))
-                .navigationTitle(selectedHomeSidebarItem?.title ?? String(localized: "Home"))
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        homeSectionMenu
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        HStack(spacing: 12) {
-                            Button {
-                                showingFileImporter = true
-                            } label: {
-                                Image(systemName: "folder.badge.plus")
-                            }
-                            Button {
-                                showingSettings = true
-                            } label: {
-                                Image(systemName: Icons.settings)
-                            }
-                        }
-                    }
-                }
-                .onAppear {
-                    ensureHomeSelection()
-                }
-                .onChange(of: selectedTab) { _, tab in
-                    if tab == .home {
-                        ensureHomeSelection()
-                    }
-                }
-        }
-    }
-
-    private func ensureHomeSelection() {
-        if selectedHomeSidebarItem == nil {
-            selectedHomeSidebarItem = HomeSidebarItem(type: .albums, albumCount: libraryManager.albumCount)
-        }
-    }
-
-    private var homeSectionMenu: some View {
-        Menu {
-            ForEach(HomeSidebarItem.HomeItemType.allCases, id: \.self) { type in
-                Button {
-                    selectHomeSection(type)
-                } label: {
-                    if selectedHomeSidebarItem?.type == type {
-                        Label(type.title, systemImage: "checkmark")
-                    } else {
-                        Text(type.title)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "square.grid.2x2")
-                .font(.system(size: 16, weight: .medium))
-        }
-    }
-
-    private func selectHomeSection(_ type: HomeSidebarItem.HomeItemType) {
-        switch type {
-        case .discover:
-            selectedHomeSidebarItem = HomeSidebarItem(type: .discover, trackCount: libraryManager.discoverTracks.count)
-        case .tracks:
-            selectedHomeSidebarItem = HomeSidebarItem(type: .tracks, trackCount: libraryManager.totalTrackCount)
-        case .artists:
-            selectedHomeSidebarItem = HomeSidebarItem(type: .artists, artistCount: libraryManager.artistCount)
-        case .albums:
-            selectedHomeSidebarItem = HomeSidebarItem(type: .albums, albumCount: libraryManager.albumCount)
-        }
-    }
-
     // MARK: - Library Tab
 
     private var libraryTab: some View {
         NavigationStack {
             Group {
-                if !libraryManager.globalSearchText.isEmpty {
-                    searchResultsList
-                } else if let filterItem = libraryFilterItem {
+                if let filterItem = libraryFilterItem {
                     LibraryView(
                         selectedFilterType: $libraryFilterType,
                         selectedFilterItem: $libraryFilterItem,
@@ -244,12 +167,6 @@ struct ContentView: View {
                     libraryFilterList
                 }
             }
-            .searchable(
-                text: $libraryManager.globalSearchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: String(localized: "Search Library")
-            )
-            .autocorrectionDisabled()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 8) {
@@ -262,6 +179,11 @@ struct ContentView: View {
                             }
                         }
                         filterTypeMenu
+                        Button {
+                            showingSettings = true
+                        } label: {
+                            Image(systemName: Icons.settings)
+                        }
                     }
                 }
             }
@@ -277,34 +199,6 @@ struct ContentView: View {
         }
         .onChange(of: libraryManager.tracks.count) { _, _ in
             refreshLibraryFilterItems()
-        }
-    }
-
-    private var searchResultsList: some View {
-        TrackView(
-            tracks: libraryManager.searchResults,
-            selectedTrackID: .constant(nil),
-            playlistID: nil,
-            entityID: nil,
-            sortOrder: .constant([]),
-            onPlayTrack: { track in
-                playlistManager.playTrack(track, fromTracks: libraryManager.searchResults)
-                playlistManager.currentQueueSource = .library
-            },
-            contextMenuItems: { track, _ in
-                TrackContextMenu.createMenuItems(
-                    for: track,
-                    playlistManager: playlistManager,
-                    currentContext: .library
-                )
-            }
-        )
-        .navigationTitle(String(localized: "Search"))
-        .navigationBarTitleDisplayMode(.inline)
-        .overlay {
-            if libraryManager.searchResults.isEmpty {
-                ContentUnavailableView.search(text: libraryManager.globalSearchText)
-            }
         }
     }
 
@@ -335,11 +229,6 @@ struct ContentView: View {
                     systemImage: Icons.musicNote,
                     description: Text(String(localized: "Add a music folder to get started"))
                 )
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                filterTypeMenu
             }
         }
     }
@@ -472,76 +361,46 @@ struct ContentView: View {
         return node
     }
 
-    // MARK: - Mini Player
+    // MARK: - Search Tab
 
-    private var miniPlayerBar: some View {
-        HStack(spacing: 12) {
-            Button {
-                showingNowPlaying = true
-            } label: {
-                HStack(spacing: 12) {
-                    miniArtwork
-                        .frame(width: 44, height: 44)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(playbackManager.currentTrack?.title ?? "")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                        Text(playbackManager.currentTrack?.displayArtist ?? "")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                playbackManager.togglePlayPause()
-            } label: {
-                Image(systemName: playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
-                    .font(.system(size: 22))
-                    .foregroundColor(.primary)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(Color.secondary.opacity(0.12)))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .animation(.easeInOut(duration: 0.15), value: playbackManager.isPlaying)
-            .accessibilityLabel(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
+    private var searchTab: some View {
+        NavigationStack {
+            searchResultsList
+                .searchable(
+                    text: $libraryManager.globalSearchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: String(localized: "Search Library")
+                )
+                .autocorrectionDisabled()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 4)
     }
 
-    private var miniArtwork: some View {
-        Group {
-            if let data = playbackManager.currentTrack?.artworkData,
-               let image = PlatformImage(data: data) {
-                Image(platformImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.15))
-                    Image(systemName: Icons.musicNote)
-                        .foregroundColor(.secondary)
-                }
+    private var searchResultsList: some View {
+        TrackView(
+            tracks: libraryManager.searchResults,
+            selectedTrackID: .constant(nil),
+            playlistID: nil,
+            entityID: nil,
+            sortOrder: .constant([]),
+            onPlayTrack: { track in
+                playlistManager.playTrack(track, fromTracks: libraryManager.searchResults)
+                playlistManager.currentQueueSource = .library
+            },
+            contextMenuItems: { track, _ in
+                TrackContextMenu.createMenuItems(
+                    for: track,
+                    playlistManager: playlistManager,
+                    currentContext: .library
+                )
+            }
+        )
+        .navigationTitle(String(localized: "Search"))
+        .navigationBarTitleDisplayMode(.inline)
+        .overlay {
+            if libraryManager.searchResults.isEmpty {
+                ContentUnavailableView.search(text: libraryManager.globalSearchText)
             }
         }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: - Now Playing Sheet
@@ -701,6 +560,117 @@ struct ContentView: View {
         let items = libraryManager.getLibraryFilterItems(for: libraryFilterType)
         let all = [LibraryFilterItem.allItem(for: libraryFilterType, totalCount: libraryManager.totalTrackCount)]
         libraryFilteredItems = all + items
+    }
+}
+
+// MARK: - Mini Player Accessory
+
+private struct MiniPlayerAccessory: View {
+    @Environment(\.tabViewBottomAccessoryPlacement)
+    private var placement
+    @EnvironmentObject private var playbackManager: PlaybackManager
+    @Binding var showingNowPlaying: Bool
+
+    var body: some View {
+        if placement == .expanded {
+            expandedRow
+        } else {
+            compactRow
+        }
+    }
+
+    private var compactRow: some View {
+        HStack(spacing: 12) {
+            Button {
+                showingNowPlaying = true
+            } label: {
+                HStack(spacing: 12) {
+                    artwork(size: 44)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(playbackManager.currentTrack?.title ?? "")
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        Text(playbackManager.currentTrack?.displayArtist ?? "")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            playPauseButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private var expandedRow: some View {
+        HStack(spacing: 12) {
+            Button {
+                showingNowPlaying = true
+            } label: {
+                HStack(spacing: 12) {
+                    artwork(size: 56)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(playbackManager.currentTrack?.title ?? "")
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(playbackManager.currentTrack?.displayArtist ?? "")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            playPauseButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+    }
+
+    private var playPauseButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            playbackManager.togglePlayPause()
+        } label: {
+            Image(systemName: playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
+                .font(.system(size: 22))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
+    }
+
+    private func artwork(size: CGFloat) -> some View {
+        Group {
+            if let data = playbackManager.currentTrack?.artworkData,
+               let image = PlatformImage(data: data) {
+                Image(platformImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(0.15))
+                    Image(systemName: Icons.musicNote)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
     }
 }
 

@@ -766,7 +766,7 @@
 				INFOPLIST_FILE = Configuration/Info-iOS.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
 				PETRICHOR_URL_SCHEME = "petrichor-ios";
@@ -797,7 +797,7 @@
 				INFOPLIST_FILE = Configuration/Info-iOS.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
 				PETRICHOR_URL_SCHEME = "petrichor-ios";
@@ -828,7 +828,7 @@
 				INFOPLIST_FILE = Configuration/Info-iOS.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
 				PETRICHOR_URL_SCHEME = "petrichor-ios";
@@ -853,7 +853,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = DQFRVE6G9U;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = "Development Build";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -875,7 +875,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = DQFRVE6G9U;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = "Development Build";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -897,7 +897,7 @@
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = DQFRVE6G9U;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				MARKETING_VERSION = "Development Build";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

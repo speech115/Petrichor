@@ -11,23 +11,27 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 Это ещё и проверка главного риска: `tabViewBottomAccessory` не запускался на
 iOS 27 beta. Если он ведёт себя сыро — фиксируй как именно, откатывайся на
 `safeAreaInset` и оставляй остальные критерии в силе. Now Playing от аксессуара
 не зависит и переделывается в любом случае.
 
-- [ ] `iOS/ContentView.swift` переписан: `TabView` на новом синтаксисе `Tab {}`,
+Проверено на устройстве (iOS 27.0 beta, iPhone 16 Pro Max): аксессуар живой,
+сжатие таб-бара скроллом работает, `.inline`/`.expanded` переключаются. Откат
+не потребовался.
+
+- [x] `iOS/ContentView.swift` переписан: `TabView` на новом синтаксисе `Tab {}`,
       четыре вкладки, вкладка Home убрана, `showFoldersTab` удалён
-- [ ] Поиск объявлен как `Tab(role: .search)` и стоит в своей позиции таб-бара
-- [ ] Мини-плеер — `tabViewBottomAccessory`, видимость через `isEnabled`, а не
+- [x] Поиск объявлен как `Tab(role: .search)` и стоит в своей позиции таб-бара
+- [x] Мини-плеер — `tabViewBottomAccessory`, видимость через `isEnabled`, а не
       через обёртку в `if` (обёртка роняет приложение с `TabView(selection:)`)
-- [ ] Содержимое мини-плеера переключается по `tabViewBottomAccessoryPlacement`:
+- [x] Содержимое мини-плеера переключается по `tabViewBottomAccessoryPlacement`:
       компактная строка при `.inline`, расширенная при `.expanded`
-- [ ] `tabBarMinimizeBehavior(.onScrollDown)` включён, сжатие проверено скроллом
-- [ ] Своего плавающего плеера на `safeAreaInset` в коде не осталось
-- [ ] Настройки открываются кнопкой в навбаре Библиотеки
-- [ ] Проверено на устройстве через `.claude/skills/petrichor-device/`, а не
+- [x] `tabBarMinimizeBehavior(.onScrollDown)` включён, сжатие проверено скроллом
+- [x] Своего плавающего плеера на `safeAreaInset` в коде не осталось
+- [x] Настройки открываются кнопкой в навбаре Библиотеки
+- [x] Проверено на устройстве через `.claude/skills/petrichor-device/`, а не
       только в симуляторе: поведение аксессуара на iOS 27 beta — суть тикета
-- [ ] Обе платформы собираются, тесты зелёные
+- [x] Обе платформы собираются, тесты зелёные

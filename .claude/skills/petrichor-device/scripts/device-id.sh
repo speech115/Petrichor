@@ -13,10 +13,13 @@ python3 - "$tmp" <<'PY'
 import json, sys
 
 devices = json.load(open(sys.argv[1]))["result"]["devices"]
+# A wired iPhone that has not been touched yet reports tunnelState
+# "disconnected" — the tunnel is established lazily by the first devicectl
+# operation. Only "unavailable" means the device is truly unreachable.
 connected = [
     d for d in devices
     if d["hardwareProperties"].get("platform") == "iOS"
-    and d["connectionProperties"].get("tunnelState") == "connected"
+    and d["connectionProperties"].get("tunnelState") != "unavailable"
 ]
 
 if not connected:
