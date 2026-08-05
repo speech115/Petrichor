@@ -28,6 +28,32 @@ extension DatabaseManager {
         }
     }
     
+    /// Address-fetch of one artwork — album art by album ID, falling back to
+    /// the track's own artwork. Lazy lists (thousands of rows) must not pull
+    /// every cover at once, so rows fetch individually as they appear.
+    func getArtworkData(albumId: Int64?, trackId: Int64?) -> Data? {
+        do {
+            return try dbQueue.read { db in
+                if let albumId,
+                   let artwork: Data = try Album
+                       .select(Album.Columns.artworkData)
+                       .filter(Album.Columns.id == albumId)
+                       .fetchOne(db)?[Album.Columns.artworkData] {
+                    return artwork
+                }
+
+                guard let trackId else { return nil }
+                return try FullTrack
+                    .select(FullTrack.Columns.trackArtworkData)
+                    .filter(FullTrack.Columns.trackId == trackId)
+                    .fetchOne(db)?[FullTrack.Columns.trackArtworkData] as Data?
+            }
+        } catch {
+            Logger.error("Failed to fetch artwork for track: \(error)")
+            return nil
+        }
+    }
+
     /// Populate album artwork for a single FullTrack
     func populateAlbumArtworkForFullTrack(_ track: inout FullTrack) {
         guard let albumId = track.albumId else { return }

@@ -44,14 +44,7 @@ struct ContentView: View {
 
     @State private var selectedTab: IOSSection = .library
     @State private var selectedFolderNode: FolderNode?
-
-    @AppStorage("librarySelectedFilterType")
-    private var libraryFilterType: LibraryFilterType = .artists
-    @State private var libraryFilterItem: LibraryFilterItem?
-    @State private var libraryPendingSearchText: String?
-    @State private var libraryFilteredItems: [LibraryFilterItem] = []
-    @State private var libraryCachedTracks: [Track] = []
-    @State private var pendingLibraryFilter: LibraryFilterRequest?
+    @State private var libraryPath: [LibraryDestination] = []
 
     @State private var showingSettings = false
     @State private var showingNowPlaying = false
@@ -139,17 +132,13 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showFolderImporter)) { _ in
             showingFileImporter = true
         }
-        .onReceive(NotificationCenter.default.publisher(for: .libraryDataDidChange)) { _ in
-            refreshLibraryFilterItems()
-        }
         .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
             if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,
                let filterValue = notification.userInfo?["filterValue"] as? String {
                 selectedTab = .library
-                let allItems = libraryManager.getLibraryFilterItems(for: filterType)
-                if let item = allItems.first(where: { $0.name == filterValue }) {
-                    libraryFilterType = filterType
-                    libraryFilterItem = item
+                if let item = libraryManager.getLibraryFilterItems(for: filterType)
+                    .first(where: { $0.name == filterValue }) {
+                    libraryPath = [LibraryDestination.tracks(item)]
                 }
             }
         }
@@ -158,106 +147,10 @@ struct ContentView: View {
     // MARK: - Library Tab
 
     private var libraryTab: some View {
-        NavigationStack {
-            Group {
-                if let filterItem = libraryFilterItem {
-                    LibraryView(
-                        selectedFilterType: $libraryFilterType,
-                        selectedFilterItem: $libraryFilterItem,
-                        pendingSearchText: $libraryPendingSearchText,
-                        cachedFilteredTracks: $libraryCachedTracks,
-                        pendingFilter: $pendingLibraryFilter
-                    )
-                    .id(filterItem.id)
-                    .navigationTitle(filterItem.name)
-                    .navigationBarTitleDisplayMode(.inline)
-                } else {
-                    libraryFilterList
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 8) {
-                        if libraryFilterItem != nil {
-                            Button {
-                                libraryFilterItem = nil
-                                refreshLibraryFilterItems()
-                            } label: {
-                                Image(systemName: "chevron.left")
-                            }
-                        }
-                        filterTypeMenu
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Image(systemName: Icons.settings)
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            if libraryFilterItem == nil, libraryFilteredItems.isEmpty {
-                refreshLibraryFilterItems()
-            }
-        }
-        .onChange(of: libraryFilterType) { _, _ in
-            libraryFilterItem = nil
-            refreshLibraryFilterItems()
-        }
-        .onChange(of: libraryManager.tracks.count) { _, _ in
-            refreshLibraryFilterItems()
-        }
-    }
-
-    private var libraryFilterList: some View {
-        List {
-            Section {
-                ForEach(libraryFilteredItems) { item in
-                    Button {
-                        libraryFilterItem = item
-                    } label: {
-                        HStack {
-                            Text(item.name)
-                            Spacer()
-                            Text("\(item.count)")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-        .navigationTitle(String(localized: "Library"))
-        .navigationBarTitleDisplayMode(.inline)
-        .overlay {
-            if libraryFilteredItems.isEmpty, !libraryManager.shouldShowMainUI {
-                ContentUnavailableView(
-                    String(localized: "No Music"),
-                    systemImage: Icons.musicNote,
-                    description: Text(String(localized: "Add a music folder to get started"))
-                )
-            }
-        }
-    }
-
-    private var filterTypeMenu: some View {
-        Menu {
-            ForEach(LibraryFilterType.allCases, id: \.self) { type in
-                Button {
-                    libraryFilterType = type
-                } label: {
-                    if libraryFilterType == type {
-                        Label(type.pluralDisplayName, systemImage: "checkmark")
-                    } else {
-                        Text(type.pluralDisplayName)
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: libraryFilterType.icon)
-                .font(.system(size: 16, weight: .medium))
-        }
+        LibraryCategoriesView(
+            path: $libraryPath,
+            showingSettings: $showingSettings
+        )
     }
 
     // MARK: - Playlists Tab
@@ -561,12 +454,6 @@ struct ContentView: View {
             for: track,
             playlistManager: playlistManager
         )
-    }
-
-    private func refreshLibraryFilterItems() {
-        let items = libraryManager.getLibraryFilterItems(for: libraryFilterType)
-        let all = [LibraryFilterItem.allItem(for: libraryFilterType, totalCount: libraryManager.totalTrackCount)]
-        libraryFilteredItems = all + items
     }
 }
 
