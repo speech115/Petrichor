@@ -275,7 +275,11 @@ public class PlaybackEngine: NSObject {
     // MARK: - Initialization
 
     override public init() {
+        #if os(macOS)
         self.backend = CrescendoPlaybackBackend()
+        #else
+        self.backend = AVAudioPlaybackBackend()
+        #endif
         super.init()
         self.backend.backendDelegate = self
     }
