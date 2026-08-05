@@ -16,6 +16,16 @@
 // every `backendDelegate` call is routed through `runOnMain` to match that
 // convention.
 //
+// Background playback, the lock-screen tile and remote-command buttons are
+// this backend's responsibility too, wired up in `init`:
+//   - `AudioSessionController` configures the `.playback` audio session and
+//     reacts to interruptions/route changes.
+//   - `NowPlayingPublisher` publishes the descriptive `MPNowPlayingInfoCenter`
+//     tile from `setNowPlayingMetadata(_:)`.
+//   - `MPRemoteCommandCenter` targets translate lock-screen/Control Center
+//     button taps into calls on this backend, since `MPNowPlayingInfoCenter`
+//     only *displays* the tile - it does not react to taps on its own.
+//
 
 import AVFoundation
 import Foundation
@@ -31,11 +41,34 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
 
+    private lazy var audioSession = AudioSessionController(
+        onPause: { [weak self] in self?.pause() },
+        onResume: { [weak self] in self?.resume() }
+    )
+
+    /// Unit tests construct `AVQueuePlayerBackend()` directly (see
+    /// `QueueBackendTests`) to exercise queue bookkeeping without touching
+    /// AVFoundation's playback surface. Grabbing the shared `AVAudioSession`
+    /// and registering process-wide `MPRemoteCommandCenter` targets on every
+    /// such instance is unwanted there - it has nothing to do with what those
+    /// tests check, and it fights every other test's backend instance over
+    /// the same shared session/command center. Production has exactly one
+    /// backend for the app's lifetime (`PlaybackEngine`), so gating this on
+    /// "not under test" costs nothing there.
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     override init() {
         super.init()
         player.actionAtItemEnd = .advance
         observeTrackChanges()
         observeStateChanges()
+
+        if !Self.isRunningUnitTests {
+            audioSession.activate()
+            configureRemoteCommandCenter()
+        }
     }
 
     deinit {
@@ -260,6 +293,67 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
     }
 
+    // MARK: - Remote command center
+
+    /// Lock-screen and Control Center transport buttons. `MPNowPlayingInfoCenter`
+    /// only renders the tile - without this, none of the buttons it shows
+    /// would do anything.
+    private func configureRemoteCommandCenter() {
+        let center = MPRemoteCommandCenter.shared()
+        let managedCommands: [MPRemoteCommand] = [
+            center.playCommand,
+            center.pauseCommand,
+            center.togglePlayPauseCommand,
+            center.nextTrackCommand,
+            center.previousTrackCommand,
+            center.changePlaybackPositionCommand
+        ]
+        // Defensive: guarantees a single backend never ends up with duplicate
+        // targets on the process-wide command center.
+        for command in managedCommands { command.removeTarget(nil) }
+
+        center.playCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.resume()
+            return .success
+        }
+
+        center.pauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.pause()
+            return .success
+        }
+
+        center.togglePlayPauseCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            self.togglePlayPause()
+            return .success
+        }
+
+        center.nextTrackCommand.addTarget { [weak self] _ in
+            guard let self, self.hasQueuedSuccessor else { return .commandFailed }
+            self.playQueueEntry(at: self.currentIndex + 1, startPaused: false)
+            return .success
+        }
+
+        center.previousTrackCommand.addTarget { [weak self] _ in
+            guard let self else { return .commandFailed }
+            if self.currentIndex > 0 {
+                self.playQueueEntry(at: self.currentIndex - 1, startPaused: false)
+            } else {
+                self.seek(to: 0)
+            }
+            return .success
+        }
+
+        center.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let self, let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            return self.seek(to: positionEvent.positionTime) ? .success : .commandFailed
+        }
+    }
+
     /// Delegate calls arrive from AVFoundation's KVO machinery, which makes no
     /// promise about which thread it fires on. Mirrors `CrescendoPlaybackBackend`'s
     /// contract of always calling `backendDelegate` from the main thread.
@@ -318,10 +412,14 @@ extension AVQueuePlayerBackend {
 
     // MARK: - Now Playing
 
-    /// The full implementation (publishing to `MPNowPlayingInfoCenter`) is
-    /// Task 10's job (`NowPlayingPublisher`). This stub only keeps the type
-    /// conforming to `PlaybackBackend` until then.
-    func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {}
+    func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
+        NowPlayingPublisher.publish(
+            metadata,
+            progress: currentPlaybackProgress,
+            duration: duration,
+            rate: Double(player.rate)
+        )
+    }
 
     // MARK: - Audio Effects (unsupported on iOS)
 
