@@ -210,8 +210,16 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     // MARK: - Player items
 
-    /// Ставит текущий трек и всё, что за ним: успешник уже загружен в плеер,
-    /// поэтому переход происходит без паузы.
+    /// Сколько треков вперёд ставится в плеер заранее. Больше — плавнее
+    /// переход между треками, дороже старт: каждый `AVPlayerItem` делает
+    /// синхронный XPC-запрос к медиасервису, и построение всей очереди
+    /// сразу (тысячи треков из «Все треки») вешает главный поток, пока
+    /// watchdog не убьёт приложение.
+    private static let lookaheadItemCount = 16
+
+    /// Ставит текущий трек и до `lookaheadItemCount` следующих: успешник уже
+    /// загружен в плеер, поэтому переход происходит без паузы. Остаток
+    /// очереди доливается в `handleCurrentItemChange` по мере проигрывания.
     private func rebuildPlayerItems(startPaused: Bool) {
         player.removeAllItems()
         clearItemTracking()
@@ -221,7 +229,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             return
         }
 
-        for entry in entries[currentIndex...] {
+        let end = min(entries.count, currentIndex + 1 + Self.lookaheadItemCount)
+        for entry in entries[currentIndex..<end] {
             player.insert(makePlayerItem(for: entry), after: nil)
         }
         if startPaused {
@@ -233,7 +242,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         runOnMain { self.notifyStateIfChanged() }
     }
 
-    /// Пересобирает только ещё не прозвучавший хвост, не трогая играющий трек.
+    /// Пересобирает только ещё не прозвучавший хвост (до `lookaheadItemCount`
+    /// треков), не трогая играющий трек.
     private func refillUpcomingItems() {
         guard !entries.isEmpty else {
             player.removeAllItems()
@@ -246,7 +256,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             player.remove(item)
             removeTracking(for: item)
         }
-        for entry in entries.dropFirst(currentIndex + 1) {
+        let end = min(entries.count, currentIndex + 1 + Self.lookaheadItemCount)
+        for entry in entries[(currentIndex + 1)..<end] {
             player.insert(makePlayerItem(for: entry), after: nil)
         }
     }
@@ -326,6 +337,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
                     )
                 }
                 currentIndex = min(finishedIndex + 1, max(0, entries.count - 1))
+                refillUpcomingItems()
             }
         }
 
