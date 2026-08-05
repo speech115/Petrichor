@@ -585,6 +585,32 @@ git commit -m "feat: scan the documents folder as the iOS library root"
 - Consumes: `MetadataEngine` из `Core/Metadata/MetadataEngine.swift`
 - Produces: заполненный `Track` с `title`, `artist`, `album`, `duration`, обложкой и фолбэком по имени файла
 
+Разбора имени файла вида «Исполнитель - Название» в проекте не было вообще:
+в `Managers/Database/DMMetadata.swift:14-15` есть только фолбэк `title` → имя
+файла целиком и `artist` → `"Unknown Artist"`, никакого разбора на части там
+нет и выносить нечего. Тип `FilenameMetadataFallback` пишется с нуля.
+
+Правило «ровно ≥3 части и числовой префикс» из исходной версии этой задачи
+покрывает не тот случай. Замер по библиотеке пользователя (2824 mp3):
+1082 файла имеют числовой префикс вида `0239 - Исполнитель - Название.mp3`
+(префикс задаёт порядок в плейлистах и остаётся частью заголовка), но файлы,
+у которых реально отсутствует тег исполнителя, чаще выглядят как обычный
+`Исполнитель - Название.mp3` без префикса: `System of a down - Violent
+pornography.mp3`, `avatar the last airbender - safe return.mp3`, `Jaden - The
+Passion.mp3`. Правило «≥3 части» на них не срабатывает — `artist` остаётся
+`nil` именно там, где фолбэк нужнее всего. Поэтому реализованы оба случая:
+
+- `#### - Исполнитель - Название` (первая часть целиком из цифр, частей ≥3):
+  `artist` = вторая часть, `title` = имя файла целиком без расширения
+  (с префиксом);
+- `Исполнитель - Название` (частей ≥2, первая часть не из цифр): `artist` =
+  первая часть, `title` = остальное, склеенное обратно через `" - "`;
+- одна часть (`Just A Song.mp3`): `artist == nil`, `title` = имя файла без
+  расширения.
+
+Разделитель — `" - "` (пробел-дефис-пробел). Результат обрезается по краям
+пробелов.
+
 - [ ] **Step 1: Написать падающий тест на фолбэк**
 
 Создать `Tests/MusifyTests/MetadataMappingTests.swift`:
@@ -611,7 +637,20 @@ import Testing
     #expect(parsed.artist == nil)
     #expect(parsed.title == "Just A Song")
 }
+
+@Test func plainArtistDashTitleExtractsArtist() {
+    let url = URL(fileURLWithPath: "/tmp/System of a down - Violent pornography.mp3")
+
+    let parsed = FilenameMetadataFallback.parse(url)
+
+    #expect(parsed.artist == "System of a down")
+    #expect(parsed.title == "Violent pornography")
+}
 ```
+
+Полный набор тестов (с ещё четырьмя случаями — smash-case из имён,
+многодефисные названия, обрезка пробелов) лежит в
+`Tests/MusifyTests/MetadataMappingTests.swift`.
 
 - [ ] **Step 2: Прогнать и убедиться, что падает**
 
@@ -619,31 +658,53 @@ Expected: FAIL — `cannot find 'FilenameMetadataFallback' in scope`
 
 - [ ] **Step 3: Реализовать фолбэк**
 
-Логика уже есть в `Managers/Database/DMMetadata.swift` для мак-версии — вынести её в переиспользуемый тип, не дублируя. Добавить в `iOS/AVAssetMetadataReader.swift`:
+Тип пишется с нуля в `iOS/AVAssetMetadataReader.swift` (см. обоснование
+правила выше):
 
 ```swift
-/// Разбор имени вида `#### - Artist - Title`. Числовой префикс задаёт порядок
-/// в плейлистах и остаётся частью заголовка.
 enum FilenameMetadataFallback {
+    private static let separator = " - "
+
     static func parse(_ url: URL) -> (artist: String?, title: String) {
         let base = url.deletingPathExtension().lastPathComponent
-        let parts = base.components(separatedBy: " - ")
+            .trimmingCharacters(in: .whitespaces)
+        let parts = base.components(separatedBy: separator)
 
-        guard parts.count >= 3, parts[0].allSatisfy(\.isNumber) else {
+        guard parts.count >= 2 else {
             return (nil, base)
         }
-        return (parts[1], base)
+
+        // `#### - Исполнитель - Название`: префикс остаётся частью заголовка.
+        if parts.count >= 3, !parts[0].isEmpty, parts[0].allSatisfy(\.isNumber) {
+            let artist = parts[1].trimmingCharacters(in: .whitespaces)
+            return (artist, base)
+        }
+
+        // `Исполнитель - Название`.
+        guard !parts[0].isEmpty, !parts[0].allSatisfy(\.isNumber) else {
+            return (nil, base)
+        }
+
+        let artist = parts[0].trimmingCharacters(in: .whitespaces)
+        let title = parts.dropFirst().joined(separator: separator)
+            .trimmingCharacters(in: .whitespaces)
+        return (artist, title)
     }
 }
 ```
 
 - [ ] **Step 4: Прогнать тесты**
 
-Expected: оба теста проходят.
+Expected: все тесты проходят.
 
 - [ ] **Step 5: Подключить фолбэк к читателю метаданных**
 
-В `AVAssetMetadataReader` после чтения тегов через `AVAsset.load(.commonMetadata)`: если `artist` пуст или равен `Unknown Artist`, подставить результат `FilenameMetadataFallback.parse`.
+В `AVAssetMetadataReader.extractMetadata` после чтения тегов: если
+`metadata.artist` пуст/`nil` — подставить `artist` из
+`FilenameMetadataFallback.parse`; если пуст/`nil` `metadata.title` — подставить
+`title` оттуда же. Плейсхолдер `"Unknown Artist"` подставляется не здесь, а
+позже в общем коде (`DMMetadata.swift:15`), поэтому ридер проверяет именно
+пустоту/`nil`, а не сравнение со строкой `"Unknown Artist"`.
 
 - [ ] **Step 6: Коммит**
 
