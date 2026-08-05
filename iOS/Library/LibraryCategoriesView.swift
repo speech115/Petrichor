@@ -88,6 +88,10 @@ struct LibraryCategoriesView: View {
             TrackListView(filterItem: item)
         case .allTracks:
             TrackListView(filterItem: nil)
+        case .artist(let name):
+            ArtistPage(artistName: name)
+        case .album(let album):
+            AlbumPage(album: album)
         }
     }
 }

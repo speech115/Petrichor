@@ -95,7 +95,7 @@ struct ArtistEntity: Entity {
 }
 
 // MARK: - Album Entity
-struct AlbumEntity: Entity {
+struct AlbumEntity: Entity, Hashable {
     let id: UUID
     let name: String
     let tracks: [Track]
