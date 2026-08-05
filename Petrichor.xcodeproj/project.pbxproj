@@ -12,7 +12,18 @@
 		55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55A000000000000000000040 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55D673CF2E42CEA50095A358 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 55D673CE2E42CEA50095A358 /* Sparkle */; };
+		55A000000000000000000051 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		55A000000000000000000052 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 550F4A062DB45B1A005F794E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55A000000000000000000020;
+			remoteInfo = Musify;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		550F4A0E2DB45B1A005F794E /* Petrichor Dev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Petrichor Dev.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -22,6 +33,7 @@
 		5590877E2DE0C078009E7719 /* PetrichorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetrichorApp.swift; sourceTree = "<group>"; };
 		55FB816B2EC22E6E008321CA /* ACKNOWLEDGEMENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ACKNOWLEDGEMENTS.md; sourceTree = "<group>"; };
 		55A000000000000000000021 /* Musify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Musify.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		55A000000000000000000041 /* MusifyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MusifyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -149,6 +161,11 @@
 			path = iOS;
 			sourceTree = "<group>";
 		};
+		55A000000000000000000042 /* MusifyTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests/MusifyTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -171,6 +188,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		55A000000000000000000045 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				55A000000000000000000051 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -187,6 +212,7 @@
 				55F38A842DF8F2FE0028843B /* Resources */,
 				55B57E742E19D73900E57EC3 /* Scripts */,
 				55A000000000000000000001 /* iOS */,
+				55A000000000000000000042 /* MusifyTests */,
 				550F4A3F2DB4786F005F794E /* .gitignore */,
 				55613A822E04A7230000E217 /* .swiftlint.yml */,
 				55593A412DE019E400640247 /* README.md */,
@@ -262,6 +288,31 @@
 			productReference = 55A000000000000000000021 /* Musify.app */;
 			productType = "com.apple.product-type.application";
 		};
+
+		55A000000000000000000043 /* MusifyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55A000000000000000000047 /* Build configuration list for PBXNativeTarget "MusifyTests" */;
+			buildPhases = (
+				55A000000000000000000044 /* Sources */,
+				55A000000000000000000045 /* Frameworks */,
+				55A000000000000000000046 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				55A000000000000000000053 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				55A000000000000000000042 /* MusifyTests */,
+			);
+			name = MusifyTests;
+			packageProductDependencies = (
+				55B0DEC02DE3A58400A41ED9 /* GRDB */,
+			);
+			productName = MusifyTests;
+			productReference = 55A000000000000000000041 /* MusifyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -277,6 +328,10 @@
 					};
 					55A000000000000000000020 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					55A000000000000000000043 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 55A000000000000000000020;
 					};
 				};
 			};
@@ -301,6 +356,7 @@
 			targets = (
 				550F4A0D2DB45B1A005F794E /* Petrichor */,
 				55A000000000000000000020 /* Musify */,
+				55A000000000000000000043 /* MusifyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -314,6 +370,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		55A000000000000000000024 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000046 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -338,7 +401,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		55A000000000000000000044 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		55A000000000000000000053 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 55A000000000000000000020 /* Musify */;
+			targetProxy = 55A000000000000000000052 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		550F4A182DB45B1B005F794E /* Debug */ = {
@@ -765,6 +843,73 @@
 			};
 			name = Dev;
 		};
+
+		55A000000000000000000048 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sereja.musify.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Musify.app/Musify";
+			};
+			name = Debug;
+		};
+		55A000000000000000000049 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sereja.musify.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Musify.app/Musify";
+			};
+			name = Release;
+		};
+		55A000000000000000000050 /* Dev */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sereja.musify.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Musify.app/Musify";
+			};
+			name = Dev;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -795,6 +940,17 @@
 				55A000000000000000000031 /* Debug */,
 				55A000000000000000000032 /* Release */,
 				55A000000000000000000033 /* Dev */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		55A000000000000000000047 /* Build configuration list for PBXNativeTarget "MusifyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55A000000000000000000048 /* Debug */,
+				55A000000000000000000049 /* Release */,
+				55A000000000000000000050 /* Dev */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
