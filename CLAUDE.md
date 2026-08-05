@@ -7,6 +7,22 @@
 Канон дизайна: `docs/superpowers/specs/2026-08-05-petrichor-ios-design.md`.
 Расхождение кода со спекой — дефект кода, а не повод переписать спеку.
 
+## Agent skills
+
+### Issue tracker
+
+Локальный markdown: задачи и спеки лежат в `.scratch/<feature>/`. Удалённого
+трекера нет — репозиторий без remote. См. `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Канонические пять ролей без переименований. См. `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создаются лениво, когда
+термин или решение действительно фиксируются. См. `docs/agents/domain.md`.
+
 ## Четыре шва — и только они
 
 Платформенные различия сходятся ровно в четырёх местах:
