@@ -21,7 +21,7 @@
 		55613A822E04A7230000E217 /* .swiftlint.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = .swiftlint.yml; sourceTree = "<group>"; };
 		5590877E2DE0C078009E7719 /* PetrichorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetrichorApp.swift; sourceTree = "<group>"; };
 		55FB816B2EC22E6E008321CA /* ACKNOWLEDGEMENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ACKNOWLEDGEMENTS.md; sourceTree = "<group>"; };
-		55A000000000000000000021 /* Petrichor iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Petrichor iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		55A000000000000000000021 /* Musify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Musify.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -40,22 +40,22 @@
 			target = 550F4A0D2DB45B1A005F794E /* Petrichor */;
 		};
 
-		55A000000000000000000010 /* Exceptions for "Application" folder in "PetrichoriOS" target */ = {
+		55A000000000000000000010 /* Exceptions for "Application" folder in "Musify" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppDelegate.swift,
 				WindowDelegate.swift,
 			);
-			target = 55A000000000000000000020 /* PetrichoriOS */;
+			target = 55A000000000000000000020 /* Musify */;
 		};
-		55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */ = {
+		55A000000000000000000011 /* Exceptions for "Managers" folder in "Musify" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				MenuBarManager.swift,
 			);
-			target = 55A000000000000000000020 /* PetrichoriOS */;
+			target = 55A000000000000000000020 /* Musify */;
 		};
-		55A000000000000000000012 /* Exceptions for "Views" folder in "PetrichoriOS" target */ = {
+		55A000000000000000000012 /* Exceptions for "Views" folder in "Musify" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/PersistentSplitView.swift,
@@ -67,15 +67,15 @@
 				MiniPlayer/MiniPlayerWindowManager.swift,
 				Support/ReportProblemView.swift,
 			);
-			target = 55A000000000000000000020 /* PetrichoriOS */;
+			target = 55A000000000000000000020 /* Musify */;
 		};
-		55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */ = {
+		55A000000000000000000013 /* Exceptions for "Core" folder in "Musify" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Metadata/CrescendoMetadataReader.swift,
 				Playback/CrescendoPlaybackBackend.swift,
 			);
-			target = 55A000000000000000000020 /* PetrichoriOS */;
+			target = 55A000000000000000000020 /* Musify */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -83,7 +83,7 @@
 		555A7BBD2E65FF88009F4922 /* Core */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */,
+				55A000000000000000000013 /* Exceptions for "Core" folder in "Musify" target */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -91,7 +91,7 @@
 		559087A32DE0C09C009E7719 /* Application */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				55A000000000000000000010 /* Exceptions for "Application" folder in "PetrichoriOS" target */,
+				55A000000000000000000010 /* Exceptions for "Application" folder in "Musify" target */,
 			);
 			path = Application;
 			sourceTree = "<group>";
@@ -99,7 +99,7 @@
 		559087AA2DE0C0A2009E7719 /* Managers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */,
+				55A000000000000000000011 /* Exceptions for "Managers" folder in "Musify" target */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -112,7 +112,7 @@
 		559087D82DE0C0A6009E7719 /* Views */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				55A000000000000000000012 /* Exceptions for "Views" folder in "PetrichoriOS" target */,
+				55A000000000000000000012 /* Exceptions for "Views" folder in "Musify" target */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -232,9 +232,9 @@
 			productType = "com.apple.product-type.application";
 		};
 
-		55A000000000000000000020 /* PetrichoriOS */ = {
+		55A000000000000000000020 /* Musify */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 55A000000000000000000030 /* Build configuration list for PBXNativeTarget "PetrichoriOS" */;
+			buildConfigurationList = 55A000000000000000000030 /* Build configuration list for PBXNativeTarget "Musify" */;
 			buildPhases = (
 				55A000000000000000000022 /* Sources */,
 				55A000000000000000000023 /* Frameworks */,
@@ -254,12 +254,12 @@
 				55F38A842DF8F2FE0028843B /* Resources */,
 				55A000000000000000000001 /* iOS */,
 			);
-			name = PetrichoriOS;
+			name = Musify;
 			packageProductDependencies = (
 				55B0DEC02DE3A58400A41ED9 /* GRDB */,
 			);
-			productName = "Petrichor iOS";
-			productReference = 55A000000000000000000021 /* Petrichor iOS.app */;
+			productName = Musify;
+			productReference = 55A000000000000000000021 /* Musify.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -300,7 +300,7 @@
 			projectRoot = "";
 			targets = (
 				550F4A0D2DB45B1A005F794E /* Petrichor */,
-				55A000000000000000000020 /* PetrichoriOS */,
+				55A000000000000000000020 /* Musify */,
 			);
 		};
 /* End PBXProject section */
@@ -686,15 +686,15 @@
 				EXCLUDED_SOURCE_FILE_NAMES = "AppIcon.icon AppIconDev.icon";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Configuration/Info-iOS.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				INFOPLIST_KEY_CFBundleDisplayName = Musify;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
 				PETRICHOR_URL_SCHEME = "petrichor-ios";
-				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
-				PRODUCT_MODULE_NAME = Petrichor;
-				PRODUCT_NAME = "Petrichor";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sereja.musify;
+				PRODUCT_MODULE_NAME = Musify;
+				PRODUCT_NAME = Musify;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -717,15 +717,15 @@
 				EXCLUDED_SOURCE_FILE_NAMES = "AppIcon.icon AppIconDev.icon";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Configuration/Info-iOS.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				INFOPLIST_KEY_CFBundleDisplayName = Musify;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
 				PETRICHOR_URL_SCHEME = "petrichor-ios";
-				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
-				PRODUCT_MODULE_NAME = Petrichor;
-				PRODUCT_NAME = "Petrichor";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sereja.musify;
+				PRODUCT_MODULE_NAME = Musify;
+				PRODUCT_NAME = Musify;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -748,15 +748,15 @@
 				EXCLUDED_SOURCE_FILE_NAMES = "AppIcon.icon AppIconDev.icon";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Configuration/Info-iOS.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				INFOPLIST_KEY_CFBundleDisplayName = Musify;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
 				PETRICHOR_URL_SCHEME = "petrichor-ios";
-				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
-				PRODUCT_MODULE_NAME = Petrichor;
-				PRODUCT_NAME = "Petrichor";
+				PRODUCT_BUNDLE_IDENTIFIER = com.sereja.musify;
+				PRODUCT_MODULE_NAME = Musify;
+				PRODUCT_NAME = Musify;
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -789,7 +789,7 @@
 			defaultConfigurationName = Release;
 		};
 
-		55A000000000000000000030 /* Build configuration list for PBXNativeTarget "PetrichoriOS" */ = {
+		55A000000000000000000030 /* Build configuration list for PBXNativeTarget "Musify" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				55A000000000000000000031 /* Debug */,
