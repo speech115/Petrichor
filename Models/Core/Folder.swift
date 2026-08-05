@@ -55,7 +55,7 @@ struct Folder: Identifiable, Hashable, Codable, FetchableRecord, PersistableReco
         dateAdded = try container.decode(Date.self, forKey: .dateAdded)
         dateUpdated = try container.decode(Date.self, forKey: .dateUpdated)
         let path = try container.decode(String.self, forKey: .path)
-        url = URL(fileURLWithPath: path)
+        url = LibraryPathStore.url(fromStored: path)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -65,7 +65,7 @@ struct Folder: Identifiable, Hashable, Codable, FetchableRecord, PersistableReco
         try container.encode(trackCount, forKey: .trackCount)
         try container.encode(dateAdded, forKey: .dateAdded)
         try container.encode(dateUpdated, forKey: .dateUpdated)
-        try container.encode(url.path, forKey: .path)
+        try container.encode(LibraryPathStore.storedPath(for: url), forKey: .path)
     }
 
     // MARK: - FetchableRecord
@@ -80,19 +80,23 @@ struct Folder: Identifiable, Hashable, Codable, FetchableRecord, PersistableReco
         shasumHash = row[Columns.shasumHash]
 
         let path: String = row[Columns.path]
-        url = URL(fileURLWithPath: path)
+        url = LibraryPathStore.url(fromStored: path)
     }
 
     // MARK: - PersistableRecord
 
     func encode(to container: inout PersistenceContainer) throws {
         container[Columns.id] = id
-        container[Columns.path] = url.path
+        container[Columns.path] = LibraryPathStore.storedPath(for: url)
         container[Columns.name] = name
         container[Columns.trackCount] = trackCount
         container[Columns.dateAdded] = dateAdded
         container[Columns.dateUpdated] = dateUpdated
+        #if os(iOS)
+        container[Columns.bookmarkData] = nil
+        #else
         container[Columns.bookmarkData] = bookmarkData
+        #endif
         container[Columns.shasumHash] = shasumHash
     }
 

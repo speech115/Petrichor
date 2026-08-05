@@ -127,7 +127,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     init(row: Row) throws {
         // Extract path and create URL
         let path: String = row[Columns.path]
-        self.url = URL(fileURLWithPath: path)
+        self.url = LibraryPathStore.url(fromStored: path)
         self.format = row[Columns.format]
         
         // Core properties
@@ -171,7 +171,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
         // Only encode the lightweight fields when saving
         container[Columns.trackId] = trackId
         container[Columns.folderId] = folderId
-        container[Columns.path] = url.path
+        container[Columns.path] = LibraryPathStore.storedPath(for: url)
         container[Columns.title] = title
         container[Columns.artist] = artist
         container[Columns.album] = album
