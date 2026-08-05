@@ -1079,6 +1079,37 @@ git commit -m "feat: replace the iOS playback backend with a gapless AVQueuePlay
 
 ### Task 10: Аудиосессия, фон и блокировочный экран
 
+Реализация разошлась с примерами ниже в четырёх местах:
+
+- **`NowPlayingPublisher.publish` получил четвёртый параметр — `rate:
+  Double`.** Без него `MPNowPlayingInfoPropertyPlaybackRate` не задан вовсе, а
+  система в этом случае считает трек играющим всегда — индикатор времени на
+  блокировочном экране продолжал бы бежать вперёд и на паузе. Вызывающая
+  сторона (`AVQueuePlayerBackend.setNowPlayingMetadata`) передаёт
+  `Double(player.rate)` — 0 на паузе, 1 при воспроизведении.
+- **Активация сессии и регистрация `MPRemoteCommandCenter` вынесены из
+  безусловного `init` под проверку `!isRunningUnitTests`.** `QueueBackendTests`
+  (Task 9) создают `AVQueuePlayerBackend()` напрямую в каждом тесте; без этой
+  проверки каждый такой инстанс забирал бы `AVAudioSession.sharedInstance()` и
+  перерегистрировал бы обработчики на общем `MPRemoteCommandCenter.shared()`,
+  деля их с другими тестами и с самим приложением. Тесты от этого не падали,
+  но такой побочный эффект в модульных тестах — риск, которого не должно быть,
+  поэтому активация изолирована через `ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"]`.
+  Единственный продакшн-инстанс бэкенда (`PlaybackEngine`) от этой проверки не
+  страдает — она включает активацию всегда, кроме тестового прогона.
+- **Добавлено подключение `MPRemoteCommandCenter`**, которого не было в
+  исходном тексте задачи. `MPNowPlayingInfoCenter` только показывает плитку;
+  команды `playCommand`, `pauseCommand`, `togglePlayPauseCommand`,
+  `nextTrackCommand`, `previousTrackCommand` и `changePlaybackPositionCommand`
+  подключены к `resume()`/`pause()`/`togglePlayPause()`/`playQueueEntry(at:)`/
+  `seek(to:)` бэкенда — без этого кнопки на блокировочном экране и в Пункте
+  управления не реагировали бы на нажатия.
+- **Наблюдение отказов элементов очереди и их маппинг в `AudioPlayerError`**
+  (`backendUnexpectedError`, `backendDidSkipQueueEntry`) реализованы здесь же,
+  в `AVQueuePlayerBackend.swift`, отдельным коммитом — это была часть
+  протокола `PlaybackBackendDelegate`, оставшаяся неподключённой после
+  Task 9, и в исходном тексте Task 10 не описана вовсе.
+
 **Files:**
 - Create: `iOS/AudioSessionController.swift`
 - Create: `iOS/NowPlayingPublisher.swift`
@@ -1088,7 +1119,8 @@ git commit -m "feat: replace the iOS playback backend with a gapless AVQueuePlay
 - Consumes: `AVQueuePlayerBackend` из Task 9, `NowPlayingMetadata` из `Core/Playback/PlaybackEngine.swift`
 - Produces:
   - `final class AudioSessionController` с `func activate()`
-  - `enum NowPlayingPublisher` с `static func publish(_ metadata: NowPlayingMetadata?, progress: Double, duration: Double)`
+  - `enum NowPlayingPublisher` с `static func publish(_ metadata: NowPlayingMetadata?, progress: Double, duration: Double, rate: Double)`
+    (параметр `rate` — расхождение с исходным текстом задачи, см. ниже)
 
 - [ ] **Step 1: Реализовать контроллер сессии**
 
