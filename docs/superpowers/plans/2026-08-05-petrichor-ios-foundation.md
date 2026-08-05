@@ -69,7 +69,7 @@
 - Consumes: ничего
 - Produces: схема `PetrichoriOS`, собираемая командой `xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`
 
-- [ ] **Step 1: Убедиться, что сборка сейчас падает**
+- [x] **Step 1: Убедиться, что сборка сейчас падает**
 
 ```bash
 xcodebuild -project Petrichor.xcodeproj -target PetrichoriOS -sdk iphonesimulator build 2>&1 | grep -E "error:|BUILD"
@@ -77,11 +77,11 @@ xcodebuild -project Petrichor.xcodeproj -target PetrichoriOS -sdk iphonesimulato
 
 Expected: `error: unable to resolve module dependency: 'GRDB'` и `** BUILD FAILED **`
 
-- [ ] **Step 2: Переименовать таргет и схему**
+- [x] **Step 2: Переименовать таргет и схему**
 
 В Xcode: выбрать таргет `PetrichoriOS` → Identity and Type → Name: `PetrichoriOS`. Затем Product → Scheme → Manage Schemes → создать общую схему `PetrichoriOS`, поставить галочку Shared.
 
-- [ ] **Step 3: Задать bundle identifier и версию платформы**
+- [x] **Step 3: Задать bundle identifier и версию платформы**
 
 В настройках таргета `PetrichoriOS`:
 - `PRODUCT_BUNDLE_IDENTIFIER` = `org.Petrichor.ios`
@@ -90,11 +90,11 @@ Expected: `error: unable to resolve module dependency: 'GRDB'` и `** BUILD FAIL
 - `PRODUCT_MODULE_NAME` = `Petrichor` (иначе `@testable import Petrichor` в тестах не соберётся)
 - `INFOPLIST_FILE` = `Configuration/Info-iOS.plist`
 
-- [ ] **Step 4: Привязать GRDB к таргету**
+- [x] **Step 4: Привязать GRDB к таргету**
 
 Target `PetrichoriOS` → General → Frameworks, Libraries, and Embedded Content → `+` → выбрать `GRDB` из пакета `GRDB.swift`. Crescendo и Sparkle **не добавлять** — они macOS-only.
 
-- [ ] **Step 5: Обновить Info-iOS.plist**
+- [x] **Step 5: Обновить Info-iOS.plist**
 
 Заменить значения:
 
@@ -105,7 +105,7 @@ Target `PetrichoriOS` → General → Frameworks, Libraries, and Embedded Conten
 <string>Petrichor</string>
 ```
 
-- [ ] **Step 6: Собрать**
+- [x] **Step 6: Собрать**
 
 ```bash
 xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build 2>&1 | grep -E "error:|BUILD"
@@ -113,7 +113,7 @@ xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone
 
 Expected: `** BUILD SUCCEEDED **`. Если всплывают ошибки компиляции в файлах `Views/` — значит они ошибочно попали в таргет: убрать их из Target Membership (в iOS-таргет входят только `Models`, `Core`, `Managers`, `Utilities`, `Application`, `iOS`).
 
-- [ ] **Step 7: Коммит**
+- [x] **Step 7: Коммит**
 
 ```bash
 git add Petrichor.xcodeproj Configuration/Info-iOS.plist
@@ -134,11 +134,11 @@ git commit -m "build: configure the iOS target and link GRDB"
 - Consumes: схема `PetrichoriOS` из Task 1
 - Produces: таргет `PetrichoriOSTests`, запускаемый через `xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'`
 
-- [ ] **Step 1: Создать таргет**
+- [x] **Step 1: Создать таргет**
 
 В Xcode: File → New → Target → Unit Testing Bundle. Product Name: `PetrichoriOSTests`, Target to be Tested: `PetrichoriOS`, Testing System: **Swift Testing**. Путь к файлам изменить на `Tests/PetrichoriOSTests`.
 
-- [ ] **Step 2: Написать проверочный тест**
+- [x] **Step 2: Написать проверочный тест**
 
 Создать `Tests/PetrichoriOSTests/SmokeTests.swift`:
 
@@ -152,7 +152,7 @@ import Testing
 }
 ```
 
-- [ ] **Step 3: Прогнать тесты**
+- [x] **Step 3: Прогнать тесты**
 
 ```bash
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "Test Suite|passed|failed|error:"
@@ -160,7 +160,7 @@ xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=i
 
 Expected: тест проходит.
 
-- [ ] **Step 4: Коммит**
+- [x] **Step 4: Коммит**
 
 ```bash
 git add Petrichor.xcodeproj Tests
@@ -185,7 +185,7 @@ git commit -m "test: add PetrichoriOSTests target"
   - `static func url(fromStored path: String) -> URL`
   - `static var libraryRoot: URL` — на iOS `Documents`, на macOS корень файловой системы
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 Создать `Tests/PetrichoriOSTests/LibraryPathStoreTests.swift`:
 
@@ -226,7 +226,7 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: Прогнать тесты и убедиться, что они падают**
+- [x] **Step 2: Прогнать тесты и убедиться, что они падают**
 
 ```bash
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "cannot find|failed|error:"
@@ -234,7 +234,7 @@ xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=i
 
 Expected: FAIL — `cannot find 'LibraryPathStore' in scope`
 
-- [ ] **Step 3: Реализовать шов**
+- [x] **Step 3: Реализовать шов**
 
 Создать `Utilities/LibraryPathStore.swift`:
 
@@ -279,7 +279,7 @@ enum LibraryPathStore {
 }
 ```
 
-- [ ] **Step 4: Прогнать тесты**
+- [x] **Step 4: Прогнать тесты**
 
 ```bash
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "passed|failed"
@@ -287,7 +287,7 @@ xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=i
 
 Expected: все четыре теста проходят.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add Utilities/LibraryPathStore.swift Tests/PetrichoriOSTests/LibraryPathStoreTests.swift
@@ -307,7 +307,7 @@ git commit -m "feat: add path seam for container-relative track paths"
 - Consumes: `LibraryPathStore.storedPath(for:)`, `LibraryPathStore.url(fromStored:)` из Task 3
 - Produces: `Track` и `Folder`, чьи `url` восстанавливаются из относительного пути
 
-- [ ] **Step 1: Написать падающий тест**
+- [x] **Step 1: Написать падающий тест**
 
 Создать `Tests/PetrichoriOSTests/TrackPersistenceTests.swift`:
 
@@ -344,11 +344,11 @@ import Testing
 }
 ```
 
-- [ ] **Step 2: Прогнать тест и убедиться, что он падает**
+- [x] **Step 2: Прогнать тест и убедиться, что он падает**
 
 Expected: FAIL — в базу пишется абсолютный путь `/var/mobile/.../Documents/Моя музыка/track.mp3`.
 
-- [ ] **Step 3: Заменить кодирование пути в Track**
+- [x] **Step 3: Заменить кодирование пути в Track**
 
 В `Models/Core/Track.swift` строка чтения:
 
@@ -363,7 +363,7 @@ self.url = LibraryPathStore.url(fromStored: path)
 container[Columns.path] = LibraryPathStore.storedPath(for: url)
 ```
 
-- [ ] **Step 4: Сделать то же для Folder**
+- [x] **Step 4: Сделать то же для Folder**
 
 В `Models/Core/Folder.swift` заменить кодирование и декодирование `path` теми же двумя вызовами. Дополнительно на iOS не сохранять bookmark:
 
@@ -375,11 +375,11 @@ container[Columns.bookmarkData] = bookmarkData
 #endif
 ```
 
-- [ ] **Step 5: Прогнать тесты**
+- [x] **Step 5: Прогнать тесты**
 
 Expected: PASS, включая тесты из Task 3.
 
-- [ ] **Step 6: Коммит**
+- [x] **Step 6: Коммит**
 
 ```bash
 git add Models/Core/Track.swift Models/Core/Folder.swift Tests/PetrichoriOSTests/TrackPersistenceTests.swift
@@ -406,7 +406,7 @@ iOS-приложение носило отдельное имя. После во
 - Consumes: ничего
 - Produces: файл базы `petrichor.db` в `Application Support/org.Petrichor.ios/`
 
-- [ ] **Step 1: Запустить приложение в симуляторе**
+- [x] **Step 1: Запустить приложение в симуляторе**
 
 ```bash
 xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build
@@ -414,7 +414,7 @@ xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone
 
 Затем через iOS Simulator MCP: `launch` собранный `.app`, проверить, что приложение не падает на старте.
 
-- [ ] **Step 2: Убедиться, что база создалась**
+- [x] **Step 2: Убедиться, что база создалась**
 
 ```bash
 find ~/Library/Developer/CoreSimulator/Devices -name "petrichor.db" 2>/dev/null | head -2
@@ -435,7 +435,7 @@ Expected: файл найден в контейнере приложения. Ф
 - Consumes: ничего
 - Produces: папка `Documents` приложения, видимая в Finder по кабелю и в системном «Файлы»
 
-- [ ] **Step 1: Добавить ключи**
+- [x] **Step 1: Добавить ключи**
 
 В `Configuration/Info-iOS.plist`:
 
@@ -446,7 +446,7 @@ Expected: файл найден в контейнере приложения. Ф
 <true/>
 ```
 
-- [ ] **Step 2: Проверить, что UIBackgroundModes содержит audio**
+- [x] **Step 2: Проверить, что UIBackgroundModes содержит audio**
 
 Ключ уже присутствует в файле — убедиться, что значение именно такое:
 
@@ -457,11 +457,11 @@ Expected: файл найден в контейнере приложения. Ф
 </array>
 ```
 
-- [ ] **Step 3: Пересобрать и запустить**
+- [x] **Step 3: Пересобрать и запустить**
 
 Приложение должно запускаться без падений; визуально ничего не меняется.
 
-- [ ] **Step 4: Коммит**
+- [x] **Step 4: Коммит**
 
 ```bash
 git add Configuration/Info-iOS.plist
@@ -499,7 +499,7 @@ macOS запускается из `addFolder()` и уже умеет дедуп�
 - Produces: `LibraryManager.scanLibraryRoot() async throws` — регистрирует `Documents`
   как единственную папку библиотеки и сканирует её
 
-- [ ] **Step 1: Изучить существующий конвейер**
+- [x] **Step 1: Изучить существующий конвейер**
 
 `addFolder(urls:)` (макошная версия и уже реализованная iOS-версия в
 `LMFolders.swift`) создают security-scoped bookmarks и обрабатывают
@@ -509,7 +509,7 @@ iCloud-догрузку, затем вызывают `databaseManager.addFolders
 iOS-корню не нужны: `Documents` лежит внутри контейнера приложения,
 разрешения не требуются.
 
-- [ ] **Step 2: Добавить точку входа**
+- [x] **Step 2: Добавить точку входа**
 
 В `LMFolders.swift`, внутри существующего `#if os(macOS) ... #else ... #endif`
 (iOS-ветка), рядом с `addFolder(urls:)`:
@@ -533,7 +533,7 @@ func scanLibraryRoot() async throws {
 зарегистрированную папку по хранимому пути (см. Часть А правки в
 `DMFolders.swift`) и просто пересканирует её.
 
-- [ ] **Step 3: Прогресс сканирования**
+- [x] **Step 3: Прогресс сканирования**
 
 Отдельного колбэка прогресса не заводится. `scanFoldersForTracks` уже
 публикует прогресс двумя каналами: `DatabaseManager.isScanning` /
@@ -541,7 +541,7 @@ func scanLibraryRoot() async throws {
 (`startActivity` / `updateActivityProgress` / `stopActivity`). Экран,
 показывающий прогресс сканирования, подписывается на них напрямую.
 
-- [ ] **Step 4: Тесты**
+- [x] **Step 4: Тесты**
 
 `DatabaseManager` не даёт подставить in-memory `DatabaseQueue` (единственный
 инициализатор — параметризованный `init() throws`, открывающий реальный файл
@@ -559,7 +559,7 @@ func scanLibraryRoot() async throws {
 - `LibraryPathStore.storedPath(for: LibraryPathStore.libraryRoot) == ""` и
   обратное преобразование возвращает исходный `libraryRoot`.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add Managers/Library/LMFolders.swift Utilities/LibraryPathStore.swift \
@@ -605,7 +605,7 @@ Passion.mp3`. Правило «≥3 части» на них не срабаты
 Разделитель — `" - "` (пробел-дефис-пробел). Результат обрезается по краям
 пробелов.
 
-- [ ] **Step 1: Написать падающий тест на фолбэк**
+- [x] **Step 1: Написать падающий тест на фолбэк**
 
 Создать `Tests/PetrichoriOSTests/MetadataMappingTests.swift`:
 
@@ -646,11 +646,11 @@ import Testing
 многодефисные названия, обрезка пробелов) лежит в
 `Tests/PetrichoriOSTests/MetadataMappingTests.swift`.
 
-- [ ] **Step 2: Прогнать и убедиться, что падает**
+- [x] **Step 2: Прогнать и убедиться, что падает**
 
 Expected: FAIL — `cannot find 'FilenameMetadataFallback' in scope`
 
-- [ ] **Step 3: Реализовать фолбэк**
+- [x] **Step 3: Реализовать фолбэк**
 
 Тип пишется с нуля в `iOS/AVAssetMetadataReader.swift` (см. обоснование
 правила выше):
@@ -687,11 +687,11 @@ enum FilenameMetadataFallback {
 }
 ```
 
-- [ ] **Step 4: Прогнать тесты**
+- [x] **Step 4: Прогнать тесты**
 
 Expected: все тесты проходят.
 
-- [ ] **Step 5: Подключить фолбэк к читателю метаданных**
+- [x] **Step 5: Подключить фолбэк к читателю метаданных**
 
 В `AVAssetMetadataReader.extractMetadata` после чтения тегов: если
 `metadata.artist` пуст/`nil` — подставить `artist` из
@@ -700,7 +700,7 @@ Expected: все тесты проходят.
 позже в общем коде (`DMMetadata.swift:15`), поэтому ридер проверяет именно
 пустоту/`nil`, а не сравнение со строкой `"Unknown Artist"`.
 
-- [ ] **Step 6: Коммит**
+- [x] **Step 6: Коммит**
 
 ```bash
 git add iOS/AVAssetMetadataReader.swift Tests/PetrichoriOSTests/MetadataMappingTests.swift
@@ -762,7 +762,7 @@ git commit -m "feat: fall back to filename metadata when tags are missing"
 - Consumes: протокол `PlaybackBackend`, типы `QueueEntry`, `AudioEntryId`, `AudioPlayerState`, `NowPlayingMetadata`, `EqualizerPreset` из `Core/Playback/PlaybackEngine.swift`
 - Produces: `final class AVQueuePlayerBackend: NSObject, PlaybackBackend`
 
-- [ ] **Step 1: Написать падающие тесты на очередь**
+- [x] **Step 1: Написать падающие тесты на очередь**
 
 Создать `Tests/PetrichoriOSTests/QueueBackendTests.swift`:
 
@@ -818,11 +818,11 @@ private func makeEntry(_ name: String) -> QueueEntry {
 
 Сигнатуры сверены с `Core/Playback/PlaybackEngine.swift:55-84`: `AudioEntryId(id: String)`, `QueueEntry(entryId: AudioEntryId, url: URL)`. Свойство `queue` возвращает `[AudioEntryId]`, поэтому `.map(\.id)` даёт строки.
 
-- [ ] **Step 2: Прогнать и убедиться, что падает**
+- [x] **Step 2: Прогнать и убедиться, что падает**
 
 Expected: FAIL — `cannot find 'AVQueuePlayerBackend' in scope`
 
-- [ ] **Step 3: Реализовать очередь и транспорт**
+- [x] **Step 3: Реализовать очередь и транспорт**
 
 Создать `iOS/AVQueuePlayerBackend.swift`:
 
@@ -994,7 +994,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
 Методы делегата сверены с `Core/Playback/PlaybackEngine.swift:231-243`: `backendDidStartPlaying(with:)`, `backendStateChanged(with:previous:)`, `backendDidFinishPlaying(entryId:stopReason:progress:duration:)`, `backendUnexpectedError(error:)`, `backendDidFinishBuffering(with:)`, `backendDidSkipQueueEntry(entryId:)`. Метода для отчёта о прогрессе в протоколе нет — прогресс движок читает сам через `currentPlaybackProgress`.
 
-- [ ] **Step 4: Реализовать транспорт и эффекты**
+- [x] **Step 4: Реализовать транспорт и эффекты**
 
 Дописать в тот же файл:
 
@@ -1040,7 +1040,7 @@ extension AVQueuePlayerBackend {
 }
 ```
 
-- [ ] **Step 5: Переключить движок на новый бэкенд**
+- [x] **Step 5: Переключить движок на новый бэкенд**
 
 В `Core/Playback/PlaybackEngine.swift` заменить в инициализаторе:
 
@@ -1058,11 +1058,11 @@ self.backend = AVQueuePlayerBackend()
 git rm iOS/AVAudioPlaybackBackend.swift
 ```
 
-- [ ] **Step 6: Прогнать тесты**
+- [x] **Step 6: Прогнать тесты**
 
 Expected: все тесты очереди проходят.
 
-- [ ] **Step 7: Коммит**
+- [x] **Step 7: Коммит**
 
 ```bash
 git add iOS/AVQueuePlayerBackend.swift Core/Playback/PlaybackEngine.swift Tests/PetrichoriOSTests/QueueBackendTests.swift
@@ -1116,7 +1116,7 @@ git commit -m "feat: replace the iOS playback backend with a gapless AVQueuePlay
   - `enum NowPlayingPublisher` с `static func publish(_ metadata: NowPlayingMetadata?, progress: Double, duration: Double, rate: Double)`
     (параметр `rate` — расхождение с исходным текстом задачи, см. ниже)
 
-- [ ] **Step 1: Реализовать контроллер сессии**
+- [x] **Step 1: Реализовать контроллер сессии**
 
 Создать `iOS/AudioSessionController.swift`:
 
@@ -1181,7 +1181,7 @@ final class AudioSessionController {
 }
 ```
 
-- [ ] **Step 2: Реализовать публикацию Now Playing**
+- [x] **Step 2: Реализовать публикацию Now Playing**
 
 Создать `iOS/NowPlayingPublisher.swift`:
 
@@ -1215,7 +1215,7 @@ enum NowPlayingPublisher {
 
 Поля сверены с `Core/Playback/PlaybackEngine.swift:92-99`: `title`, `artist`, `albumTitle`, `albumArtist`, `genre` — все `String?`, обложка приходит байтами в `artworkData: Data?`.
 
-- [ ] **Step 3: Подключить обе части к бэкенду**
+- [x] **Step 3: Подключить обе части к бэкенду**
 
 В `AVQueuePlayerBackend`: создать `AudioSessionController` в `init` и вызвать `activate()`; в `setNowPlayingMetadata(_:)` вызвать `NowPlayingPublisher.publish`.
 
@@ -1225,13 +1225,13 @@ func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
 }
 ```
 
-- [ ] **Step 4: Собрать и убедиться, что тесты не сломались**
+- [x] **Step 4: Собрать и убедиться, что тесты не сломались**
 
 ```bash
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "passed|failed|error:"
 ```
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add iOS/AudioSessionController.swift iOS/NowPlayingPublisher.swift iOS/AVQueuePlayerBackend.swift
@@ -1361,6 +1361,13 @@ iPhone работает на iOS 27.0 beta (`24A5390f`), а установлен
 Подтверждено ручным прогоном Сергея: библиотека и теги отображаются, воспроизведение
 запускается и идёт в наушниках, переходы работают, на lock screen есть плеер,
 повторный запуск приложения прошёл нормально.
+
+Явно в записи не отражены три сценария из списка: игра с погашенным экраном, пауза
+при отключении AirPods без продолжения в динамик и переустановка из Xcode без потери
+библиотеки (проверялся повторный запуск, не переустановка). Отмечено не как претензия
+к приёмке, а потому что ровно это поведение писалось в задаче 10 и правилось в задаче
+11 — и если оно однажды сломается, по этой записи не будет видно, работало ли оно
+здесь. Стоит подтвердить при следующем выходе на устройство.
 
 - [x] **Step 6: Записать результат проверки**
 
