@@ -265,7 +265,7 @@ enum TrackContextMenu {
         )
     }
     
-    private static func createPlaylistItems(
+    static func createPlaylistItems(
         for track: Track,
         playlistManager: PlaylistManager
     ) -> [ContextMenuItem] {
