@@ -43,7 +43,6 @@ struct ContentView: View {
     private var colorScheme
 
     @State private var selectedTab: IOSSection = .library
-    @State private var selectedFolderNode: FolderNode?
     @State private var libraryPath: [LibraryDestination] = []
 
     @State private var showingSettings = false
@@ -227,45 +226,7 @@ struct ContentView: View {
     // MARK: - Folders Tab
 
     private var foldersTab: some View {
-        NavigationStack {
-            List(libraryManager.folders) { folder in
-                Button {
-                    selectedFolderNode = folderNode(for: folder)
-                } label: {
-                    HStack {
-                        Image(systemName: Icons.folderFill)
-                            .foregroundColor(.accentColor)
-                        Text(folder.name)
-                        Spacer()
-                        Text("\(folder.trackCount)")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(String(localized: "Folders"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingFileImporter = true
-                    } label: {
-                        Image(systemName: "folder.badge.plus")
-                    }
-                }
-            }
-            .navigationDestination(item: $selectedFolderNode) { node in
-                FoldersView(selectedFolderNode: $selectedFolderNode)
-                    .navigationTitle(node.name)
-                    .navigationBarTitleDisplayMode(.inline)
-            }
-        }
-    }
-
-    private func folderNode(for folder: Folder) -> FolderNode {
-        let node = FolderNode(url: folder.url, name: folder.name, isWatchFolder: true)
-        node.databaseFolder = folder
-        return node
+        FoldersTabView(showingFileImporter: $showingFileImporter)
     }
 
     // MARK: - Search Tab
