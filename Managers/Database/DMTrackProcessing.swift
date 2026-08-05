@@ -215,7 +215,7 @@ extension DatabaseManager {
 
         do {
             // Check if track already exists using prefetched dictionary
-            if let existingTrack = existingTracksByPath[fileURL.path] {
+            if let existingTrack = existingTracksByPath[LibraryPathStore.storedPath(for: fileURL)] {
                 // Fetch the full track for comparison and update
                 guard let existingFullTrack = try await existingTrack.fullTrack(using: dbQueue) else {
                     // If we can't get full track, treat as new

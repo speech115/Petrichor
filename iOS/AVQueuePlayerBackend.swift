@@ -309,6 +309,15 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     private func handleCurrentItemChange(old: AVPlayerItem?, new: AVPlayerItem?) {
         if let finished = old, finished !== new {
+            // A transition to nil with no tracked items is our own queue
+            // teardown (rebuild/clear), not the last track finishing: the KVO
+            // fires asynchronously, after clearItemTracking has emptied the
+            // map, so reporting it as eof would invent a finished track,
+            // advance the queue and bump play counts for nothing.
+            if new == nil, itemEntryMap.isEmpty {
+                return
+            }
+
             defer { removeTracking(for: finished) }
 
             if suppressNextCurrentItemTransition {

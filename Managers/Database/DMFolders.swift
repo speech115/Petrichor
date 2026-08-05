@@ -491,7 +491,9 @@ extension DatabaseManager {
             let tracks = try Track
                 .filter(Track.Columns.folderId == folderId)
                 .fetchAll(db)
-            return Dictionary(uniqueKeysWithValues: tracks.map { ($0.url.path, $0) })
+            return Dictionary(uniqueKeysWithValues: tracks.map {
+                (LibraryPathStore.storedPath(for: $0.url), $0)
+            })
         }
 
         // Remove tracks that no longer exist (skip on fresh scan when folder has no tracks)
@@ -606,8 +608,10 @@ extension DatabaseManager {
         globalScanState: GlobalScanState? = nil
     ) async throws {
         let existingTracks = getTracksForFolder(folderId)
-        let foundPathStrings = Set(foundPaths.map { $0.path })
-        let tracksToRemove = existingTracks.filter { !foundPathStrings.contains($0.url.path) }
+        let foundPathStrings = Set(foundPaths.map { LibraryPathStore.storedPath(for: $0) })
+        let tracksToRemove = existingTracks.filter {
+            !foundPathStrings.contains(LibraryPathStore.storedPath(for: $0.url))
+        }
         let trackIdsToRemove = tracksToRemove.compactMap { $0.trackId }
         
         guard !trackIdsToRemove.isEmpty else { return }

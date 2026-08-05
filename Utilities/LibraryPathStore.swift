@@ -18,8 +18,11 @@ enum LibraryPathStore {
 
     /// Путь для записи в базу.
     static func storedPath(for url: URL) -> String {
-        let root = libraryRoot.standardizedFileURL.path
-        let path = url.standardizedFileURL.path
+        // /var is a symlink to /private/var on iOS; enumeration can hand back
+        // either spelling, so both sides must resolve symlinks or the same
+        // file never compares equal.
+        let root = libraryRoot.standardizedFileURL.resolvingSymlinksInPath().path
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
 
         #if os(iOS)
         // The library root itself (e.g. registering Documents as a Folder) has no
