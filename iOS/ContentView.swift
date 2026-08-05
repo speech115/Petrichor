@@ -271,43 +271,7 @@ struct ContentView: View {
     // MARK: - Search Tab
 
     private var searchTab: some View {
-        NavigationStack {
-            searchResultsList
-                .searchable(
-                    text: $libraryManager.globalSearchText,
-                    placement: .navigationBarDrawer(displayMode: .always),
-                    prompt: String(localized: "Search Library")
-                )
-                .autocorrectionDisabled()
-        }
-    }
-
-    private var searchResultsList: some View {
-        TrackView(
-            tracks: libraryManager.searchResults,
-            selectedTrackID: .constant(nil),
-            playlistID: nil,
-            entityID: nil,
-            sortOrder: .constant([]),
-            onPlayTrack: { track in
-                playlistManager.playTrack(track, fromTracks: libraryManager.searchResults)
-                playlistManager.currentQueueSource = .library
-            },
-            contextMenuItems: { track, _ in
-                TrackContextMenu.createMenuItems(
-                    for: track,
-                    playlistManager: playlistManager,
-                    currentContext: .library
-                )
-            }
-        )
-        .navigationTitle(String(localized: "Search"))
-        .navigationBarTitleDisplayMode(.inline)
-        .overlay {
-            if libraryManager.searchResults.isEmpty {
-                ContentUnavailableView.search(text: libraryManager.globalSearchText)
-            }
-        }
+        SearchView()
     }
 
     // MARK: - Now Playing Cover
