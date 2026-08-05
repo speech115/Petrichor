@@ -1,0 +1,38 @@
+import Foundation
+
+/// Шов путей: переводит между тем, что лежит в базе, и рабочим `URL`.
+///
+/// На macOS библиотека может лежать где угодно, поэтому путь хранится
+/// абсолютным. На iOS музыка всегда внутри контейнера приложения, а UUID
+/// контейнера не стабилен между установками — там хранится путь относительно
+/// `Documents`, а абсолютный собирается в рантайме.
+enum LibraryPathStore {
+    /// Корень, относительно которого хранятся пути.
+    static var libraryRoot: URL {
+        #if os(iOS)
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        #else
+        URL(fileURLWithPath: "/")
+        #endif
+    }
+
+    /// Путь для записи в базу.
+    static func storedPath(for url: URL) -> String {
+        let root = libraryRoot.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+
+        #if os(iOS)
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        guard path.hasPrefix(prefix) else { return path }
+        return String(path.dropFirst(prefix.count))
+        #else
+        return path
+        #endif
+    }
+
+    /// Рабочий `URL` из того, что лежит в базе.
+    static func url(fromStored path: String) -> URL {
+        guard !path.hasPrefix("/") else { return URL(fileURLWithPath: path) }
+        return libraryRoot.appendingPathComponent(path)
+    }
+}
