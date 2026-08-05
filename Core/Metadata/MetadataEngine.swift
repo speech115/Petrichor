@@ -97,11 +97,19 @@ enum MetadataEngine {
     /// Every file extension the active backend can decode. `AudioFormat` builds the
     /// scanner's import filter from this, so it cannot drift from what actually plays.
     static var supportedFileExtensions: [String] {
+        #if os(macOS)
         CrescendoMetadataReader.supportedFileExtensions
+        #else
+        AVAssetMetadataReader.supportedFileExtensions
+        #endif
     }
 
     /// Builds the reader for the active backend.
     private static func reader() -> MetadataReader {
+        #if os(macOS)
         CrescendoMetadataReader()
+        #else
+        AVAssetMetadataReader()
+        #endif
     }
 }
