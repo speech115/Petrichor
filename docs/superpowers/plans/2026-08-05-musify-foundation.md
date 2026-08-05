@@ -719,6 +719,45 @@ git commit -m "feat: fall back to filename metadata when tags are missing"
 
 Самая большая задача плана. Реализует `PlaybackBackend` целиком; текущий `AVAudioPlaybackBackend` удаляется.
 
+Реализованный код в `iOS/AVQueuePlayerBackend.swift` расходится с примером ниже
+в четырёх местах:
+
+- **`backendStateChanged(with:previous:)` в примере отсутствовал вообще**,
+  хотя метод есть в `PlaybackBackendDelegate`. Реализован через KVO на
+  `player.timeControlStatus` (`AVPlayer.TimeControlStatus` не имеет случая
+  "остановлено" — пустая очередь маппится в `.stopped`, как и в старом
+  `AVAudioPlaybackBackend`). Уведомление шлётся не только из KVO-колбэка, но
+  и явно после каждой мутации, способной поменять `entries.isEmpty`
+  (`setQueue`, `clearQueue`, `removeQueueEntry`, `pause`/`resume`/`stop`/
+  `togglePlayPause`) — иначе переход "пусто → есть очередь, на паузе" не
+  генерировал бы уведомление вовсе, потому что сам `timeControlStatus` при
+  этом не меняется.
+- **Поток вызова делегата.** KVO-колбэки AVFoundation не гарантируют, на
+  каком потоке они придут. `CrescendoPlaybackBackend` (мак) всегда зовёт
+  `backendDelegate` с главного потока — там это происходит по конструкции,
+  через `@MainActor`-мост. Здесь такого моста нет, поэтому добавлен
+  `runOnMain(_:)` (прямой вызов, если уже на главном потоке, иначе
+  `DispatchQueue.main.async`), и через него проходит каждый вызов
+  `backendDelegate`.
+- **`setNowPlayingMetadata(_:)` — пустая реализация** (`func
+  setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {}`), чтобы тип
+  соответствовал протоколу; полная реализация — Task 10.
+- **Исправлена ошибка в примере из Step 3**: в обработчике смены
+  `currentItem` пример вычислял `duration` для только что закончившегося
+  трека уже после того, как `player.currentItem` указывал на следующий —
+  `backendDidFinishPlaying` получал бы длительность нового трека вместо
+  закончившегося. Исправлено чтением `finished.duration.seconds` у самого
+  старого `AVPlayerItem` (KVO-колбэк отдаёт его в `change.oldValue`, объект
+  остаётся валиден и после того, как перестал быть `currentItem`).
+
+Тесты из Step 1 конструируют `QueueEntry` с URL на несуществующие
+`/tmp/*.mp3` — это безопасно: `queue`, `queueIndex(of:)` и `hasQueuedSuccessor`
+читаются из собственного массива `entries`, а не из `AVQueuePlayer`.
+`AVPlayerItem(url:)` не проверяет существование файла синхронно (загрузка
+асинхронная и ленивая), и все тесты используют `startPaused: true`, так что
+плеер не пытается ничего проигрывать и не имеет повода досрочно убрать
+элементы из своей внутренней очереди.
+
 **Files:**
 - Create: `iOS/AVQueuePlayerBackend.swift`
 - Delete: `iOS/AVAudioPlaybackBackend.swift`
