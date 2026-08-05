@@ -16,21 +16,23 @@
 // every `backendDelegate` call is routed through `runOnMain` to match that
 // convention.
 //
-// Background playback, the lock-screen tile and remote-command buttons are
-// this backend's responsibility too, wired up in `activateSessionIfNeeded()`
-// on the first real start of playback (not `init` - see that method's doc):
+// Background playback and the lock-screen tile are this backend's
+// responsibility too, wired up in `activateSessionIfNeeded()` on the first
+// real start of playback (not `init` - see that method's doc):
 //   - `AudioSessionController` configures the `.playback` audio session and
 //     reacts to interruptions/route changes.
 //   - `NowPlayingPublisher` publishes the descriptive `MPNowPlayingInfoCenter`
 //     tile from `setNowPlayingMetadata(_:)`.
-//   - `MPRemoteCommandCenter` targets translate lock-screen/Control Center
-//     button taps into calls on this backend, since `MPNowPlayingInfoCenter`
-//     only *displays* the tile - it does not react to taps on its own.
+// The lock-screen/Control Center transport *buttons* are not this backend's
+// responsibility: `Managers/RemoteCommandManager.swift` owns the single
+// `MPRemoteCommandCenter` registration for the whole app (routed through
+// `PlaybackManager`, which knows about the queue and playlists - this
+// backend only knows its own queue). Registering targets here too would
+// double-fire every button tap.
 //
 
 import AVFoundation
 import Foundation
-import MediaPlayer
 
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
@@ -65,13 +67,12 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     )
 
     /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared
-    /// `AVAudioSession` and registering process-wide `MPRemoteCommandCenter`
-    /// targets is deferred to the first real start of playback rather than
-    /// `init`, for two reasons: it avoids touching process-wide singletons
-    /// before the app actually intends to make sound, and it keeps
-    /// `AVQueuePlayerBackend()` cheap to construct directly in tests (see
-    /// `QueueBackendTests`), which never start playback and so never trip
-    /// this activation at all.
+    /// `AVAudioSession` is deferred to the first real start of playback
+    /// rather than `init`, for two reasons: it avoids touching the
+    /// process-wide singleton before the app actually intends to make
+    /// sound, and it keeps `AVQueuePlayerBackend()` cheap to construct
+    /// directly in tests (see `QueueBackendTests`), which never start
+    /// playback and so never trip this activation at all.
     private var didActivateSession = false
 
     override init() {
@@ -82,16 +83,15 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         observeItemFailureNotifications()
     }
 
-    /// Activates the shared `AVAudioSession` and registers the
-    /// `MPRemoteCommandCenter` targets, exactly once, on the first path that
-    /// actually starts playback. `AudioSessionController.activate()` is not
-    /// idempotent (it registers interruption/route-change observers with no
-    /// matching removal), so this must not run more than once per instance.
+    /// Activates the shared `AVAudioSession`, exactly once, on the first path
+    /// that actually starts playback. `AudioSessionController.activate()` is
+    /// not idempotent (it registers interruption/route-change observers with
+    /// no matching removal), so this must not run more than once per
+    /// instance.
     private func activateSessionIfNeeded() {
         guard !didActivateSession else { return }
         didActivateSession = true
         audioSession.activate()
-        configureRemoteCommandCenter()
     }
 
     deinit {
@@ -484,67 +484,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             return isUnsupportedFormatError(underlying)
         }
         return false
-    }
-
-    // MARK: - Remote command center
-
-    /// Lock-screen and Control Center transport buttons. `MPNowPlayingInfoCenter`
-    /// only renders the tile - without this, none of the buttons it shows
-    /// would do anything.
-    private func configureRemoteCommandCenter() {
-        let center = MPRemoteCommandCenter.shared()
-        let managedCommands: [MPRemoteCommand] = [
-            center.playCommand,
-            center.pauseCommand,
-            center.togglePlayPauseCommand,
-            center.nextTrackCommand,
-            center.previousTrackCommand,
-            center.changePlaybackPositionCommand
-        ]
-        // Defensive: guarantees a single backend never ends up with duplicate
-        // targets on the process-wide command center.
-        for command in managedCommands { command.removeTarget(nil) }
-
-        center.playCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            self.resume()
-            return .success
-        }
-
-        center.pauseCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            self.pause()
-            return .success
-        }
-
-        center.togglePlayPauseCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            self.togglePlayPause()
-            return .success
-        }
-
-        center.nextTrackCommand.addTarget { [weak self] _ in
-            guard let self, self.hasQueuedSuccessor else { return .commandFailed }
-            self.playQueueEntry(at: self.currentIndex + 1, startPaused: false)
-            return .success
-        }
-
-        center.previousTrackCommand.addTarget { [weak self] _ in
-            guard let self else { return .commandFailed }
-            if self.currentIndex > 0 {
-                self.playQueueEntry(at: self.currentIndex - 1, startPaused: false)
-            } else {
-                self.seek(to: 0)
-            }
-            return .success
-        }
-
-        center.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let self, let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
-                return .commandFailed
-            }
-            return self.seek(to: positionEvent.positionTime) ? .success : .commandFailed
-        }
     }
 
     /// Delegate calls arrive from AVFoundation's KVO machinery, which makes no
