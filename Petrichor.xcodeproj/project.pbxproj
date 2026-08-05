@@ -10,6 +10,7 @@
 		552CE3E52FE3263900A5C93D /* Crescendo in Frameworks */ = {isa = PBXBuildFile; productRef = 552CE3E42FE3263900A5C93D /* Crescendo */; };
 		5590877F2DE0C078009E7719 /* PetrichorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5590877E2DE0C078009E7719 /* PetrichorApp.swift */; };
 		55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
+		55A000000000000000000040 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55D673CF2E42CEA50095A358 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 55D673CE2E42CEA50095A358 /* Sparkle */; };
 /* End PBXBuildFile section */
 
@@ -20,6 +21,7 @@
 		55613A822E04A7230000E217 /* .swiftlint.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = .swiftlint.yml; sourceTree = "<group>"; };
 		5590877E2DE0C078009E7719 /* PetrichorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PetrichorApp.swift; sourceTree = "<group>"; };
 		55FB816B2EC22E6E008321CA /* ACKNOWLEDGEMENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ACKNOWLEDGEMENTS.md; sourceTree = "<group>"; };
+		55A000000000000000000021 /* Petrichor iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Petrichor iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -37,21 +39,68 @@
 			);
 			target = 550F4A0D2DB45B1A005F794E /* Petrichor */;
 		};
+
+		55A000000000000000000010 /* Exceptions for "Application" folder in "PetrichoriOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppDelegate.swift,
+				WindowDelegate.swift,
+			);
+			target = 55A000000000000000000020 /* PetrichoriOS */;
+		};
+		55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				MenuBarManager.swift,
+			);
+			target = 55A000000000000000000020 /* PetrichoriOS */;
+		};
+		55A000000000000000000012 /* Exceptions for "Views" folder in "PetrichoriOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Components/PersistentSplitView.swift,
+				Immersive/ImmersiveView.swift,
+				Main/ContentView.swift,
+				MiniPlayer/MiniPlayerView.swift,
+				MiniPlayer/MiniPlayerWindowButtons.swift,
+				MiniPlayer/MiniPlayerWindowConfigurator.swift,
+				MiniPlayer/MiniPlayerWindowManager.swift,
+				Support/ReportProblemView.swift,
+			);
+			target = 55A000000000000000000020 /* PetrichoriOS */;
+		};
+		55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Metadata/CrescendoMetadataReader.swift,
+				Playback/CrescendoPlaybackBackend.swift,
+			);
+			target = 55A000000000000000000020 /* PetrichoriOS */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		555A7BBD2E65FF88009F4922 /* Core */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */,
+			);
 			path = Core;
 			sourceTree = "<group>";
 		};
 		559087A32DE0C09C009E7719 /* Application */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				55A000000000000000000010 /* Exceptions for "Application" folder in "PetrichoriOS" target */,
+			);
 			path = Application;
 			sourceTree = "<group>";
 		};
 		559087AA2DE0C0A2009E7719 /* Managers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */,
+			);
 			path = Managers;
 			sourceTree = "<group>";
 		};
@@ -62,6 +111,9 @@
 		};
 		559087D82DE0C0A6009E7719 /* Views */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				55A000000000000000000012 /* Exceptions for "Views" folder in "PetrichoriOS" target */,
+			);
 			path = Views;
 			sourceTree = "<group>";
 		};
@@ -91,6 +143,12 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+
+		55A000000000000000000001 /* iOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = iOS;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +159,15 @@
 				55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */,
 				55D673CF2E42CEA50095A358 /* Sparkle in Frameworks */,
 				552CE3E52FE3263900A5C93D /* Crescendo in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		55A000000000000000000023 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				55A000000000000000000040 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -119,6 +186,7 @@
 				55F38A822DF8F2FC0028843B /* Configuration */,
 				55F38A842DF8F2FE0028843B /* Resources */,
 				55B57E742E19D73900E57EC3 /* Scripts */,
+				55A000000000000000000001 /* iOS */,
 				550F4A3F2DB4786F005F794E /* .gitignore */,
 				55613A822E04A7230000E217 /* .swiftlint.yml */,
 				55593A412DE019E400640247 /* README.md */,
@@ -163,6 +231,37 @@
 			productReference = 550F4A0E2DB45B1A005F794E /* Petrichor Dev.app */;
 			productType = "com.apple.product-type.application";
 		};
+
+		55A000000000000000000020 /* PetrichoriOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55A000000000000000000030 /* Build configuration list for PBXNativeTarget "PetrichoriOS" */;
+			buildPhases = (
+				55A000000000000000000022 /* Sources */,
+				55A000000000000000000023 /* Frameworks */,
+				55A000000000000000000024 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				555A7BBD2E65FF88009F4922 /* Core */,
+				559087A32DE0C09C009E7719 /* Application */,
+				559087AA2DE0C0A2009E7719 /* Managers */,
+				559087B72DE0C0A5009E7719 /* Models */,
+				559087D82DE0C0A6009E7719 /* Views */,
+				55F38A7E2DF8F2F30028843B /* Utilities */,
+				55F38A842DF8F2FE0028843B /* Resources */,
+				55A000000000000000000001 /* iOS */,
+			);
+			name = PetrichoriOS;
+			packageProductDependencies = (
+				55B0DEC02DE3A58400A41ED9 /* GRDB */,
+			);
+			productName = "Petrichor iOS";
+			productReference = 55A000000000000000000021 /* Petrichor iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -175,6 +274,9 @@
 				TargetAttributes = {
 					550F4A0D2DB45B1A005F794E = {
 						CreatedOnToolsVersion = 16.3;
+					};
+					55A000000000000000000020 = {
+						CreatedOnToolsVersion = 26.6;
 					};
 				};
 			};
@@ -198,12 +300,20 @@
 			projectRoot = "";
 			targets = (
 				550F4A0D2DB45B1A005F794E /* Petrichor */,
+				55A000000000000000000020 /* PetrichoriOS */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		550F4A0C2DB45B1A005F794E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000024 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -218,6 +328,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				5590877F2DE0C078009E7719 /* PetrichorApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000022 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -554,6 +671,100 @@
 			};
 			name = Dev;
 		};
+
+		55A000000000000000000031 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = "AppIcon.icon AppIconDev.icon";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configuration/Info-iOS.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = "Development Build";
+				PETRICHOR_URL_SCHEME = "petrichor-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
+				PRODUCT_MODULE_NAME = Petrichor;
+				PRODUCT_NAME = "Petrichor";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		55A000000000000000000032 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = "AppIcon.icon AppIconDev.icon";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configuration/Info-iOS.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = "Development Build";
+				PETRICHOR_URL_SCHEME = "petrichor-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
+				PRODUCT_MODULE_NAME = Petrichor;
+				PRODUCT_NAME = "Petrichor";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		55A000000000000000000033 /* Dev */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				ENABLE_PREVIEWS = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = "AppIcon.icon AppIconDev.icon";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Configuration/Info-iOS.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = "Development Build";
+				PETRICHOR_URL_SCHEME = "petrichor-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
+				PRODUCT_MODULE_NAME = Petrichor;
+				PRODUCT_NAME = "Petrichor";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Dev;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -573,6 +784,17 @@
 				550F4A1B2DB45B1B005F794E /* Debug */,
 				550F4A1C2DB45B1B005F794E /* Release */,
 				55DE00022F90000100000002 /* Dev */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+
+		55A000000000000000000030 /* Build configuration list for PBXNativeTarget "PetrichoriOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55A000000000000000000031 /* Debug */,
+				55A000000000000000000032 /* Release */,
+				55A000000000000000000033 /* Dev */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
