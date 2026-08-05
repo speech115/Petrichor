@@ -73,7 +73,7 @@ struct LibraryCategoriesView: View {
 
     private func categoryRow(_ type: LibraryFilterType) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: type.icon)
+            SymbolImage(type.icon)
                 .foregroundColor(.accentColor)
             Text(type.pluralDisplayName)
         }

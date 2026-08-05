@@ -55,8 +55,14 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab(String(localized: "Library"), systemImage: Icons.customMusicNoteRectangleStack, value: IOSSection.library) {
+            Tab(value: IOSSection.library) {
                 libraryTab
+            } label: {
+                Label {
+                    Text(String(localized: "Library"))
+                } icon: {
+                    SymbolImage(Icons.customMusicNoteRectangleStack)
+                }
             }
             Tab(String(localized: "Playlists"), systemImage: Icons.musicNoteList, value: IOSSection.playlists) {
                 playlistsTab
@@ -343,7 +349,7 @@ struct ContentView: View {
                             UISelectionFeedbackGenerator().selectionChanged()
                             showingLyrics = true
                         } label: {
-                            Image(systemName: Icons.customLyrics)
+                            SymbolImage(Icons.customLyrics)
                                 .font(.system(size: 18))
                                 .foregroundColor(.secondary)
                                 .frame(width: 44, height: 44)
