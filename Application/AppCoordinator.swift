@@ -12,7 +12,9 @@ class AppCoordinator: ObservableObject {
     let libraryManager: LibraryManager
     let playlistManager: PlaylistManager
     let playbackManager: PlaybackManager
+    #if os(macOS)
     let menuBarManager: MenuBarManager
+    #endif
     let scrobbleManager: ScrobbleManager
     
     private var hadFoldersAtStartup: Bool = false
@@ -40,8 +42,10 @@ class AppCoordinator: ObservableObject {
         // Setup now playing - PlaybackManager owns the single Now Playing path
         playbackManager.connectRemoteCommandCenter()
         
+        #if os(macOS)
         // Setup menubar
         menuBarManager = MenuBarManager(playbackManager: playbackManager, playlistManager: playlistManager)
+        #endif
         
         // Setup Scrobbling
         scrobbleManager = ScrobbleManager()
