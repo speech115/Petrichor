@@ -64,6 +64,7 @@ extension LibraryManager {
                 }
 
                 if folder.url.startAccessingSecurityScopedResource() {
+                    folderAccessible = true
                     do {
                         let newBookmarkData = try folder.url.bookmarkData(
                             options: [],

@@ -147,7 +147,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
     init(row: Row) throws {
         // Extract path and create URL
         let path: String = row[Columns.path]
-        self.url = URL(fileURLWithPath: path)
+        self.url = LibraryPathStore.url(fromStored: path)
         self.format = row[Columns.format]
         
         // Core properties
@@ -212,7 +212,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
     func encode(to container: inout PersistenceContainer) throws {
         container[Columns.trackId] = trackId
         container[Columns.folderId] = folderId
-        container[Columns.path] = url.path
+        container[Columns.path] = LibraryPathStore.storedPath(for: url)
         container[Columns.filename] = url.lastPathComponent
         container[Columns.title] = title
         container[Columns.artist] = artist
