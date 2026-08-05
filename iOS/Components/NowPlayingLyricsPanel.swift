@@ -1,70 +1,40 @@
+//
+// NowPlayingLyricsPanel (iOS)
+//
+// Track lyrics as a panel over the Now Playing artwork. Lyrics load through
+// the shared LyricsStore (single-flight cache); the text scrolls, and line
+// highlighting only appears when the lyrics are timed — plain lyrics are
+// shown as-is, with no fake highlight. Missing lyrics are a calm empty state.
+//
+
 import SwiftUI
 
-struct TrackLyricsView: View {
-    let onClose: () -> Void
+struct NowPlayingLyricsPanel: View {
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var playbackManager: PlaybackManager
 
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            TrackLyricsContent()
-        }
-    }
-
-    // MARK: - Header
-    private var header: some View {
-        ListHeader(opaque: true) {
-            HStack(spacing: 12) {
-                Button(action: onClose) {
-                    Image(systemName: Icons.xmarkCircleFill)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-
-                Text("Lyrics")
-                    .headerTitleStyle()
-            }
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Lyrics Content (header-less, reusable)
-
-/// The lyrics display (loading / empty / synced scroll) without any header
-/// chrome, so it can be hosted inside a custom shell (e.g. the mini player) as
-/// well as the main TrackLyricsView. Self-manages loading and line sync.
-struct TrackLyricsContent: View {
-    /// Font size for lyric lines. Larger hosts (e.g. immersive mode) pass a bigger
-    /// value; defaults preserve the compact main-window / mini-player sizing.
-    var fontSize: CGFloat = 14
-    /// Color for the active (or, for untimed lyrics, every) line.
-    var activeColor: Color = .primary
-    /// Color for inactive lines.
-    var inactiveColor: Color = .secondary
-
-    @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var playbackManager: PlaybackManager
+    let onDismiss: () -> Void
 
     @State private var lyricLines: [LyricLine] = []
     @State private var isLoading = true
     @State private var fetchFailed = false
-    @State private var currentLineIndex: Int = -1
-    @State private var hasTimedLyrics: Bool = false
+    @State private var currentLineIndex = -1
+    @State private var hasTimedLyrics = false
 
     private var currentTrack: Track? {
         playbackManager.currentTrack
     }
 
     var body: some View {
-        Group {
-            if isLoading {
-                loadingView
-            } else if lyricLines.isEmpty {
-                emptyLyricsView
-            } else {
-                lyricsContent
+        NowPlayingPanel(title: String(localized: "Lyrics"), onDismiss: onDismiss) {
+            Group {
+                if isLoading {
+                    loadingView
+                } else if lyricLines.isEmpty {
+                    emptyLyricsView
+                } else {
+                    lyricsContent
+                }
             }
         }
         .onAppear {
@@ -79,24 +49,22 @@ struct TrackLyricsContent: View {
         .onChange(of: playbackManager.currentTrack?.id) { _, _ in
             loadLyricsForCurrentTrack()
         }
-        // Listen for playback time changes and update the current line in real time.
         .onReceive(playbackManager.playbackProgressState.$currentTime) { newTime in
             updateCurrentLine(for: newTime)
         }
     }
 
     // MARK: - Loading View
+
     private var loadingView: some View {
         VStack(spacing: 12) {
             ForEach([170.0, 130.0, 190.0, 110.0], id: \.self) { width in
                 Capsule()
-                    .fill(inactiveColor)
+                    .fill(Color.secondary.opacity(0.4))
                     .frame(width: width, height: 13)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // A gently pulsing skeleton of lyric lines. PhaseAnimator loops on its own
-        // while visible (no extra @State) and restarts each time loading reappears.
         .phaseAnimator(
             [0.3, 0.7],
             content: { view, opacity in
@@ -104,48 +72,47 @@ struct TrackLyricsContent: View {
             },
             animation: { _ in .easeInOut(duration: 0.85) }
         )
-        .accessibilityLabel("Loading lyrics")
+        .accessibilityLabel(String(localized: "Loading lyrics"))
     }
 
     // MARK: - Empty Lyrics View
+
     private var emptyLyricsView: some View {
         VStack(spacing: 16) {
-            Image(Icons.customLyrics)
+            Image(systemName: Icons.customLyrics)
                 .font(.system(size: 48))
-                .foregroundColor(activeColor)
+                .foregroundColor(.secondary)
 
-            Text("No Lyrics Available")
+            Text(String(localized: "No Lyrics Available"))
                 .font(.headline)
-                .foregroundColor(activeColor)
+                .foregroundColor(.secondary)
 
             if fetchFailed {
                 Button {
                     loadLyricsForCurrentTrack(forceReload: true)
                 } label: {
-                    Label("Retry", systemImage: Icons.arrowClockwise)
+                    Label(String(localized: "Retry"), systemImage: Icons.arrowClockwise)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Lyrics Content with Conditional Synced Highlight
+
     private var lyricsContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: fontSize * 0.7) {
+                VStack(spacing: 12) {
                     ForEach(Array(lyricLines.enumerated()), id: \.offset) { index, line in
                         Text(line.text.isEmpty ? " " : line.text)
-                            .font(.system(size: fontSize))
-                            // Only apply highlight styles if lyrics are timed
+                            .font(.system(size: 15))
                             .fontWeight(hasTimedLyrics && currentLineIndex == index ? .bold : .regular)
-                            .scaleEffect(hasTimedLyrics && currentLineIndex == index ? 1.1 : 1.0)
-                            .foregroundColor(hasTimedLyrics && currentLineIndex == index ? activeColor : inactiveColor)
+                            .scaleEffect(hasTimedLyrics && currentLineIndex == index ? 1.08 : 1.0)
+                            .foregroundColor(hasTimedLyrics && currentLineIndex == index ? .primary : .secondary)
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)
-                            .id(index)   // For scrollTo
+                            .id(index)
                             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentLineIndex)
                     }
                 }
@@ -155,7 +122,6 @@ struct TrackLyricsContent: View {
             }
             .scrollIndicators(.never)
             .onChange(of: currentLineIndex) { _, newIndex in
-                // Auto-scroll only for timed lyrics
                 guard hasTimedLyrics else { return }
                 withAnimation {
                     proxy.scrollTo(newIndex, anchor: .center)
@@ -189,12 +155,10 @@ struct TrackLyricsContent: View {
         isLoading = true
         lyricLines = []
         fetchFailed = false
-        hasTimedLyrics = false   // Reset until we know
+        hasTimedLyrics = false
 
         Task {
             do {
-                // Shared cache + single-flight: concurrent lyrics views (main window,
-                // mini player, immersive) for the same track load only once.
                 let result = try await LyricsStore.shared.lyrics(
                     for: track,
                     using: libraryManager.databaseManager.dbQueue,
@@ -226,7 +190,6 @@ struct TrackLyricsContent: View {
     private func updateCurrentLine(for time: TimeInterval) {
         guard hasTimedLyrics, !lyricLines.isEmpty else { return }
 
-        // Prefer precise judgment via endTime; fall back to startTime ≤ time when endTime is nil
         let newIndex = lyricLines.firstIndex { line in
             if let end = line.endTime {
                 return time >= line.startTime && time < end

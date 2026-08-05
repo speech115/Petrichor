@@ -74,6 +74,8 @@
 				Home/HomeView.swift,
 				Immersive/ImmersiveView.swift,
 				Main/ContentView.swift,
+				Main/PlayQueueView.swift,
+				Main/TrackLyricsView.swift,
 				MiniPlayer/MiniPlayerView.swift,
 				MiniPlayer/MiniPlayerWindowButtons.swift,
 				MiniPlayer/MiniPlayerWindowConfigurator.swift,

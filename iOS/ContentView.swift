@@ -89,26 +89,6 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $showingNowPlaying) {
             nowPlayingCover
         }
-        .sheet(isPresented: $showingQueue) {
-            NavigationStack {
-                PlayQueueView(showingQueue: $showingQueue)
-                    .environmentObject(playbackManager)
-                    .environmentObject(playlistManager)
-                    .navigationTitle(String(localized: "Queue"))
-                    .navigationBarTitleDisplayMode(.inline)
-            }
-        }
-        .sheet(isPresented: $showingLyrics) {
-            NavigationStack {
-                TrackLyricsView {
-                    showingLyrics = false
-                }
-                .environmentObject(playbackManager)
-                .environmentObject(playlistManager)
-                .navigationTitle(String(localized: "Lyrics"))
-                .navigationBarTitleDisplayMode(.inline)
-            }
-        }
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
                 MergeEntitySheet(request: request)
@@ -203,64 +183,40 @@ struct ContentView: View {
         NavigationStack {
             GeometryReader { geometry in
                 let artworkSize = min(geometry.size.width - 48, geometry.size.height * 0.44)
-                VStack(spacing: 16) {
-                    Spacer(minLength: 8)
 
-                    nowPlayingArtwork
-                        .frame(width: artworkSize, height: artworkSize)
+                ZStack {
+                    nowPlayingContent(artworkSize: artworkSize)
 
-                    PlayerTrackDetailsView(
-                        track: playbackManager.currentTrack,
-                        contextMenuItems: currentTrackContextMenuItems,
-                        playlistManager: playlistManager,
-                        showTechnicalInfo: false
-                    )
-                    .padding(.horizontal, 32)
-
-                    NowPlayingProgressBar(
-                        accent: controlAccent,
-                        neutral: .primary
-                    )
-                    .padding(.horizontal, 32)
-
-                    NowPlayingControlsView(
-                        tint: controlTint,
-                        accent: controlAccent,
-                        transport: .primary,
-                        neutral: .secondary,
-                        scale: 1.4
-                    )
-
-                    HStack(spacing: 40) {
-                        Button {
-                            UISelectionFeedbackGenerator().selectionChanged()
-                            showingLyrics = true
-                        } label: {
-                            SymbolImage(Icons.customLyrics)
-                                .font(.system(size: 18))
-                                .foregroundColor(.secondary)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .disabled(playbackManager.currentTrack == nil)
-
-                        Button {
-                            UISelectionFeedbackGenerator().selectionChanged()
-                            showingQueue = true
-                        } label: {
-                            Image(systemName: Icons.queueList)
-                                .font(.system(size: 18))
-                                .foregroundColor(.secondary)
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
+                    if showingQueue || showingLyrics {
+                        panelDismissOverlay
+                            .transition(.opacity)
                     }
-                    .padding(.top, 2)
 
-                    Spacer(minLength: 8)
+                    if showingQueue {
+                        NowPlayingQueuePanel(
+                            accentColor: controlAccent,
+                            onDismiss: { showingQueue = false }
+                        )
+                        .environmentObject(playbackManager)
+                        .environmentObject(playlistManager)
+                        .frame(height: geometry.size.height * 0.7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+
+                    if showingLyrics {
+                        NowPlayingLyricsPanel {
+                            showingLyrics = false
+                        }
+                        .environmentObject(playbackManager)
+                        .environmentObject(playlistManager)
+                        .frame(height: geometry.size.height * 0.72)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 8)
+                .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showingQueue)
+                .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showingLyrics)
             }
             .background(.ultraThinMaterial)
             .toolbar {
@@ -300,6 +256,80 @@ struct ContentView: View {
         .onDisappear {
             playbackManager.setFineProgressSampling(false)
         }
+    }
+
+    private func nowPlayingContent(artworkSize: CGFloat) -> some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 8)
+
+            nowPlayingArtwork
+                .frame(width: artworkSize, height: artworkSize)
+
+            PlayerTrackDetailsView(
+                track: playbackManager.currentTrack,
+                contextMenuItems: currentTrackContextMenuItems,
+                playlistManager: playlistManager,
+                showTechnicalInfo: false
+            )
+            .padding(.horizontal, 32)
+
+            NowPlayingProgressBar(
+                accent: controlAccent,
+                neutral: .primary
+            )
+            .padding(.horizontal, 32)
+
+            NowPlayingControlsView(
+                tint: controlTint,
+                accent: controlAccent,
+                transport: .primary,
+                neutral: .secondary,
+                scale: 1.4
+            )
+
+            HStack(spacing: 40) {
+                Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    showingLyrics = true
+                } label: {
+                    SymbolImage(Icons.customLyrics)
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .disabled(playbackManager.currentTrack == nil)
+                .accessibilityLabel(String(localized: "Lyrics"))
+
+                Button {
+                    UISelectionFeedbackGenerator().selectionChanged()
+                    showingQueue = true
+                } label: {
+                    Image(systemName: Icons.queueList)
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(String(localized: "Queue"))
+            }
+            .padding(.top, 2)
+
+            Spacer(minLength: 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    /// Transparent layer over the Now Playing content while a panel is up: a
+    /// tap anywhere on the artwork area dismisses the panel.
+    private var panelDismissOverlay: some View {
+        Color.black.opacity(0.0001)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                showingQueue = false
+                showingLyrics = false
+            }
     }
 
     private var nowPlayingArtwork: some View {
