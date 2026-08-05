@@ -296,14 +296,11 @@ struct TrackTableView: View {
         .environment(\.defaultMinListRowHeight, tableRowSize.rowHeight)
     }
     
-    // MARK: - Platform Content
+    // MARK: - Content
 
-    @ViewBuilder
     private var content: some View {
-        #if os(iOS)
-        iOSListView
-        #else
         tableView
+            #if os(macOS)
             .contextMenu(forSelectionType: Track.ID.self) { selectedIDs in
                 let selectedTracks = sortedTracks.filter { selectedIDs.contains($0.id) }
                 if !selectedTracks.isEmpty {
@@ -317,109 +314,8 @@ struct TrackTableView: View {
                     handleDoubleTap(on: track)
                 }
             }
-        #endif
+            #endif
     }
-
-    // MARK: - iOS List
-
-    #if os(iOS)
-    private var iOSListView: some View {
-        List(sortedTracks) { track in
-            iOSRow(track)
-                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-    }
-
-    private func iOSRow(_ track: Track) -> some View {
-        Button {
-            handleDoubleTap(on: track)
-        } label: {
-            HStack(spacing: 12) {
-                iOSArtwork(track)
-                    .frame(width: 44, height: 44)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title)
-                        .font(.system(size: 15, weight: isCurrentTrack(track) ? .semibold : .regular))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-
-                    Text([track.displayArtist, track.displayAlbum].filter { !$0.isEmpty }.joined(separator: " — "))
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 8)
-
-                Text(HelperUtils.formattedDuration(track.duration))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
-
-                Image(systemName: isCurrentTrack(track) && isPlaying(track) ? Icons.playFill : Icons.playFill)
-                    .font(.system(size: 14))
-                    .foregroundColor(isCurrentTrack(track) ? .accentColor : .clear)
-                    .frame(width: 16)
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            TrackContextMenuContent(items: contextMenuItems([track], playbackManager))
-        }
-        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                UISelectionFeedbackGenerator().selectionChanged()
-                playlistManager.toggleFavorite(for: track)
-            } label: {
-                Label(
-                    isFavorite(track) ? String(localized: "Unfavorite") : String(localized: "Favorite"),
-                    systemImage: isFavorite(track) ? Icons.starSlash : Icons.starFill
-                )
-            }
-            .tint(.yellow)
-        }
-    }
-
-    private func iOSArtwork(_ track: Track) -> some View {
-        Group {
-            if let artworkImage {
-                Image(platformImage: artworkImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.12))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-        .task(id: track.trackId) {
-            await loadArtworkImage(for: track)
-        }
-    }
-
-    @State private var artworkImage: PlatformImage?
-
-    private func loadArtworkImage(for track: Track) async {
-        if let cached = TrackArtworkCache.shared.getCachedImage(for: track) {
-            artworkImage = cached
-            return
-        }
-        let image = await TrackArtworkCache.shared.loadImage(for: track)
-        if !Task.isCancelled {
-            artworkImage = image
-        }
-    }
-    #endif
 
     // MARK: - Helper Methods
     
