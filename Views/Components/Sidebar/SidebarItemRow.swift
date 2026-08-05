@@ -38,12 +38,8 @@ struct SidebarItemRow<Item: SidebarItem>: View {
     @State private var isTitleTruncated = false
     @State private var isSubtitleTruncated = false
 
-    private var sidebarItemFont: UIFont {
-        #if os(macOS)
-        NSFont.systemFont(ofSize: 13)
-        #else
-        UIFont.systemFont(ofSize: 13)
-        #endif
+    private var sidebarItemFont: PlatformFont {
+        .systemFont(ofSize: 13)
     }
     
     private func checkIfTruncated(text: String, width: CGFloat) -> Bool {

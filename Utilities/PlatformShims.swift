@@ -19,6 +19,16 @@ public typealias PlatformColor = UIColor
 public typealias PlatformFont = UIFont
 #endif
 
+#if os(macOS)
+extension NSImage {
+    /// В UIKit это свойство, в AppKit — метод. Общий код обращается к нему
+    /// одинаково на обеих платформах.
+    var cgImage: CGImage? {
+        cgImage(forProposedRect: nil, context: nil, hints: nil)
+    }
+}
+#endif
+
 extension Color {
     init(platformColor: PlatformColor) {
         #if os(macOS)
