@@ -82,7 +82,7 @@ struct TrackListView: View {
         if let filterItem, !filterItem.isAllItem {
             await loadCategoryTracks(filterItem)
         } else {
-            rebuild(from: libraryManager.tracks)
+            await loadAllTracksFromDatabase()
         }
     }
 
@@ -102,6 +102,17 @@ struct TrackListView: View {
             return tracks.sorted {
                 $0.title.localizedStandardCompare($1.title) == .orderedAscending
             }
+        }.value
+
+        guard !Task.isCancelled else { return }
+        rebuild(from: loaded)
+    }
+
+    private func loadAllTracksFromDatabase() async {
+        let libraryManager = libraryManager
+
+        let loaded = await Task.detached(priority: .userInitiated) {
+            libraryManager.databaseManager.getAllTracks()
         }.value
 
         guard !Task.isCancelled else { return }
