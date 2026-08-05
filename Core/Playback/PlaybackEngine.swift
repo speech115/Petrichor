@@ -278,7 +278,7 @@ public class PlaybackEngine: NSObject {
         #if os(macOS)
         self.backend = CrescendoPlaybackBackend()
         #else
-        self.backend = AVAudioPlaybackBackend()
+        self.backend = AVQueuePlayerBackend()
         #endif
         super.init()
         self.backend.backendDelegate = self
