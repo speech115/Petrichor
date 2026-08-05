@@ -2,11 +2,11 @@
 // PetrichorApp (iOS)
 //
 // iOS entry point. Owns the AppCoordinator and the shared environment objects,
-// configures the audio session for background playback, and saves playback state
-// when the app leaves the foreground.
+// and saves playback state when the app leaves the foreground. The audio
+// session itself is configured by `AudioSessionController`, activated by
+// `AVQueuePlayerBackend` on first playback.
 //
 
-import AVFoundation
 import SwiftUI
 
 @main
@@ -15,10 +15,6 @@ struct PetrichorApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .default)
-        try? session.setActive(true)
-
         _appCoordinator = StateObject(wrappedValue: AppCoordinator())
     }
 

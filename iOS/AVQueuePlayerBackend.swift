@@ -17,7 +17,8 @@
 // convention.
 //
 // Background playback, the lock-screen tile and remote-command buttons are
-// this backend's responsibility too, wired up in `init`:
+// this backend's responsibility too, wired up in `activateSessionIfNeeded()`
+// on the first real start of playback (not `init` - see that method's doc):
 //   - `AudioSessionController` configures the `.playback` audio session and
 //     reacts to interruptions/route changes.
 //   - `NowPlayingPublisher` publishes the descriptive `MPNowPlayingInfoCenter`
@@ -63,18 +64,15 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         onResume: { [weak self] in self?.resume() }
     )
 
-    /// Unit tests construct `AVQueuePlayerBackend()` directly (see
-    /// `QueueBackendTests`) to exercise queue bookkeeping without touching
-    /// AVFoundation's playback surface. Grabbing the shared `AVAudioSession`
-    /// and registering process-wide `MPRemoteCommandCenter` targets on every
-    /// such instance is unwanted there - it has nothing to do with what those
-    /// tests check, and it fights every other test's backend instance over
-    /// the same shared session/command center. Production has exactly one
-    /// backend for the app's lifetime (`PlaybackEngine`), so gating this on
-    /// "not under test" costs nothing there.
-    private static var isRunningUnitTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
+    /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared
+    /// `AVAudioSession` and registering process-wide `MPRemoteCommandCenter`
+    /// targets is deferred to the first real start of playback rather than
+    /// `init`, for two reasons: it avoids touching process-wide singletons
+    /// before the app actually intends to make sound, and it keeps
+    /// `AVQueuePlayerBackend()` cheap to construct directly in tests (see
+    /// `QueueBackendTests`), which never start playback and so never trip
+    /// this activation at all.
+    private var didActivateSession = false
 
     override init() {
         super.init()
@@ -82,11 +80,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         observeTrackChanges()
         observeStateChanges()
         observeItemFailureNotifications()
+    }
 
-        if !Self.isRunningUnitTests {
-            audioSession.activate()
-            configureRemoteCommandCenter()
-        }
+    /// Activates the shared `AVAudioSession` and registers the
+    /// `MPRemoteCommandCenter` targets, exactly once, on the first path that
+    /// actually starts playback. `AudioSessionController.activate()` is not
+    /// idempotent (it registers interruption/route-change observers with no
+    /// matching removal), so this must not run more than once per instance.
+    private func activateSessionIfNeeded() {
+        guard !didActivateSession else { return }
+        didActivateSession = true
+        audioSession.activate()
+        configureRemoteCommandCenter()
     }
 
     deinit {
@@ -222,6 +227,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         if startPaused {
             player.pause()
         } else {
+            activateSessionIfNeeded()
             player.play()
         }
         runOnMain { self.notifyStateIfChanged() }
@@ -562,6 +568,7 @@ extension AVQueuePlayerBackend {
     }
 
     func resume() {
+        activateSessionIfNeeded()
         player.play()
         runOnMain { self.notifyStateIfChanged() }
     }
@@ -575,6 +582,7 @@ extension AVQueuePlayerBackend {
         if player.timeControlStatus == .playing {
             player.pause()
         } else {
+            activateSessionIfNeeded()
             player.play()
         }
         runOnMain { self.notifyStateIfChanged() }
