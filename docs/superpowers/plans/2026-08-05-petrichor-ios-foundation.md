@@ -1,8 +1,8 @@
-# Musify: фундамент — сборка, база, файлы, воспроизведение
+# Petrichor для iOS: фундамент — сборка, база, файлы, воспроизведение
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Довести iOS-таргет до состояния, когда Musify запускается на iPhone, сканирует музыку из своей папки `Documents` и играет её с бесшовными переходами, фоном и блокировочным экраном.
+**Goal:** Довести iOS-таргет до состояния, когда Petrichor запускается на iPhone, сканирует музыку из своей папки `Documents` и играет её с бесшовными переходами, фоном и блокировочным экраном.
 
 **Architecture:** Общее ядро Petrichor (Models, Core, Managers, Utilities) компилируется в оба таргета. Платформенные различия живут в четырёх швах: воспроизведение (`PlaybackBackend`), метаданные (`MetadataEngine`), изображения (`PlatformImage`) и пути к файлам (`LibraryPathStore`, вводится этим планом). iOS-адаптеры лежат в `iOS/`, макошные представления в iOS-таргет не входят.
 
@@ -11,13 +11,13 @@
 ## Global Constraints
 
 - Минимальная версия — **iOS 26.0**. Обратную совместимость не поддерживаем.
-- Bundle identifier iOS-таргета — **`com.sereja.musify`**. Мак-таргет остаётся `org.Petrichor` и в этом плане не меняется вообще.
-- Имя iOS-таргета, схемы и приложения — **Musify**.
+- Bundle identifier iOS-таргета — **`org.Petrichor.ios`**. Мак-таргет остаётся `org.Petrichor` и в этом плане не меняется вообще.
+- Приложение на iOS называется **Petrichor** — это порт маковского плеера. Имена таргетов в Xcode уникальны, поэтому iOS-таргет и схема технически называются **PetrichoriOS**, а `PRODUCT_NAME` и имя на домашнем экране — `Petrichor`. Тестовый таргет — `PetrichoriOSTests`, модуль для `@testable import` — `Petrichor`.
 - Новые `#if os(...)` допустимы **только** в четырёх швах и в `Views/`. Любое другое платформенное ветвление — повод завести новый шов, а не разветвление по месту.
 - Эквалайзер на iOS не поддерживается: методы EQ в бэкенде — пустые реализации.
 - Бесшовные переходы между треками обязательны.
 - Пути к файлам в базе хранятся **относительно `Documents/`**; абсолютные пути в базу не пишутся никогда.
-- Работа идёт в ветке `ios-port` репозитория `~/Projects/apps/musify`.
+- Работа идёт в ветке `ios-port` репозитория `~/Projects/apps/petrichor-ios`.
 - Все команды `xcodebuild` выполняются из корня репозитория.
 - Симулятор для тестов: `iPhone 17 Pro Max`.
 
@@ -34,11 +34,11 @@
 | `iOS/AudioSessionController.swift` | Категория аудиосессии, прерывания, смена маршрута |
 | `iOS/NowPlayingPublisher.swift` | Публикация в `MPNowPlayingInfoCenter` |
 | `iOS/TrackListDebugView.swift` | Временный экран проверки: список треков, тап играет |
-| `Tests/MusifyTests/LibraryPathStoreTests.swift` | Тесты шва путей |
-| `Tests/MusifyTests/TrackPersistenceTests.swift` | Тесты round-trip моделей |
-| `Tests/MusifyTests/FolderScanTests.swift` | Тесты сканирования папки |
-| `Tests/MusifyTests/MetadataMappingTests.swift` | Тесты маппинга метаданных |
-| `Tests/MusifyTests/QueueBackendTests.swift` | Тесты очереди бэкенда |
+| `Tests/PetrichoriOSTests/LibraryPathStoreTests.swift` | Тесты шва путей |
+| `Tests/PetrichoriOSTests/TrackPersistenceTests.swift` | Тесты round-trip моделей |
+| `Tests/PetrichoriOSTests/FolderScanTests.swift` | Тесты сканирования папки |
+| `Tests/PetrichoriOSTests/MetadataMappingTests.swift` | Тесты маппинга метаданных |
+| `Tests/PetrichoriOSTests/QueueBackendTests.swift` | Тесты очереди бэкенда |
 
 **Изменяются:**
 
@@ -48,16 +48,16 @@
 | `Configuration/Info-iOS.plist` | Доступ к папке из Finder и «Файлов» |
 | `Models/Core/Track.swift` | Кодирование пути через `LibraryPathStore` |
 | `Models/Core/Folder.swift` | То же + отказ от bookmarks на iOS |
-| `Managers/Database/DatabaseManager.swift` | Имя файла базы от bundle id |
+| `Managers/Database/DatabaseManager.swift` | Изменений не требует: имя файла базы — константа `petrichor.db` |
 | `Managers/Library/LMFolders.swift` | `scanLibraryRoot()`: регистрирует `Documents` через существующий конвейер `addFoldersAsync`/`scanFoldersForTracks`, без bookmarks |
 | `Core/Playback/PlaybackEngine.swift` | Выбор нового бэкенда на iOS |
-| `iOS/PetrichorApp.swift` | Переименование в `MusifyApp`, стартовый экран |
+| `iOS/PetrichorApp.swift` | Переименование в `PetrichorApp`, стартовый экран |
 
 **Удаляется:** `iOS/AVAudioPlaybackBackend.swift` — заменяется на AVQueuePlayer-версию.
 
 ---
 
-### Task 1: Переименовать таргет в Musify и починить сборку
+### Task 1: Настроить iOS-таргет и починить сборку
 
 Сейчас сборка падает на `unable to resolve module dependency: 'GRDB'` — пакет привязан только к мак-таргету.
 
@@ -67,7 +67,7 @@
 
 **Interfaces:**
 - Consumes: ничего
-- Produces: схема `Musify`, собираемая командой `xcodebuild -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`
+- Produces: схема `PetrichoriOS`, собираемая командой `xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build`
 
 - [ ] **Step 1: Убедиться, что сборка сейчас падает**
 
@@ -79,19 +79,20 @@ Expected: `error: unable to resolve module dependency: 'GRDB'` и `** BUILD FAIL
 
 - [ ] **Step 2: Переименовать таргет и схему**
 
-В Xcode: выбрать таргет `PetrichoriOS` → Identity and Type → Name: `Musify`. Затем Product → Scheme → Manage Schemes → переименовать схему в `Musify`, поставить галочку Shared.
+В Xcode: выбрать таргет `PetrichoriOS` → Identity and Type → Name: `PetrichoriOS`. Затем Product → Scheme → Manage Schemes → создать общую схему `PetrichoriOS`, поставить галочку Shared.
 
 - [ ] **Step 3: Задать bundle identifier и версию платформы**
 
-В настройках таргета `Musify`:
-- `PRODUCT_BUNDLE_IDENTIFIER` = `com.sereja.musify`
+В настройках таргета `PetrichoriOS`:
+- `PRODUCT_BUNDLE_IDENTIFIER` = `org.Petrichor.ios`
 - `IPHONEOS_DEPLOYMENT_TARGET` = `26.0`
-- `PRODUCT_NAME` = `Musify`
+- `PRODUCT_NAME` = `Petrichor`
+- `PRODUCT_MODULE_NAME` = `Petrichor` (иначе `@testable import Petrichor` в тестах не соберётся)
 - `INFOPLIST_FILE` = `Configuration/Info-iOS.plist`
 
 - [ ] **Step 4: Привязать GRDB к таргету**
 
-Target `Musify` → General → Frameworks, Libraries, and Embedded Content → `+` → выбрать `GRDB` из пакета `GRDB.swift`. Crescendo и Sparkle **не добавлять** — они macOS-only.
+Target `PetrichoriOS` → General → Frameworks, Libraries, and Embedded Content → `+` → выбрать `GRDB` из пакета `GRDB.swift`. Crescendo и Sparkle **не добавлять** — они macOS-only.
 
 - [ ] **Step 5: Обновить Info-iOS.plist**
 
@@ -99,15 +100,15 @@ Target `Musify` → General → Frameworks, Libraries, and Embedded Content → 
 
 ```xml
 <key>CFBundleDisplayName</key>
-<string>Musify</string>
+<string>Petrichor</string>
 <key>CFBundleName</key>
-<string>Musify</string>
+<string>Petrichor</string>
 ```
 
 - [ ] **Step 6: Собрать**
 
 ```bash
-xcodebuild -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build 2>&1 | grep -E "error:|BUILD"
+xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build 2>&1 | grep -E "error:|BUILD"
 ```
 
 Expected: `** BUILD SUCCEEDED **`. Если всплывают ошибки компиляции в файлах `Views/` — значит они ошибочно попали в таргет: убрать их из Target Membership (в iOS-таргет входят только `Models`, `Core`, `Managers`, `Utilities`, `Application`, `iOS`).
@@ -116,7 +117,7 @@ Expected: `** BUILD SUCCEEDED **`. Если всплывают ошибки ко
 
 ```bash
 git add Petrichor.xcodeproj Configuration/Info-iOS.plist
-git commit -m "build: rename iOS target to Musify and link GRDB"
+git commit -m "build: configure the iOS target and link GRDB"
 ```
 
 ---
@@ -127,23 +128,24 @@ git commit -m "build: rename iOS target to Musify and link GRDB"
 
 **Files:**
 - Modify: `Petrichor.xcodeproj/project.pbxproj`
-- Create: `Tests/MusifyTests/SmokeTests.swift`
+- Create: `Tests/PetrichoriOSTests/SmokeTests.swift`
 
 **Interfaces:**
-- Consumes: схема `Musify` из Task 1
-- Produces: таргет `MusifyTests`, запускаемый через `xcodebuild test -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'`
+- Consumes: схема `PetrichoriOS` из Task 1
+- Produces: таргет `PetrichoriOSTests`, запускаемый через `xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'`
 
 - [ ] **Step 1: Создать таргет**
 
-В Xcode: File → New → Target → Unit Testing Bundle. Product Name: `MusifyTests`, Target to be Tested: `Musify`, Testing System: **Swift Testing**. Путь к файлам изменить на `Tests/MusifyTests`.
+В Xcode: File → New → Target → Unit Testing Bundle. Product Name: `PetrichoriOSTests`, Target to be Tested: `PetrichoriOS`, Testing System: **Swift Testing**. Путь к файлам изменить на `Tests/PetrichoriOSTests`.
 
 - [ ] **Step 2: Написать проверочный тест**
 
-Создать `Tests/MusifyTests/SmokeTests.swift`:
+Создать `Tests/PetrichoriOSTests/SmokeTests.swift`:
 
 ```swift
+import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func testTargetIsWiredUp() {
     #expect(Bundle.main.bundleIdentifier != nil)
@@ -153,7 +155,7 @@ import Testing
 - [ ] **Step 3: Прогнать тесты**
 
 ```bash
-xcodebuild test -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "Test Suite|passed|failed|error:"
+xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "Test Suite|passed|failed|error:"
 ```
 
 Expected: тест проходит.
@@ -162,7 +164,7 @@ Expected: тест проходит.
 
 ```bash
 git add Petrichor.xcodeproj Tests
-git commit -m "test: add MusifyTests target"
+git commit -m "test: add PetrichoriOSTests target"
 ```
 
 ---
@@ -173,7 +175,7 @@ git commit -m "test: add MusifyTests target"
 
 **Files:**
 - Create: `Utilities/LibraryPathStore.swift`
-- Test: `Tests/MusifyTests/LibraryPathStoreTests.swift`
+- Test: `Tests/PetrichoriOSTests/LibraryPathStoreTests.swift`
 
 **Interfaces:**
 - Consumes: ничего
@@ -185,12 +187,12 @@ git commit -m "test: add MusifyTests target"
 
 - [ ] **Step 1: Написать падающие тесты**
 
-Создать `Tests/MusifyTests/LibraryPathStoreTests.swift`:
+Создать `Tests/PetrichoriOSTests/LibraryPathStoreTests.swift`:
 
 ```swift
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func storedPathIsRelativeToLibraryRoot() {
     let url = LibraryPathStore.libraryRoot
@@ -227,7 +229,7 @@ import Testing
 - [ ] **Step 2: Прогнать тесты и убедиться, что они падают**
 
 ```bash
-xcodebuild test -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "cannot find|failed|error:"
+xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "cannot find|failed|error:"
 ```
 
 Expected: FAIL — `cannot find 'LibraryPathStore' in scope`
@@ -280,7 +282,7 @@ enum LibraryPathStore {
 - [ ] **Step 4: Прогнать тесты**
 
 ```bash
-xcodebuild test -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "passed|failed"
+xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "passed|failed"
 ```
 
 Expected: все четыре теста проходят.
@@ -288,7 +290,7 @@ Expected: все четыре теста проходят.
 - [ ] **Step 5: Коммит**
 
 ```bash
-git add Utilities/LibraryPathStore.swift Tests/MusifyTests/LibraryPathStoreTests.swift
+git add Utilities/LibraryPathStore.swift Tests/PetrichoriOSTests/LibraryPathStoreTests.swift
 git commit -m "feat: add path seam for container-relative track paths"
 ```
 
@@ -299,7 +301,7 @@ git commit -m "feat: add path seam for container-relative track paths"
 **Files:**
 - Modify: `Models/Core/Track.swift:129` (чтение) и `Models/Core/Track.swift:174` (запись)
 - Modify: `Models/Core/Folder.swift`
-- Test: `Tests/MusifyTests/TrackPersistenceTests.swift`
+- Test: `Tests/PetrichoriOSTests/TrackPersistenceTests.swift`
 
 **Interfaces:**
 - Consumes: `LibraryPathStore.storedPath(for:)`, `LibraryPathStore.url(fromStored:)` из Task 3
@@ -307,13 +309,13 @@ git commit -m "feat: add path seam for container-relative track paths"
 
 - [ ] **Step 1: Написать падающий тест**
 
-Создать `Tests/MusifyTests/TrackPersistenceTests.swift`:
+Создать `Tests/PetrichoriOSTests/TrackPersistenceTests.swift`:
 
 ```swift
 import Foundation
 import GRDB
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func trackWritesRelativePathAndReadsItBack() throws {
     let dbQueue = try DatabaseQueue()
@@ -380,7 +382,7 @@ Expected: PASS, включая тесты из Task 3.
 - [ ] **Step 6: Коммит**
 
 ```bash
-git add Models/Core/Track.swift Models/Core/Folder.swift Tests/MusifyTests/TrackPersistenceTests.swift
+git add Models/Core/Track.swift Models/Core/Folder.swift Tests/PetrichoriOSTests/TrackPersistenceTests.swift
 git commit -m "feat: store track and folder paths relative to the library root"
 ```
 
@@ -388,47 +390,39 @@ git commit -m "feat: store track and folder paths relative to the library root"
 
 ### Task 5: База данных на iOS
 
-**Files:**
-- Modify: `Managers/Database/DatabaseManager.swift:41`
-- Test: ручная проверка запуска
+Изменений в коде не требует. Имя файла базы остаётся константой `petrichor.db`
+(`petrichor-debug.db` для дебажного bundle id), потому что приложение на обеих
+платформах одно и то же.
+
+Промежуточно здесь вводился вывод имени из bundle id — он был нужен, только пока
+iOS-приложение носило отдельное имя. После возврата к `Petrichor` этот вывод
+удалён: на `org.Petrichor.ios` он дал бы бессмысленное `ios.db`. Базы платформ и
+так не конфликтуют — папка базы называется по bundle id
+(`Application Support/<bundleID>/`).
+
+**Files:** изменений нет.
 
 **Interfaces:**
 - Consumes: ничего
-- Produces: файл базы `musify.db` в `Application Support/com.sereja.musify/`
+- Produces: файл базы `petrichor.db` в `Application Support/org.Petrichor.ios/`
 
-- [ ] **Step 1: Вывести имя файла базы из bundle id**
-
-Заменить строку 41:
-
-```swift
-let appName = bundleID.split(separator: ".").last.map(String.init) ?? "library"
-let dbFilename = bundleID.hasSuffix(".debug") ? "\(appName)-debug.db" : "\(appName).db"
-```
-
-На маке это по-прежнему даст `Petrichor.db` вместо `petrichor.db` — поэтому привести к нижнему регистру: `appName.lowercased()`. Для мак-таргета имя файла остаётся `petrichor.db`, существующая база продолжает открываться.
-
-- [ ] **Step 2: Запустить приложение в симуляторе**
+- [ ] **Step 1: Запустить приложение в симуляторе**
 
 ```bash
-xcodebuild -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build
+xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build
 ```
 
 Затем через iOS Simulator MCP: `launch` собранный `.app`, проверить, что приложение не падает на старте.
 
-- [ ] **Step 3: Убедиться, что база создалась**
+- [ ] **Step 2: Убедиться, что база создалась**
 
 ```bash
-find ~/Library/Developer/CoreSimulator/Devices -name "musify.db" -newermt "-5 minutes" 2>/dev/null | head -2
+find ~/Library/Developer/CoreSimulator/Devices -name "petrichor.db" 2>/dev/null | head -2
 ```
 
-Expected: файл найден.
-
-- [ ] **Step 4: Коммит**
-
-```bash
-git add Managers/Database/DatabaseManager.swift
-git commit -m "feat: derive the database filename from the bundle identifier"
-```
+Expected: файл найден в контейнере приложения. Фильтр `-newermt` здесь не
+используется: на этой машине он расходится с метками времени контейнера
+симулятора и не находит только что созданный файл.
 
 ---
 
@@ -494,8 +488,8 @@ macOS запускается из `addFolder()` и уже умеет дедуп�
   требует конечный `/`, которого у самого корня нет), и в этом случае писал в базу
   абсолютный путь. Это стало заметно только когда Task 7 впервые передала в
   `storedPath(for:)` сам `libraryRoot` (регистрация корня как папки библиотеки)
-- Test: `Tests/MusifyTests/FolderScanTests.swift`
-- Test: `Tests/MusifyTests/LibraryPathStoreTests.swift` — тест на этот же edge case
+- Test: `Tests/PetrichoriOSTests/FolderScanTests.swift`
+- Test: `Tests/PetrichoriOSTests/LibraryPathStoreTests.swift` — тест на этот же edge case
 
 **Interfaces:**
 - Consumes: `LibraryPathStore.libraryRoot` из Task 3; `DatabaseManager.addFoldersAsync(_:bookmarkDataMap:)`
@@ -569,7 +563,7 @@ func scanLibraryRoot() async throws {
 
 ```bash
 git add Managers/Library/LMFolders.swift Utilities/LibraryPathStore.swift \
-    Tests/MusifyTests/FolderScanTests.swift Tests/MusifyTests/LibraryPathStoreTests.swift
+    Tests/PetrichoriOSTests/FolderScanTests.swift Tests/PetrichoriOSTests/LibraryPathStoreTests.swift
 git commit -m "feat: scan the documents folder as the iOS library root"
 ```
 
@@ -579,7 +573,7 @@ git commit -m "feat: scan the documents folder as the iOS library root"
 
 **Files:**
 - Modify: `iOS/AVAssetMetadataReader.swift`
-- Test: `Tests/MusifyTests/MetadataMappingTests.swift`
+- Test: `Tests/PetrichoriOSTests/MetadataMappingTests.swift`
 
 **Interfaces:**
 - Consumes: `MetadataEngine` из `Core/Metadata/MetadataEngine.swift`
@@ -613,12 +607,12 @@ Passion.mp3`. Правило «≥3 части» на них не срабаты
 
 - [ ] **Step 1: Написать падающий тест на фолбэк**
 
-Создать `Tests/MusifyTests/MetadataMappingTests.swift`:
+Создать `Tests/PetrichoriOSTests/MetadataMappingTests.swift`:
 
 ```swift
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 @Test func filenameFallbackExtractsArtistAndKeepsPrefixedTitle() {
     let url = URL(fileURLWithPath: "/tmp/0239 - Jeune Ras - Ruff Ryder - Remix.mp3")
@@ -650,7 +644,7 @@ import Testing
 
 Полный набор тестов (с ещё четырьмя случаями — smash-case из имён,
 многодефисные названия, обрезка пробелов) лежит в
-`Tests/MusifyTests/MetadataMappingTests.swift`.
+`Tests/PetrichoriOSTests/MetadataMappingTests.swift`.
 
 - [ ] **Step 2: Прогнать и убедиться, что падает**
 
@@ -709,7 +703,7 @@ Expected: все тесты проходят.
 - [ ] **Step 6: Коммит**
 
 ```bash
-git add iOS/AVAssetMetadataReader.swift Tests/MusifyTests/MetadataMappingTests.swift
+git add iOS/AVAssetMetadataReader.swift Tests/PetrichoriOSTests/MetadataMappingTests.swift
 git commit -m "feat: fall back to filename metadata when tags are missing"
 ```
 
@@ -762,7 +756,7 @@ git commit -m "feat: fall back to filename metadata when tags are missing"
 - Create: `iOS/AVQueuePlayerBackend.swift`
 - Delete: `iOS/AVAudioPlaybackBackend.swift`
 - Modify: `Core/Playback/PlaybackEngine.swift`
-- Test: `Tests/MusifyTests/QueueBackendTests.swift`
+- Test: `Tests/PetrichoriOSTests/QueueBackendTests.swift`
 
 **Interfaces:**
 - Consumes: протокол `PlaybackBackend`, типы `QueueEntry`, `AudioEntryId`, `AudioPlayerState`, `NowPlayingMetadata`, `EqualizerPreset` из `Core/Playback/PlaybackEngine.swift`
@@ -770,12 +764,12 @@ git commit -m "feat: fall back to filename metadata when tags are missing"
 
 - [ ] **Step 1: Написать падающие тесты на очередь**
 
-Создать `Tests/MusifyTests/QueueBackendTests.swift`:
+Создать `Tests/PetrichoriOSTests/QueueBackendTests.swift`:
 
 ```swift
 import Foundation
 import Testing
-@testable import Musify
+@testable import Petrichor
 
 private func makeEntry(_ name: String) -> QueueEntry {
     QueueEntry(entryId: AudioEntryId(id: name), url: URL(fileURLWithPath: "/tmp/\(name).mp3"))
@@ -1071,7 +1065,7 @@ Expected: все тесты очереди проходят.
 - [ ] **Step 7: Коммит**
 
 ```bash
-git add iOS/AVQueuePlayerBackend.swift Core/Playback/PlaybackEngine.swift Tests/MusifyTests/QueueBackendTests.swift
+git add iOS/AVQueuePlayerBackend.swift Core/Playback/PlaybackEngine.swift Tests/PetrichoriOSTests/QueueBackendTests.swift
 git commit -m "feat: replace the iOS playback backend with a gapless AVQueuePlayer one"
 ```
 
@@ -1234,7 +1228,7 @@ func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
 - [ ] **Step 4: Собрать и убедиться, что тесты не сломались**
 
 ```bash
-xcodebuild test -scheme Musify -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "passed|failed|error:"
+xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' 2>&1 | grep -E "passed|failed|error:"
 ```
 
 - [ ] **Step 5: Коммит**
@@ -1252,7 +1246,7 @@ git commit -m "feat: play in the background and publish the now playing tile"
 
 **Files:**
 - Create: `iOS/TrackListDebugView.swift`
-- Modify: `iOS/PetrichorApp.swift` → переименовать в `iOS/MusifyApp.swift`
+- Modify: `iOS/PetrichorApp.swift` → переименовать в `iOS/PetrichorApp.swift`
 
 **Interfaces:**
 - Consumes: `LibraryManager.scanLibraryRoot()` из Task 7, `PlaybackEngine` из Task 9
@@ -1266,7 +1260,7 @@ git commit -m "feat: play in the background and publish the now playing tile"
 import SwiftUI
 
 /// Временный экран проверки цепочки. Заменяется настоящим интерфейсом
-/// в плане «Musify: интерфейс».
+/// в плане «Petrichor для iOS: интерфейс».
 struct TrackListDebugView: View {
     @Environment(LibraryManager.self) private var library
     @Environment(PlaybackManager.self) private var playback
@@ -1288,7 +1282,7 @@ struct TrackListDebugView: View {
                     }
                 }
             }
-            .navigationTitle("Musify")
+            .navigationTitle("Petrichor")
             .overlay {
                 if library.tracks.isEmpty {
                     ContentUnavailableView(
@@ -1314,17 +1308,17 @@ struct TrackListDebugView: View {
 - [ ] **Step 2: Переименовать точку входа**
 
 ```bash
-git mv iOS/PetrichorApp.swift iOS/MusifyApp.swift
+git mv iOS/PetrichorApp.swift iOS/PetrichorApp.swift
 ```
 
-Внутри переименовать структуру в `MusifyApp` и поставить `TrackListDebugView()` корневым экраном.
+Внутри переименовать структуру в `PetrichorApp` и поставить `TrackListDebugView()` корневым экраном.
 
 - [ ] **Step 3: Собрать и запустить в симуляторе**
 
 Через iOS Simulator MCP: `attach`, затем `launch`. Скопировать в контейнер симулятора несколько mp3 для проверки:
 
 ```bash
-SIM_DOCS=$(find ~/Library/Developer/CoreSimulator/Devices -type d -path "*com.sereja.musify/Documents" 2>/dev/null | head -1)
+SIM_DOCS=$(find ~/Library/Developer/CoreSimulator/Devices -type d -path "*org.Petrichor.ios/Documents" 2>/dev/null | head -1)
 cp "/Users/sereja/Documents/Медиа (музыка:видео:изображения/Моя музыка/Spotify/Shazam/"*.mp3 "$SIM_DOCS" 2>/dev/null | head -5
 ```
 
@@ -1335,7 +1329,7 @@ cp "/Users/sereja/Documents/Медиа (музыка:видео:изображе
 - [ ] **Step 5: Коммит**
 
 ```bash
-git add iOS/TrackListDebugView.swift iOS/MusifyApp.swift
+git add iOS/TrackListDebugView.swift iOS/PetrichorApp.swift
 git commit -m "feat: add a debug track list that plays the scanned library"
 ```
 
@@ -1359,19 +1353,19 @@ Expected: устройство в состоянии `available (paired)`.
 
 - [ ] **Step 2: Настроить подпись**
 
-В Xcode: таргет `Musify` → Signing & Capabilities → Team: личный Apple ID, Automatically manage signing — включено. Убедиться, что профиль выписан на `com.sereja.musify`.
+В Xcode: таргет `PetrichoriOS` → Signing & Capabilities → Team: личный Apple ID, Automatically manage signing — включено. Убедиться, что профиль выписан на `org.Petrichor.ios`.
 
 - [ ] **Step 3: Установить на устройство**
 
 ```bash
-xcodebuild -scheme Musify -destination 'platform=iOS,name=iPhone' build
+xcodebuild -scheme PetrichoriOS -destination 'platform=iOS,name=iPhone' build
 ```
 
 Затем запустить с устройства — при первом запуске потребуется подтвердить доверие разработчику в Настройках → Основные → VPN и управление устройством.
 
 - [ ] **Step 4: Залить тестовую папку**
 
-Подключить iPhone кабелем, открыть его в Finder → вкладка «Файлы» → перетащить папку с 20-30 треками в Musify.
+Подключить iPhone кабелем, открыть его в Finder → вкладка «Файлы» → перетащить папку с 20-30 треками в Petrichor.
 
 - [ ] **Step 5: Проверить сценарии**
 
@@ -1385,10 +1379,10 @@ xcodebuild -scheme Musify -destination 'platform=iOS,name=iPhone' build
 
 - [ ] **Step 6: Записать результат проверки**
 
-Дописать раздел с результатами в `docs/superpowers/plans/2026-08-05-musify-foundation.md` и закоммитить:
+Дописать раздел с результатами в `docs/superpowers/plans/2026-08-05-petrichor-ios-foundation.md` и закоммитить:
 
 ```bash
-git add docs/superpowers/plans/2026-08-05-musify-foundation.md
+git add docs/superpowers/plans/2026-08-05-petrichor-ios-foundation.md
 git commit -m "docs: record the first device checkpoint results"
 ```
 

@@ -1,4 +1,4 @@
-# Musify — плеер для iPhone на базе Petrichor
+# Petrichor для iPhone — порт маковского плеера
 
 Дата: 2026-08-05
 Статус: утверждена
@@ -12,13 +12,16 @@
 
 ## Имя и происхождение
 
-Приложение на iPhone называется **Musify**, bundle identifier
-`com.sereja.musify`. Мак-таргет остаётся **Petrichor** с идентификатором
-`org.Petrichor` — его трогать нельзя: смена идентификатора дала бы новый sandbox
-и отрезала работающую библиотеку.
+Приложение на iPhone называется **Petrichor** — это порт маковского плеера, а не
+отдельный продукт. Bundle identifier iOS-таргета — `org.Petrichor.ios`. Мак-таргет
+остаётся **Petrichor** с идентификатором `org.Petrichor` — его трогать нельзя:
+смена идентификатора дала бы новый sandbox и отрезала работающую библиотеку.
 
-Репозиторий: `~/Projects/apps/musify` (форк `kushalpandya/Petrichor`, апстрим
-лежит рядом в `~/Projects/apps/petrichor`). Лицензия MIT © Kushal Pandya
+Имена таргетов в Xcode уникальны, поэтому технически они называются `Petrichor`
+(macOS) и `PetrichoriOS` (iOS), но пользователю оба показываются как `Petrichor`.
+
+Репозиторий: `~/Projects/apps/petrichor-ios` (форк `kushalpandya/Petrichor`,
+апстрим лежит рядом в `~/Projects/apps/petrichor`). Лицензия MIT © Kushal Pandya
 сохраняется в `LICENSE`, происхождение остаётся указанным в `README` и
 `ACKNOWLEDGEMENTS`.
 
@@ -60,7 +63,7 @@ entitlement.
 
 ## Архитектура
 
-Один проект, два таргета: `Petrichor` (macOS) и `Musify` (iOS 26+).
+Один проект, два таргета: `Petrichor` (macOS) и `PetrichoriOS` (iOS 26+).
 
 ### Разделяемые слои
 
@@ -249,7 +252,7 @@ Wikidata, TMDb и Last.fm. Оба менеджера построены на `UR
 
 ### Критерии приёмки
 
-- Musify собирается и ставится на iPhone 16 Pro Max.
+- Petrichor собирается и ставится на iPhone 16 Pro Max.
 - 20.9 ГБ перенесены в `Documents` через Finder, отсканированы, библиотека
   показывает 2829 треков без `Unknown Artist`.
 - Плейлисты открываются в исходном порядке, префиксы на месте.
@@ -265,7 +268,7 @@ Wikidata, TMDb и Last.fm. Оба менеджера построены на `UR
 Каждый шаг оставляет работающий продукт; следующий слой кладётся на уже живое
 приложение.
 
-1. **Переименование и сборка**: таргет `Musify`, bundle `com.sereja.musify`,
+1. **Переименование и сборка**: таргет `PetrichoriOS`, bundle `org.Petrichor.ios`,
    GRDB привязана к iOS-таргету, проект компилируется.
 2. **Скелет**: приложение запускается, открывает базу, показывает пустую
    библиотеку.
