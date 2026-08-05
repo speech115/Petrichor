@@ -52,6 +52,7 @@ struct ContentView: View {
     @State private var showingLyrics = false
     @State private var showingFileImporter = false
     @State private var showingPlaylistImporter = false
+    @State private var importSummary: String?
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -131,9 +132,29 @@ struct ContentView: View {
         ) { result in
             if case .success(let urls) = result {
                 Task {
-                    _ = await playlistManager.importPlaylists(from: urls)
+                    let importResult = await playlistManager.importPlaylists(from: urls)
+                    await MainActor.run {
+                        importSummary = Self.importSummary(for: importResult)
+                    }
                 }
             }
+        }
+        .alert(
+            String(localized: "Import Playlists"),
+            isPresented: Binding(
+                get: { importSummary != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        importSummary = nil
+                    }
+                }
+            )
+        ) {
+            Button(String(localized: "OK"), role: .cancel) {
+                importSummary = nil
+            }
+        } message: {
+            Text(importSummary ?? "")
         }
         .onReceive(NotificationCenter.default.publisher(for: .showFolderImporter)) { _ in
             showingFileImporter = true
@@ -162,66 +183,7 @@ struct ContentView: View {
     // MARK: - Playlists Tab
 
     private var playlistsTab: some View {
-        NavigationStack {
-            List {
-                ForEach(playlistManager.playlists) { playlist in
-                    NavigationLink(value: playlist.id) {
-                        HStack {
-                            Image(systemName: Icons.musicNoteList)
-                                .foregroundColor(.accentColor)
-                            Text(DefaultPlaylists.displayName(for: playlist))
-                            Spacer()
-                            Text("\(playlist.trackCount)")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        playlistManager.deletePlaylist(playlistManager.playlists[index])
-                    }
-                }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(String(localized: "Playlists"))
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: UUID.self) { playlistID in
-                PlaylistDetailView(playlistID: playlistID)
-                    .navigationTitle(String(localized: "Playlist"))
-                    .navigationBarTitleDisplayMode(.inline)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        playlistManager.showCreatePlaylistModal()
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingPlaylistImporter = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.down")
-                    }
-                }
-            }
-            .sheet(isPresented: $playlistManager.showingCreatePlaylistModal) {
-                CreatePlaylistSheet(
-                    isPresented: $playlistManager.showingCreatePlaylistModal,
-                    playlistName: $playlistManager.newPlaylistName,
-                    tracksToAdd: playlistManager.tracksToAddToNewPlaylist
-                ) {
-                    playlistManager.createPlaylistFromModal()
-                }
-                .environmentObject(playlistManager)
-            }
-            .onAppear {
-                if playlistManager.playlists.isEmpty {
-                    playlistManager.loadPlaylists()
-                }
-            }
-        }
+        PlaylistsTabView(showingPlaylistImporter: $showingPlaylistImporter)
     }
 
     // MARK: - Folders Tab
@@ -425,6 +387,31 @@ struct ContentView: View {
             playlistManager: playlistManager
         )
     }
+
+    // MARK: - Import Summary
+
+    /// One-line digest of a playlist import, mirroring the macOS notification.
+    private static func importSummary(for result: BulkImportResult) -> String {
+        var parts: [String] = []
+
+        if result.successful > 0 {
+            parts.append(String(
+                localized: "Successfully imported \(result.successful) playlists (\(result.totalTracksImported) tracks)"
+            ))
+        }
+
+        if result.withWarnings > 0 {
+            parts.append(String(
+                localized: "Imported \(result.withWarnings) playlists with \(result.totalTracksMissing) missing tracks"
+            ))
+        }
+
+        if result.failed > 0 {
+            parts.append(String(localized: "Failed to import \(result.failed) playlists"))
+        }
+
+        return parts.joined(separator: "\n")
+    }
 }
 
 // MARK: - Mini Player Accessory
@@ -537,52 +524,5 @@ private struct MiniPlayerAccessory: View {
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
         .matchedTransitionSource(id: NowPlayingArtworkSource.artwork, in: transitionNamespace)
-    }
-}
-
-// MARK: - Create Playlist Sheet (iOS)
-
-struct CreatePlaylistSheet: View {
-    @EnvironmentObject var playlistManager: PlaylistManager
-    @Binding var isPresented: Bool
-    @Binding var playlistName: String
-    let tracksToAdd: [Track]
-    let onCreate: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField(String(localized: "Playlist Name"), text: $playlistName)
-                    .onSubmit {
-                        if !playlistName.isEmpty {
-                            onCreate()
-                        }
-                    }
-
-                if !tracksToAdd.isEmpty {
-                    Section {
-                        Text(String(localized: "Will add: \(tracksToAdd.count) tracks"))
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .navigationTitle(String(localized: "New Playlist"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "Cancel")) {
-                        playlistName = ""
-                        isPresented = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(String(localized: "Create")) {
-                        onCreate()
-                    }
-                    .disabled(playlistName.isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.medium])
     }
 }
