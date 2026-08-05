@@ -23,10 +23,16 @@ private enum IOSSection: Hashable {
     case search
 }
 
+private enum NowPlayingArtworkSource: Hashable {
+    case artwork
+}
+
 struct ContentView: View {
     @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
+
+    @Namespace private var nowPlayingTransitionNamespace
 
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
@@ -71,7 +77,10 @@ struct ContentView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory(isEnabled: playbackManager.currentTrack != nil) {
-            MiniPlayerAccessory(showingNowPlaying: $showingNowPlaying)
+            MiniPlayerAccessory(
+                showingNowPlaying: $showingNowPlaying,
+                transitionNamespace: nowPlayingTransitionNamespace
+            )
         }
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
@@ -79,8 +88,8 @@ struct ContentView: View {
                     .environmentObject(libraryManager)
             }
         }
-        .sheet(isPresented: $showingNowPlaying) {
-            nowPlayingSheet
+        .fullScreenCover(isPresented: $showingNowPlaying) {
+            nowPlayingCover
         }
         .sheet(isPresented: $showingQueue) {
             NavigationStack {
@@ -403,14 +412,14 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Now Playing Sheet
+    // MARK: - Now Playing Cover
 
-    private var nowPlayingSheet: some View {
+    private var nowPlayingCover: some View {
         NavigationStack {
             GeometryReader { geometry in
-                let artworkSize = min(280, geometry.size.height * 0.36)
+                let artworkSize = min(geometry.size.width - 48, geometry.size.height * 0.44)
                 VStack(spacing: 16) {
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 8)
 
                     nowPlayingArtwork
                         .frame(width: artworkSize, height: artworkSize)
@@ -463,7 +472,7 @@ struct ContentView: View {
                     }
                     .padding(.top, 2)
 
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.vertical, 8)
@@ -499,8 +508,7 @@ struct ContentView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .navigationTransition(.zoom(sourceID: NowPlayingArtworkSource.artwork, in: nowPlayingTransitionNamespace))
         .onAppear {
             playbackManager.setFineProgressSampling(true)
         }
@@ -570,6 +578,7 @@ private struct MiniPlayerAccessory: View {
     private var placement
     @EnvironmentObject private var playbackManager: PlaybackManager
     @Binding var showingNowPlaying: Bool
+    let transitionNamespace: Namespace.ID
 
     var body: some View {
         if placement == .expanded {
@@ -671,6 +680,7 @@ private struct MiniPlayerAccessory: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
+        .matchedTransitionSource(id: NowPlayingArtworkSource.artwork, in: transitionNamespace)
     }
 }
 
