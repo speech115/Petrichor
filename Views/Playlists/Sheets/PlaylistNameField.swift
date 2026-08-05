@@ -12,7 +12,11 @@ struct PlaylistNameField: View {
             if name.isEmpty {
                 Text("Playlist Name")
                     .font(.system(size: 24, weight: .regular))
+                    #if os(macOS)
                     .foregroundColor(Color(nsColor: .placeholderTextColor))
+                    #else
+                    .foregroundColor(Color(.placeholderText))
+                    #endif
             }
 
             TextField("", text: $name)

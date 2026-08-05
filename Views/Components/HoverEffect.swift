@@ -16,7 +16,7 @@ struct HoverEffect: ViewModifier {
         scale: CGFloat? = nil,
         activeColor: Color = .primary,
         inactiveColor: Color = .secondary,
-        activeBackgroundColor: Color? = Color(NSColor.controlColor),
+        activeBackgroundColor: Color? = nil,
         cornerRadius: CGFloat = 4,
         padding: CGFloat = 2
     ) {

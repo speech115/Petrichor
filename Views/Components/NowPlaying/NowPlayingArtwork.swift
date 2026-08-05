@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 /// Shared now-playing artwork helpers used by the surfaces that render the current
 /// track's art and artwork-derived colors (the main player bar, mini player, and
@@ -15,9 +14,13 @@ enum NowPlayingArtwork {
     static func tint(for track: Track?, useArtworkTint: Bool) -> Color {
         guard useArtworkTint, let dominant = track?.dominantColors.first else {
             // Use the system accent (the empty AccentColor asset means Color.accentColor won't track it).
+            #if os(macOS)
             return Color(nsColor: .controlAccentColor)
+            #else
+            return Color.accentColor
+            #endif
         }
-        return Color(nsColor: dominant)
+        return Color(platformColor: dominant)
     }
 
     /// A luminance-adjusted dominant color for the secondary transport controls
@@ -31,12 +34,20 @@ enum NowPlayingArtwork {
     ///   in light mode).
     static func controlColor(for track: Track?, useArtworkTint: Bool, isDarkBackground: Bool) -> Color {
         // Tinting off: use the system accent (the empty AccentColor asset means Color.accentColor won't track it).
+        #if os(macOS)
         guard useArtworkTint else { return Color(nsColor: .controlAccentColor) }
+        #else
+        guard useArtworkTint else { return Color.accentColor }
+        #endif
         // Tinting on but nothing playing: no artwork to derive from, so read as the
         // primary label color (black/white) rather than the accent color.
         guard let dominant = track?.dominantColors.first else { return .primary }
 
+        #if os(macOS)
         let srgb = dominant.usingColorSpace(.sRGB) ?? dominant
+        #else
+        let srgb = dominant
+        #endif
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         srgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
 
@@ -55,14 +66,21 @@ enum NowPlayingArtwork {
     /// Rec. 601 relative luminance (0...1) of a color, evaluated in sRGB. Used by the
     /// now-playing surfaces to decide whether light or dark foreground reads better.
     static func luminance(of color: Color) -> CGFloat {
+        #if os(macOS)
         let ns = NSColor(color).usingColorSpace(.sRGB) ?? NSColor(color)
         return 0.299 * ns.redComponent + 0.587 * ns.greenComponent + 0.114 * ns.blueComponent
+        #else
+        let ui = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return 0.299 * r + 0.587 * g + 0.114 * b
+        #endif
     }
 
     /// Decodes the track's embedded artwork into an image (nil when absent).
-    static func image(for track: Track?) -> NSImage? {
+    static func image(for track: Track?) -> PlatformImage? {
         guard let data = track?.artworkData else { return nil }
-        return NSImage(data: data)
+        return PlatformImage(data: data)
     }
 
     /// Artwork-derived background gradient (cached per track), or empty when disabled

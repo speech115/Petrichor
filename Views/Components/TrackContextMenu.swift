@@ -178,9 +178,15 @@ enum TrackContextMenu {
     }
     
     private static func createRevealInFinderItem(for track: Track) -> ContextMenuItem {
-        .button(title: String(localized: "Reveal in Finder"), icon: "finder") {
+        #if os(macOS)
+        return .button(title: String(localized: "Reveal in Finder"), icon: "finder") {
             NSWorkspace.shared.selectFile(track.url.path, inFileViewerRootedAtPath: "")
         }
+        #else
+        return .button(title: String(localized: "Copy File Path"), icon: "doc.on.doc") {
+            UIPasteboard.general.string = track.url.path
+        }
+        #endif
     }
     
     private static func createGoToMenu(for track: Track) -> ContextMenuItem {
@@ -366,12 +372,14 @@ enum TrackContextMenu {
         switch currentContext {
         case .folder:
             items.append(.divider)
+            #if os(macOS)
             items.append(.button(title: String(localized: "Show in Finder"), icon: "finder") {
                 NSWorkspace.shared.selectFile(
                     track.url.path,
                     inFileViewerRootedAtPath: track.url.deletingLastPathComponent().path
                 )
             })
+            #endif
             
         case .playlist(let playlist):
             if playlist.type == .regular {

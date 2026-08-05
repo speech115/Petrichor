@@ -1,7 +1,9 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
 
 struct VerticalSlider: View {
+
     @Binding var value: Float
     let label: String
     @State private var isDragging = false
@@ -127,3 +129,33 @@ extension VerticalSlider {
         }
     }
 }
+
+
+// MARK: - iOS Implementation
+
+#else
+import UIKit
+
+struct VerticalSlider: View {
+    @Binding var value: Float
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Slider(
+                value: Binding(
+                    get: { Double(value) },
+                    set: { value = Float($0) }
+                ),
+                in: -12...12
+            )
+            .rotationEffect(.degrees(-90))
+            .frame(width: 150, height: 22)
+
+            Text(label)
+                .font(.caption)
+                .fixedSize()
+        }
+    }
+}
+#endif

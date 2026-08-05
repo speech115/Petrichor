@@ -75,7 +75,11 @@ struct ExportPlaylistsSheet: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                 }
+                #if os(macOS)
                 .toggleStyle(.checkbox)
+                #else
+                .toggleStyle(.switch)
+                #endif
 
                 Spacer()
             }
@@ -141,7 +145,11 @@ struct ExportPlaylistsSheet: View {
             )) {
                 EmptyView()
             }
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #else
+            .toggleStyle(.switch)
+            #endif
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(DefaultPlaylists.displayName(for: playlist))
@@ -210,6 +218,7 @@ struct ExportPlaylistsSheet: View {
     }
     
     private func exportSelectedPlaylists() {
+        #if os(macOS)
         guard !selectedPlaylistIds.isEmpty else { return }
         
         let playlistsToExport = exportablePlaylists.filter { selectedPlaylistIds.contains($0.id) }
@@ -238,6 +247,8 @@ struct ExportPlaylistsSheet: View {
                 }
             }
         }
+        #endif
+
     }
     
     private func showExportNotifications(result: BulkExportResult, directory: URL) {

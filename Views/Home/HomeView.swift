@@ -61,7 +61,9 @@ struct HomeView: View {
                     }
                 }
                 .navigationTitle(selectedSidebarItem?.title ?? String(localized: "Home"))
+                #if os(macOS)
                 .navigationSubtitle("")
+                #endif
 
                 // Entity detail overlay
                 if isShowingEntityDetail {
@@ -372,7 +374,7 @@ struct HomeView: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .hoverEffect(activeBackgroundColor: Color(NSColor.controlColor))
+                .hoverEffect(activeBackgroundColor: Color(platformColor: .windowBackgroundColor))
                 .help("Sort albums")
             }
             

@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+#if os(macOS)
 import AppKit
 
 struct FocusStableMaterial: NSViewRepresentable {
@@ -31,3 +32,19 @@ struct FocusStableMaterial: NSViewRepresentable {
         view.state = .active
     }
 }
+
+
+// MARK: - iOS Implementation
+
+#else
+import UIKit
+
+struct FocusStableMaterial: View {
+    var material: Material = .ultraThin
+
+    var body: some View {
+        Rectangle()
+            .fill(material)
+    }
+}
+#endif

@@ -95,7 +95,11 @@ struct AppearanceTabView: View {
                         Text(style.displayName).tag(style)
                     }
                 }
+                #if os(macOS)
                 .pickerStyle(.radioGroup)
+                #else
+                .pickerStyle(.menu)
+                #endif
                 .disabled(!useArtworkColors)
                 .padding(.leading, dependentIndent)
 
@@ -137,6 +141,7 @@ struct AppearanceTabView: View {
     }
 
     private func updateAppearance(_ mode: ColorMode) {
+        #if os(macOS)
         switch mode {
         case .light:
             NSApp.appearance = NSAppearance(named: .aqua)
@@ -145,6 +150,17 @@ struct AppearanceTabView: View {
         case .auto:
             NSApp.appearance = nil
         }
+        #else
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+        switch mode {
+        case .light:
+            windowScene.keyWindow?.overrideUserInterfaceStyle = .light
+        case .dark:
+            windowScene.keyWindow?.overrideUserInterfaceStyle = .dark
+        case .auto:
+            windowScene.keyWindow?.overrideUserInterfaceStyle = .unspecified
+        }
+        #endif
     }
 }
 

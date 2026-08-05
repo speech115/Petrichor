@@ -1,7 +1,9 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
 
 struct MarqueeText: View {
+
     let text: String
     let font: Font
     let color: Color
@@ -236,53 +238,35 @@ private class MarqueeNSView: NSView {
     }
 }
 
-// MARK: - Preview
 
-#Preview("Short Text") {
-    MarqueeText(
-        text: "Short Text",
-        font: .system(size: 14),
-        color: .primary
-    )
-    .frame(width: 200)
-    .padding()
-    .background(Color.gray.opacity(0.1))
-}
+// MARK: - iOS Implementation
 
-#Preview("Long Text") {
-    MarqueeText(
-        text: "This is a very long text that should scroll back and forth continuously",
-        font: .system(size: 14),
-        color: .primary
-    )
-    .frame(width: 200)
-    .padding()
-    .background(Color.gray.opacity(0.1))
-}
+#else
+import UIKit
 
-#Preview("Multiple Marquees") {
-    VStack(spacing: 20) {
-        MarqueeText(
-            text: "Artist Name That Is Really Long And Keeps Going",
-            font: .system(size: 13),
-            color: .primary
-        )
-        .frame(width: 150)
-        
-        MarqueeText(
-            text: "Album Title That Goes On Forever And Ever And Ever",
-            font: .system(size: 12),
-            color: .secondary
-        )
-        .frame(width: 150)
-        
-        MarqueeText(
-            text: "Short",
-            font: .system(size: 11),
-            color: .secondary
-        )
-        .frame(width: 150)
+struct MarqueeText: View {
+    let text: String
+    let font: Font
+    let color: Color
+    let containerWidth: CGFloat
+
+    @Environment(\.scenePhase)
+    private var scenePhase
+
+    init(text: String, font: Font = .system(size: 13), color: Color = .primary, containerWidth: CGFloat = .infinity) {
+        self.text = text
+        self.font = font
+        self.color = color
+        self.containerWidth = containerWidth
     }
-    .padding()
-    .background(Color.gray.opacity(0.1))
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .foregroundColor(color)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
+#endif

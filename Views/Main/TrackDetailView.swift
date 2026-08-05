@@ -166,8 +166,8 @@ struct TrackDetailView: View {
     private func artworkSection(for fullTrack: FullTrack) -> some View {
         ZStack {
             if let artworkData = fullTrack.artworkData,
-               let nsImage = NSImage(data: artworkData) {
-                Image(nsImage: nsImage)
+               let platformImage = PlatformImage(data: artworkData) {
+                Image(platformImage: platformImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 250, height: 250)

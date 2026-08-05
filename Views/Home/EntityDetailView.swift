@@ -66,7 +66,7 @@ struct EntityDetailView: View {
                 )
             }
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(Color(platformColor: .windowBackgroundColor))
         .onAppear {
             loadTracks()
             updateGradientColors()
@@ -92,6 +92,7 @@ struct EntityDetailView: View {
             HStack(alignment: .top, spacing: 20) {
                 // Back button
                 if let onBack = onBack {
+                    #if os(macOS)
                     if #available(macOS 26.0, *) {
                         Button(action: onBack) {
                             Image(systemName: "chevron.left")
@@ -111,12 +112,12 @@ struct EntityDetailView: View {
                                 .frame(width: 28, height: 28)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(isBackButtonHovered ? Color(NSColor.controlAccentColor).opacity(0.15) : Color.clear)
+                                        .fill(isBackButtonHovered ? Color(platformColor: .controlAccentColor).opacity(0.15) : Color.clear)
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 6)
                                         .strokeBorder(
-                                            isBackButtonHovered ? Color(NSColor.controlAccentColor).opacity(0.3) : Color.clear,
+                                            isBackButtonHovered ? Color(platformColor: .controlAccentColor).opacity(0.3) : Color.clear,
                                             lineWidth: 1
                                         )
                                 )
@@ -127,11 +128,23 @@ struct EntityDetailView: View {
                         }
                         .help("Back")
                     }
+                    #else
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(isBackButtonHovered ? Color.accentColor.opacity(0.15) : Color.clear)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    #endif
                 }
 
                 // Artwork
                 entityArtwork
-
                 // Info and controls
                 VStack(alignment: .leading, spacing: 12) {
                     if entity is AlbumEntity {
@@ -178,17 +191,25 @@ struct EntityDetailView: View {
     private var entityArtwork: some View {
         Group {
             if let artworkData = displayedArtworkData,
-               let nsImage = NSImage(data: artworkData) {
-                Image(nsImage: nsImage)
+               let platformImage = PlatformImage(data: artworkData) {
+                Image(platformImage: platformImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    #if os(iOS)
+                    .frame(width: 96, height: 96)
+                    #else
                     .frame(width: 120, height: 120)
+                    #endif
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
             } else {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.secondary.opacity(0.2))
+                    #if os(iOS)
+                    .frame(width: 96, height: 96)
+                    #else
                     .frame(width: 120, height: 120)
+                    #endif
                     .overlay(
                         Group {
                             if isPersonEntity {
@@ -220,7 +241,11 @@ struct EntityDetailView: View {
             if isPersonEntity {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.black.opacity(0.4))
+                    #if os(iOS)
+                    .frame(width: 96, height: 96)
+                    #else
                     .frame(width: 120, height: 120)
+                    #endif
                     .overlay(
                         VStack(spacing: 4) {
                             Image(systemName: "pencil")

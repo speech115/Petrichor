@@ -24,9 +24,9 @@ struct IntegrationsTabView: View {
         !lastfmUsername.isEmpty
     }
 
-    private var cachedLastFMAvatar: NSImage? {
+    private var cachedLastFMAvatar: PlatformImage? {
         guard let data = UserDefaults.standard.data(forKey: "lastfmAvatarData"),
-              let image = NSImage(data: data) else {
+              let image = PlatformImage(data: data) else {
             return nil
         }
         return image
@@ -74,7 +74,7 @@ struct IntegrationsTabView: View {
             HStack {
                 Group {
                     if let avatar = cachedLastFMAvatar {
-                        Image(nsImage: avatar)
+                        Image(platformImage: avatar)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: 32, height: 32)
@@ -196,7 +196,11 @@ struct IntegrationsTabView: View {
         }
 
         isAuthenticating = true
+        #if os(macOS)
         NSWorkspace.shared.open(authURL)
+        #else
+        UIApplication.shared.open(authURL)
+        #endif
         Logger.info("Opened Last.fm authorization page")
 
         // Reset authenticating state after a delay

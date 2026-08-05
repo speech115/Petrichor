@@ -47,7 +47,7 @@ struct EntityGridView<T: Entity>: View {
 
 private final class EntityArtworkCache: @unchecked Sendable {
     static let shared = EntityArtworkCache()
-    private let cache = NSCache<NSString, NSImage>()
+    private let cache = NSCache<NSString, PlatformImage>()
     private let loadQueue: OperationQueue = {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
@@ -68,11 +68,11 @@ private final class EntityArtworkCache: @unchecked Sendable {
         return "\(entity.id.uuidString)-\(artworkSize)-rendered" as NSString
     }
 
-    func getCachedImage(for entity: any Entity) -> NSImage? {
+    func getCachedImage(for entity: any Entity) -> PlatformImage? {
         cache.object(forKey: cacheKey(for: entity))
     }
 
-    func loadImage(for entity: any Entity) async -> NSImage? {
+    func loadImage(for entity: any Entity) async -> PlatformImage? {
         let key = cacheKey(for: entity)
 
         if let cached = cache.object(forKey: key) {
@@ -97,9 +97,9 @@ private final class EntityArtworkCache: @unchecked Sendable {
         }
     }
     
-    private func createRenderedImage(from data: Data) -> NSImage? {
-        guard let nsImage = NSImage(data: data),
-              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+    private func createRenderedImage(from data: Data) -> PlatformImage? {
+        guard let platformImage = PlatformImage(data: data),
+              let cgImage = platformImage.cgImage else {
             return nil
         }
 
@@ -142,7 +142,11 @@ private final class EntityArtworkCache: @unchecked Sendable {
         context.draw(croppedCG, in: drawRect)
 
         guard let finalCG = context.makeImage() else { return nil }
+        #if os(macOS)
         return NSImage(cgImage: finalCG, size: NSSize(width: pointSize, height: pointSize))
+        #else
+        return UIImage(cgImage: finalCG)
+        #endif
     }
 }
 
@@ -154,13 +158,13 @@ private struct EntityGridItem<T: Entity>: View {
     let onSelect: () -> Void
     let onHover: (Bool) -> Void
 
-    @State private var renderedImage: NSImage?
+    @State private var renderedImage: PlatformImage?
 
     var body: some View {
         VStack(spacing: 8) {
             Group {
                 if let image = renderedImage {
-                    Image(nsImage: image)
+                    Image(platformImage: image)
                         .resizable()
                         .interpolation(.high)
                         .frame(width: ViewDefaults.gridArtworkSize, height: ViewDefaults.gridArtworkSize)
@@ -233,7 +237,11 @@ private struct EntityGridItem<T: Entity>: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(isHovered ? Color(NSColor.selectedContentBackgroundColor).opacity(0.15) : Color.clear)
+                #if os(macOS)
+                .fill(isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.15) : Color.clear)
+                #else
+                .fill(isHovered ? Color.accentColor.opacity(0.15) : Color.clear)
+                #endif
                 .animation(.easeInOut(duration: 0.08), value: isHovered)
         )
         .contentShape(Rectangle())

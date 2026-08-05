@@ -181,7 +181,11 @@ struct SmartPlaylistEditorSheet: View {
                 Toggle(isOn: $limitEnabled) {
                     Text("Limit to")
                 }
+                #if os(macOS)
                 .toggleStyle(.checkbox)
+                #else
+                .toggleStyle(.switch)
+                #endif
 
                 TextField("", value: $limitValue, format: .number)
                     .textFieldStyle(.roundedBorder)
@@ -212,8 +216,12 @@ struct SmartPlaylistEditorSheet: View {
                         Text("Descending").tag(false)
                     }
                     .labelsHidden()
+                    #if os(macOS)
                     .pickerStyle(.radioGroup)
                     .horizontalRadioGroupLayout()
+                    #else
+                    .pickerStyle(.menu)
+                    #endif
                 }
                 .font(.subheadline)
                 .padding(.leading, 20)
@@ -222,7 +230,11 @@ struct SmartPlaylistEditorSheet: View {
             Toggle(isOn: $autoUpdate) {
                 Text("Update automatically on library changes")
             }
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #else
+            .toggleStyle(.switch)
+            #endif
         }
     }
 
@@ -417,7 +429,11 @@ private struct SmartRuleRow: View {
         case .date:
             DatePicker("", selection: dateBinding, displayedComponents: [.date])
                 .labelsHidden()
+                #if os(macOS)
                 .datePickerStyle(.field)
+                #else
+                .datePickerStyle(.compact)
+                #endif
                 .frame(width: RuleLayout.valueWidth)
 
         case .boolean:

@@ -18,7 +18,7 @@ struct ListHeaderStyle: ViewModifier {
             .padding(padding)
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .background(opaque ? Color(NSColor.controlBackgroundColor) : Color(NSColor.clear))
+            .background(opaque ? Color(platformColor: .windowBackgroundColor) : Color.clear)
     }
 }
 

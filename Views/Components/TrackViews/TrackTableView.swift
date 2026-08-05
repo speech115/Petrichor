@@ -60,20 +60,7 @@ struct TrackTableView: View {
     }
     
     var body: some View {
-        tableView
-            .contextMenu(forSelectionType: Track.ID.self) { selectedIDs in
-                let selectedTracks = sortedTracks.filter { selectedIDs.contains($0.id) }
-                if !selectedTracks.isEmpty {
-                    ForEach(contextMenuItems(selectedTracks, playbackManager), id: \.id) { item in
-                        contextMenuItem(item)
-                    }
-                }
-            } primaryAction: { selectedIDs in
-                if let trackID = selectedIDs.first,
-                   let track = tracks.first(where: { $0.id == trackID }) {
-                    handleDoubleTap(on: track)
-                }
-            }
+        content
             .onChange(of: columnCustomization) { _, newValue in
                 if hasInitializedCustomization {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -309,6 +296,131 @@ struct TrackTableView: View {
         .environment(\.defaultMinListRowHeight, tableRowSize.rowHeight)
     }
     
+    // MARK: - Platform Content
+
+    @ViewBuilder
+    private var content: some View {
+        #if os(iOS)
+        iOSListView
+        #else
+        tableView
+            .contextMenu(forSelectionType: Track.ID.self) { selectedIDs in
+                let selectedTracks = sortedTracks.filter { selectedIDs.contains($0.id) }
+                if !selectedTracks.isEmpty {
+                    ForEach(contextMenuItems(selectedTracks, playbackManager), id: \.id) { item in
+                        contextMenuItem(item)
+                    }
+                }
+            } primaryAction: { selectedIDs in
+                if let trackID = selectedIDs.first,
+                   let track = tracks.first(where: { $0.id == trackID }) {
+                    handleDoubleTap(on: track)
+                }
+            }
+        #endif
+    }
+
+    // MARK: - iOS List
+
+    #if os(iOS)
+    private var iOSListView: some View {
+        List(sortedTracks) { track in
+            iOSRow(track)
+                .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    private func iOSRow(_ track: Track) -> some View {
+        Button {
+            handleDoubleTap(on: track)
+        } label: {
+            HStack(spacing: 12) {
+                iOSArtwork(track)
+                    .frame(width: 44, height: 44)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(track.title)
+                        .font(.system(size: 15, weight: isCurrentTrack(track) ? .semibold : .regular))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+
+                    Text([track.displayArtist, track.displayAlbum].filter { !$0.isEmpty }.joined(separator: " — "))
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(HelperUtils.formattedDuration(track.duration))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+
+                Image(systemName: isCurrentTrack(track) && isPlaying(track) ? Icons.playFill : Icons.playFill)
+                    .font(.system(size: 14))
+                    .foregroundColor(isCurrentTrack(track) ? .accentColor : .clear)
+                    .frame(width: 16)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            TrackContextMenuContent(items: contextMenuItems([track], playbackManager))
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                UISelectionFeedbackGenerator().selectionChanged()
+                playlistManager.toggleFavorite(for: track)
+            } label: {
+                Label(
+                    isFavorite(track) ? String(localized: "Unfavorite") : String(localized: "Favorite"),
+                    systemImage: isFavorite(track) ? Icons.starSlash : Icons.starFill
+                )
+            }
+            .tint(.yellow)
+        }
+    }
+
+    private func iOSArtwork(_ track: Track) -> some View {
+        Group {
+            if let artworkImage {
+                Image(platformImage: artworkImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.secondary.opacity(0.12))
+                    Image(systemName: Icons.musicNote)
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .frame(width: 44, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .task(id: track.trackId) {
+            await loadArtworkImage(for: track)
+        }
+    }
+
+    @State private var artworkImage: PlatformImage?
+
+    private func loadArtworkImage(for track: Track) async {
+        if let cached = TrackArtworkCache.shared.getCachedImage(for: track) {
+            artworkImage = cached
+            return
+        }
+        let image = await TrackArtworkCache.shared.loadImage(for: track)
+        if !Task.isCancelled {
+            artworkImage = image
+        }
+    }
+    #endif
+
     // MARK: - Helper Methods
     
     private func initializeSortedTracks() {
@@ -509,7 +621,7 @@ struct TrackTableView: View {
 
 private final class TrackArtworkCache: @unchecked Sendable {
     static let shared = TrackArtworkCache()
-    private let cache = NSCache<NSString, NSImage>()
+    private let cache = NSCache<NSString, PlatformImage>()
     private let loadQueue: OperationQueue = {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
@@ -529,11 +641,11 @@ private final class TrackArtworkCache: @unchecked Sendable {
         "\(track.trackId?.description ?? track.url.path)-trackCell" as NSString
     }
 
-    func getCachedImage(for track: Track) -> NSImage? {
+    func getCachedImage(for track: Track) -> PlatformImage? {
         cache.object(forKey: cacheKey(for: track))
     }
 
-    func loadImage(for track: Track) async -> NSImage? {
+    func loadImage(for track: Track) async -> PlatformImage? {
         let key = cacheKey(for: track)
 
         if let cached = cache.object(forKey: key) {
@@ -546,11 +658,11 @@ private final class TrackArtworkCache: @unchecked Sendable {
                 return cached
             }
 
-            // Decode with NSImage(data:) and resize via CGContext to avoid
-            // CGImageSource errors under concurrent load from rapid scrolling
+            // Decode and resize via CGContext to avoid CGImageSource errors
+            // under concurrent load from rapid scrolling
             guard let data = track.albumArtworkData,
-                  let nsImage = NSImage(data: data),
-                  let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                  let platformImage = PlatformImage(data: data),
+                  let cgImage = platformImage.cgImage else {
                 return nil
             }
 
@@ -570,7 +682,7 @@ private final class TrackArtworkCache: @unchecked Sendable {
 
             guard let resizedCG = context.makeImage() else { return nil }
 
-            let result = NSImage(cgImage: resizedCG, size: NSSize(width: size, height: size))
+            let result = platformImageFrom(cgImage: resizedCG, size: size)
             cache.setObject(result, forKey: key, cost: Self.bytesPerImage)
             return result
         }
@@ -588,14 +700,14 @@ private struct TrackTitleCell: View {
     let handlePlayTrack: (Track) -> Void
     let handleTogglePlayPause: () -> Void
 
-    @State private var artworkImage: NSImage?
+    @State private var artworkImage: PlatformImage?
 
     var body: some View {
         HStack(spacing: 8) {
             if tableRowSize == .expanded {
                 ZStack {
                     if let image = artworkImage {
-                        Image(nsImage: image)
+                        Image(platformImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: ViewDefaults.listArtworkSize, height: ViewDefaults.listArtworkSize)
@@ -730,4 +842,12 @@ extension Track {
     var sortableIsFavorite: Int {
         isFavorite ? 0 : 1
     }
+}
+
+private func platformImageFrom(cgImage: CGImage, size: Int) -> PlatformImage {
+    #if os(macOS)
+    return NSImage(cgImage: cgImage, size: NSSize(width: size, height: size))
+    #else
+    return UIImage(cgImage: cgImage)
+    #endif
 }

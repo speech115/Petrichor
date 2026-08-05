@@ -28,6 +28,9 @@ struct LibraryTabView: View {
     @State private var alsoResetPreferences = false
     @State private var isCommandKeyPressed = false
     @State private var modifierMonitor: Any?
+    #if !os(macOS)
+    @State private var showResetConfirmationSheet = false
+    #endif
 
     private var isLibraryUpdateInProgress: Bool {
         libraryManager.isScanning || stableScanningState
@@ -84,18 +87,22 @@ struct LibraryTabView: View {
             stableScanningState = libraryManager.isScanning
             initialDiscoverTrackCount = discoverTrackCount
 
+            #if os(macOS)
             modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
                 isCommandKeyPressed = event.modifierFlags.contains(.command)
                 return event
             }
+            #endif
         }
         .onDisappear {
             scanningStateTimer?.invalidate()
 
+            #if os(macOS)
             if let monitor = modifierMonitor {
                 NSEvent.removeMonitor(monitor)
                 modifierMonitor = nil
             }
+            #endif
 
             if discoverTrackCount != initialDiscoverTrackCount {
                 libraryManager.refreshDiscoverTracks()
@@ -154,6 +161,22 @@ struct LibraryTabView: View {
                 Text("Are you sure you want to remove \(count) folders? This will remove all tracks from these folders from your library.")
             }
         }
+        #if !os(macOS)
+        .confirmationDialog(
+            String(localized: "Reset Library Data"),
+            isPresented: $showResetConfirmationSheet,
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Reset All Data"), role: .destructive) {
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.resetLibraryData()
+                }
+            }
+        } message: {
+            Text("This will permanently remove all library data, including added folders, tracks, playlists, and pinned items. This action cannot be undone.")
+        }
+        #endif
     }
 
     // MARK: - Watched Folders Section Rows
@@ -210,6 +233,7 @@ struct LibraryTabView: View {
                         .tint(.red)
                     }
 
+                    #if os(macOS)
                     Button(action: { libraryManager.addFolder() }, label: {
                         Label("Add Folder", systemImage: "plus")
                     })
@@ -217,6 +241,7 @@ struct LibraryTabView: View {
                     .tint(.accentColor)
                     .help("Add a folder to library")
                     .disabled(isLibraryUpdateInProgress)
+                    #endif
                 }
 
                 // Folders list
@@ -448,6 +473,7 @@ struct LibraryTabView: View {
     }
 
     private func showRestartAlert() {
+        #if os(macOS)
         let alert = NSAlert()
         alert.messageText = String(localized: "Restart Required")
         alert.informativeText = String(localized: "App preferences have been reset. Please restart Petrichor for changes to take full effect.")
@@ -458,9 +484,13 @@ struct LibraryTabView: View {
         if alert.runModal() == .alertFirstButtonReturn {
             exit(0)
         }
+        #else
+        NotificationManager.shared.addMessage(.info, String(localized: "App preferences have been reset"))
+        #endif
     }
 
     private func showResetConfirmation() {
+        #if os(macOS)
         let alert = NSAlert()
         alert.messageText = String(localized: "Reset Library Data")
         alert.informativeText = String(localized: """
@@ -497,6 +527,9 @@ struct LibraryTabView: View {
                 self.alsoResetPreferences = false
             }
         }
+        #else
+        showResetConfirmationSheet = true
+        #endif
     }
 }
 
@@ -511,6 +544,14 @@ private struct CompactFolderRowView: View {
     let onRemove: () -> Void
 
     @State private var isHovered = false
+
+    private var hoverBackground: Color {
+        #if os(macOS)
+        isHovered ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.15) : Color.clear
+        #else
+        isHovered ? Color.accentColor.opacity(0.15) : Color.clear
+        #endif
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -581,9 +622,7 @@ private struct CompactFolderRowView: View {
         .background(
             RoundedRectangle(cornerRadius: 6)
                 .fill(
-                    isSelected && isSelectMode ?
-                    Color.accentColor.opacity(0.1) :
-                    (isHovered ? Color(NSColor.selectedContentBackgroundColor).opacity(0.15) : Color.clear)
+                    isSelected && isSelectMode ? Color.accentColor.opacity(0.1) : hoverBackground
                 )
                 .animation(.easeInOut(duration: 0.15), value: isHovered)
         )

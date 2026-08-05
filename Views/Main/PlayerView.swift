@@ -193,8 +193,6 @@ struct PlayerView: View {
     private var playerBarBackgroundStyle: PlayerBarBackgroundStyle = .fullWidth
 
     @State private var gradientColors: [Color] = []
-    @State private var currentTrackId: UUID?
-    @State private var cachedArtworkImage: NSImage?
     @State private var playButtonPressed = false
     @State private var isMuted = false
     @State private var previousVolume: Float = 0.7
@@ -264,8 +262,10 @@ struct PlayerView: View {
             lyricsButton
             volumeControl
             queueButton
+            #if os(macOS)
             miniPlayerButton
             immersiveButton
+            #endif
         }
         .frame(width: 320, alignment: .trailing)
     }
@@ -464,7 +464,7 @@ struct PlayerView: View {
                     .padding(.vertical, 2)
                     .background(
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(nsColor: .controlBackgroundColor))
+                            .fill(Color(platformColor: .windowBackgroundColor))
                             .shadow(radius: 2)
                     )
                     .offset(x: 100 * CGFloat(playbackManager.volume) - 15, y: -25)
@@ -513,6 +513,7 @@ struct PlayerView: View {
         .help("Open Immersive Mode")
     }
 
+    #if os(macOS)
     private var miniPlayerButton: some View {
         Button(action: {
             MiniPlayerWindowManager.shared.show()
@@ -532,6 +533,7 @@ struct PlayerView: View {
         .hoverEffect(scale: hasCurrentTrack ? 1.1 : 1.0)
         .help("Open Mini Player")
     }
+    #endif
 
     private var lyricsButton: some View {
         Button(action: {
@@ -601,11 +603,6 @@ struct PlayerView: View {
 
     private func setupInitialState() {
         // Initialize the cached album art
-        if let artworkData = playbackManager.currentTrack?.artworkData,
-           let image = NSImage(data: artworkData) {
-            cachedArtworkImage = image
-            currentTrackId = playbackManager.currentTrack?.id
-        }
 
         if playbackManager.volume < 0.01 {
             isMuted = true
@@ -849,8 +846,8 @@ private struct AlbumArtworkContent: View {
 
     var body: some View {
         if let artworkData = trackInfo?.artworkData,
-           let nsImage = NSImage(data: artworkData) {
-            Image(nsImage: nsImage)
+           let platformImage = PlatformImage(data: artworkData) {
+            Image(platformImage: platformImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(width: 76, height: 76)

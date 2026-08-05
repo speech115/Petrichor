@@ -108,8 +108,8 @@ struct ArtistImageSheet: View {
         let isSelected = selectedIndex == index
 
         return Group {
-            if let nsImage = NSImage(data: result.imageData) {
-                Image(nsImage: nsImage)
+            if let platformImage = PlatformImage(data: result.imageData) {
+                Image(platformImage: platformImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 140, height: 140)
@@ -242,7 +242,7 @@ struct ArtistImageSheet: View {
                 }
             }
 
-            guard !data.isEmpty, NSImage(data: data) != nil else {
+            guard !data.isEmpty, PlatformImage(data: data) != nil else {
                 Logger.error("Image is empty or invalid: \(response.expectedContentLength)")
                 return []
             }

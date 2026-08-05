@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(macOS)
 import Sparkle
+#endif
 
 struct GeneralTabView: View {
     @EnvironmentObject var libraryManager: LibraryManager
@@ -41,10 +43,12 @@ struct GeneralTabView: View {
                             : "Updates aren't available in development builds"
                     )
                     .onChange(of: automaticUpdatesEnabled) { _, newValue in
+                        #if os(macOS)
                         if let appDelegate = NSApp.delegate as? AppDelegate,
                            let updater = appDelegate.updaterController?.updater {
                             updater.automaticallyChecksForUpdates = newValue
                         }
+                        #endif
                     }
             }
         }

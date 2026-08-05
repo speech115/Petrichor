@@ -253,7 +253,11 @@ private struct FolderNodeRow: View {
         if isSelected {
             return Color.accentColor
         } else if isHovered {
-            return Color(NSColor.selectedContentBackgroundColor).opacity(0.15)
+            #if os(macOS)
+            return Color(nsColor: .selectedContentBackgroundColor).opacity(0.15)
+            #else
+            return Color.accentColor.opacity(0.15)
+            #endif
         } else {
             return Color.clear
         }

@@ -208,7 +208,7 @@ struct TrackTableOptionsDropdown: View {
         .menuIndicator(.hidden)
         .fixedSize(horizontal: true, vertical: false)
         .frame(height: 14)
-        .hoverEffect(activeBackgroundColor: Color(NSColor.controlColor))
+        .hoverEffect(activeBackgroundColor: Color(platformColor: .windowBackgroundColor))
         .help("Sort and display options")
         .onAppear {
             syncCustomSortState()

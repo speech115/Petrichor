@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import AppKit
 
 struct NowPlayingControlsView: View {
     /// Fill color for the play/pause button (artwork dominant color from the host).
@@ -33,9 +32,20 @@ struct NowPlayingControlsView: View {
     /// A lightened version of the tint, used as the play/pause button's backdrop
     /// shadow so it reads as a soft glow of the button's own (artwork) color.
     private var lightenedTint: Color {
+        #if os(macOS)
         let base = NSColor(tint).usingColorSpace(.sRGB) ?? NSColor(tint)
         let lightened = base.blended(withFraction: 0.5, of: .white) ?? base
         return Color(nsColor: lightened)
+        #else
+        let base = UIColor(tint)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        base.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return Color(
+            red: Double(r + (1 - r) * 0.5),
+            green: Double(g + (1 - g) * 0.5),
+            blue: Double(b + (1 - b) * 0.5)
+        )
+        #endif
     }
 
     var body: some View {
@@ -82,6 +92,9 @@ struct NowPlayingControlsView: View {
 
     private var playPauseButton: some View {
         Button(action: {
+            #if os(iOS)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            #endif
             playbackManager.togglePlayPause()
         }, label: {
             PlayPauseIcon(isPlaying: playbackManager.isPlaying)

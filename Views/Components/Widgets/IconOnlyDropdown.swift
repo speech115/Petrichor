@@ -1,7 +1,9 @@
 import SwiftUI
+#if os(macOS)
 import AppKit
 
 struct IconOnlyDropdown<Item: Hashable>: View {
+
     let items: [Item]
     @Binding var selection: Item
     let iconProvider: (Item) -> String
@@ -124,3 +126,41 @@ struct IconOnlyDropdownRepresentable<Item: Hashable>: NSViewRepresentable {
         }
     }
 }
+
+
+// MARK: - iOS Implementation
+
+#else
+import UIKit
+
+struct IconOnlyDropdown<Item: Hashable>: View {
+    let items: [Item]
+    @Binding var selection: Item
+    let iconProvider: (Item) -> String
+    let tooltipProvider: (Item) -> String
+
+    var body: some View {
+        Menu {
+            ForEach(items, id: \.self) { item in
+                Button {
+                    selection = item
+                } label: {
+                    if item == selection {
+                        Label(tooltipProvider(item), systemImage: "checkmark")
+                    } else {
+                        Text(tooltipProvider(item))
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: iconProvider(selection))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+                .frame(width: 44, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+    }
+}
+#endif

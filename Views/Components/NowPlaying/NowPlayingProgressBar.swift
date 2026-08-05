@@ -10,7 +10,6 @@
 //
 
 import SwiftUI
-import AppKit
 
 struct NowPlayingProgressBar: View {
     /// Fill color for the progress track / handle: the host's resolved, legible

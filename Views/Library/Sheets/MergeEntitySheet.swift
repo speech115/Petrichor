@@ -101,7 +101,11 @@ struct MergeEntitySheet: View {
             if canonicalName.isEmpty {
                 Text(namePlaceholder)
                     .font(.system(size: 24, weight: .regular))
+                    #if os(macOS)
                     .foregroundColor(Color(nsColor: .placeholderTextColor))
+                    #else
+                    .foregroundColor(Color(.placeholderText))
+                    #endif
             }
             TextField("", text: $canonicalName)
                 .textFieldStyle(.plain)
@@ -133,7 +137,11 @@ struct MergeEntitySheet: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                 }
+                #if os(macOS)
                 .toggleStyle(.checkbox)
+                #else
+                .toggleStyle(.switch)
+                #endif
                 .disabled(filteredCandidates.isEmpty)
 
                 Spacer()
@@ -161,7 +169,11 @@ struct MergeEntitySheet: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 28)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.textBackgroundColor)))
+        #if os(macOS)
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .textBackgroundColor)))
+            #else
+            .background(RoundedRectangle(cornerRadius: 6).fill(Color(.systemBackground)))
+            #endif
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3), lineWidth: 1))
     }
 
@@ -200,7 +212,11 @@ struct MergeEntitySheet: View {
             )) {
                 EmptyView()
             }
+            #if os(macOS)
             .toggleStyle(.checkbox)
+            #else
+            .toggleStyle(.switch)
+            #endif
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(candidate.name)

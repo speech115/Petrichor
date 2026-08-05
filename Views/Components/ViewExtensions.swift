@@ -18,7 +18,7 @@ extension View {
 extension View {
     @ViewBuilder
     func adaptiveButtonStyle(prominent: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, iOS 26.0, *) {
             if prominent {
                 self.foregroundStyle(Color.accentColor)
                     .buttonStyle(.glass)
@@ -43,7 +43,7 @@ extension View {
 
     @ViewBuilder
     func adaptiveCircularButtonStyle() -> some View {
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, iOS 26.0, *) {
             self.buttonStyle(.glass)
                 .buttonBorderShape(.circle)
                 .controlSize(.small)
@@ -105,7 +105,7 @@ struct GradientBackground: View {
     let colors: [Color]
 
     var body: some View {
-        if #available(macOS 15.0, *), colors.count >= 6 {
+        if #available(macOS 15.0, iOS 18.0, *), colors.count >= 6 {
             MeshGradient(
                 width: 3,
                 height: 3,

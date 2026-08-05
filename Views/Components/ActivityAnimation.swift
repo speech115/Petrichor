@@ -45,6 +45,8 @@ enum ActivityAnimationSize {
     }
 }
 
+#if os(macOS)
+
 // MARK: - Activity Animation View
 struct ActivityAnimation: View {
     let size: ActivityAnimationSize
@@ -337,3 +339,55 @@ extension NSBezierPath {
     
     return PreviewWrapper()
 }
+
+
+// MARK: - iOS Implementation
+
+#else
+import UIKit
+
+struct ActivityAnimation: View {
+    let size: ActivityAnimationSize
+    @Binding var isAnimating: Bool
+    
+    init(size: ActivityAnimationSize = .medium, isAnimating: Binding<Bool> = .constant(true)) {
+        self.size = size
+        self._isAnimating = isAnimating
+    }
+    
+    @State private var isRotating = false
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0, to: 0.7)
+                .stroke(
+                    AngularGradient(
+                        gradient: Gradient(colors: [.accentColor, .accentColor.opacity(0.4)]),
+                        center: .center
+                    ),
+                    style: StrokeStyle(lineWidth: size.lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(isRotating ? 360 : 0))
+                .frame(width: size.dimensions, height: size.dimensions)
+                .onAppear {
+                    guard isAnimating else { return }
+                    isRotating = true
+                }
+                .onChange(of: isAnimating) { _, animating in
+                    withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                        isRotating = animating
+                    }
+                }
+            
+            if size.showIcon {
+                Image(systemName: Icons.musicNote)
+                    .font(.system(size: size.iconSize, weight: .bold))
+                    .foregroundColor(.accentColor)
+            }
+        }
+        .animation(.linear(duration: 1.5).repeatForever(autoreverses: false), value: isRotating)
+        .frame(width: size.dimensions, height: size.dimensions)
+    }
+}
+#endif

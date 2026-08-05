@@ -37,7 +37,11 @@ struct EqualizerView: View {
     private var topControlsRow: some View {
         HStack {
             Toggle("On", isOn: $isEnabled)
+                #if os(macOS)
                 .toggleStyle(.checkbox)
+                #else
+                .toggleStyle(.switch)
+                #endif
                 .onChange(of: isEnabled) {
                     playbackManager.setEQEnabled(isEnabled)
                 }
@@ -45,7 +49,11 @@ struct EqualizerView: View {
             Spacer()
 
             Toggle("Stereo Widening", isOn: $stereoWideningEnabled)
+                #if os(macOS)
                 .toggleStyle(.checkbox)
+                #else
+                .toggleStyle(.switch)
+                #endif
                 .disabled(!isEnabled)
                 .onChange(of: stereoWideningEnabled) {
                     playbackManager.setStereoWidening(
@@ -196,10 +204,15 @@ struct EqualizerView: View {
 
 extension View {
     func configureEqualizerWindow() -> some View {
+        #if os(macOS)
         self.background(EqualizerWindowConfigurator())
+        #else
+        self
+        #endif
     }
 }
 
+#if os(macOS)
 private struct EqualizerWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
@@ -217,6 +230,7 @@ private struct EqualizerWindowConfigurator: NSViewRepresentable {
     
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
+#endif
 
 
 #Preview {

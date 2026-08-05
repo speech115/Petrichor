@@ -42,16 +42,22 @@ struct AboutTabView: View {
 
     private var appIcon: some View {
         Group {
+            #if os(macOS)
             if let appIcon = NSApp.applicationIconImage {
                 Image(nsImage: appIcon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 128, height: 128)
             } else {
-                Image(systemName: "drop.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(.accentColor)
+                Image(systemName: Icons.musicNote)
+                    .font(.system(size: 64, weight: .light))
+                    .foregroundColor(.secondary)
             }
+            #else
+            Image(systemName: Icons.musicNote)
+                .font(.system(size: 64, weight: .light))
+                .foregroundColor(.secondary)
+            #endif
         }
     }
 
@@ -201,6 +207,7 @@ struct AboutTabView: View {
                 tooltip: "View third-party licenses and acknowledgements"
             )
             
+            #if os(macOS)
             FooterLink(
                 icon: "folder",
                 title: "App Data",
@@ -214,6 +221,7 @@ struct AboutTabView: View {
                 },
                 tooltip: "Show app data directory in Finder"
             )
+            #endif
         }
     }
     

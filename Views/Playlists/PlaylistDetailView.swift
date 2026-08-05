@@ -118,8 +118,8 @@ struct PlaylistDetailView: View {
     private var playlistArtwork: some View {
         Group {
             if let artworkData,
-               let nsImage = NSImage(data: artworkData) {
-                Image(nsImage: nsImage)
+               let platformImage = PlatformImage(data: artworkData) {
+                Image(platformImage: platformImage)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: 120, height: 120)
