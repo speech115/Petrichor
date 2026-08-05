@@ -49,9 +49,28 @@ class AppCoordinator: ObservableObject {
         
         // Setup Scrobbling
         scrobbleManager = ScrobbleManager()
-        
+
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
-        
+
+        #if os(iOS)
+        // The iOS library *is* the app's own Documents folder - there is no
+        // picker step, so it has to be registered on every launch rather than
+        // through user action. Fire-and-forget: `hadFoldersAtStartup` above
+        // already captured the pre-scan state the restoration flow below
+        // needs, and `scanLibraryRoot()` re-registering the same folder row
+        // (Task 7) plus the .initialScanStarted/.foldersAddedToDatabase
+        // notifications LibraryManager already observes are what actually
+        // bring newly-copied tracks into view - this call must not block
+        // startup on that.
+        Task { [libraryManager] in
+            do {
+                try await libraryManager.scanLibraryRoot()
+            } catch {
+                Logger.error("Failed to scan the iOS documents library root: \(error)")
+            }
+        }
+        #endif
+
         Self.shared = self
         
         // Check if library is empty at startup - if so, clear any saved state
