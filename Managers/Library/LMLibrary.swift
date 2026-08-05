@@ -28,7 +28,7 @@ extension LibraryManager {
                     var isStale = false
                     let resolvedURL = try URL(
                         resolvingBookmarkData: bookmarkData,
-                        options: [.withSecurityScope],
+                        options: [],
                         relativeTo: nil,
                         bookmarkDataIsStale: &isStale
                     )
@@ -51,18 +51,62 @@ extension LibraryManager {
                 }
             } else {
                 Logger.error("No bookmark data for \(folder.name)")
+
+                // iCloud Drive folder may be cloud-only; ask iOS to download it,
+                // then create a bookmark so scanning can reach its contents.
+                if FileManager.default.isUbiquitousItem(at: folder.url) {
+                    do {
+                        try FileManager.default.startDownloadingUbiquitousItem(at: folder.url)
+                        Logger.info("Requested iCloud download for \(folder.name)")
+                    } catch {
+                        Logger.error("Failed to request iCloud download for \(folder.name): \(error)")
+                    }
+                }
+
+                if folder.url.startAccessingSecurityScopedResource() {
+                    do {
+                        let newBookmarkData = try folder.url.bookmarkData(
+                            options: [],
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
+
+                        var updatedFolder = folder
+                        updatedFolder.bookmarkData = newBookmarkData
+                        resolvedFolders.append(updatedFolder)
+                        foldersNeedingRefresh.append(updatedFolder)
+
+                        Logger.info("Created new bookmark for \(folder.name)")
+                    } catch {
+                        Logger.error("Failed to create new bookmark for \(folder.name): \(error)")
+                        resolvedFolders.append(folder) // Add anyway
+                    }
+                } else {
+                    // No access - add to list anyway
+                    resolvedFolders.append(folder)
+                }
             }
 
             // If bookmark resolution failed but folder exists, try to create new bookmark
             if !folderAccessible && FileManager.default.fileExists(atPath: folder.url.path) {
                 Logger.info("Attempting to create new bookmark for accessible folder \(folder.name)")
 
+                // iCloud Drive folders may be cloud-only; ask iOS to materialize them.
+                if FileManager.default.isUbiquitousItem(at: folder.url) {
+                    do {
+                        try FileManager.default.startDownloadingUbiquitousItem(at: folder.url)
+                        Logger.info("Requested iCloud download for \(folder.name)")
+                    } catch {
+                        Logger.error("Failed to request iCloud download for \(folder.name): \(error)")
+                    }
+                }
+
                 // Check if we already have permission to access this path
                 if folder.url.startAccessingSecurityScopedResource() {
                     // We have access! Create a new bookmark
                     do {
                         let newBookmarkData = try folder.url.bookmarkData(
-                            options: [.withSecurityScope],
+                            options: [],
                             includingResourceValuesForKeys: nil,
                             relativeTo: nil
                         )

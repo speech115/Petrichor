@@ -6,9 +6,12 @@
 //
 
 import Foundation
+#if os(macOS)
 import AppKit
+#endif
 
 extension LibraryManager {
+    #if os(macOS)
     func addFolder() {
         let openPanel = NSOpenPanel()
         openPanel.canChooseFiles = false
@@ -58,6 +61,88 @@ extension LibraryManager {
             }
         }
     }
+    #else
+    /// iOS entry point: import a folder picked via `fileImporter` and add it to the
+    /// library with a security-scoped bookmark, mirroring the macOS panel flow.
+    ///
+    /// iCloud Drive folders may only exist in the cloud when picked. Bookmarking
+    /// (and later scanning) requires the folder to be materialized locally, so we
+    /// start security-scoped access, request the download, and retry the bookmark
+    /// until iCloud makes the folder available.
+    func addFolder(urls urlsToAdd: [URL]) {
+        let started = urlsToAdd.map { url in
+            (url, url.startAccessingSecurityScopedResource())
+        }
+        for (url, ok) in started where !ok {
+            Logger.warning("Failed to start security-scoped access for \(url.lastPathComponent)")
+        }
+
+        for url in urlsToAdd where FileManager.default.isUbiquitousItem(at: url) {
+            do {
+                try FileManager.default.startDownloadingUbiquitousItem(at: url)
+                Logger.info("Requested iCloud download for \(url.lastPathComponent)")
+            } catch {
+                Logger.error("Failed to request iCloud download for \(url.path): \(error)")
+            }
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+
+            NotificationManager.shared.startActivity(String(localized: "Preparing folder..."))
+
+            var bookmarkDataMap: [URL: Data] = [:]
+            var accessibleURLs: [URL] = []
+
+            for url in urlsToAdd {
+                // Retry until the item materializes (iCloud download can lag a bit).
+                var lastError: Error?
+                for _ in 0..<60 {
+                    do {
+                        let bookmarkData = try url.bookmarkData(
+                            options: [],
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
+                        bookmarkDataMap[url] = bookmarkData
+                        accessibleURLs.append(url)
+                        Logger.info("Created bookmark for folder - \(url.lastPathComponent) at \(url.path)")
+                        break
+                    } catch {
+                        lastError = error
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                    }
+                }
+                if bookmarkDataMap[url] == nil {
+                    Logger.error("Failed to create security bookmark for \(url.path): \(String(describing: lastError))")
+                }
+            }
+
+            await MainActor.run {
+                NotificationManager.shared.stopActivity()
+            }
+
+            guard !accessibleURLs.isEmpty else {
+                NotificationManager.shared.addMessage(
+                    .error,
+                    String(localized: "Could not add the folder. Make sure it is downloaded on this iPhone (in Files: press and hold the folder, then choose Download Now).")
+                )
+                return
+            }
+
+            databaseManager.addFolders(accessibleURLs, bookmarkDataMap: bookmarkDataMap) { result in
+                switch result {
+                case .success(let dbFolders):
+                    Logger.info("Successfully added \(dbFolders.count) folders to database")
+                    self.scheduleLibraryReload()
+                case .failure(let error):
+                    Logger.error("Failed to add folders to database: \(error)")
+                    NotificationManager.shared.addMessage(.error, String(localized: "Failed to add folder: \(error.localizedDescription)"))
+                }
+            }
+        }
+    }
+    #endif
 
     func removeFolder(_ folder: Folder) {
         Logger.info("Removing folder: \(folder.name)")
@@ -210,7 +295,20 @@ extension LibraryManager {
     }
 
     func refreshBookmarkForFolder(_ folder: Folder) async {
-        // Only refresh if we can access the folder
+        // Only refresh if we can access the folder. iCloud Drive items may be
+        // cloud-only and report as missing until downloaded, so request the
+        // download first and fall back to a path check.
+        if FileManager.default.isUbiquitousItem(at: folder.url) {
+            do {
+                try FileManager.default.startDownloadingUbiquitousItem(at: folder.url)
+                Logger.info("Requested iCloud download for \(folder.name)")
+            } catch {
+                Logger.error("Failed to request iCloud download for \(folder.name): \(error)")
+            }
+            // Give iCloud a moment to materialize the item before bookmarking.
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+
         guard FileManager.default.fileExists(atPath: folder.url.path) else {
             Logger.warning("Folder no longer exists at \(folder.url.path)")
             return
@@ -219,7 +317,7 @@ extension LibraryManager {
         do {
             // Create a fresh bookmark
             let newBookmarkData = try folder.url.bookmarkData(
-                options: [.withSecurityScope],
+                options: [],
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )
