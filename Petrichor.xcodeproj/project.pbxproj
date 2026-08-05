@@ -71,12 +71,20 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/PersistentSplitView.swift,
+				Home/HomeView.swift,
 				Immersive/ImmersiveView.swift,
 				Main/ContentView.swift,
 				MiniPlayer/MiniPlayerView.swift,
 				MiniPlayer/MiniPlayerWindowButtons.swift,
 				MiniPlayer/MiniPlayerWindowConfigurator.swift,
 				MiniPlayer/MiniPlayerWindowManager.swift,
+				Playlists/PlaylistDetailView.swift,
+				Playlists/PlaylistsView.swift,
+				Playlists/PlaylistSidebarView.swift,
+				Playlists/Sheets/ExportPlaylistsSheet.swift,
+				Playlists/Sheets/PlaylistNameField.swift,
+				Playlists/Sheets/RegularPlaylistEditorSheet.swift,
+				Playlists/Sheets/SmartPlaylistEditorSheet.swift,
 				Support/ReportProblemView.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;

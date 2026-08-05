@@ -251,11 +251,7 @@ struct RegularPlaylistEditorSheet: View {
             Button("Add Songs") {
                 selectedTab = .add
             }
-            #if os(macOS)
             .buttonStyle(.link)
-            #else
-            .buttonStyle(.borderless)
-            #endif
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -331,11 +327,7 @@ struct RegularPlaylistEditorSheet: View {
         .frame(height: Self.controlHeight)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                #if os(macOS)
                 .fill(Color(nsColor: .textBackgroundColor))
-                #else
-                .fill(Color(.systemBackground))
-                #endif
         )
         .overlay(
             RoundedRectangle(cornerRadius: 6)
