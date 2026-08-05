@@ -33,12 +33,12 @@
 | `iOS/AVQueuePlayerBackend.swift` | iOS-адаптер `PlaybackBackend` на AVQueuePlayer |
 | `iOS/AudioSessionController.swift` | Категория аудиосессии, прерывания, смена маршрута |
 | `iOS/NowPlayingPublisher.swift` | Публикация в `MPNowPlayingInfoCenter` |
-| `iOS/TrackListDebugView.swift` | Временный экран проверки: список треков, тап играет |
 | `Tests/PetrichoriOSTests/LibraryPathStoreTests.swift` | Тесты шва путей |
 | `Tests/PetrichoriOSTests/TrackPersistenceTests.swift` | Тесты round-trip моделей |
 | `Tests/PetrichoriOSTests/FolderScanTests.swift` | Тесты сканирования папки |
 | `Tests/PetrichoriOSTests/MetadataMappingTests.swift` | Тесты маппинга метаданных |
 | `Tests/PetrichoriOSTests/QueueBackendTests.swift` | Тесты очереди бэкенда |
+| `Tests/PetrichoriOSTests/PlaybackStartTests.swift` | Проверка, что воспроизведение реально стартует |
 
 **Изменяются:**
 
@@ -51,7 +51,7 @@
 | `Managers/Database/DatabaseManager.swift` | Изменений не требует: имя файла базы — константа `petrichor.db` |
 | `Managers/Library/LMFolders.swift` | `scanLibraryRoot()`: регистрирует `Documents` через существующий конвейер `addFoldersAsync`/`scanFoldersForTracks`, без bookmarks |
 | `Core/Playback/PlaybackEngine.swift` | Выбор нового бэкенда на iOS |
-| `iOS/PetrichorApp.swift` | Переименование в `PetrichorApp`, стартовый экран |
+| `Application/AppCoordinator.swift` | Запуск сканирования `Documents` при старте на iOS |
 
 **Удаляется:** `iOS/AVAudioPlaybackBackend.swift` — заменяется на AVQueuePlayer-версию.
 
@@ -1240,100 +1240,69 @@ git commit -m "feat: play in the background and publish the now playing tile"
 
 ---
 
-### Task 11: Проверочный экран — библиотека играет
+### Task 11: Подключить библиотеку к существующему интерфейсу
 
-Временный экран, единственная задача которого — доказать, что цепочка «папка → база → очередь → звук» работает. В следующем плане он будет заменён настоящим интерфейсом.
+Исходно здесь планировался временный отладочный экран `TrackListDebugView`.
+Он оказался не нужен: в проекте уже есть `iOS/ContentView.swift` — готовая
+адаптация под iPhone с таб-баром, мини-плеером, шитом Now Playing и добавлением
+папок через `.fileImporter`. Заглушка была бы шагом назад, поэтому задача
+сведена к тому, чего интерфейсу действительно не хватало.
 
 **Files:**
-- Create: `iOS/TrackListDebugView.swift`
-- Modify: `iOS/PetrichorApp.swift` → переименовать в `iOS/PetrichorApp.swift`
+- Modify: `Application/AppCoordinator.swift`
+- Modify: `iOS/AVQueuePlayerBackend.swift`
+- Modify: `Models/Core/FullTrack.swift`, `Managers/Library/LMLibrary.swift`
+- Test: `Tests/PetrichoriOSTests/PlaybackStartTests.swift`
 
-**Interfaces:**
-- Consumes: `LibraryManager.scanLibraryRoot()` из Task 7, `PlaybackEngine` из Task 9
-- Produces: экран со списком треков; тап запускает воспроизведение с этого места
+- [x] **Step 1: Убрать двойную регистрацию системных команд**
 
-- [ ] **Step 1: Написать экран**
+Task 10 завела `MPRemoteCommandCenter` внутри бэкенда, но те же шесть команд уже
+регистрирует `Managers/RemoteCommandManager.swift`, подключаемый из
+`AppCoordinator`. Два обработчика на одной команде означают, что одно нажатие на
+блокировочном экране отрабатывает дважды: `togglePlayPause` возвращает состояние
+на место, `next` перескакивает через трек.
 
-Создать `iOS/TrackListDebugView.swift`:
+Владелец транспорта — `RemoteCommandManager`: он маршрутизирует в
+`PlaybackManager`, который знает про очередь и плейлисты, тогда как бэкенд знает
+только про свою. Регистрация из бэкенда удалена; публикация плитки через
+`NowPlayingPublisher` осталась — она принадлежит именно бэкенду.
 
-```swift
-import SwiftUI
+- [x] **Step 2: Подключить сканирование папки Documents**
 
-/// Временный экран проверки цепочки. Заменяется настоящим интерфейсом
-/// в плане «Petrichor для iOS: интерфейс».
-struct TrackListDebugView: View {
-    @Environment(LibraryManager.self) private var library
-    @Environment(PlaybackManager.self) private var playback
+`LibraryManager.scanLibraryRoot()` из Task 7 был написан и покрыт тестами, но не
+вызывался ниоткуда. Вызов добавлен в `AppCoordinator.init()` под `#if os(iOS)`,
+после захвата `hadFoldersAtStartup`, чтобы не влиять на восстановление
+состояния, и без блокировки запуска: ошибки логируются.
 
-    @State private var scanned = 0
-    @State private var total = 0
+- [x] **Step 3: Провести путь через шов там, где он был пропущен**
 
-    var body: some View {
-        NavigationStack {
-            List(library.tracks) { track in
-                Button {
-                    playback.play(track)
-                } label: {
-                    VStack(alignment: .leading) {
-                        Text(track.title)
-                        Text(track.artist ?? "—")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .navigationTitle("Petrichor")
-            .overlay {
-                if library.tracks.isEmpty {
-                    ContentUnavailableView(
-                        "Библиотека пуста",
-                        systemImage: "music.note",
-                        description: Text(total > 0 ? "Просканировано \(scanned) из \(total)" : "Скопируйте музыку в папку приложения")
-                    )
-                }
-            }
-            .task {
-                await library.scanLibraryRoot { done, all in
-                    scanned = done
-                    total = all
-                }
-            }
-        }
-    }
-}
-```
+`FullTrack` кодирует и декодирует путь так же, как `Track`, и Task 4 его
+пропустила — он писал в базу абсолютный путь. Переведён на `LibraryPathStore`.
+Заодно в `LMLibrary.swift` ветка создания нового bookmark не выставляла
+`folderAccessible`, из-за чего папка обрабатывалась повторно.
 
-Типы окружения (`LibraryManager`, `PlaybackManager`) и метод запуска трека взять фактические — как они прокидываются в `Application/AppCoordinator.swift`.
+- [x] **Step 4: Проверить цепочку без участия интерфейса**
 
-- [ ] **Step 2: Переименовать точку входа**
+Проверка через тапы по симулятору оказалась дорогой и ненадёжной. Сканирование
+проверяется чтением базы прямо из контейнера:
 
 ```bash
-git mv iOS/PetrichorApp.swift iOS/PetrichorApp.swift
+UDID=$(xcrun simctl list devices booted | sed -E 's/.*\(([0-9A-F-]{36})\).*/\1/' | head -1)
+CONT=$(xcrun simctl get_app_container "$UDID" org.Petrichor.ios data)
+sqlite3 "$CONT/Library/Application Support/org.Petrichor.ios/petrichor.db" \
+  "SELECT substr(path,1,40), artist, title FROM tracks LIMIT 10;"
 ```
 
-Внутри переименовать структуру в `PetrichorApp` и поставить `TrackListDebugView()` корневым экраном.
+Результат на 8 файлах из библиотеки: папка `Documents` зарегистрирована с
+относительным путём (пустая строка — это корень), все треки найдены, пути
+хранятся без UUID контейнера, исполнители и названия прочитаны из тегов.
 
-- [ ] **Step 3: Собрать и запустить в симуляторе**
+Воспроизведение проверяется тестами `PlaybackStartTests`: они скармливают
+бэкенду сгенерированный тихий WAV и ждут перехода в `playing`. Это единственная
+автоматическая проверка того, что звук вообще стартует — остальные тесты очереди
+запускаются с `startPaused: true` и остаются зелёными, даже если активация
+аудиосессии сломана.
 
-Через iOS Simulator MCP: `attach`, затем `launch`. Скопировать в контейнер симулятора несколько mp3 для проверки:
-
-```bash
-SIM_DOCS=$(find ~/Library/Developer/CoreSimulator/Devices -type d -path "*org.Petrichor.ios/Documents" 2>/dev/null | head -1)
-cp "/Users/sereja/Documents/Медиа (музыка:видео:изображения/Моя музыка/Spotify/Shazam/"*.mp3 "$SIM_DOCS" 2>/dev/null | head -5
-```
-
-- [ ] **Step 4: Проверить вручную**
-
-Перезапустить приложение. Ожидается: список треков заполнился, тап по строке запускает звук, названия и исполнители читаются из тегов. Снять скриншот через `screenshot`.
-
-- [ ] **Step 5: Коммит**
-
-```bash
-git add iOS/TrackListDebugView.swift iOS/PetrichorApp.swift
-git commit -m "feat: add a debug track list that plays the scanned library"
-```
-
----
 
 ### Task 12: Первый выход на устройство
 
@@ -1390,5 +1359,5 @@ git commit -m "docs: record the first device checkpoint results"
 
 ## Что остаётся следующим планам
 
-- **Интерфейс**: четыре вкладки, системный мини-плеер, Now Playing с текстом и очередью, списки, поиск, жесты. Заменяет `TrackListDebugView`.
+- **Интерфейс**: доработка существующего `ContentView` — списки, поиск, жесты, Now Playing с текстом и очередью.
 - **Плейлисты, сеть и приёмка**: скрипт переписи путей в M3U, импорт плейлистов, тексты песен, фотографии артистов, экран настроек, перенос всей библиотеки на 20.9 ГБ и финальная приёмка.
