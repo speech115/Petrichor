@@ -38,9 +38,7 @@ class DatabaseManager: ObservableObject {
                                                 withIntermediateDirectories: true,
                                                 attributes: nil)
 
-        let base = bundleID.hasSuffix(".debug") ? String(bundleID.dropLast(".debug".count)) : bundleID
-        let appName = (base.split(separator: ".").last.map(String.init) ?? "library").lowercased()
-        let dbFilename = bundleID.hasSuffix(".debug") ? "\(appName)-debug.db" : "\(appName).db"
+        let dbFilename = bundleID.hasSuffix(".debug") ? "petrichor-debug.db" : "petrichor.db"
         dbPath = appDirectory.appendingPathComponent(dbFilename).path
 
         // Configure database before creating the queue
