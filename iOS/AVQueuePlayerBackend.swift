@@ -55,18 +55,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// .failed` (KVO) and `failedToPlayToEndTimeNotification` can both fire
     /// for the same underlying failure.
     private var failedItemKeys: Set<ObjectIdentifier> = []
-    /// Set right before this backend itself removes the *current* failed item
-    /// from the player (to skip past it). The resulting `currentItem` KVO
-    /// change is a consequence of that removal, not a normal end-of-track
-    /// advance, so `handleCurrentItemChange` must not report it as one.
-    private var suppressNextCurrentItemTransition = false
-    /// Set around `rebuildPlayerItems`: the KVO `currentItem: old -> nil`
-    /// transition it triggers is this backend tearing its own queue down, not
-    /// a track finishing. `clearQueue` is recognised differently (empty item
-    /// map), because its KVO lands after tracking was cleared; the rebuild
-    /// path inserts the new window before the KVO lands, so its map is not
-    /// empty and needs this flag.
-    private var isRebuildingQueue = false
     /// The most recently reported finished/skipped entry. When the queue ends
     /// (`currentItem == nil`) and `currentIndex` still points at that same
     /// entry, it is the real end of the queue, not a lookahead boundary:
@@ -89,10 +77,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     override init() {
         super.init()
-        player.actionAtItemEnd = .advance
+        // `.pause` instead of `.advance`: the end of a track must be observed
+        // here first, so the queue index, the finish event and the refill all
+        // happen deterministically before the player moves on. Advancing is
+        // then done by hand in `handleItemEnded`. `didPlayToEndTime` is only
+        // posted for a track that really played to its end - tearing the queue
+        // down (`removeAllItems`) never fires it, so a rebuild cannot invent
+        // a finished track the way a `currentItem` KVO transition could.
+        player.actionAtItemEnd = .pause
         observeTrackChanges()
         observeStateChanges()
         observeItemFailureNotifications()
+        observeItemEndNotifications()
     }
 
     /// Activates the shared `AVAudioSession`, exactly once, on the first path
@@ -237,9 +233,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     /// Ставит текущий трек и до `lookaheadItemCount` следующих: успешник уже
     /// загружен в плеер, поэтому переход происходит без паузы. Остаток
-    /// очереди доливается в `handleCurrentItemChange` по мере проигрывания.
+    /// очереди доливается в `handleItemEnded` по мере проигрывания.
     private func rebuildPlayerItems(startPaused: Bool) {
-        isRebuildingQueue = true
         lastFinishedEntryId = nil
         player.removeAllItems()
         clearItemTracking()
@@ -282,10 +277,10 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
     }
 
-    /// Продолжает очередь, когда доиграл последний *загруженный* item, а в
-    /// очереди ещё есть треки: `currentItem` ушёл в nil, и `refillUpcomingItems`
-    /// без этого шага молча закончил бы воспроизведение на границе
-    /// lookahead-окна.
+    /// Продолжает очередь после удаления failed *текущего* item, когда
+    /// `currentItem` ушёл в nil, а в очереди ещё есть треки. Естественный
+    /// конец трека сюда не попадает — его обрабатывает `handleItemEnded`,
+    /// который вставляет следующий трек за завершившимся до перехода.
     private func refillAfterQueueEnded() {
         guard player.currentItem == nil,
               entries.indices.contains(currentIndex),
@@ -326,81 +321,83 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     // MARK: - KVO
 
     /// AVQueuePlayer сам переходит на следующий элемент без паузы. Смена
-    /// `currentItem` — единственный сигнал о том, что трек закончился и
-    /// заиграл следующий, поэтому оба события делегата шлются отсюда.
+    /// `currentItem` — единственный сигнал о том, что следующий трек
+    /// заиграл, поэтому `backendDidStartPlaying` шлётся отсюда. Конец трека
+    /// сюда НЕ попадает: он наблюдается через `didPlayToEndTimeNotification`
+    /// (см. `handleItemEnded`), который приходит до перехода и не путается с
+    /// нашим собственным сбросом очереди.
     private func observeTrackChanges() {
         currentItemObservation = player.observe(\.currentItem, options: [.old, .new]) { [weak self] player, change in
             guard let self else { return }
-            let old = change.oldValue ?? nil
             let new = player.currentItem
             self.runOnMain {
-                self.handleCurrentItemChange(old: old, new: new)
+                self.handleCurrentItemChange(new: new)
             }
         }
     }
 
-    private func handleCurrentItemChange(old: AVPlayerItem?, new: AVPlayerItem?) {
-        if let finished = old, finished !== new {
-            // A transition to nil is either the last track finishing for real
-            // (the finished item is still tracked), or this backend tearing
-            // its own queue down. The rebuild teardown is flagged; `clearQueue`
-            // is recognised by an empty item map, because its KVO lands after
-            // `clearItemTracking` emptied it. Reporting a teardown as eof
-            // would invent a finished track, advance the queue and bump play
-            // counts for nothing.
-            if new == nil {
-                if isRebuildingQueue {
-                    isRebuildingQueue = false
-                    return
-                }
-                if itemEntryMap.isEmpty {
-                    return
-                }
-            }
-
-            defer { removeTracking(for: finished) }
-
-            if suppressNextCurrentItemTransition {
-                // This transition is the result of this backend removing a
-                // failed *current* item to skip past it - `handleItemFailure`
-                // already reported `backendDidSkipQueueEntry` and adjusted
-                // `currentIndex` for it. Reporting it again here as a normal
-                // finish would be wrong (it never finished) and would double
-                // the index advance.
-                suppressNextCurrentItemTransition = false
-                refillAfterQueueEnded()
-                refillUpcomingItems()
-            } else {
-                let finishedIndex = currentIndex
-                // Read the finished item's own duration - by the time this runs,
-                // `player.currentItem` already points at the next track, so the
-                // shared `duration` getter would report the wrong track's length.
-                let finishedSeconds = finished.duration.seconds
-                let finishedDuration = finishedSeconds.isFinite ? finishedSeconds : 0
-
-                if entries.indices.contains(finishedIndex) {
-                    backendDelegate?.backendDidFinishPlaying(
-                        entryId: entries[finishedIndex].entryId,
-                        stopReason: .eof,
-                        progress: 1.0,
-                        duration: finishedDuration
-                    )
-                    lastFinishedEntryId = entries[finishedIndex].entryId
-                }
-                currentIndex = min(finishedIndex + 1, max(0, entries.count - 1))
-                refillAfterQueueEnded()
-                refillUpcomingItems()
-            }
-        }
-
+    private func handleCurrentItemChange(new: AVPlayerItem?) {
         guard new != nil, entries.indices.contains(currentIndex) else { return }
-        // The rebuilt queue is live now: the teardown transition, if any, has
-        // been consumed, and a later real end-of-queue must not be swallowed
-        // by a stale rebuild flag.
-        isRebuildingQueue = false
         let started = entries[currentIndex].entryId
         backendDelegate?.backendDidStartPlaying(with: started)
         backendDelegate?.backendDidFinishBuffering(with: started)
+    }
+
+    /// Catches the natural end of a track. Posted only for an item that
+    /// really played to its end, with the item itself as the object, so this
+    /// cannot be confused with our own queue teardown: `removeAllItems` does
+    /// not post it. The player is stopped here (`.pause` at item end), which
+    /// makes the whole handoff deterministic: report the finish, advance the
+    /// queue index, refill the lookahead window, then advance the player by
+    /// hand and let the `currentItem` KVO report the start of the next track.
+    private func observeItemEndNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleItemPlayedToEnd(_:)),
+            name: AVPlayerItem.didPlayToEndTimeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleItemPlayedToEnd(_ notification: Notification) {
+        guard let item = notification.object as? AVPlayerItem else { return }
+        runOnMain { self.handleItemEnded(item) }
+    }
+
+    private func handleItemEnded(_ item: AVPlayerItem) {
+        guard itemEntryMap[ObjectIdentifier(item)] != nil else { return }
+        removeTracking(for: item)
+
+        let finishedIndex = currentIndex
+        let finishedSeconds = item.duration.seconds
+        let finishedDuration = finishedSeconds.isFinite ? finishedSeconds : 0
+
+        if entries.indices.contains(finishedIndex) {
+            backendDelegate?.backendDidFinishPlaying(
+                entryId: entries[finishedIndex].entryId,
+                stopReason: .eof,
+                progress: 1.0,
+                duration: finishedDuration
+            )
+            lastFinishedEntryId = entries[finishedIndex].entryId
+        }
+
+        let nextIndex = finishedIndex + 1
+        guard nextIndex < entries.count else {
+            currentIndex = min(finishedIndex, max(0, entries.count - 1))
+            runOnMain { self.notifyStateIfChanged() }
+            return
+        }
+
+        currentIndex = nextIndex
+        if player.items().count == 1 {
+            // The next track was not preloaded (end of the lookahead window):
+            // insert it right behind the finished item so the handoff finds it.
+            player.insert(makePlayerItem(for: entries[nextIndex]), after: item)
+        }
+        player.advanceToNextItem()
+        player.play()
+        refillUpcomingItems()
     }
 
     /// `timeControlStatus` is the only reliable signal for play/pause
@@ -490,14 +487,12 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         backendDelegate?.backendDidSkipQueueEntry(entryId: entryId)
         lastFinishedEntryId = entryId
 
+        player.remove(item)
+        removeTracking(for: item)
         if wasCurrent {
-            // `handleCurrentItemChange` finishes the cleanup (tracking +
-            // refilling the tail) once the resulting `currentItem` KVO fires.
-            suppressNextCurrentItemTransition = true
-            player.remove(item)
-        } else {
-            player.remove(item)
-            removeTracking(for: item)
+            // The failed current item is gone and the player stopped at it;
+            // keep the queue going from the next entry, if any remains.
+            refillAfterQueueEnded()
         }
 
         runOnMain { self.notifyStateIfChanged() }
