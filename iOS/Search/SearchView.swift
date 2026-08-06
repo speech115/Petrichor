@@ -70,7 +70,7 @@ struct SearchView: View {
                         ArtistPage(artistName: name)
                     case .album(let album):
                         AlbumPage(album: album)
-                    case .category, .tracks, .allTracks:
+                    case .category, .tracks, .allTracks, .discover:
                         EmptyView()
                     }
                 }

@@ -1,7 +1,7 @@
 //
 // ContentView (iOS)
 //
-// iPhone main window: four tabs per the design spec — Library, Playlists,
+// iPhone main window: four tabs per the design spec — Home, Playlists,
 // Folders, Search — with the system bottom tab accessory as the mini player.
 // The tab bar minimizes on scroll down and the accessory expands with it.
 //
@@ -59,9 +59,9 @@ struct ContentView: View {
                 libraryTab
             } label: {
                 Label {
-                    Text(String(localized: "Library"))
+                    Text(String(localized: "Home"))
                 } icon: {
-                    SymbolImage(Icons.customMusicNoteRectangleStack)
+                    SymbolImage(Icons.musicNoteHouse)
                 }
             }
             Tab(String(localized: "Playlists"), systemImage: Icons.musicNoteList, value: IOSSection.playlists) {
