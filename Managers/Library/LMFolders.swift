@@ -153,18 +153,21 @@ extension LibraryManager {
     /// the cheap change check (`libraryContentsDiffer`) finds new, removed, or
     /// modified files. Otherwise nothing happens: no filesystem walk, no artwork
     /// reads, no post-scan steps.
+    ///
+    /// M3U playlists in `Documents/Petrichor-Playlists` are auto-imported on
+    /// every reconciliation: the scan above only looks at audio files, so a
+    /// playlist edit must be checked on its own, against the mtimes remembered
+    /// from the last import (ADR-0002).
     func reconcileLibrary() async throws {
-        guard !databaseManager.getAllFolders().isEmpty else {
+        if databaseManager.getAllFolders().isEmpty {
             try await scanLibraryRoot()
-            return
-        }
-
-        guard await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) else {
+        } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
+            try await scanLibraryRoot()
+        } else {
             Logger.info("Library contents unchanged, skipping reconciliation")
-            return
         }
 
-        try await scanLibraryRoot()
+        await importLibraryPlaylistsIfNeeded()
     }
 
     /// iOS entry point: the library *is* the app's own `Documents` folder, so
@@ -191,6 +194,61 @@ extension LibraryManager {
         await MainActor.run {
             self.scheduleLibraryReload()
         }
+    }
+
+    // MARK: - M3U Playlist Auto-Import
+
+    private static let m3uImportMtimesKey = "m3uImportMtimes"
+
+    /// iOS entry point: import M3U playlists from `Documents/Petrichor-Playlists`
+    /// that are new or changed since the last import, running inside
+    /// `reconcileLibrary()`. Each file's mtime is remembered in UserDefaults
+    /// (same style as `LMDiscover`); unchanged files are skipped, changed files
+    /// update the existing playlist with the same name, and a deleted M3U leaves
+    /// its playlist alone (ADR-0002). Smart playlists are never touched.
+    func importLibraryPlaylistsIfNeeded() async {
+        let playlistsDirectory = LibraryPathStore.libraryRoot
+            .appendingPathComponent("Petrichor-Playlists", isDirectory: true)
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: playlistsDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        let m3uFiles = files.filter {
+            let ext = $0.pathExtension.lowercased()
+            return ext == "m3u" || ext == "m3u8"
+        }
+        guard !m3uFiles.isEmpty else { return }
+
+        var importedMtimes = userDefaults.dictionary(forKey: Self.m3uImportMtimesKey)
+            as? [String: TimeInterval] ?? [:]
+
+        var changedFiles: [(url: URL, mtime: TimeInterval)] = []
+        for file in m3uFiles {
+            let mtime = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate?.timeIntervalSince1970 ?? 0
+            let lastImported = importedMtimes[file.lastPathComponent]
+            // Same tolerance as `libraryContentsDiffer` for filesystem clock jitter.
+            if lastImported == nil || abs((lastImported ?? 0) - mtime) > 1.0 {
+                changedFiles.append((file, mtime))
+            }
+        }
+        guard !changedFiles.isEmpty else { return }
+        Logger.info("Found \(changedFiles.count) new or changed M3U playlist file(s), importing")
+
+        guard let playlistManager = AppCoordinator.shared?.playlistManager else { return }
+        let result = await playlistManager.importPlaylists(
+            from: changedFiles.map(\.url),
+            replacingExisting: true
+        )
+
+        // Remember the mtime only when the file was actually processed: a file
+        // that failed to match any track keeps its old mtime and is retried on
+        // the next reconciliation.
+        for (entry, single) in zip(changedFiles, result.results) where !single.isCompleteFailure {
+            importedMtimes[entry.url.lastPathComponent] = entry.mtime
+        }
+        userDefaults.set(importedMtimes, forKey: Self.m3uImportMtimesKey)
     }
     #endif
 

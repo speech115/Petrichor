@@ -87,15 +87,25 @@ private enum M3UFormat {
 
 extension PlaylistManager {
     // MARK: - Import
-    
+
+    /// Manual import (the "Import Playlists" button): a file whose name
+    /// already matches a playlist creates "Name 2" instead of touching it.
     func importPlaylists(from urls: [URL]) async -> BulkImportResult {
+        await importPlaylists(from: urls, replacingExisting: false)
+    }
+
+    /// Auto-import (iOS reconciliation): an M3U whose name matches an existing
+    /// regular playlist replaces that playlist's order and composition instead
+    /// of creating a duplicate. Smart playlists are never matched — they
+    /// rebuild from their rules (ADR-0002).
+    func importPlaylists(from urls: [URL], replacingExisting: Bool) async -> BulkImportResult {
         let existingNames = await fetchExistingPlaylistNames()
         var usedNames = Set(existingNames.map { $0.lowercased() })
         var results: [PlaylistImportResult] = []
         
         for url in urls {
             let didStartAccess = url.startAccessingSecurityScopedResource()
-            let result = await importSinglePlaylist(from: url, usedNames: usedNames)
+            let result = await importSinglePlaylist(from: url, usedNames: usedNames, replacingExisting: replacingExisting)
             results.append(result)
             
             if didStartAccess {
@@ -112,7 +122,11 @@ extension PlaylistManager {
         await MainActor.run { playlists.map { $0.name } }
     }
     
-    private func importSinglePlaylist(from url: URL, usedNames: Set<String>) async -> PlaylistImportResult {
+    private func importSinglePlaylist(
+        from url: URL,
+        usedNames: Set<String>,
+        replacingExisting: Bool
+    ) async -> PlaylistImportResult {
         let basePlaylistName = url.deletingPathExtension().lastPathComponent
         let sourceDirectory = url.deletingLastPathComponent()
         
@@ -134,7 +148,8 @@ extension PlaylistManager {
             content,
             playlistName: basePlaylistName,
             usedNames: usedNames,
-            sourceDirectory: sourceDirectory
+            sourceDirectory: sourceDirectory,
+            replacingExisting: replacingExisting
         )
     }
     
@@ -142,7 +157,8 @@ extension PlaylistManager {
         _ content: String,
         playlistName: String,
         usedNames: Set<String>,
-        sourceDirectory: URL? = nil
+        sourceDirectory: URL? = nil,
+        replacingExisting: Bool = false
     ) async -> PlaylistImportResult {
         let trackPaths = parseM3UContent(content)
         
@@ -183,7 +199,11 @@ extension PlaylistManager {
             Logger.warning(message)
         }
         
-        let uniquePlaylistName = generateUniquePlaylistName(baseName: playlistName, existingNames: usedNames)
+        let existingPlaylist = replacingExisting
+            ? await findExistingRegularPlaylist(named: playlistName)
+            : nil
+        let finalPlaylistName = existingPlaylist?.name
+            ?? generateUniquePlaylistName(baseName: playlistName, existingNames: usedNames)
 
         // Populate album artwork on matched tracks before creating the playlist
         // so that the collage artwork and gradient are available immediately
@@ -192,11 +212,15 @@ extension PlaylistManager {
         let tracksWithArtwork = mutableTracks
 
         await MainActor.run {
-            _ = createPlaylist(name: uniquePlaylistName, tracks: tracksWithArtwork)
+            if let existing = existingPlaylist {
+                replaceImportedPlaylist(existing, with: tracksWithArtwork)
+            } else {
+                _ = createPlaylist(name: finalPlaylistName, tracks: tracksWithArtwork)
+            }
         }
         
         return PlaylistImportResult(
-            playlistName: uniquePlaylistName,
+            playlistName: finalPlaylistName,
             totalTracksInFile: trackPaths.count,
             tracksAdded: matchResult.matchedTracks.count,
             tracksMissing: matchResult.unmatchedPaths,
@@ -204,7 +228,10 @@ extension PlaylistManager {
         )
     }
     
-    private func parseM3UContent(_ content: String) -> [String] {
+    /// M3U seam (design spec, "Разбор M3U"): turns file content into the
+    /// ordered track entries, keeping numeric prefixes and relative paths
+    /// exactly as written. Non-empty, non-comment lines in file order.
+    func parseM3UContent(_ content: String) -> [String] {
         content.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix(M3UFormat.commentPrefix) }
@@ -257,8 +284,13 @@ extension PlaylistManager {
         return (matchedTracks, unmatchedPaths)
     }
     
-    /// Generates possible path variations for M3U import matching
-    private func generatePathVariations(_ path: String, sourceDirectory: URL? = nil) -> [String] {
+    /// M3U seam: the candidate database paths for one M3U entry, in match
+    /// priority order. A relative entry like `../Spotify/x.mp3` resolves
+    /// against the M3U's own directory first (the rewritten
+    /// Documents-relative form); mac-style absolute paths are normalized as
+    /// fallbacks. The first variation is what `findTrackByPath` compares
+    /// against the Documents-relative stored path.
+    func generatePathVariations(_ path: String, sourceDirectory: URL? = nil) -> [String] {
         var normalized = path
         
         for scheme in ["file://", "smb://", "afp://", "nfs://"] where normalized.lowercased().hasPrefix(scheme) {
@@ -307,6 +339,38 @@ extension PlaylistManager {
         }
         
         return "\(baseName) \(highestNumber + 1)"
+    }
+
+    /// The regular playlist an auto-imported M3U updates: same name,
+    /// case-insensitive. Smart playlists are never matched.
+    private func findExistingRegularPlaylist(named name: String) async -> Playlist? {
+        await MainActor.run {
+            playlists.first {
+                $0.type == .regular && $0.name.lowercased() == name.lowercased()
+            }
+        }
+    }
+
+    /// Replace an imported playlist's order and composition with a fresh M3U
+    /// read, in memory and in the database. Runs on the main actor: mutates
+    /// `playlists` like `createPlaylist` does for the create path.
+    private func replaceImportedPlaylist(_ playlist: Playlist, with tracks: [Track]) {
+        var updated = playlist
+        updated.tracks = tracks
+        updated.trackCount = tracks.count
+        updated.dateModified = Date()
+        if let index = playlists.firstIndex(where: { $0.id == playlist.id }) {
+            playlists[index] = updated
+        }
+        Task {
+            do {
+                if let dbManager = libraryManager?.databaseManager {
+                    try await dbManager.savePlaylistAsync(updated)
+                }
+            } catch {
+                Logger.error("Failed to update imported playlist '\(updated.name)': \(error)")
+            }
+        }
     }
     
     // MARK: - Export
