@@ -57,16 +57,17 @@ class AppCoordinator: ObservableObject {
         // picker step, so it has to be registered on every launch rather than
         // through user action. Fire-and-forget: `hadFoldersAtStartup` above
         // already captured the pre-scan state the restoration flow below
-        // needs, and `scanLibraryRoot()` re-registering the same folder row
+        // needs, and `reconcileLibrary()` re-registering the same folder row
         // (Task 7) plus the .initialScanStarted/.foldersAddedToDatabase
         // notifications LibraryManager already observes are what actually
         // bring newly-copied tracks into view - this call must not block
-        // startup on that.
+        // startup on that. Reconciliation skips the full scan entirely when
+        // the library already exists and the file set has not changed.
         Task { [libraryManager] in
             do {
-                try await libraryManager.scanLibraryRoot()
+                try await libraryManager.reconcileLibrary()
             } catch {
-                Logger.error("Failed to scan the iOS documents library root: \(error)")
+                Logger.error("Failed to reconcile the iOS documents library: \(error)")
             }
         }
         #endif

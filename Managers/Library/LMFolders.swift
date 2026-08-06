@@ -143,6 +143,30 @@ extension LibraryManager {
         }
     }
 
+    /// iOS entry point: background reconciliation of the database against the
+    /// `Documents` folder. Called on app launch and on return from background;
+    /// the Settings "Rescan Library" button stays a forced full scan via
+    /// `scanLibraryRoot()`.
+    ///
+    /// A full scan with progress runs only when the library does not exist yet
+    /// (first launch: `Documents` is not even registered as a folder), or when
+    /// the cheap change check (`libraryContentsDiffer`) finds new, removed, or
+    /// modified files. Otherwise nothing happens: no filesystem walk, no artwork
+    /// reads, no post-scan steps.
+    func reconcileLibrary() async throws {
+        guard !databaseManager.getAllFolders().isEmpty else {
+            try await scanLibraryRoot()
+            return
+        }
+
+        guard await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) else {
+            Logger.info("Library contents unchanged, skipping reconciliation")
+            return
+        }
+
+        try await scanLibraryRoot()
+    }
+
     /// iOS entry point: the library *is* the app's own `Documents` folder, so
     /// there is nothing to pick and no security-scoped bookmark to create —
     /// unlike `addFolder(urls:)` above, which is built around bookmarks and

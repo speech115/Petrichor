@@ -368,6 +368,63 @@ extension DatabaseManager {
         return count
     }
     
+    /// Cheap change detection for reconciliation: enumerates audio file names and
+    /// modification dates under `root` and compares them against the database
+    /// without reading file contents, decoding metadata, or touching artwork.
+    /// - Returns: true when the file set or any mtime differs from the database,
+    ///   i.e. a full scan is required.
+    func libraryContentsDiffer(from root: URL) async -> Bool {
+        let supportedExtensions = Set(AudioFormat.supportedExtensions.map { $0.lowercased() })
+        let tolerance: TimeInterval = 1.0
+
+        // What the database knows: stored relative path -> mtime at scan time.
+        let stored: [String: TimeInterval]
+        do {
+            stored = try await dbQueue.read { db in
+                var result: [String: TimeInterval] = [:]
+                let rows = try Row.fetchAll(db, sql: "SELECT path, date_modified FROM tracks")
+                result.reserveCapacity(rows.count)
+                for row in rows {
+                    let path: String = row["path"]
+                    let modDate = row["date_modified"] as? Date
+                    result[path] = modDate?.timeIntervalSince1970 ?? 0
+                }
+                return result
+            }
+        } catch {
+            Logger.error("Failed to read stored track timestamps: \(error)")
+            return true
+        }
+
+        // What the filesystem has right now.
+        var onDisk: [String: TimeInterval] = [:]
+        if let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            while let fileURL = enumerator.nextObject() as? URL {
+                let ext = fileURL.pathExtension.lowercased()
+                guard supportedExtensions.contains(ext) else { continue }
+                let modDate = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? Date.distantPast
+                onDisk[LibraryPathStore.storedPath(for: fileURL)] = modDate.timeIntervalSince1970
+            }
+        }
+
+        // Different file sets (added or removed files) always need a scan.
+        guard stored.count == onDisk.count else { return true }
+
+        for (path, storedDate) in stored {
+            guard let diskDate = onDisk[path],
+                  abs(diskDate - storedDate) <= tolerance else {
+                return true
+            }
+        }
+
+        return false
+    }
+
     func scanFoldersForTracks(
         _ folders: [Folder],
         showActivityInTray: Bool = true,

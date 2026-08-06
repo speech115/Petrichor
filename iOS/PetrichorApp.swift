@@ -14,6 +14,11 @@ struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
+    // The first .active arrives right after launch, when AppCoordinator.init
+    // has already kicked off reconciliation; only later transitions back to
+    // .active (return from background) are a reconciliation trigger.
+    @State private var hasAppearedActiveOnce = false
+
     init() {
         _appCoordinator = StateObject(wrappedValue: AppCoordinator())
     }
@@ -32,8 +37,23 @@ struct PetrichorApp: App {
                     ColorMode.current.apply()
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    if phase == .background || phase == .inactive {
+                    switch phase {
+                    case .active:
+                        guard hasAppearedActiveOnce else {
+                            hasAppearedActiveOnce = true
+                            return
+                        }
+                        Task {
+                            do {
+                                try await appCoordinator.libraryManager.reconcileLibrary()
+                            } catch {
+                                Logger.error("Failed to reconcile the library after returning to foreground: \(error)")
+                            }
+                        }
+                    case .background, .inactive:
                         appCoordinator.savePlaybackState()
+                    @unknown default:
+                        break
                     }
                 }
         }
