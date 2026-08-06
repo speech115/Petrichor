@@ -23,6 +23,13 @@
 			remoteGlobalIDString = 55A000000000000000000020;
 			remoteInfo = PetrichoriOS;
 		};
+		55A000000000000000000065 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 550F4A062DB45B1A005F794E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55A000000000000000000020;
+			remoteInfo = PetrichoriOS;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -34,6 +41,7 @@
 		55FB816B2EC22E6E008321CA /* ACKNOWLEDGEMENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ACKNOWLEDGEMENTS.md; sourceTree = "<group>"; };
 		55A000000000000000000021 /* Petrichor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Petrichor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		55A000000000000000000041 /* PetrichoriOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetrichoriOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		55A000000000000000000060 /* PetrichoriOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetrichoriOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -176,6 +184,11 @@
 			path = Tests/PetrichoriOSTests;
 			sourceTree = "<group>";
 		};
+		55A000000000000000000061 /* PetrichoriOSUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Tests/PetrichoriOSUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -203,6 +216,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				55A000000000000000000051 /* GRDB in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000062 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -323,6 +343,27 @@
 			productReference = 55A000000000000000000041 /* PetrichoriOSTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		55A000000000000000000067 /* PetrichoriOSUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55A00000000000000000006B /* Build configuration list for PBXNativeTarget "PetrichoriOSUITests" */;
+			buildPhases = (
+				55A000000000000000000063 /* Sources */,
+				55A000000000000000000062 /* Frameworks */,
+				55A000000000000000000064 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				55A000000000000000000066 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				55A000000000000000000061 /* PetrichoriOSUITests */,
+			);
+			name = PetrichoriOSUITests;
+			productName = PetrichoriOSUITests;
+			productReference = 55A000000000000000000060 /* PetrichoriOSUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -340,6 +381,10 @@
 						CreatedOnToolsVersion = 26.6;
 					};
 					55A000000000000000000043 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 55A000000000000000000020;
+					};
+					55A000000000000000000067 = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 55A000000000000000000020;
 					};
@@ -367,6 +412,7 @@
 				550F4A0D2DB45B1A005F794E /* Petrichor */,
 				55A000000000000000000020 /* PetrichoriOS */,
 				55A000000000000000000043 /* PetrichoriOSTests */,
+				55A000000000000000000067 /* PetrichoriOSUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -387,6 +433,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		55A000000000000000000046 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000064 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -418,6 +471,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		55A000000000000000000063 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -425,6 +485,11 @@
 			isa = PBXTargetDependency;
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 			targetProxy = 55A000000000000000000052 /* PBXContainerItemProxy */;
+		};
+		55A000000000000000000066 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 55A000000000000000000020 /* PetrichoriOS */;
+			targetProxy = 55A000000000000000000065 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -920,6 +985,69 @@
 			};
 			name = Dev;
 		};
+		55A000000000000000000068 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = PetrichoriOS;
+			};
+			name = Debug;
+		};
+		55A000000000000000000069 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = PetrichoriOS;
+			};
+			name = Release;
+		};
+		55A00000000000000000006A /* Dev */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = PetrichoriOS;
+			};
+			name = Dev;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -961,6 +1089,16 @@
 				55A000000000000000000048 /* Debug */,
 				55A000000000000000000049 /* Release */,
 				55A000000000000000000050 /* Dev */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		55A00000000000000000006B /* Build configuration list for PBXNativeTarget "PetrichoriOSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55A000000000000000000068 /* Debug */,
+				55A000000000000000000069 /* Release */,
+				55A00000000000000000006A /* Dev */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -40,6 +40,17 @@
                ReferencedContainer = "container:Petrichor.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "55A000000000000000000067"
+               BuildableName = "PetrichoriOSUITests.xctest"
+               BlueprintName = "PetrichoriOSUITests"
+               ReferencedContainer = "container:Petrichor.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

@@ -442,6 +442,7 @@ private struct MiniPlayerAccessory: View {
                 }
                 .contentShape(Rectangle())
             }
+            .accessibilityIdentifier("MiniPlayer")
             .buttonStyle(.plain)
 
             Spacer()
@@ -472,6 +473,7 @@ private struct MiniPlayerAccessory: View {
                 }
                 .contentShape(Rectangle())
             }
+            .accessibilityIdentifier("MiniPlayer")
             .buttonStyle(.plain)
 
             Spacer()

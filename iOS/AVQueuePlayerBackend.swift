@@ -60,6 +60,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// change is a consequence of that removal, not a normal end-of-track
     /// advance, so `handleCurrentItemChange` must not report it as one.
     private var suppressNextCurrentItemTransition = false
+    /// Set around `rebuildPlayerItems`: the KVO `currentItem: old -> nil`
+    /// transition it triggers is this backend tearing its own queue down, not
+    /// a track finishing. `clearQueue` is recognised differently (empty item
+    /// map), because its KVO lands after tracking was cleared; the rebuild
+    /// path inserts the new window before the KVO lands, so its map is not
+    /// empty and needs this flag.
+    private var isRebuildingQueue = false
+    /// The most recently reported finished/skipped entry. When the queue ends
+    /// (`currentItem == nil`) and `currentIndex` still points at that same
+    /// entry, it is the real end of the queue, not a lookahead boundary:
+    /// refilling would loop the last track forever.
+    private var lastFinishedEntryId: AudioEntryId?
 
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
@@ -217,10 +229,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// watchdog не убьёт приложение.
     private static let lookaheadItemCount = 16
 
+    #if DEBUG
+    /// Сколько `AVPlayerItem` физически стоит в плеере. Тестовый доступ к
+    /// lookahead-окну: `player.items()` недоступен извне класса.
+    var preloadedItemCount: Int { player.items().count }
+    #endif
+
     /// Ставит текущий трек и до `lookaheadItemCount` следующих: успешник уже
     /// загружен в плеер, поэтому переход происходит без паузы. Остаток
     /// очереди доливается в `handleCurrentItemChange` по мере проигрывания.
     private func rebuildPlayerItems(startPaused: Bool) {
+        isRebuildingQueue = true
+        lastFinishedEntryId = nil
         player.removeAllItems()
         clearItemTracking()
 
@@ -260,6 +280,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         for entry in entries[(currentIndex + 1)..<end] {
             player.insert(makePlayerItem(for: entry), after: nil)
         }
+    }
+
+    /// Продолжает очередь, когда доиграл последний *загруженный* item, а в
+    /// очереди ещё есть треки: `currentItem` ушёл в nil, и `refillUpcomingItems`
+    /// без этого шага молча закончил бы воспроизведение на границе
+    /// lookahead-окна.
+    private func refillAfterQueueEnded() {
+        guard player.currentItem == nil,
+              entries.indices.contains(currentIndex),
+              entries[currentIndex].entryId != lastFinishedEntryId else { return }
+        player.insert(makePlayerItem(for: entries[currentIndex]), after: nil)
+        player.play()
     }
 
     /// Builds a fresh `AVPlayerItem` for `entry` and starts tracking it so a
@@ -309,13 +341,21 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     private func handleCurrentItemChange(old: AVPlayerItem?, new: AVPlayerItem?) {
         if let finished = old, finished !== new {
-            // A transition to nil with no tracked items is our own queue
-            // teardown (rebuild/clear), not the last track finishing: the KVO
-            // fires asynchronously, after clearItemTracking has emptied the
-            // map, so reporting it as eof would invent a finished track,
-            // advance the queue and bump play counts for nothing.
-            if new == nil, itemEntryMap.isEmpty {
-                return
+            // A transition to nil is either the last track finishing for real
+            // (the finished item is still tracked), or this backend tearing
+            // its own queue down. The rebuild teardown is flagged; `clearQueue`
+            // is recognised by an empty item map, because its KVO lands after
+            // `clearItemTracking` emptied it. Reporting a teardown as eof
+            // would invent a finished track, advance the queue and bump play
+            // counts for nothing.
+            if new == nil {
+                if isRebuildingQueue {
+                    isRebuildingQueue = false
+                    return
+                }
+                if itemEntryMap.isEmpty {
+                    return
+                }
             }
 
             defer { removeTracking(for: finished) }
@@ -328,6 +368,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
                 // finish would be wrong (it never finished) and would double
                 // the index advance.
                 suppressNextCurrentItemTransition = false
+                refillAfterQueueEnded()
                 refillUpcomingItems()
             } else {
                 let finishedIndex = currentIndex
@@ -344,13 +385,19 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
                         progress: 1.0,
                         duration: finishedDuration
                     )
+                    lastFinishedEntryId = entries[finishedIndex].entryId
                 }
                 currentIndex = min(finishedIndex + 1, max(0, entries.count - 1))
+                refillAfterQueueEnded()
                 refillUpcomingItems()
             }
         }
 
         guard new != nil, entries.indices.contains(currentIndex) else { return }
+        // The rebuilt queue is live now: the teardown transition, if any, has
+        // been consumed, and a later real end-of-queue must not be swallowed
+        // by a stale rebuild flag.
+        isRebuildingQueue = false
         let started = entries[currentIndex].entryId
         backendDelegate?.backendDidStartPlaying(with: started)
         backendDelegate?.backendDidFinishBuffering(with: started)
@@ -441,6 +488,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
 
         backendDelegate?.backendDidSkipQueueEntry(entryId: entryId)
+        lastFinishedEntryId = entryId
 
         if wasCurrent {
             // `handleCurrentItemChange` finishes the cleanup (tracking +
