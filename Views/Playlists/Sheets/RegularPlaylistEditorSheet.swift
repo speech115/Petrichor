@@ -455,7 +455,7 @@ extension RegularPlaylistEditorSheet {
         didLoad = true
         // Load off the main thread so opening the editor on a large playlist doesn't stall.
         Task {
-            let tracks = libraryManager.databaseManager.loadTracksForPlaylist(playlistID)
+            let tracks = libraryManager.getPlaylistTracksFull(for: playlistID)
             await MainActor.run {
                 playlistTracks = tracks
                 originalTrackIDs = Set(tracks.compactMap { $0.trackId })
@@ -568,7 +568,7 @@ extension RegularPlaylistEditorSheet {
             // Create: the staged list is the playlist's initial contents.
             let trackIdsToAdd = stagedTracks.compactMap { $0.trackId }
             Task<Void, Never> {
-                let tracks = libraryManager.databaseManager.getTracksWithArtwork(byIds: trackIdsToAdd)
+                let tracks = libraryManager.getTracksWithArtwork(byIds: trackIdsToAdd)
                 await MainActor.run {
                     _ = playlistManager.createRegularPlaylist(name: trimmedName, tracks: tracks)
                 }
@@ -591,12 +591,12 @@ extension RegularPlaylistEditorSheet {
         }
 
         if !trackIdsToAdd.isEmpty {
-            let tracksToAdd = libraryManager.databaseManager.getTracksWithArtwork(byIds: trackIdsToAdd)
+            let tracksToAdd = libraryManager.getTracksWithArtwork(byIds: trackIdsToAdd)
             await playlistManager.addTracksToPlaylist(tracks: tracksToAdd, playlistID: playlistID)
         }
 
         if !trackIdsToRemove.isEmpty {
-            let tracksToRemove = libraryManager.databaseManager.getTracksWithArtwork(byIds: trackIdsToRemove)
+            let tracksToRemove = libraryManager.getTracksWithArtwork(byIds: trackIdsToRemove)
             await playlistManager.removeTracksFromPlaylist(tracks: tracksToRemove, playlistID: playlistID)
         }
 

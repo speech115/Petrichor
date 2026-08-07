@@ -128,6 +128,10 @@ import Testing
     try FileManager.default.moveItem(at: fooComma, to: ambiguousDir.appendingPathComponent("Foo, Bar.mp3"))
     try FileManager.default.moveItem(at: fooSpaced, to: ambiguousDir.appendingPathComponent("Foo , Bar.mp3"))
 
+    // Deterministic metadata: the simulator's media service is shared and
+    // flakes under parallel load, so the scan pipeline gets a fixed reader.
+    MetadataEngine.readerOverride = TestMetadataReader.shared
+
     // Scan the folder into an in-memory pool with the real scan pipeline.
     let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])

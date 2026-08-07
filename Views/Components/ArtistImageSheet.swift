@@ -137,7 +137,7 @@ struct ArtistImageSheet: View {
     private func saveArtistImage(_ imageData: Data, url: String, source: String) {
         guard let artistId, let libraryManager else { return }
 
-        libraryManager.databaseManager.updateArtistInfo(
+        libraryManager.updateArtistInfo(
             artistId: artistId,
             imageData: imageData,
             imageUrl: url,
@@ -151,7 +151,7 @@ struct ArtistImageSheet: View {
         HStack {
             Button {
                 guard let artistId, let libraryManager else { return }
-                libraryManager.databaseManager.deleteArtistImage(artistId: artistId)
+                libraryManager.deleteArtistImage(artistId: artistId)
                 onImageSelected?(nil)
                 libraryManager.updateArtistEntityArtwork(name: artistName, artworkData: nil)
                 isPresented = false

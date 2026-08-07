@@ -9,11 +9,9 @@
 // confirmation haptic at gesture completion), long-press for the full
 // context menu. VoiceOver exposes the same two actions as custom actions.
 //
-// Artwork loads lazily: rows already carrying a thumbnail (list queries
-// populate the small `albumArtworkThumbnail`, detail screens the full
-// artwork) render it directly, everything else falls back to an
-// address-fetched thumbnail (single-album query, never a full scan), cached
-// per track.
+// Artwork is carried by the track: every list wrapper in LibraryManager
+// fills `albumArtworkThumbnail` before rows are handed to the screen, so
+// the row has no path into the database (and no artwork cache of its own).
 //
 
 import SwiftUI
@@ -26,10 +24,8 @@ struct TrackRow: View {
     let onPlay: () -> Void
     var menuContext: TrackContextMenu.MenuContext = .library
 
-    @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
-    @State private var artworkImage: UIImage?
     @State private var showingPlaylistPicker = false
 
     var body: some View {
@@ -101,9 +97,6 @@ struct TrackRow: View {
         .accessibilityAction(named: String(localized: "Add to Playlist")) {
             showingPlaylistPicker = true
         }
-        .task(id: track.trackId) {
-            await loadArtwork()
-        }
     }
 
     // MARK: - Gesture Actions
@@ -132,73 +125,8 @@ struct TrackRow: View {
     // MARK: - Artwork
 
     private var artworkView: some View {
-        Group {
-            if let artworkImage {
-                Image(uiImage: artworkImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ArtworkTile(data: nil)
-            }
-        }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-
-    @MainActor
-    private func loadArtwork() async {
-        if let cached = TrackRowArtworkStore.shared.cachedImage(for: track) {
-            artworkImage = cached
-            return
-        }
-
-        // List rows carry the album thumbnail (populated by the thumbnail
-        // queries); fall back to whatever full artwork the row already has.
-        if let data = track.displayArtwork,
-           let image = UIImage(data: data) {
-            artworkImage = image
-            TrackRowArtworkStore.shared.cache(image, for: track)
-            return
-        }
-
-        guard track.trackId != nil else { return }
-
-        let databaseManager = libraryManager.databaseManager
-        let albumId = track.albumId
-        let trackId = track.trackId
-
-        let image = await Task.detached(priority: .utility) {
-            // Thumbnail first; rows without one (album-less tracks) fall back
-            // to the track's own full artwork, as before the seam.
-            let data = databaseManager.getArtworkThumbnail(albumId: albumId, trackId: trackId)
-                ?? databaseManager.getArtworkData(albumId: albumId, trackId: trackId)
-            return data.flatMap(UIImage.init(data:))
-        }.value
-
-        guard !Task.isCancelled, let image else { return }
-
-        artworkImage = image
-        TrackRowArtworkStore.shared.cache(image, for: track)
-    }
-}
-
-@MainActor
-private final class TrackRowArtworkStore {
-    static let shared = TrackRowArtworkStore()
-
-    private let cache = NSCache<NSNumber, UIImage>()
-
-    init() {
-        cache.totalCostLimit = 64 * 1024 * 1024
-    }
-
-    func cachedImage(for track: Track) -> UIImage? {
-        guard let trackId = track.trackId else { return nil }
-        return cache.object(forKey: NSNumber(value: trackId))
-    }
-
-    func cache(_ image: UIImage, for track: Track) {
-        guard let trackId = track.trackId else { return }
-        cache.setObject(image, forKey: NSNumber(value: trackId))
+        ArtworkTile(data: track.displayArtwork)
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }

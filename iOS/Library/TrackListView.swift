@@ -91,20 +91,12 @@ struct TrackListView: View {
         let value = item.name
         let albumId = item.albumId
         let libraryManager = libraryManager
-        let databaseManager = libraryManager.databaseManager
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            var tracks = libraryManager.getTracksBy(
-                filterType: filterType,
-                value: value,
-                albumId: albumId,
-                populateArtwork: false
-            )
-            // List rows read the album thumbnail, not the display-size BLOB.
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-            return tracks.sorted {
-                $0.title.localizedStandardCompare($1.title) == .orderedAscending
-            }
+            libraryManager.getTracksBy(filterType: filterType, value: value, albumId: albumId)
+                .sorted {
+                    $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                }
         }.value
 
         guard !Task.isCancelled else { return }
@@ -112,12 +104,10 @@ struct TrackListView: View {
     }
 
     private func loadAllTracksFromDatabase() async {
-        let databaseManager = libraryManager.databaseManager
+        let libraryManager = libraryManager
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            var tracks = databaseManager.getAllTracks(populateArtwork: false)
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-            return tracks
+            libraryManager.getAllTracks()
         }.value
 
         guard !Task.isCancelled else { return }

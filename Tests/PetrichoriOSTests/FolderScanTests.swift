@@ -95,6 +95,16 @@ import Testing
     try FileManager.default.createDirectory(at: copyDir, withIntermediateDirectories: true)
     try FileManager.default.copyItem(at: firstInLibrary, to: copyDir.appendingPathComponent("Annabel - Above Your Hand.mp3"))
 
+    // Deterministic metadata: the simulator's media service is shared and
+    // flakes under parallel load, so the scan pipeline gets a fixed reader.
+    MetadataEngine.readerOverride = TestMetadataReader.shared
+    TestMetadataReader.shared.setOverride(for: firstInLibrary, artist: "Annabel", title: "Above Your Hand", album: album)
+    TestMetadataReader.shared.setOverride(for: secondInLibrary, artist: "Jeune Ras", title: "Hidden Gem", album: album)
+    TestMetadataReader.shared.setOverride(
+        for: copyDir.appendingPathComponent("Annabel - Above Your Hand.mp3"),
+        artist: "Annabel", title: "Above Your Hand", album: album
+    )
+
     let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
 
@@ -144,6 +154,10 @@ import Testing
     let secondInLibrary = root.appendingPathComponent("Jeune Ras - Hidden Gem.mp3")
     try FileManager.default.moveItem(at: first, to: firstInLibrary)
     try FileManager.default.moveItem(at: second, to: secondInLibrary)
+
+    // Deterministic metadata: the simulator's media service is shared and
+    // flakes under parallel load, so the scan pipeline gets a fixed reader.
+    MetadataEngine.readerOverride = TestMetadataReader.shared
 
     let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])

@@ -203,13 +203,11 @@ struct ArtistPage: View {
     private func load() async {
         let name = artistName
         let libraryManager = libraryManager
-        let databaseManager = libraryManager.databaseManager
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            var tracks = libraryManager.databaseManager.getTracksForArtistEntity(name)
+            let tracks = libraryManager.getTracksForArtist(name)
             // Row thumbnails; the photo header keeps the full artwork.
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-            let info = libraryManager.databaseManager.getArtistArtworkAndBio(for: name)
+            let info = libraryManager.getArtistArtworkAndBio(for: name)
             let albums = Self.albums(from: tracks)
             return (tracks: tracks, albums: albums, photo: info.artworkData, bio: info.bio)
         }.value

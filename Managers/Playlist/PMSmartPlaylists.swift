@@ -113,7 +113,9 @@ extension PlaylistManager {
 
     // MARK: - Loading
 
-    /// Load tracks for a single smart playlist on-demand.
+    /// Load tracks for a single smart playlist on-demand. Rows are list rows:
+    /// the display-size artwork pass is skipped and album thumbnails are
+    /// filled here, inside the manager.
     func loadSmartPlaylistTracks(_ playlist: Playlist) async {
         guard playlist.type == .smart,
               let libraryManager = libraryManager else { return }
@@ -128,11 +130,14 @@ extension PlaylistManager {
         guard shouldLoad else { return }
 
         let autoUpdate = playlist.smartCriteria?.autoUpdate ?? true
-        let tracks: [Track]
+        var tracks: [Track]
 
         if autoUpdate {
             do {
-                tracks = try await libraryManager.databaseManager.getTracksForSmartPlaylist(playlist)
+                tracks = try await libraryManager.databaseManager.getTracksForSmartPlaylist(
+                    playlist,
+                    populateArtwork: false
+                )
             } catch {
                 Logger.error("Failed to load tracks for smart playlist '\(playlist.name)': \(error)")
                 await MainActor.run { _ = self.loadingSmartPlaylistIDs.remove(playlist.id) }
@@ -140,8 +145,9 @@ extension PlaylistManager {
             }
         } else {
             // Frozen: read the persisted one-time snapshot.
-            tracks = libraryManager.databaseManager.loadTracksForPlaylist(playlist.id)
+            tracks = libraryManager.databaseManager.loadTracksForPlaylist(playlist.id, populateArtwork: false)
         }
+        libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
 
         await MainActor.run {
             if let index = self.playlists.firstIndex(where: { $0.id == playlist.id }) {

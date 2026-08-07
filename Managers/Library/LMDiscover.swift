@@ -58,6 +58,12 @@ extension LibraryManager {
                 userDefaults.set(Date(), forKey: Self.discoverLastUpdatedKey)
             }
         }
+
+        // Home carousel rows read thumbnails only: fill them here, in the
+        // manager, when the full-size pass was skipped.
+        if !populateArtwork {
+            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+        }
         
         self.discoverTracks = tracks
         Logger.info("Discover tracks loaded")

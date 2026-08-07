@@ -74,7 +74,11 @@ extension DatabaseManager {
 
     /// Build and run a smart playlist's full track query (filter, sort, limit, artwork) within
     /// an already-open read, loading the normalized tables only when a rule needs them.
-    private func fetchSmartPlaylistTracks(for criteria: SmartPlaylistCriteria, db: Database) throws -> [Track] {
+    private func fetchSmartPlaylistTracks(
+        for criteria: SmartPlaylistCriteria,
+        db: Database,
+        populateArtwork: Bool = true
+    ) throws -> [Track] {
         let artists = criteriaNeedsArtists(criteria) ? try Artist.fetchAll(db) : []
         let genres = criteriaNeedsGenres(criteria) ? try Genre.fetchAll(db) : []
 
@@ -85,24 +89,31 @@ extension DatabaseManager {
         }
 
         var tracks = try query.fetchAll(db)
-        try populateAlbumArtworkForTracks(&tracks, db: db)
+        // List contexts pass `false` and fill thumbnails themselves
+        // (populateAlbumArtworkThumbnailsForTracks).
+        if populateArtwork {
+            try populateAlbumArtworkForTracks(&tracks, db: db)
+        }
         return tracks
     }
 
     /// Build and execute a database query for a smart playlist
-    func getTracksForSmartPlaylist(_ playlist: Playlist) async throws -> [Track] {
+    func getTracksForSmartPlaylist(
+        _ playlist: Playlist,
+        populateArtwork: Bool = true
+    ) async throws -> [Track] {
         guard playlist.type == .smart,
               let criteria = playlist.smartCriteria else {
             return []
         }
 
         return try await dbQueue.read { db in
-            try self.fetchSmartPlaylistTracks(for: criteria, db: db)
+            try self.fetchSmartPlaylistTracks(for: criteria, db: db, populateArtwork: populateArtwork)
         }
     }
 
     /// Get tracks for a smart playlist synchronously (for use in pinned items)
-    func getTracksForSmartPlaylistSync(_ playlist: Playlist) -> [Track] {
+    func getTracksForSmartPlaylistSync(_ playlist: Playlist, populateArtwork: Bool = true) -> [Track] {
         guard playlist.type == .smart,
               let criteria = playlist.smartCriteria else {
             return []
@@ -110,7 +121,7 @@ extension DatabaseManager {
 
         do {
             return try dbQueue.read { db in
-                try self.fetchSmartPlaylistTracks(for: criteria, db: db)
+                try self.fetchSmartPlaylistTracks(for: criteria, db: db, populateArtwork: populateArtwork)
             }
         } catch {
             Logger.error("Failed to get tracks for smart playlist '\(playlist.name)': \(error)")

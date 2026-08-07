@@ -199,24 +199,23 @@ struct HomeTabView: View {
             playlistManager.loadPlaylists()
         }
 
-        let dbManager = libraryManager.databaseManager
+        let libraryManager = libraryManager
         let playlists = displayPlaylists
         let previewLimit = Self.playlistPreviewLimit
         let carouselLimit = Self.carouselLimit
 
         // The manager keeps the weekly Discover rotation; the Home carousel
-        // reads only thumbnails, so skip its full-artwork pass.
+        // reads only thumbnails.
         libraryManager.loadDiscoverTracks(populateArtwork: false)
         let managerDiscover = libraryManager.discoverTracks
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            let recentPlayed = dbManager.getRecentlyPlayedTracks(limit: carouselLimit)
-            let recentAdded = dbManager.getRecentlyAddedTracks(limit: carouselLimit)
-            var discover = managerDiscover
-            dbManager.populateAlbumArtworkThumbnailsForTracks(&discover)
+            let recentPlayed = libraryManager.getRecentlyPlayedTracks(limit: carouselLimit)
+            let recentAdded = libraryManager.getRecentlyAddedTracks(limit: carouselLimit)
+            let discover = managerDiscover
             let previews = Dictionary(
                 uniqueKeysWithValues: playlists.map {
-                    ($0.id, dbManager.getPlaylistPreviewTracks($0, limit: previewLimit))
+                    ($0.id, libraryManager.getPlaylistPreviewTracks($0, limit: previewLimit))
                 }
             )
             return (recentPlayed, recentAdded, discover, previews)

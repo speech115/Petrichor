@@ -88,25 +88,6 @@ extension DatabaseManager {
         }
     }
 
-    /// Address-fetch of one artwork thumbnail for lazy list rows. Returns
-    /// only the thumbnail column; rows whose album has no thumbnail (album-less
-    /// tracks, failed generations) fall back to the full artwork in the row
-    /// view, never here - the seam reads thumbnails only.
-    func getArtworkThumbnail(albumId: Int64?, trackId: Int64?) -> Data? {
-        do {
-            return try dbQueue.read { db -> Data? in
-                guard let albumId else { return nil }
-                return try Album
-                    .select(Album.Columns.artworkThumbnail)
-                    .filter(Album.Columns.id == albumId)
-                    .fetchOne(db)?[Album.Columns.artworkThumbnail]
-            }
-        } catch {
-            Logger.error("Failed to fetch artwork thumbnail: \(error)")
-            return nil
-        }
-    }
-
     /// Populate album artwork for a single FullTrack
     func populateAlbumArtworkForFullTrack(_ track: inout FullTrack) {
         guard let albumId = track.albumId else { return }
@@ -492,7 +473,7 @@ extension DatabaseManager {
     // MARK: - Entity Queries (for Home tab)
 
     /// Get tracks for an artist entity
-    func getTracksForArtistEntity(_ artistName: String) -> [Track] {
+    func getTracksForArtistEntity(_ artistName: String, populateArtwork: Bool = true) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
                 let normalizedName = ArtistParser.normalizeArtistName(artistName)
@@ -519,7 +500,11 @@ extension DatabaseManager {
                     .fetchAll(db)
             }
             
-            populateAlbumArtworkForTracks(&tracks)
+            // List contexts pass `false` and fill thumbnails themselves
+            // (populateAlbumArtworkThumbnailsForTracks).
+            if populateArtwork {
+                populateAlbumArtworkForTracks(&tracks)
+            }
             return tracks
         } catch {
             Logger.error("Failed to get tracks for artist entity: \(error)")
@@ -528,7 +513,7 @@ extension DatabaseManager {
     }
 
     /// Get tracks for an album entity
-    func getTracksForAlbumEntity(_ albumEntity: AlbumEntity) -> [Track] {
+    func getTracksForAlbumEntity(_ albumEntity: AlbumEntity, populateArtwork: Bool = true) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
                 if let albumId = albumEntity.albumId {
@@ -556,7 +541,11 @@ extension DatabaseManager {
                 }
             }
             
-            populateAlbumArtworkForTracks(&tracks)
+            // List contexts pass `false` and fill thumbnails themselves
+            // (populateAlbumArtworkThumbnailsForTracks).
+            if populateArtwork {
+                populateAlbumArtworkForTracks(&tracks)
+            }
             return tracks
         } catch {
             Logger.error("Failed to get tracks for album entity: \(error)")

@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+@testable import Petrichor
 
 /// A throwaway file-backed `DatabasePool` for tests, created inside the
 /// caller's temp directory (the test's own `defer` removes that directory).
@@ -11,6 +12,66 @@ func makeTestDatabasePool(in directory: URL) throws -> DatabasePool {
     try DatabasePool(
         path: directory.appendingPathComponent("test-\(UUID().uuidString).db").path
     )
+}
+
+/// Deterministic `MetadataReader` for scan seam tests, installed via
+/// `MetadataEngine.readerOverride`. The scanner pipeline is exercised without
+/// the simulator's media service, which is shared and intermittently fails
+/// `AVAsset.load(.metadata)` under parallel test load. Artist and title are
+/// parsed from the filename (`Artist - Title.mp3`); `overrides` supplies
+/// values a filename cannot carry (album), keyed by absolute file path.
+final class TestMetadataReader: MetadataReader, @unchecked Sendable {
+    static let shared = TestMetadataReader()
+
+    private let lock = NSLock()
+    private var overrides: [String: (artist: String?, title: String?, album: String?)] = [:]
+
+    func setOverride(
+        for url: URL,
+        artist: String? = nil,
+        title: String? = nil,
+        album: String? = nil
+    ) {
+        lock.lock()
+        overrides[url.path] = (artist, title, album)
+        lock.unlock()
+    }
+
+    func reset() {
+        lock.lock()
+        overrides.removeAll()
+        lock.unlock()
+    }
+
+    func extractMetadata(
+        from url: URL,
+        externalArtwork: Data?,
+        artworkCache: ArtworkCompressionCache?
+    ) async -> TrackMetadata {
+        var metadata = TrackMetadata(url: url)
+        let base = url.deletingPathExtension().lastPathComponent
+
+        lock.lock()
+        let override = overrides[url.path]
+        lock.unlock()
+
+        if let override {
+            metadata.artist = override.artist
+            metadata.title = override.title
+            metadata.album = override.album
+        } else {
+            let parts = base.components(separatedBy: " - ")
+            if parts.count >= 2 {
+                metadata.artist = parts[0]
+                metadata.title = parts.dropFirst().joined(separator: " - ")
+            } else {
+                metadata.title = base
+            }
+        }
+
+        metadata.duration = 1
+        return metadata
+    }
 }
 
 /// Writes a short silent WAV. Generated rather than checked in so tests carry

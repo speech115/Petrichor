@@ -129,7 +129,9 @@ class PlaylistManager: ObservableObject {
         updateSmartPlaylistCounts()
     }
     
-    /// Ensure tracks are loaded for a playlist
+    /// Ensure tracks are loaded for a playlist. Rows are list rows: the
+    /// display-size artwork pass is skipped and album thumbnails are filled
+    /// here, inside the manager.
     func loadPlaylistTracks(for playlistId: UUID) {
         guard let playlist = playlists.first(where: { $0.id == playlistId }),
               playlist.type == .regular,
@@ -138,7 +140,8 @@ class PlaylistManager: ObservableObject {
             return
         }
         
-        let tracks = dbManager.loadTracksForPlaylist(playlistId)
+        var tracks = dbManager.loadTracksForPlaylist(playlistId, populateArtwork: false)
+        dbManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
         
         if let index = playlists.firstIndex(where: { $0.id == playlistId }) {
             playlists[index].tracks = tracks

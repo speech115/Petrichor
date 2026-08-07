@@ -244,7 +244,7 @@ struct EntityDetailView: View {
         .sheet(isPresented: $showingImagePicker) {
             ArtistImageSheet(
                 artistName: entity.name,
-                artistId: libraryManager.databaseManager.getArtistId(for: entity.name),
+                artistId: libraryManager.getArtistId(for: entity.name),
                 isPresented: $showingImagePicker
             ) { newImageData in
                 if let newImageData {
@@ -500,11 +500,11 @@ extension EntityDetailView {
 
         // When pinnedItem is provided, use the unified pinned item track loader
         if let pinnedItem = pinnedItem {
-            fetchedTracks = libraryManager.databaseManager.getTracksForPinnedItem(pinnedItem)
+            fetchedTracks = libraryManager.getTracksForPinnedItem(pinnedItem)
         } else if entity is ArtistEntity {
-            fetchedTracks = libraryManager.databaseManager.getTracksForArtistEntity(entity.name)
+            fetchedTracks = libraryManager.getTracksForArtist(entity.name)
         } else if let albumEntity = entity as? AlbumEntity {
-            fetchedTracks = libraryManager.databaseManager.getTracksForAlbumEntity(albumEntity)
+            fetchedTracks = libraryManager.getTracksForAlbum(albumEntity)
         } else {
             fetchedTracks = []
         }
@@ -530,7 +530,7 @@ extension EntityDetailView {
 
         // Load artist bio for person entities (artists, album artists, composers)
         if entity is ArtistEntity {
-            artistBio = libraryManager.databaseManager.getArtistBio(for: entity.name)
+            artistBio = libraryManager.getArtistBio(for: entity.name)
         } else {
             artistBio = nil
         }

@@ -187,13 +187,10 @@ struct AlbumPage: View {
     private func load() async {
         let album = album
         let libraryManager = libraryManager
-        let databaseManager = libraryManager.databaseManager
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            var tracks = libraryManager.databaseManager.getTracksForAlbumEntity(album)
             // Row thumbnails; the header keeps the full artwork from `album`.
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-            return tracks
+            libraryManager.getTracksForAlbum(album)
         }.value
 
         guard !Task.isCancelled else { return }

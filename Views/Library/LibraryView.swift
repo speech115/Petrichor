@@ -221,9 +221,7 @@ struct LibraryView: View {
                         guard !Task.isCancelled else { return }
 
                         let tracks = await Task.detached {
-                            var tracks = libManager.getTracksBy(filterType: filterType, value: filterValue, albumId: albumId)
-                            libManager.databaseManager.populateAlbumArtworkForTracks(&tracks)
-                            return tracks
+                            libManager.getTracksBy(filterType: filterType, value: filterValue, albumId: albumId)
                         }.value
 
                         guard !Task.isCancelled else { return }

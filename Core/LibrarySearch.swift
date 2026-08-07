@@ -7,8 +7,10 @@ enum LibrarySearch {
     /// - Parameters:
     ///   - tracks: The tracks to search through (used as fallback if FTS fails)
     ///   - query: The search query string
+    ///   - populateArtwork: Whether to load full-size artwork for the matches;
+    ///     list rows pass `false` and read thumbnails instead.
     /// - Returns: Filtered tracks that match the query
-    static func searchTracks(_ tracks: [Track], with query: String) -> [Track] {
+    static func searchTracks(_ tracks: [Track], with query: String, populateArtwork: Bool = true) -> [Track] {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return tracks }
         
@@ -17,7 +19,10 @@ enum LibrarySearch {
 
         // Use FTS5 search from database
         if let coordinator = AppCoordinator.shared {
-            let ftsResults = coordinator.libraryManager.databaseManager.searchTracksUsingFTS(trimmedQuery)
+            let ftsResults = coordinator.libraryManager.databaseManager.searchTracksUsingFTS(
+                trimmedQuery,
+                populateArtwork: populateArtwork
+            )
             
             // Return FTS results if we got any
             if !ftsResults.isEmpty {

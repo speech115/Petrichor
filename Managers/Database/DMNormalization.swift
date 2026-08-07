@@ -454,34 +454,11 @@ extension DatabaseManager {
         }
     }
 
-    /// Get all albums with track counts
-    func getAllAlbums() throws -> [Album] {
-        try dbQueue.read { db in
-            try Album
-                .order(Album.Columns.sortTitle)
-                .fetchAll(db)
-        }
-    }
-
     /// Get all genres with track counts
     func getAllGenres() throws -> [Genre] {
         try dbQueue.read { db in
             try Genre
                 .order(Genre.Columns.name)
-                .fetchAll(db)
-        }
-    }
-
-    /// Get tracks by artist (including all roles)
-    func getTracksByArtist(_ artistId: Int64) throws -> [Track] {
-        try dbQueue.read { db in
-            let trackIds = try TrackArtist
-                .filter(TrackArtist.Columns.artistId == artistId)
-                .select(TrackArtist.Columns.trackId, as: Int64.self)
-                .fetchAll(db)
-
-            return try Track
-                .filter(trackIds.contains(Track.Columns.trackId))
                 .fetchAll(db)
         }
     }

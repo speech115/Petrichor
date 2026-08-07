@@ -9,7 +9,7 @@ import GRDB
 
 extension DatabaseManager {
     /// Search tracks using FTS5 with language-aware query strategy
-    func searchTracksUsingFTS(_ searchText: String) -> [Track] {
+    func searchTracksUsingFTS(_ searchText: String, populateArtwork: Bool = true) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
                 let ftsQuery = buildFTS5Query(searchText)
@@ -32,7 +32,12 @@ extension DatabaseManager {
                     .fetchAll(db)
             }
             
-            populateAlbumArtworkForTracks(&tracks)
+            // List contexts pass `false` and fill thumbnails themselves
+            // (populateAlbumArtworkThumbnailsForTracks); the macOS search table
+            // keeps the full-size pass.
+            if populateArtwork {
+                populateAlbumArtworkForTracks(&tracks)
+            }
             
             return tracks
         } catch {

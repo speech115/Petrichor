@@ -106,10 +106,21 @@ enum MetadataEngine {
 
     /// Builds the reader for the active backend.
     private static func reader() -> MetadataReader {
+        #if DEBUG
+        if let readerOverride { return readerOverride }
+        #endif
         #if os(macOS)
-        CrescendoMetadataReader()
+        return CrescendoMetadataReader()
         #else
-        AVAssetMetadataReader()
+        return AVAssetMetadataReader()
         #endif
     }
+
+    #if DEBUG
+    /// Test seam: the scan pipeline's reader can be substituted with a
+    /// deterministic one. The simulator's media service is a shared resource
+    /// and intermittently fails `AVAsset.load(.metadata)` under parallel test
+    /// load, which made the folder-scan seam tests flaky.
+    static var readerOverride: MetadataReader?
+    #endif
 }

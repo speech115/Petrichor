@@ -143,7 +143,7 @@ struct NowPlayingLyricsPanel: View {
         currentLineIndex = -1
         let loadedTrackId = track.id
 
-        if !forceReload, let cached = LyricsStore.shared.cachedLyrics(for: loadedTrackId) {
+        if !forceReload, let cached = libraryManager.cachedLyrics(for: loadedTrackId) {
             lyricLines = cached.lines
             hasTimedLyrics = cached.hasTimed
             isLoading = false
@@ -159,10 +159,10 @@ struct NowPlayingLyricsPanel: View {
 
         Task {
             do {
-                let result = try await LyricsStore.shared.lyrics(
+                // Shared cache + single-flight: concurrent lyrics views (main window,
+                // mini player, immersive) for the same track load only once.
+                let result = try await libraryManager.lyrics(
                     for: track,
-                    using: libraryManager.databaseManager.dbQueue,
-                    databaseManager: libraryManager.databaseManager,
                     forceReload: forceReload
                 )
 

@@ -302,7 +302,7 @@ extension DatabaseManager {
     }
 
     /// Load tracks for a specific playlist on demand
-    func loadTracksForPlaylist(_ playlistId: UUID) -> [Track] {
+    func loadTracksForPlaylist(_ playlistId: UUID, populateArtwork: Bool = true) -> [Track] {
         do {
             return try dbQueue.read { db in
                 // Get playlist tracks in order with their dateAdded
@@ -338,7 +338,12 @@ extension DatabaseManager {
                     }
                 }
                 
-                try populateAlbumArtworkForTracks(&sortedTracks, db: db)
+                // List contexts pass `false` and fill thumbnails themselves
+                // (populateAlbumArtworkThumbnailsForTracks); the playlist rows
+                // never read the display-size BLOB.
+                if populateArtwork {
+                    try populateAlbumArtworkForTracks(&sortedTracks, db: db)
+                }
                 
                 return sortedTracks
             }
@@ -355,7 +360,7 @@ extension DatabaseManager {
         do {
             var tracks: [Track]
             if playlist.type == .smart {
-                tracks = getTracksForSmartPlaylistSync(playlist)
+                tracks = getTracksForSmartPlaylistSync(playlist, populateArtwork: false)
             } else {
                 tracks = try dbQueue.read { db in
                     let playlistTracks = try PlaylistTrack

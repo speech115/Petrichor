@@ -266,7 +266,7 @@ struct AboutTabView: View {
     }
 
     private func formatTotalDuration() -> String {
-        let duration = libraryManager.databaseManager.getTotalDuration()
+        let duration = libraryManager.getTotalDuration()
         let totalSeconds = HelperUtils.sanitizedWholeDuration(duration)
         let totalHours = totalSeconds / 3600
         let days = totalHours / 24

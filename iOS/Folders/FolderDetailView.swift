@@ -100,12 +100,9 @@ struct FolderDetailView: View {
         loadTask = Task {
             let node = node
             let libraryManager = libraryManager
-            let databaseManager = libraryManager.databaseManager
 
             let loaded = await Task.detached(priority: .userInitiated) {
-                var tracks = node.getImmediateTracks(using: libraryManager)
-                databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-                return tracks
+                node.getImmediateTracks(using: libraryManager)
             }.value
 
             guard !Task.isCancelled else { return }
