@@ -39,6 +39,9 @@ struct ContentView: View {
     @State private var selectedTab: IOSSection = .library
     @State private var libraryPath: [LibraryDestination] = []
 
+    @Namespace private var miniPlayerArtworkNamespace
+    @State private var nowPlayingDragOffset: CGFloat = 0
+
     @State private var showingSettings = false
     @State private var showingNowPlaying = false
     @State private var showingQueue = false
@@ -71,7 +74,8 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory(isEnabled: playbackManager.currentTrack != nil) {
             MiniPlayerAccessory(
-                showingNowPlaying: $showingNowPlaying
+                showingNowPlaying: $showingNowPlaying,
+                artworkNamespace: miniPlayerArtworkNamespace
             )
         }
         .sheet(isPresented: $showingSettings) {
@@ -95,6 +99,7 @@ struct ContentView: View {
             }
         }
         .animation(.spring(response: 0.42, dampingFraction: 0.88), value: showingNowPlaying)
+        .animation(.spring(response: 0.32, dampingFraction: 0.92), value: nowPlayingDragOffset)
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
                 MergeEntitySheet(request: request)
@@ -221,6 +226,8 @@ struct ContentView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
+                .offset(y: max(0, nowPlayingDragOffset))
+                .gesture(nowPlayingDismissGesture)
                 .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showingQueue)
                 .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showingLyrics)
             }
@@ -261,6 +268,22 @@ struct ContentView: View {
         .onDisappear {
             playbackManager.setFineProgressSampling(false)
         }
+    }
+
+    /// Pulling the Now Playing overlay down collapses it. The cover follows
+    /// the finger; past the threshold it dismisses, otherwise it springs back.
+    private var nowPlayingDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { value in
+                guard !showingQueue, !showingLyrics else { return }
+                nowPlayingDragOffset = max(0, value.translation.height)
+            }
+            .onEnded { value in
+                if value.translation.height > 80 || value.predictedEndTranslation.height > 160 {
+                    showingNowPlaying = false
+                }
+                nowPlayingDragOffset = 0
+            }
     }
 
     private func nowPlayingContent(artworkSize: CGFloat) -> some View {
@@ -356,6 +379,7 @@ struct ContentView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.25), radius: 20, y: 8)
+        .matchedGeometryEffect(id: MiniPlayerArtwork.morphID, in: miniPlayerArtworkNamespace, isSource: false)
     }
 
     // MARK: - Helpers
@@ -412,11 +436,19 @@ struct ContentView: View {
 
 // MARK: - Mini Player Accessory
 
+/// The artwork identity shared between the mini player row and the Now
+/// Playing cover, so the cover can morph out of the row.
+private enum MiniPlayerArtwork {
+    static let morphID = "miniPlayerArtwork"
+}
+
 private struct MiniPlayerAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement)
     private var placement
     @EnvironmentObject private var playbackManager: PlaybackManager
+    @EnvironmentObject private var playbackProgressState: PlaybackProgressState
     @Binding var showingNowPlaying: Bool
+    var artworkNamespace: Namespace.ID
 
     var body: some View {
         if placement == .expanded {
@@ -427,34 +459,38 @@ private struct MiniPlayerAccessory: View {
     }
 
     private var compactRow: some View {
-        HStack(spacing: 12) {
-            Button {
-                showingNowPlaying = true
-            } label: {
-                HStack(spacing: 12) {
-                    artwork(size: 44)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    showingNowPlaying = true
+                } label: {
+                    HStack(spacing: 12) {
+                        artwork(size: 44)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(playbackManager.currentTrack?.title ?? "")
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(1)
-                        Text(playbackManager.currentTrack?.displayArtist ?? "")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(playbackManager.currentTrack?.title ?? "")
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            Text(playbackManager.currentTrack?.displayArtist ?? "")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
                     }
+                    .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .accessibilityIdentifier("MiniPlayer")
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                playPauseButton
             }
-            .accessibilityIdentifier("MiniPlayer")
-            .buttonStyle(.plain)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
 
-            Spacer()
-
-            playPauseButton
+            progressLine
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
 
     private var expandedRow: some View {
@@ -486,6 +522,30 @@ private struct MiniPlayerAccessory: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+    }
+
+    /// Thin non-interactive progress line under the compact row, like Apple
+    /// Music's mini player. The expanded row has no line - Now Playing owns
+    /// the scrubber there.
+    private var progressLine: some View {
+        let duration = playbackManager.currentTrack?.duration ?? 0
+        let progress = duration > 0
+            ? min(max(playbackProgressState.currentTime / duration, 0), 1)
+            : 0
+
+        return GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.18))
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.75))
+                    .frame(width: geometry.size.width * progress)
+            }
+        }
+        .frame(height: 3)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+        .allowsHitTesting(false)
     }
 
     private var playPauseButton: some View {
@@ -520,5 +580,10 @@ private struct MiniPlayerAccessory: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
+        .matchedGeometryEffect(
+            id: MiniPlayerArtwork.morphID,
+            in: artworkNamespace,
+            isSource: !showingNowPlaying
+        )
     }
 }
