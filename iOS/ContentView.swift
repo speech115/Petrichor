@@ -23,16 +23,10 @@ private enum IOSSection: Hashable {
     case search
 }
 
-private enum NowPlayingArtworkSource: Hashable {
-    case artwork
-}
-
 struct ContentView: View {
     @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
-
-    @Namespace private var nowPlayingTransitionNamespace
 
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
@@ -77,8 +71,7 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory(isEnabled: playbackManager.currentTrack != nil) {
             MiniPlayerAccessory(
-                showingNowPlaying: $showingNowPlaying,
-                transitionNamespace: nowPlayingTransitionNamespace
+                showingNowPlaying: $showingNowPlaying
             )
         }
         .sheet(isPresented: $showingSettings) {
@@ -424,7 +417,6 @@ private struct MiniPlayerAccessory: View {
     private var placement
     @EnvironmentObject private var playbackManager: PlaybackManager
     @Binding var showingNowPlaying: Bool
-    let transitionNamespace: Namespace.ID
 
     var body: some View {
         if placement == .expanded {
@@ -528,6 +520,5 @@ private struct MiniPlayerAccessory: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
-        .matchedTransitionSource(id: NowPlayingArtworkSource.artwork, in: transitionNamespace)
     }
 }
