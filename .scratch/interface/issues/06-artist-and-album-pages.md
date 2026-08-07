@@ -8,7 +8,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 Фото и биографию отдаёт существующий `ArtistBioManager` — он платформо-независим,
 правится только тип изображения. Макошный `EntityDetailView` (646 строк) на

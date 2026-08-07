@@ -7,7 +7,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 Дерево уже строит `FolderHierarchyBuilder` — переписывается представление.
 Вкладка постоянная: флаг `showFoldersTab` убран ещё в тикете 01.

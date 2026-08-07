@@ -8,7 +8,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 Вкладка объявлена как `Tab(role: .search)` ещё в тикете 01 — здесь наполняется.
 Поиск уже реализован в `LibrarySearch` и `DMSearchQueries`, переписывается

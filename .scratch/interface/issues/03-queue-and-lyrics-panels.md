@@ -11,7 +11,7 @@
 
 **Blocked by:** 02
 
-**Status:** ready-for-agent
+**Status:** done
 
 Макошные `PlayQueueView` и `TrackLyricsView` на iPhone больше не используются:
 экраны пишутся заново в `iOS/`. Логика очереди и загрузки текстов остаётся в
