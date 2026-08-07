@@ -17,8 +17,8 @@ enum RightSidebarContent: Equatable {
 }
 
 private enum IOSSection: Hashable {
-    case library
-    case playlists
+    case home
+    case media
     case folders
     case search
 }
@@ -36,8 +36,8 @@ struct ContentView: View {
     @Environment(\.colorScheme)
     private var colorScheme
 
-    @State private var selectedTab: IOSSection = .library
-    @State private var libraryPath: [LibraryDestination] = []
+    @State private var selectedTab: IOSSection = .home
+    @State private var mediaPath: [LibraryDestination] = []
 
     @Namespace private var miniPlayerArtworkNamespace
     @State private var nowPlayingDragOffset: CGFloat = 0
@@ -52,8 +52,8 @@ struct ContentView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab(value: IOSSection.library) {
-                libraryTab
+            Tab(value: IOSSection.home) {
+                homeTab
             } label: {
                 Label {
                     Text(String(localized: "Home"))
@@ -61,8 +61,14 @@ struct ContentView: View {
                     SymbolImage(Icons.musicNoteHouse)
                 }
             }
-            Tab(String(localized: "Playlists"), systemImage: Icons.musicNoteList, value: IOSSection.playlists) {
-                playlistsTab
+            Tab(value: IOSSection.media) {
+                mediaTab
+            } label: {
+                Label {
+                    Text(String(localized: "Media"))
+                } icon: {
+                    SymbolImage(Icons.musicNoteList)
+                }
             }
             Tab(String(localized: "Folders"), systemImage: Icons.folder, value: IOSSection.folders) {
                 foldersTab
@@ -152,28 +158,30 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
             if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,
                let filterValue = notification.userInfo?["filterValue"] as? String {
-                selectedTab = .library
+                selectedTab = .media
                 if let item = libraryManager.getLibraryFilterItems(for: filterType)
                     .first(where: { $0.name == filterValue }) {
-                    libraryPath = [LibraryDestination.tracks(item)]
+                    mediaPath = [LibraryDestination.tracks(item)]
                 }
             }
         }
     }
 
-    // MARK: - Library Tab
+    // MARK: - Home Tab
 
-    private var libraryTab: some View {
-        LibraryCategoriesView(
-            path: $libraryPath,
-            showingSettings: $showingSettings
-        )
+    // Ticket 07 replaces this with the playlists grid and carousels; until
+    // then Home hosts the playlist list so playlists are never lost.
+    private var homeTab: some View {
+        PlaylistsTabView(showingPlaylistImporter: $showingPlaylistImporter)
     }
 
-    // MARK: - Playlists Tab
+    // MARK: - Media Tab
 
-    private var playlistsTab: some View {
-        PlaylistsTabView(showingPlaylistImporter: $showingPlaylistImporter)
+    private var mediaTab: some View {
+        MediaLibraryView(
+            path: $mediaPath,
+            showingSettings: $showingSettings
+        )
     }
 
     // MARK: - Folders Tab

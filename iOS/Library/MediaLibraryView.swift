@@ -1,14 +1,15 @@
 //
-// LibraryCategoriesView (iOS)
+// MediaLibraryView (iOS)
 //
-// Root of the Home tab: Discover on top, then the five categories — Artists,
-// Albums, Genres, Years, All Tracks — each pushing into the tab's
-// NavigationStack. Settings live in the navigation bar per the design spec.
+// Root of the Media tab: the five category entries — Artists, Albums,
+// Genres, Years, All Tracks — each pushing into the tab's NavigationStack.
+// Settings live in the navigation bar. Discover lives on Home, not here
+// (the design spec's Media tab is categories only).
 //
 
 import SwiftUI
 
-struct LibraryCategoriesView: View {
+struct MediaLibraryView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
 
     @Binding var path: [LibraryDestination]
@@ -36,15 +37,6 @@ struct LibraryCategoriesView: View {
     private var categoryList: some View {
         List {
             Section {
-                NavigationLink(value: LibraryDestination.discover) {
-                    HStack(spacing: 12) {
-                        Image(systemName: Icons.sparkles)
-                            .foregroundColor(.accentColor)
-                        Text(String(localized: "Discover"))
-                    }
-                }
-            }
-            Section {
                 NavigationLink(value: LibraryDestination.category(.artists)) {
                     categoryRow(LibraryFilterType.artists)
                 }
@@ -67,7 +59,7 @@ struct LibraryCategoriesView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(String(localized: "Home"))
+        .navigationTitle(String(localized: "Media"))
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
             if !libraryManager.shouldShowMainUI {

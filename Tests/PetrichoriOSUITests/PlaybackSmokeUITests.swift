@@ -15,20 +15,26 @@ final class PlaybackSmokeUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Seeds a few silent WAVs named "Alpha One.wav", "Beta Two.wav",
-    /// "Gamma Three.wav" into the app container first, e.g.:
+    /// Seeds a few silent MP3s named "Alpha One.mp3", "Beta Two.mp3",
+    /// "Gamma Three.mp3" into the app container first, e.g.:
     ///
     ///   xcrun simctl push booted org.Petrichor.ios \
-    ///     ~/Music/Alpha\ One.wav \
-    ///     Documents/Music/Alpha\ One.wav
+    ///     ~/Music/Alpha\ One.mp3 \
+    ///     Documents/Music/Alpha\ One.mp3
     ///
     /// The scanner picks them up on launch; titles fall back to file names.
+    /// The iOS port plays MP3 only (AVAssetMetadataReader), so WAV fixtures
+    /// will never appear in the library.
     func testLaunchingATrackFromAllTracksReachesThePlayer() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Library tab is selected by default; the category list must appear
-        // once the initial scan has settled.
+        // Home is the default tab; All Tracks lives in the Media tab.
+        let mediaTab = app.tabBars.buttons["Media"]
+        XCTAssertTrue(mediaTab.waitForExistence(timeout: 30), "вкладка Media не появилась")
+        mediaTab.tap()
+
+        // The category list must appear once the initial scan has settled.
         let allTracks = app.buttons["All Tracks"]
         XCTAssertTrue(
             allTracks.waitForExistence(timeout: 60),
