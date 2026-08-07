@@ -105,7 +105,7 @@ class LibraryManager: ObservableObject {
             .assign(to: &$scanStatusMessage)
 
         loadMusicLibrary()
-        
+
         pinnedItems = databaseManager.getPinnedItemsSync()
         
         Task {
@@ -120,11 +120,12 @@ class LibraryManager: ObservableObject {
             try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
             let didRunMigration = await databaseManager.runPendingBackgroundMigrations()
             await MainActor.run {
-                refreshEntities()
-                // A migration that ran (e.g. the v12 album-artist backfill) can change
-                // category membership; reload the load-once sidebar caches so it shows
-                // without requiring a relaunch.
+                // `loadMusicLibrary()` in init already refreshed the entity caches;
+                // only redo it here when a background migration actually changed the
+                // data (e.g. the v12 album-artist backfill), so a normal launch does
+                // not pay for a second full artwork fetch.
                 if didRunMigration {
+                    refreshEntities()
                     refreshLibraryCategories()
                     NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
                 }

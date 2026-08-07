@@ -134,12 +134,16 @@ extension LibraryManager {
 
         folders = resolvedFolders
         tracks = []
-        
+
         loadLibraryCategories()
         updateSearchResults()
-        updateTotalCounts()
+        // `updateTotalCounts()` is intentionally not called here: on a cold
+        // database the three COUNT queries cost ~750ms, and running them
+        // synchronously blocked the first frame. `refreshEntities()` below ends
+        // with the same `updateTotalCounts()` off the main thread, so the totals
+        // still land - just after the UI is already on screen.
 
-        Logger.info("Loaded \(folders.count) folders and \(totalTrackCount) tracks from database")
+        Logger.info("Loaded \(folders.count) folders from database")
 
         // Refresh stale bookmarks in background
         if !foldersNeedingRefresh.isEmpty {
@@ -188,15 +192,31 @@ extension LibraryManager {
         }
     }
 
+    /// Reloads the artist and album entity caches off the main thread.
+    ///
+    /// Both `getArtistEntities` and `getAlbumEntities` pull each entity's
+    /// `artwork_data` BLOB, which for a full library is hundreds of megabytes
+    /// and seconds of work - doing it synchronously here froze the first frame
+    /// for ~3s. The fetch now runs on a background task and only the published
+    /// caches are assigned on the main actor, so every caller (launch, scan
+    /// completion, merges) is non-blocking. The previously loaded caches stay
+    /// visible until the fresh values arrive, so `entitiesLoaded` is only ever
+    /// set true - the lazy `loadEntities()` fallback still covers a first
+    /// access that races the very first load.
     func refreshEntities() {
-        entitiesLoaded = false
-        cachedArtistEntities = databaseManager.getArtistEntities()
-        cachedAlbumEntities = databaseManager.getAlbumEntities()
-        entitiesLoaded = true
-        refreshArtistNameLookup()
-        updateTotalCounts()
-        Logger.info("Refreshed entities: \(cachedArtistEntities.count) artists and \(cachedAlbumEntities.count) albums")
-        objectWillChange.send()
+        let dbManager = databaseManager
+        Task { @MainActor [weak self] in
+            let (artists, albums) = await Task.detached(priority: .userInitiated) {
+                (dbManager.getArtistEntities(), dbManager.getAlbumEntities())
+            }.value
+            guard let self else { return }
+            self.cachedArtistEntities = artists
+            self.cachedAlbumEntities = albums
+            self.entitiesLoaded = true
+            self.refreshArtistNameLookup()
+            self.updateTotalCounts()
+            Logger.info("Refreshed entities: \(artists.count) artists and \(albums.count) albums")
+        }
     }
 
     /// Refresh in-memory state affected by the hide-duplicates setting (category cache,
