@@ -557,11 +557,6 @@ private extension PlaybackManager {
 extension PlaybackManager: AudioPlayerDelegate {
     func audioPlayerDidStartPlaying(player: PlaybackEngine, with entryId: AudioEntryId) {
         DispatchQueue.main.async {
-            // TEMP-DIAG: progress bar investigation.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-                guard let self else { return }
-                Logger.info("DIAG engineDuration=\(self.audioPlayer.duration) progress=\(self.audioPlayer.currentPlaybackProgress) dbDuration=\(self.currentTrack?.duration ?? -1) entry=\(entryId.id)")
-            }
             if let injected = self.injectedNext, injected.entryId == entryId {
                 // A repeat lookahead started; fold it into the mirror, then treat it
                 // like any other engine-driven advance.
