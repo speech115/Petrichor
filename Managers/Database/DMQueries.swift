@@ -833,6 +833,35 @@ extension DatabaseManager {
         }
     }
 
+    /// M3U import fallback for renamed libraries: maps each requested filename
+    /// onto the track whose *normalized* filename matches it (numeric prefix
+    /// stripped, `;`/`,` unified, case-insensitive — see
+    /// `M3UFilenameNormalizer`), so an M3U written against the mac's original
+    /// names still lands on the phone's renamed files. Collided keys are
+    /// blocked by the matcher; the returned tracks are resolved by exact
+    /// filename so duplicate database rows are still refused.
+    func findTracksByNormalizedFilenames(_ filenames: [String]) async -> [String: Track] {
+        do {
+            let allFilenames = try await dbQueue.read { db in
+                try Track
+                    .select(Track.Columns.filename)
+                    .asRequest(of: String.self)
+                    .fetchAll(db)
+            }
+            let resolved = M3UFilenameMatcher.resolveAll(filenames, against: allFilenames)
+            guard !resolved.isEmpty else { return [:] }
+            let exact = await findTracksByFilenames(Array(resolved.values))
+            return resolved.reduce(into: [:]) { result, pair in
+                if let track = exact[pair.value.lowercased()] {
+                    result[pair.key] = track
+                }
+            }
+        } catch {
+            Logger.error("Failed to query tracks by normalized filenames: \(error)")
+            return [:]
+        }
+    }
+
     func getTrackCountsByFolderPath() -> [String: Int] {
         do {
             return try dbQueue.read { db in

@@ -61,3 +61,55 @@ import Testing
     #expect(manager.parseM3UContent("#EXTM3U\n\n#EXTINF:1,A - B\n").isEmpty)
     #expect(manager.parseM3UContent("").isEmpty)
 }
+
+// MARK: - Normalized filename matching
+
+/// The phone's files were renamed during transfer (numeric prefixes stripped,
+/// `,` → `;`, extra spaces), so the exact-filename fallback of the M3U import
+/// misses most entries. The normalized fallback must strip the same shapes so
+/// a mac-written M3U still lands on the renamed file.
+@Test func m3uFilenameNormalizationStripsNumericPrefix() {
+    #expect(M3UFilenameNormalizer.normalize("0001 - Annabel - Above your hand.mp3")
+            == "annabel - above your hand.mp3")
+    #expect(M3UFilenameNormalizer.normalize("104 - ДО ОБЕДА.mp3") == "до обеда.mp3")
+    #expect(M3UFilenameNormalizer.normalize("Already - dashed.mp3") == "already - dashed.mp3")
+}
+
+@Test func m3uFilenameNormalizationUnifiesPunctuation() {
+    #expect(M3UFilenameNormalizer.normalize("$atori Zoom;DVRST - Still Breathing (Sped Up).mp3")
+            == "$atori zoom,dvrst - still breathing (sped up).mp3")
+    #expect(M3UFilenameNormalizer.normalize("  Artist  -  Title.mp3") == "artist - title.mp3")
+}
+
+/// The matcher maps a mac filename onto the single renamed database filename
+/// with the same normalized key, and refuses ambiguous keys.
+@Test func m3uFilenameMatcherResolvesRenamedFilesAndRejectsAmbiguity() {
+    let candidates = [
+        "Annabel - Above your hand.mp3",
+        "Boulevard Depo, DJ Stonik1917 - TEKK.mp3",
+        "Foo;Bar.mp3",
+        "Foo, Bar.mp3",
+        "Plain name.mp3"
+    ]
+
+    let resolve = { M3UFilenameMatcher.resolveAll([$0], against: candidates)[$0] }
+
+    #expect(resolve("0001 - Annabel - Above your hand.mp3") == "Annabel - Above your hand.mp3")
+    #expect(resolve("Boulevard Depo;DJ Stonik1917 - TEKK.mp3") == "Boulevard Depo, DJ Stonik1917 - TEKK.mp3")
+    #expect(resolve("No such track.mp3") == nil)
+    // "Foo;Bar.mp3" and "Foo, Bar.mp3" collapse onto one normalized key:
+    // both must be refused rather than guessing.
+    #expect(resolve("Foo;Bar.mp3") == nil)
+    #expect(resolve("Foo, Bar.mp3") == nil)
+}
+
+/// A key must stay blocked after its first collision: a third candidate on
+/// the same key would otherwise look unambiguous again.
+@Test func m3uFilenameMatcherKeepsCollidedKeysBlocked() {
+    let candidates = [
+        "Foo;Bar.mp3",
+        "Foo, Bar.mp3",
+        "Foo , Bar.mp3"
+    ]
+    #expect(M3UFilenameMatcher.resolveAll(["Foo;Bar.mp3"], against: candidates).isEmpty)
+}

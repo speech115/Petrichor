@@ -280,6 +280,26 @@ extension PlaylistManager {
             }
             unmatchedPaths = stillUnmatched
         }
+
+        // Renamed-library fallback: the phone's files were renamed during
+        // transfer (numeric prefixes stripped, `,` → `;`), so even the exact
+        // filename misses. Match on the normalized key instead; ambiguous
+        // keys are refused by the query.
+        if !unmatchedPaths.isEmpty {
+            let filenames = unmatchedPaths.map { ($0 as NSString).lastPathComponent }
+            let normalizedMap = await dbManager.findTracksByNormalizedFilenames(filenames)
+
+            var stillUnmatched: [String] = []
+            for path in unmatchedPaths {
+                let filename = (path as NSString).lastPathComponent
+                if let track = normalizedMap[filename] {
+                    matchedTracks.append(track)
+                } else {
+                    stillUnmatched.append(path)
+                }
+            }
+            unmatchedPaths = stillUnmatched
+        }
         
         return (matchedTracks, unmatchedPaths)
     }
