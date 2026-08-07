@@ -127,3 +127,10 @@ Resources/known_artists_20??????.txt
 build-release/
 build-release-final/
 build-release-signed/
+
+# Agent tooling config (machine-local)
+.mcp.json
+opencode.json
+.codex/
+.cursor/
+.xcodebuildmcp/

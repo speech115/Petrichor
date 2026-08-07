@@ -92,6 +92,6 @@ xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
 ```
 
-Выход на реальный телефон — через скилл `.Codex/skills/petrichor-device/`.
+Выход на реальный телефон — через скилл `.claude/skills/petrichor-device/`.
 Обычный device destination на этой машине не работает: Xcode 26.6 против iOS 27
 beta на устройстве. Не чините его, читайте скилл.
