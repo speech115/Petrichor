@@ -52,6 +52,16 @@ struct SearchView: View {
         !trackResults.isEmpty || !artistResults.isEmpty || !albumResults.isEmpty
     }
 
+    /// The single best match, shown as the first block while results exist.
+    /// FTS5 already ranks tracks; prefer the first track whose title contains
+    /// the query, fall back to the top-ranked row.
+    private var topResult: Track? {
+        guard isSearching, !trackResults.isEmpty else { return nil }
+        return trackResults.first { track in
+            track.title.localizedCaseInsensitiveContains(query)
+        } ?? trackResults.first
+    }
+
     var body: some View {
         NavigationStack {
             resultsList
@@ -79,6 +89,12 @@ struct SearchView: View {
 
     private var resultsList: some View {
         List {
+            if let topResult {
+                Section(String(localized: "Top Result")) {
+                    topResultRow(topResult)
+                }
+            }
+
             if !trackResults.isEmpty {
                 Section(String(localized: "Tracks")) {
                     ForEach(trackResults) { track in
@@ -127,6 +143,55 @@ struct SearchView: View {
         } else {
             ContentUnavailableView.search(text: libraryManager.globalSearchText)
         }
+    }
+
+    private func topResultRow(_ track: Track) -> some View {
+        Button {
+            play(track)
+        } label: {
+            HStack(spacing: 12) {
+                topResultArtwork(track)
+                    .frame(width: 56, height: 56)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(track.title)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text(track.displayArtist)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: isCurrent(track) && playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
+                    .font(.system(size: 16))
+                    .foregroundColor(isCurrent(track) ? .accentColor : .secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func topResultArtwork(_ track: Track) -> some View {
+        Group {
+            if let data = track.albumArtworkThumbnail ?? track.artworkData,
+               let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.12))
+                    Image(systemName: Icons.musicNote)
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func artistRow(_ artist: ArtistEntity) -> some View {
