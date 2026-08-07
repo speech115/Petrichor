@@ -347,9 +347,48 @@ extension DatabaseManager {
             return []
         }
     }
-    
-    // MARK: - Incremental Track Mutations
 
+    /// First `limit` tracks of a playlist with album thumbnails, for Home card
+    /// previews. Regular playlists read the stored order; smart playlists
+    /// evaluate their rules. Only the preview rows are fetched with artwork.
+    func getPlaylistPreviewTracks(_ playlist: Playlist, limit: Int = 4) -> [Track] {
+        do {
+            var tracks: [Track]
+            if playlist.type == .smart {
+                tracks = getTracksForSmartPlaylistSync(playlist)
+            } else {
+                tracks = try dbQueue.read { db in
+                    let playlistTracks = try PlaylistTrack
+                        .filter(PlaylistTrack.Columns.playlistId == playlist.id.uuidString)
+                        .order(PlaylistTrack.Columns.position)
+                        .limit(limit)
+                        .fetchAll(db)
+
+                    let trackIds = playlistTracks.map { $0.trackId }
+                    guard !trackIds.isEmpty else { return [] }
+
+                    var trackDict: [Int64: Track] = [:]
+                    for track in try applyDuplicateFilter(Track.all())
+                        .filter(trackIds.contains(Track.Columns.trackId))
+                        .fetchAll(db) {
+                        if let trackId = track.trackId {
+                            trackDict[trackId] = track
+                        }
+                    }
+
+                    return playlistTracks.compactMap { trackDict[$0.trackId] }
+                }
+            }
+            tracks = Array(tracks.prefix(limit))
+            populateAlbumArtworkThumbnailsForTracks(&tracks)
+            return tracks
+        } catch {
+            Logger.error("Failed to load preview tracks for playlist \(playlist.id): \(error)")
+            return []
+        }
+    }
+
+    // MARK: - Incremental Track Mutations
     /// Append tracks that aren't already present, preserving existing rows and their order.
     /// Unlike savePlaylistAsync this never deletes existing associations, so it is safe to
     /// call even when the in-memory track list is partially loaded. Returns how many were

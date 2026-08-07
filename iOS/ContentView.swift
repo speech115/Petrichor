@@ -169,10 +169,8 @@ struct ContentView: View {
 
     // MARK: - Home Tab
 
-    // Ticket 07 replaces this with the playlists grid and carousels; until
-    // then Home hosts the playlist list so playlists are never lost.
     private var homeTab: some View {
-        PlaylistsTabView(showingPlaylistImporter: $showingPlaylistImporter)
+        HomeTabView(showingPlaylistImporter: $showingPlaylistImporter)
     }
 
     // MARK: - Media Tab

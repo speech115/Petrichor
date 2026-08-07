@@ -718,6 +718,47 @@ extension DatabaseManager {
         }
     }
 
+    /// Recently played tracks for the Home carousel, most recent first, with
+    /// album thumbnails only (list rows never pull the display-size BLOB).
+    func getRecentlyPlayedTracks(limit: Int = 10) -> [Track] {
+        do {
+            var tracks = try dbQueue.read { db in
+                try Track.lightweightRequest()
+                    .filter(Track.Columns.lastPlayedDate != nil)
+                    .order(Track.Columns.lastPlayedDate.desc)
+                    .limit(limit)
+                    .fetchAll(db)
+            }
+
+            populateAlbumArtworkThumbnailsForTracks(&tracks)
+
+            return tracks
+        } catch {
+            Logger.error("Failed to fetch recently played tracks: \(error)")
+            return []
+        }
+    }
+
+    /// Recently added tracks for the Home carousel, newest first, with album
+    /// thumbnails only.
+    func getRecentlyAddedTracks(limit: Int = 10) -> [Track] {
+        do {
+            var tracks = try dbQueue.read { db in
+                try Track.lightweightRequest()
+                    .order(Track.Columns.dateAdded.desc)
+                    .limit(limit)
+                    .fetchAll(db)
+            }
+
+            populateAlbumArtworkThumbnailsForTracks(&tracks)
+
+            return tracks
+        } catch {
+            Logger.error("Failed to fetch recently added tracks: \(error)")
+            return []
+        }
+    }
+
     func getTracksForFolder(_ folderId: Int64) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in

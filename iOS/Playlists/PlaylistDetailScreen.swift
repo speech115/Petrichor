@@ -20,6 +20,9 @@ struct PlaylistDetailScreen: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
 
     @State private var missingPaths: Set<String> = []
+    @State private var showingRenameAlert = false
+    @State private var renameText = ""
+    @State private var showingDeleteConfirmation = false
 
     private var playlist: Playlist? {
         playlistManager.playlists.first { $0.id == playlistID }
@@ -38,10 +41,66 @@ struct PlaylistDetailScreen: View {
         }
         .navigationTitle(playlist.map { DefaultPlaylists.displayName(for: $0) } ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let playlist, playlist.isUserEditable {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button {
+                            beginRename(playlist)
+                        } label: {
+                            Label(String(localized: "Rename"), systemImage: Icons.edit)
+                        }
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Label(String(localized: "Delete"), systemImage: Icons.trash)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .accessibilityLabel(String(localized: "Playlist menu"))
+                }
+            }
+        }
+        .alert(String(localized: "Rename Playlist"), isPresented: $showingRenameAlert) {
+            TextField(String(localized: "Playlist Name"), text: $renameText)
+            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "Rename")) {
+                commitRename()
+            }
+            .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .alert(String(localized: "Delete Playlist"), isPresented: $showingDeleteConfirmation) {
+            Button(String(localized: "Cancel"), role: .cancel) {}
+            Button(String(localized: "Delete"), role: .destructive) {
+                if let playlist {
+                    playlistManager.deletePlaylist(playlist)
+                }
+            }
+        } message: {
+            if let playlist {
+                Text(String(
+                    localized: "Are you sure you want to delete \"\(DefaultPlaylists.displayName(for: playlist))\"?"
+                ))
+            }
+        }
         .task(id: tracksTaskID) {
             await loadTracksIfNeeded()
             await refreshMissingFiles()
         }
+    }
+
+    // MARK: - Rename
+
+    private func beginRename(_ playlist: Playlist) {
+        renameText = playlist.name
+        showingRenameAlert = true
+    }
+
+    private func commitRename() {
+        let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let playlist, !trimmed.isEmpty else { return }
+        playlistManager.renamePlaylist(playlist, newName: trimmed)
     }
 
     // MARK: - Track List
