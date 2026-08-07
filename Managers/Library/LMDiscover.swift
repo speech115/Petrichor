@@ -23,12 +23,15 @@ extension LibraryManager {
     
     // MARK: - Methods
     
-    func loadDiscoverTracks() {
+    func loadDiscoverTracks(populateArtwork: Bool = true) {
         var tracks: [Track]
         
         if shouldRefreshDiscover() {
             // Generate new discover list
-            tracks = databaseManager.getDiscoverTracks(limit: discoverTrackCount)
+            tracks = databaseManager.getDiscoverTracks(
+                limit: discoverTrackCount,
+                populateArtwork: populateArtwork
+            )
             
             // Save track IDs
             let trackIds = tracks.compactMap { $0.trackId }
@@ -39,10 +42,15 @@ extension LibraryManager {
             if let savedIds = userDefaults.array(forKey: Self.discoverTrackIdsKey) as? [Int64] {
                 tracks = databaseManager.getTracks(byIds: savedIds)
                 // Populate album artwork for loaded tracks
-                databaseManager.populateAlbumArtworkForTracks(&tracks)
+                if populateArtwork {
+                    databaseManager.populateAlbumArtworkForTracks(&tracks)
+                }
             } else {
                 // No saved tracks, generate new
-                tracks = databaseManager.getDiscoverTracks(limit: discoverTrackCount)
+                tracks = databaseManager.getDiscoverTracks(
+                    limit: discoverTrackCount,
+                    populateArtwork: populateArtwork
+                )
                 
                 // Save track IDs
                 let trackIds = tracks.compactMap { $0.trackId }

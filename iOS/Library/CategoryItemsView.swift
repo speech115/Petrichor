@@ -1,13 +1,13 @@
 //
 // CategoryItemsView (iOS)
 //
-// An alphabet-indexed list of one category's items (artists, albums, genres,
-// release years). Artists and albums push to their detail pages, genres and
-// years to the item's track list.
+// One category's items (artists, albums, genres, release years). Artists get
+// a list with circular thumbnails, albums a 2-column card grid with covers,
+// genres and years the plain alphabet-indexed list. Artists and albums push
+// to their detail pages, genres and years to the item's track list.
 //
 
 import SwiftUI
-import UIKit
 
 struct CategoryItemsView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -17,11 +17,18 @@ struct CategoryItemsView: View {
     @State private var items: [LibraryFilterItem] = []
     @State private var artistThumbnails: [String: Data] = [:]
     @State private var albumThumbnails: [Int64: Data] = [:]
+    @State private var albumEntitiesByID: [Int64: AlbumEntity] = [:]
 
     var body: some View {
-        IndexedList(sections: sections) { item in
-            NavigationLink(value: destination(for: item)) {
-                row(for: item)
+        Group {
+            if filterType == .albums {
+                albumsGrid
+            } else {
+                IndexedList(sections: sections) { item in
+                    NavigationLink(value: destination(for: item)) {
+                        row(for: item)
+                    }
+                }
             }
         }
         .navigationTitle(filterType.pluralDisplayName)
@@ -37,6 +44,32 @@ struct CategoryItemsView: View {
                     systemImage: Icons.musicNote
                 )
             }
+        }
+    }
+
+    // MARK: - Albums Grid
+
+    private var albumsGrid: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 16),
+                    GridItem(.flexible(), spacing: 16)
+                ],
+                spacing: 16
+            ) {
+                ForEach(items) { item in
+                    NavigationLink(value: destination(for: item)) {
+                        AlbumGridCard(
+                            item: item,
+                            cover: item.albumId.flatMap { albumThumbnails[$0] }
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
     }
 
@@ -65,12 +98,10 @@ struct CategoryItemsView: View {
     }
 
     private func albumEntity(for item: LibraryFilterItem) -> AlbumEntity? {
-        libraryManager.albumEntities.first { entity in
-            if let itemAlbumId = item.albumId, let entityAlbumId = entity.albumId {
-                return itemAlbumId == entityAlbumId
-            }
-            return entity.name == item.name
+        if let albumId = item.albumId {
+            return albumEntitiesByID[albumId]
         }
+        return libraryManager.albumEntities.first { $0.name == item.name }
     }
 
     // MARK: - Rows
@@ -80,12 +111,8 @@ struct CategoryItemsView: View {
         switch filterType {
         case .artists:
             HStack(spacing: 12) {
-                thumbnailView(data: artistThumbnails[item.name], cornerRadius: 22)
-                textRow(item)
-            }
-        case .albums:
-            HStack(spacing: 12) {
-                thumbnailView(data: item.albumId.flatMap { albumThumbnails[$0] }, cornerRadius: 6)
+                ArtworkTile(data: artistThumbnails[item.name], cornerRadius: 22)
+                    .frame(width: 44, height: 44)
                 textRow(item)
             }
         default:
@@ -100,26 +127,6 @@ struct CategoryItemsView: View {
             Text("\(item.count)")
                 .foregroundColor(.secondary)
         }
-    }
-
-    private func thumbnailView(data: Data?, cornerRadius: CGFloat) -> some View {
-        Group {
-            if let data, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .fill(Color.secondary.opacity(0.12))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
     private func reload() {
@@ -142,6 +149,12 @@ struct CategoryItemsView: View {
                 },
                 uniquingKeysWith: { first, _ in first }
             )
+            albumEntitiesByID = Dictionary(
+                libraryManager.albumEntities.compactMap { album in
+                    album.albumId.map { ($0, album) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
         }
     }
 
@@ -156,5 +169,27 @@ struct CategoryItemsView: View {
 
     private func yearValue(_ year: String) -> Int {
         Int(year.prefix(4)) ?? Int.min
+    }
+}
+
+// MARK: - Album Grid Card
+
+private struct AlbumGridCard: View {
+    let item: LibraryFilterItem
+    let cover: Data?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ArtworkTile(data: cover, cornerRadius: 10, iconSize: 28)
+                .aspectRatio(1, contentMode: .fit)
+
+            Text(item.name)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+
+            Text(String(localized: "\(item.count) songs"))
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
     }
 }

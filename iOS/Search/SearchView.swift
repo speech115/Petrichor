@@ -175,23 +175,8 @@ struct SearchView: View {
     }
 
     private func topResultArtwork(_ track: Track) -> some View {
-        Group {
-            if let data = track.albumArtworkThumbnail ?? track.artworkData,
-               let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.secondary.opacity(0.12))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 20))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        ArtworkTile(data: track.displayArtwork, cornerRadius: 8, iconSize: 20)
+            .frame(width: 56, height: 56)
     }
 
     private func artistRow(_ artist: ArtistEntity) -> some View {
@@ -199,7 +184,7 @@ struct SearchView: View {
             entityRow(
                 title: artist.displayName,
                 subtitle: artist.subtitle,
-                artworkData: artist.artworkThumbnail ?? artist.artworkData,
+                artworkData: artist.displayArtwork,
                 icon: LibraryFilterType.artists.icon
             )
         }
@@ -211,7 +196,7 @@ struct SearchView: View {
             entityRow(
                 title: album.displayName,
                 subtitle: album.artistName ?? album.subtitle,
-                artworkData: album.artworkThumbnail ?? album.artworkData,
+                artworkData: album.displayArtwork,
                 icon: LibraryFilterType.albums.icon
             )
         }
@@ -225,23 +210,8 @@ struct SearchView: View {
         icon: String
     ) -> some View {
         HStack(spacing: 12) {
-            Group {
-                if let artworkData, let image = UIImage(data: artworkData) {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.secondary.opacity(0.12))
-                        Image(systemName: icon)
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .frame(width: 44, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            ArtworkTile(data: artworkData, placeholderIcon: icon)
+                .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

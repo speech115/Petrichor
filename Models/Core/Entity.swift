@@ -51,6 +51,12 @@ extension Entity {
     var displayName: String { name }
 
     var artworkThumbnail: Data? { nil }
+
+    /// The artwork a list row should render: the thumbnail when the entity
+    /// cache carried it, the full-size artwork otherwise.
+    var displayArtwork: Data? {
+        artworkThumbnail ?? artworkData
+    }
 }
 
 // MARK: - Shared Color Defaults

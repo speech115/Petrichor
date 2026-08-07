@@ -224,6 +224,13 @@ extension Track {
         albumArtworkData
     }
 
+    /// The artwork a list row should render: the album thumbnail when the
+    /// list query populated it, the full-size artwork otherwise (detail
+    /// contexts carry full artwork only).
+    var displayArtwork: Data? {
+        albumArtworkThumbnail ?? albumArtworkData
+    }
+
     var sortableLastPlayedDate: Date {
         lastPlayedDate ?? .distantPast
     }

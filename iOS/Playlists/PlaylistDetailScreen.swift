@@ -146,7 +146,7 @@ struct PlaylistDetailScreen: View {
 
     private func header(_ playlist: Playlist) -> some View {
         VStack(spacing: 12) {
-            ArtworkMosaic(covers: playlist.tracks.compactMap { $0.albumArtworkThumbnail ?? $0.artworkData })
+            ArtworkMosaic(covers: playlist.tracks.compactMap { $0.displayArtwork })
                 .frame(width: 240, height: 240)
                 .padding(.top, 16)
 
@@ -231,9 +231,7 @@ struct PlaylistDetailScreen: View {
     }
 
     private func shuffleAll(_ playlist: Playlist) {
-        let shuffled = playlist.tracks.shuffled()
-        guard let first = shuffled.first else { return }
-        playlistManager.playTrack(first, fromTracks: shuffled)
+        playlistManager.playTrackShuffled(playlist.tracks)
         playlistManager.currentQueueSource = .playlist
     }
 }

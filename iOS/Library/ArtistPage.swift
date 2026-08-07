@@ -142,7 +142,7 @@ struct ArtistPage: View {
 
     private func albumArtwork(_ album: AlbumEntity) -> some View {
         Group {
-            if let artworkData = album.artworkThumbnail ?? album.artworkData, let image = UIImage(data: artworkData) {
+            if let artworkData = album.displayArtwork, let image = UIImage(data: artworkData) {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -189,9 +189,7 @@ struct ArtistPage: View {
     }
 
     private func shuffleAll() {
-        let shuffled = tracks.shuffled()
-        guard let first = shuffled.first else { return }
-        playlistManager.playTrack(first, fromTracks: shuffled)
+        playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .library
     }
 

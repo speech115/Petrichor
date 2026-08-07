@@ -16,6 +16,14 @@ extension PlaylistManager {
         beginPlayback(of: track, in: contextTracks ?? [track])
     }
 
+    /// Starts `tracks` in a locally shuffled order without touching the user's
+    /// shuffle setting (a "Shuffle" header action plays one shuffled queue).
+    func playTrackShuffled(_ tracks: [Track]) {
+        let shuffled = tracks.shuffled()
+        guard let first = shuffled.first else { return }
+        playTrack(first, fromTracks: shuffled)
+    }
+
     func playTrackFromPlaylist(_ playlist: Playlist, at index: Int) {
         guard index >= 0, index < playlist.tracks.count else { return }
 

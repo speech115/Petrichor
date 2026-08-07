@@ -173,9 +173,7 @@ struct AlbumPage: View {
     }
 
     private func shuffleAll() {
-        let shuffled = tracks.shuffled()
-        guard let first = shuffled.first else { return }
-        playlistManager.playTrack(first, fromTracks: shuffled)
+        playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .library
     }
 

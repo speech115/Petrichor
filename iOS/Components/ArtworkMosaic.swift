@@ -28,29 +28,13 @@ struct ArtworkMosaic: View {
             } else if let cover = covers.first {
                 tile(cover)
             } else {
-                ZStack {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.15))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundColor(.secondary)
-                }
+                ArtworkTile(data: nil, cornerRadius: 10, iconSize: 28)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private func tile(_ data: Data) -> some View {
-        Group {
-            if let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.15))
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        ArtworkTile(data: data, cornerRadius: 8)
     }
 }

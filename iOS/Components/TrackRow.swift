@@ -138,13 +138,7 @@ struct TrackRow: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.12))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
+                ArtworkTile(data: nil)
             }
         }
         .frame(width: 44, height: 44)
@@ -160,7 +154,7 @@ struct TrackRow: View {
 
         // List rows carry the album thumbnail (populated by the thumbnail
         // queries); fall back to whatever full artwork the row already has.
-        if let data = track.albumArtworkThumbnail ?? track.artworkData,
+        if let data = track.displayArtwork,
            let image = UIImage(data: data) {
             artworkImage = image
             TrackRowArtworkStore.shared.cache(image, for: track)
@@ -174,9 +168,11 @@ struct TrackRow: View {
         let trackId = track.trackId
 
         let image = await Task.detached(priority: .utility) {
-            databaseManager
-                .getArtworkThumbnail(albumId: albumId, trackId: trackId)
-                .flatMap(UIImage.init(data:))
+            // Thumbnail first; rows without one (album-less tracks) fall back
+            // to the track's own full artwork, as before the seam.
+            let data = databaseManager.getArtworkThumbnail(albumId: albumId, trackId: trackId)
+                ?? databaseManager.getArtworkData(albumId: albumId, trackId: trackId)
+            return data.flatMap(UIImage.init(data:))
         }.value
 
         guard !Task.isCancelled, let image else { return }

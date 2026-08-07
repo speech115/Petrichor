@@ -285,7 +285,17 @@ extension DatabaseManager {
             _ = try dbQueue.write { db in
                 var assignments: [ColumnAssignment] = []
 
-                if let imageData { assignments.append(Artist.Columns.artworkData.set(to: imageData)) }
+                if let imageData {
+                    assignments.append(Artist.Columns.artworkData.set(to: imageData))
+                    // The thumbnail seam: every artwork write generates the
+                    // display thumbnail alongside the full-size BLOB.
+                    assignments.append(
+                        Artist.Columns.artworkThumbnail.set(to: ImageUtils.makeThumbnail(
+                            from: imageData,
+                            source: "artist: id=\(artistId)"
+                        ))
+                    )
+                }
                 if let imageUrl { assignments.append(Artist.Columns.imageUrl.set(to: imageUrl)) }
                 if let imageSource {
                     assignments.append(Artist.Columns.imageSource.set(to: imageSource))
@@ -317,6 +327,7 @@ extension DatabaseManager {
                     .updateAll(
                         db,
                         Artist.Columns.artworkData.set(to: nil),
+                        Artist.Columns.artworkThumbnail.set(to: nil),
                         Artist.Columns.imageUrl.set(to: nil),
                         Artist.Columns.imageSource.set(to: "deleted"),
                         Artist.Columns.imageUpdatedAt.set(to: Date()),

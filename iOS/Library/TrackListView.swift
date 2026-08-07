@@ -115,7 +115,9 @@ struct TrackListView: View {
         let databaseManager = libraryManager.databaseManager
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            databaseManager.getAllTracksWithThumbnails()
+            var tracks = databaseManager.getAllTracks(populateArtwork: false)
+            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+            return tracks
         }.value
 
         guard !Task.isCancelled else { return }

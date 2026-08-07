@@ -21,6 +21,7 @@ struct HomeTabView: View {
 
     @State private var recentlyPlayed: [Track] = []
     @State private var recentlyAdded: [Track] = []
+    @State private var discoverTracks: [Track] = []
     @State private var playlistPreviews: [UUID: [Track]] = [:]
     @State private var loadTask: Task<Void, Never>?
 
@@ -40,10 +41,10 @@ struct HomeTabView: View {
                             tracks: recentlyPlayed
                         )
                     }
-                    if !libraryManager.discoverTracks.isEmpty {
+                    if !discoverTracks.isEmpty {
                         carouselSection(
                             title: String(localized: "Discover"),
-                            tracks: libraryManager.discoverTracks
+                            tracks: discoverTracks
                         )
                     }
                     if !recentlyAdded.isEmpty {
@@ -110,7 +111,7 @@ struct HomeTabView: View {
     private var isEmpty: Bool {
         displayPlaylists.isEmpty
             && recentlyPlayed.isEmpty
-            && libraryManager.discoverTracks.isEmpty
+            && discoverTracks.isEmpty
             && recentlyAdded.isEmpty
     }
 
@@ -197,30 +198,35 @@ struct HomeTabView: View {
         if playlistManager.playlists.isEmpty {
             playlistManager.loadPlaylists()
         }
-        if libraryManager.discoverTracks.isEmpty {
-            libraryManager.loadDiscoverTracks()
-        }
 
         let dbManager = libraryManager.databaseManager
         let playlists = displayPlaylists
         let previewLimit = Self.playlistPreviewLimit
         let carouselLimit = Self.carouselLimit
 
+        // The manager keeps the weekly Discover rotation; the Home carousel
+        // reads only thumbnails, so skip its full-artwork pass.
+        libraryManager.loadDiscoverTracks(populateArtwork: false)
+        let managerDiscover = libraryManager.discoverTracks
+
         let loaded = await Task.detached(priority: .userInitiated) {
             let recentPlayed = dbManager.getRecentlyPlayedTracks(limit: carouselLimit)
             let recentAdded = dbManager.getRecentlyAddedTracks(limit: carouselLimit)
+            var discover = managerDiscover
+            dbManager.populateAlbumArtworkThumbnailsForTracks(&discover)
             let previews = Dictionary(
                 uniqueKeysWithValues: playlists.map {
                     ($0.id, dbManager.getPlaylistPreviewTracks($0, limit: previewLimit))
                 }
             )
-            return (recentPlayed, recentAdded, previews)
+            return (recentPlayed, recentAdded, discover, previews)
         }.value
 
         guard !Task.isCancelled else { return }
         recentlyPlayed = loaded.0
         recentlyAdded = loaded.1
-        playlistPreviews = loaded.2
+        discoverTracks = loaded.2
+        playlistPreviews = loaded.3
     }
 }
 
@@ -232,7 +238,7 @@ private struct PlaylistCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ArtworkMosaic(covers: previewTracks.compactMap { $0.albumArtworkThumbnail ?? $0.artworkData })
+            ArtworkMosaic(covers: previewTracks.compactMap { $0.displayArtwork })
                 .aspectRatio(1, contentMode: .fit)
 
             Text(DefaultPlaylists.displayName(for: playlist))
@@ -276,23 +282,8 @@ private struct HomeTrackCard: View {
     }
 
     private var artwork: some View {
-        Group {
-            if let data = track.albumArtworkThumbnail ?? track.artworkData,
-               let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.15))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        ArtworkTile(data: track.displayArtwork, cornerRadius: 10, iconSize: 28)
+            .frame(width: 140, height: 140)
     }
 }
 

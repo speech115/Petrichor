@@ -88,22 +88,19 @@ extension DatabaseManager {
         }
     }
 
-    /// Thumbnail-first variant of `getArtworkData` for lazy list rows: the
-    /// album's thumbnail BLOB, falling back to the full-size artwork when no
-    /// thumbnail exists yet (pre-backfill or album-less tracks).
+    /// Address-fetch of one artwork thumbnail for lazy list rows. Returns
+    /// only the thumbnail column; rows whose album has no thumbnail (album-less
+    /// tracks, failed generations) fall back to the full artwork in the row
+    /// view, never here - the seam reads thumbnails only.
     func getArtworkThumbnail(albumId: Int64?, trackId: Int64?) -> Data? {
         do {
-            let thumbnail = try dbQueue.read { db -> Data? in
+            return try dbQueue.read { db -> Data? in
                 guard let albumId else { return nil }
                 return try Album
                     .select(Album.Columns.artworkThumbnail)
                     .filter(Album.Columns.id == albumId)
                     .fetchOne(db)?[Album.Columns.artworkThumbnail]
             }
-            if thumbnail != nil {
-                return thumbnail
-            }
-            return getArtworkData(albumId: albumId, trackId: trackId)
         } catch {
             Logger.error("Failed to fetch artwork thumbnail: \(error)")
             return nil
@@ -129,7 +126,7 @@ extension DatabaseManager {
     }
     
     /// Get tracks for the Discover feature
-    func getDiscoverTracks(limit: Int = 50, excludeTrackIds: Set<Int64> = []) -> [Track] {
+    func getDiscoverTracks(limit: Int = 50, excludeTrackIds: Set<Int64> = [], populateArtwork: Bool = true) -> [Track] {
         do {
             return try dbQueue.read { db in
                 var query = Track.all()
@@ -165,7 +162,11 @@ extension DatabaseManager {
                     tracks.append(contentsOf: additionalTracks)
                 }
                 
-                try populateAlbumArtworkForTracks(&tracks, db: db)
+                // List contexts pass `false` and fill thumbnails themselves
+                // (populateAlbumArtworkThumbnailsForTracks).
+                if populateArtwork {
+                    try populateAlbumArtworkForTracks(&tracks, db: db)
+                }
                 
                 return tracks
             }
@@ -681,7 +682,7 @@ extension DatabaseManager {
 
     // MARK: - Library Filter Items
 
-    func getAllTracks() -> [Track] {
+    func getAllTracks(populateArtwork: Bool = true) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
                 try Track.lightweightRequest()
@@ -689,27 +690,12 @@ extension DatabaseManager {
                     .fetchAll(db)
             }
 
-            populateAlbumArtworkForTracks(&tracks)
-            
-            return tracks
-        } catch {
-            Logger.error("Failed to fetch all tracks: \(error)")
-            return []
-        }
-    }
-
-    /// `getAllTracks` without the display-size artwork pass. The All Tracks
-    /// list reads the album thumbnail per row instead of pulling every BLOB of
-    /// the library at once (populateAlbumArtworkThumbnailsForTracks).
-    func getAllTracksWithThumbnails() -> [Track] {
-        do {
-            var tracks = try dbQueue.read { db in
-                try Track.lightweightRequest()
-                    .order(Track.Columns.title)
-                    .fetchAll(db)
+            // List contexts pass `false` and fill thumbnails themselves
+            // (populateAlbumArtworkThumbnailsForTracks); the All Tracks list
+            // must not pull every display-size BLOB of the library at once.
+            if populateArtwork {
+                populateAlbumArtworkForTracks(&tracks)
             }
-
-            populateAlbumArtworkThumbnailsForTracks(&tracks)
 
             return tracks
         } catch {
