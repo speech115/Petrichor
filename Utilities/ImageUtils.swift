@@ -87,6 +87,22 @@ enum ImageUtils {
         #endif
     }
 
+    /// Generate a display thumbnail from artwork data, downscaling to fit within
+    /// maxDimension while preserving aspect ratio. Same pipeline as compressImage
+    /// (HEIC encode + resize); thumbnails are stored alongside full-size artwork.
+    /// - Parameters:
+    ///   - imageData: Original image data in any supported format (JPEG, PNG, HEIC, etc.)
+    ///   - maxDimension: Maximum width or height in pixels (default: 420)
+    ///   - source: Optional source identifier (e.g. file path) included in failure logs
+    /// - Returns: Thumbnail HEIC data, or nil if compression fails
+    static func makeThumbnail(
+        from imageData: Data,
+        maxDimension: CGFloat = 420,
+        source: String? = nil
+    ) -> Data? {
+        compressImage(from: imageData, maxDimension: maxDimension, source: source)
+    }
+
     /// Encode a CGImage as HEIC data.
     static func encodeHEIC(_ cgImage: CGImage, quality: CGFloat = 0.8) -> Data? {
         let data = NSMutableData()

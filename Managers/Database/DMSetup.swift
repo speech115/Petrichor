@@ -60,6 +60,7 @@ extension DatabaseManager {
             t.column("normalized_name", .text).notNull()
             t.column("sort_name", .text)
             t.column("artwork_data", .blob)
+            t.column("artwork_thumbnail", .blob)
 
             // External API metadata
             t.column("bio", .text)
@@ -101,6 +102,7 @@ extension DatabaseManager {
             t.column("normalized_title", .text).notNull()
             t.column("sort_title", .text)
             t.column("artwork_data", .blob)
+            t.column("artwork_thumbnail", .blob)
 
             // Album metadata
             t.column("release_date", .text)

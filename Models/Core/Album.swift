@@ -7,6 +7,7 @@ class Album: Identifiable, ObservableObject, FetchableRecord, PersistableRecord 
     let normalizedTitle: String
     var sortTitle: String?
     var artworkData: Data?
+    var artworkThumbnail: Data?
 
     // Album metadata
     @Published var releaseDate: String?
@@ -68,6 +69,7 @@ class Album: Identifiable, ObservableObject, FetchableRecord, PersistableRecord 
         static let normalizedTitle = Column("normalized_title")
         static let sortTitle = Column("sort_title")
         static let artworkData = Column("artwork_data")
+        static let artworkThumbnail = Column("artwork_thumbnail")
         static let releaseDate = Column("release_date")
         static let releaseYear = Column("release_year")
         static let albumType = Column("album_type")
@@ -98,6 +100,7 @@ class Album: Identifiable, ObservableObject, FetchableRecord, PersistableRecord 
         normalizedTitle = row[Columns.normalizedTitle]
         sortTitle = row[Columns.sortTitle]
         artworkData = row[Columns.artworkData]
+        artworkThumbnail = row[Columns.artworkThumbnail]
         releaseDate = row[Columns.releaseDate]
         releaseYear = row[Columns.releaseYear]
         albumType = row[Columns.albumType]
@@ -133,6 +136,8 @@ class Album: Identifiable, ObservableObject, FetchableRecord, PersistableRecord 
         container[Columns.title] = title
         container[Columns.normalizedTitle] = normalizedTitle
         container[Columns.sortTitle] = sortTitle
+        container[Columns.artworkData] = artworkData
+        container[Columns.artworkThumbnail] = artworkThumbnail
         container[Columns.releaseDate] = releaseDate
         container[Columns.releaseYear] = releaseYear
         container[Columns.albumType] = albumType

@@ -133,13 +133,11 @@ extension DatabaseManager {
         guard let artworkData = artworkData, !artworkData.isEmpty else { return }
 
         // Only update if artist doesn't already have artwork
-        try Artist
-            .filter(Artist.Columns.id == artistId && Artist.Columns.artworkData == nil)
-            .updateAll(
-                db,
-                Artist.Columns.artworkData.set(to: artworkData),
-                Artist.Columns.updatedAt.set(to: Date())
-            )
+        guard let artist = try Artist.fetchOne(db, key: artistId),
+              artist.artworkData == nil else { return }
+        artist.artworkData = artworkData
+        artist.artworkThumbnail = ImageUtils.makeThumbnail(from: artworkData, source: "artist: \(artist.name)")
+        try artist.update(db)
     }
 
     // MARK: - Album Management
@@ -346,20 +344,12 @@ extension DatabaseManager {
     func updateAlbumArtwork(_ albumId: Int64, artworkData: Data?, in db: Database) throws {
         guard let artworkData = artworkData, !artworkData.isEmpty else { return }
 
-        // Check if album already has artwork, don't overwrite existing artwork
-        if let existingArtwork = try Album
-            .select(Album.Columns.artworkData)
-            .filter(Album.Columns.id == albumId)
-            .fetchOne(db)?[Album.Columns.artworkData] as Data?,
-           !existingArtwork.isEmpty {
-            // Album already has artwork, skip update
-            return
-        }
-
-        try db.execute(
-            sql: "UPDATE albums SET artwork_data = ?, updated_at = ? WHERE id = ? AND artwork_data IS NULL",
-            arguments: [artworkData, Date(), albumId]
-        )
+        // Only update if album doesn't already have artwork
+        guard let album = try Album.fetchOne(db, key: albumId),
+              album.artworkData == nil else { return }
+        album.artworkData = artworkData
+        album.artworkThumbnail = ImageUtils.makeThumbnail(from: artworkData, source: "album: \(album.title)")
+        try album.update(db)
     }
 
     // MARK: - Genre Management

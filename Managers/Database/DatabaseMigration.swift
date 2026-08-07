@@ -224,8 +224,21 @@ enum DatabaseMigrator {
             Logger.info("v12_backfill_album_artists: flagged for background album-artist backfill")
         }
 
+        migrator.registerMigration("v13_add_artwork_thumbnail") { db in
+            // Display-size artwork is heavy to load for lists; a small thumbnail
+            // column feeds the reskinned lists. Existing rows are backfilled by a
+            // background migration, new artwork gets a thumbnail at scan time.
+            try db.addColumnIfNotExists(table: "albums", column: "artwork_thumbnail", type: .blob)
+            try db.addColumnIfNotExists(table: "artists", column: "artwork_thumbnail", type: .blob)
+            try db.execute(
+                sql: "INSERT INTO background_migrations (identifier, resumable) VALUES (?, ?)",
+                arguments: ["v13_background_fill_artwork_thumbnail", true]
+            )
+            Logger.info("v13_add_artwork_thumbnail: added artwork_thumbnail columns and flagged background backfill")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v13_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v14_description") { db in ... }
 
         return migrator
     }

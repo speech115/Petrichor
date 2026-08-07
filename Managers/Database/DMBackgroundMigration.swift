@@ -50,6 +50,8 @@ extension DatabaseManager {
                 await loadKnownArtistsAndRebuild(progress: progress)
             case Self.albumArtistBackfillIdentifier:
                 await backfillAlbumArtists(progress: progress)
+            case Self.thumbnailBackfillIdentifier:
+                await fillArtworkThumbnails(progress: progress)
             default:
                 Logger.warning("Unknown background migration: \(identifier)")
             }
@@ -560,6 +562,180 @@ extension DatabaseManager {
                 }
             }
         }.value
+    }
+
+    // MARK: - v13: Backfill artwork thumbnails
+
+    private static let thumbnailBackfillIdentifier = "v13_background_fill_artwork_thumbnail"
+
+    private struct ThumbnailFillProgress: Codable {
+        let table: String
+        let offset: Int
+    }
+
+    private struct ThumbnailTableOps: Sendable {
+        let name: String
+        let count: @Sendable (Database) throws -> Int
+        let fetchBatch: @Sendable (Database, Int, Int) throws -> [Row]
+        let generateAndUpdate: @Sendable (any DatabaseWriter, [Row]) throws -> Int
+    }
+
+    // Batches page over the stable `artwork_data != nil` set (this migration only
+    // writes artwork_thumbnail, so the set never shrinks and offset paging stays
+    // correct). Rows that already have a thumbnail are skipped in generateAndUpdate;
+    // the strict `artwork_thumbnail == nil` filter would drop processed rows from the
+    // paged set mid-run and skip the ones behind them.
+    private static let thumbnailTableOps: [ThumbnailTableOps] = [
+        ThumbnailTableOps(
+            name: "albums",
+            count: { db in try Album.filter(Album.Columns.artworkData != nil).fetchCount(db) },
+            fetchBatch: { db, limit, offset in
+                try Row.fetchAll(db, Album
+                    .filter(Album.Columns.artworkData != nil)
+                    .select(Album.Columns.id, Album.Columns.title, Album.Columns.artworkData, Album.Columns.artworkThumbnail)
+                    .limit(limit, offset: offset))
+            },
+            generateAndUpdate: { dbQueue, rows in
+                var updates: [(Int64, Data)] = []
+                for row in rows {
+                    guard let rowId: Int64 = row[Album.Columns.id],
+                          let original: Data = row[Album.Columns.artworkData] else { continue }
+                    let hasThumbnail: Bool = row[Album.Columns.artworkThumbnail] != nil
+                    guard !hasThumbnail else { continue }
+                    let name: String? = row[Album.Columns.title]
+                    guard let thumbnail = ImageUtils.makeThumbnail(
+                        from: original, source: "album: \(name ?? "id=\(rowId)")"
+                    ) else { continue }
+                    updates.append((rowId, thumbnail))
+                }
+                try dbQueue.write { db in
+                    for (rowId, data) in updates {
+                        try Album.filter(Album.Columns.id == rowId)
+                            .updateAll(db, Album.Columns.artworkThumbnail.set(to: data))
+                    }
+                }
+                return updates.count
+            }
+        ),
+        ThumbnailTableOps(
+            name: "artists",
+            count: { db in try Artist.filter(Artist.Columns.artworkData != nil).fetchCount(db) },
+            fetchBatch: { db, limit, offset in
+                try Row.fetchAll(db, Artist
+                    .filter(Artist.Columns.artworkData != nil)
+                    .select(Artist.Columns.id, Artist.Columns.name, Artist.Columns.artworkData, Artist.Columns.artworkThumbnail)
+                    .limit(limit, offset: offset))
+            },
+            generateAndUpdate: { dbQueue, rows in
+                var updates: [(Int64, Data)] = []
+                for row in rows {
+                    guard let rowId: Int64 = row[Artist.Columns.id],
+                          let original: Data = row[Artist.Columns.artworkData] else { continue }
+                    let hasThumbnail: Bool = row[Artist.Columns.artworkThumbnail] != nil
+                    guard !hasThumbnail else { continue }
+                    let name: String? = row[Artist.Columns.name]
+                    guard let thumbnail = ImageUtils.makeThumbnail(
+                        from: original, source: "artist: \(name ?? "id=\(rowId)")"
+                    ) else { continue }
+                    updates.append((rowId, thumbnail))
+                }
+                try dbQueue.write { db in
+                    for (rowId, data) in updates {
+                        try Artist.filter(Artist.Columns.id == rowId)
+                            .updateAll(db, Artist.Columns.artworkThumbnail.set(to: data))
+                    }
+                }
+                return updates.count
+            }
+        )
+    ]
+
+    private func fillArtworkThumbnails(progress: String?) async {
+        NotificationManager.shared.startActivity(String(localized: "Generating Thumbnails..."))
+
+        let batchSize = 50
+        let tables = Self.thumbnailTableOps
+
+        var resumeTable = tables[0].name
+        var resumeOffset = 0
+        if let progress = progress,
+           let data = progress.data(using: .utf8),
+           let state = try? JSONDecoder().decode(ThumbnailFillProgress.self, from: data) {
+            resumeTable = state.table
+            resumeOffset = state.offset
+            Logger.info("Resuming thumbnail backfill from \(resumeTable) at offset \(resumeOffset)")
+        }
+
+        let startIndex = tables.firstIndex { $0.name == resumeTable } ?? 0
+
+        do {
+            let totalRows = try await dbQueue.read { db -> Int in
+                try tables.reduce(0) { total, table in try total + table.count(db) }
+            }
+
+            guard totalRows > 0 else {
+                completeBackgroundMigration(Self.thumbnailBackfillIdentifier)
+                NotificationManager.shared.stopActivity()
+                Logger.info("No artwork rows to thumbnail, marking backfill complete")
+                return
+            }
+
+            Logger.info("Starting thumbnail backfill: \(totalRows) rows")
+
+            try await Task.detached(priority: .utility) { [dbQueue, weak self] in
+                guard let self = self else { return }
+
+                var totalProcessed = 0
+                if startIndex > 0 || resumeOffset > 0 {
+                    totalProcessed = try dbQueue.read { db -> Int in
+                        var processed = 0
+                        for tableIdx in 0..<startIndex {
+                            processed += try tables[tableIdx].count(db)
+                        }
+                        return processed + resumeOffset
+                    }
+                    NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
+                }
+
+                for tableIndex in startIndex..<tables.count {
+                    let ops = tables[tableIndex]
+                    var offset = (tableIndex == startIndex) ? resumeOffset : 0
+                    var generated = 0
+                    var skipped = 0
+
+                    while true {
+                        let rows = try dbQueue.read { db in try ops.fetchBatch(db, batchSize, offset) }
+                        if rows.isEmpty { break }
+
+                        let batchGenerated = try ops.generateAndUpdate(dbQueue, rows)
+                        generated += batchGenerated
+                        skipped += rows.count - batchGenerated
+                        totalProcessed += rows.count
+                        offset += batchSize
+
+                        NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
+                        if let progressData = try? JSONEncoder().encode(
+                            ThumbnailFillProgress(table: ops.name, offset: offset)
+                        ),
+                           let progressJson = String(data: progressData, encoding: .utf8) {
+                            self.updateMigrationProgress(Self.thumbnailBackfillIdentifier, progress: progressJson)
+                        }
+                    }
+
+                    let skipInfo = skipped > 0 ? " (\(skipped) already present)" : ""
+                    Logger.info("Generated \(generated) \(ops.name) thumbnails\(skipInfo)")
+                }
+            }.value
+
+            completeBackgroundMigration(Self.thumbnailBackfillIdentifier)
+            NotificationManager.shared.stopActivity()
+            Logger.info("Thumbnail backfill completed")
+        } catch {
+            // Leave the migration unfinished (completed_at stays NULL) so it resumes
+            // from the saved offset on next launch. Never rethrow - don't crash launch.
+            NotificationManager.shared.stopActivity()
+            Logger.error("Thumbnail backfill failed (will resume next launch): \(error)")
+        }
     }
 
     // MARK: - Helpers

@@ -162,8 +162,11 @@ extension DatabaseManager {
             try db.execute(sql: "UPDATE OR IGNORE album_artists SET album_id = ? WHERE album_id IN (\(marks))", arguments: winnerThenLosers)
             try AlbumArtist.filter(loserIds.contains(AlbumArtist.Columns.albumId)).deleteAll(db)
 
-            if winner.artworkData == nil, let donor = losers.first(where: { $0.artworkData != nil }) {
-                winner.artworkData = donor.artworkData
+            if winner.artworkData == nil, let donor = losers.first(where: { $0.artworkData != nil }),
+               let donorArtwork = donor.artworkData {
+                winner.artworkData = donorArtwork
+                winner.artworkThumbnail = donor.artworkThumbnail
+                    ?? ImageUtils.makeThumbnail(from: donorArtwork, source: "album: \(winner.title)")
                 try winner.update(db)
             }
 
@@ -234,8 +237,11 @@ extension DatabaseManager {
         let losers = try Artist.filter(loserIds.contains(Artist.Columns.id)).fetchAll(db)
 
         var changed = false
-        if winner.artworkData == nil, let donor = losers.first(where: { $0.artworkData != nil }) {
-            winner.artworkData = donor.artworkData
+        if winner.artworkData == nil, let donor = losers.first(where: { $0.artworkData != nil }),
+           let donorArtwork = donor.artworkData {
+            winner.artworkData = donorArtwork
+            winner.artworkThumbnail = donor.artworkThumbnail
+                ?? ImageUtils.makeThumbnail(from: donorArtwork, source: "artist: \(winner.name)")
             changed = true
         }
         if winner.imageUrl == nil, let donor = losers.first(where: { $0.imageUrl != nil }) {
