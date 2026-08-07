@@ -43,6 +43,11 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var currentItemObservation: NSKeyValueObservation?
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
+    /// The last metadata handed to `setNowPlayingMetadata`, so the backend can
+    /// re-publish it on its own play/pause/seek events (the lock screen
+    /// extrapolates elapsed time from the published rate+elapsed anchor, and
+    /// a stale anchor drifts while paused).
+    private var nowPlayingMetadata: NowPlayingMetadata?
 
     // MARK: - Queue item failure tracking
 
@@ -409,7 +414,13 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private func observeStateChanges() {
         timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
             guard let self else { return }
-            self.runOnMain { self.notifyStateIfChanged() }
+            self.runOnMain {
+                self.notifyStateIfChanged()
+                // Pause/resume change the playback rate: re-publish the Now
+                // Playing anchor so the lock screen does not extrapolate from
+                // the old one (elapsed keeps advancing while paused).
+                self.publishNowPlaying()
+            }
         }
     }
 
@@ -597,7 +608,12 @@ extension AVQueuePlayerBackend {
     @discardableResult
     func seek(to time: Double) -> Bool {
         guard time >= 0 else { return false }
-        player.seek(to: CMTime(seconds: time, preferredTimescale: 600))
+        player.seek(to: CMTime(seconds: time, preferredTimescale: 600)) { [weak self] _ in
+            // Re-publish once the seek actually lands: publishing before the
+            // completion would hand the lock screen the *old* elapsed time as
+            // the anchor, and it would keep extrapolating from it.
+            self?.runOnMain { self?.publishNowPlaying() }
+        }
         return true
     }
 
@@ -614,6 +630,19 @@ extension AVQueuePlayerBackend {
     // MARK: - Now Playing
 
     func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
+        nowPlayingMetadata = metadata
+        publishNowPlaying()
+    }
+
+    /// Publishes the last metadata with the current playhead and rate. The
+    /// manager hands the backend a new tile once per track; every later
+    /// re-publication (pause, resume, seek) is this method's job, so the
+    /// lock screen never extrapolates from a stale anchor.
+    private func publishNowPlaying() {
+        guard let metadata = nowPlayingMetadata else {
+            NowPlayingPublisher.publish(nil, elapsed: 0, duration: 0, rate: 0)
+            return
+        }
         NowPlayingPublisher.publish(
             metadata,
             elapsed: currentPlaybackProgress,
