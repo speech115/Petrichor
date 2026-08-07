@@ -120,7 +120,7 @@ struct TrackDetailView: View {
     private func loadFullTrack() {
         Task {
             do {
-                if var loaded = try await libraryManager.fullTrack(for: track) {
+                if let loaded = try await libraryManager.fullTrack(for: track) {
                     
                     await MainActor.run {
                         self.fullTrack = loaded
