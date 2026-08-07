@@ -232,15 +232,15 @@ enum DatabaseMigrator {
     // swiftlint:enable function_body_length
 
     /// Apply all pending migrations to the database
-    static func migrate(_ dbQueue: DatabaseQueue) throws {
+    static func migrate(_ dbQueue: any DatabaseWriter) throws {
         let migrator = setupMigrator()
         try migrator.migrate(dbQueue)
-        
+
         Logger.info("Database migrations completed")
     }
-    
+
     /// Check if there are unapplied migrations
-    static func hasUnappliedMigrations(_ dbQueue: DatabaseQueue) -> Bool {
+    static func hasUnappliedMigrations(_ dbQueue: any DatabaseReader) -> Bool {
         do {
             let migrator = setupMigrator()
             return try dbQueue.read { db in
@@ -253,7 +253,7 @@ enum DatabaseMigrator {
     }
     
     /// Get list of applied migrations
-    static func appliedMigrations(_ dbQueue: DatabaseQueue) -> [String] {
+    static func appliedMigrations(_ dbQueue: any DatabaseReader) -> [String] {
         // Return empty array for now - can be implemented if needed
         []
     }

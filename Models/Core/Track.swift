@@ -312,9 +312,9 @@ extension Track {
     }
     
     /// Async version for fetching FullTrack
-    /// - Parameter dbQueue: Database queue
+    /// - Parameter dbQueue: Any database reader (a `DatabaseQueue` or `DatabasePool`)
     /// - Returns: FullTrack with all metadata, or nil if not found
-    func fullTrack(using dbQueue: DatabaseQueue) async throws -> FullTrack? {
+    func fullTrack(using dbQueue: any DatabaseReader) async throws -> FullTrack? {
         guard let trackId = trackId else { return nil }
 
         return try await dbQueue.read { db in

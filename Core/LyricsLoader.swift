@@ -10,7 +10,7 @@ struct LyricsLoader {
     /// - Returns: Tuple containing parsed lyrics lines and source type
     static func loadLyrics(
         for track: Track,
-        using dbQueue: DatabaseQueue,
+        using dbQueue: any DatabaseReader,
         databaseManager: DatabaseManager? = nil
     ) async throws -> (lyrics: [LyricLine], source: LyricsSource) {
         var lines: [LyricLine]?

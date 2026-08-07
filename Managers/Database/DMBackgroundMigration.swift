@@ -68,7 +68,7 @@ extension DatabaseManager {
         let name: String
         let count: @Sendable (Database) throws -> Int
         let fetchBatch: @Sendable (Database, Int, Int) throws -> [Row]
-        let compressAndUpdate: @Sendable (DatabaseQueue, [Row]) throws -> Int
+        let compressAndUpdate: @Sendable (any DatabaseWriter, [Row]) throws -> Int
     }
 
     private static let artworkMigrationIdentifier = "v8_background_convert_artwork_to_heic"

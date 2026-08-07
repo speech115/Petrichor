@@ -14,7 +14,12 @@ class DatabaseManager: ObservableObject {
     @Published var isScanning: Bool = false
     @Published var scanStatusMessage: String = ""
 
-    let dbQueue: DatabaseQueue
+    // A pool, not a single serial queue: readers run concurrently with the
+    // writer under WAL, so a library scan or reconciliation writing tracks no
+    // longer starves the UI reads that populate lists (the "No Tracks while
+    // scanning" stall). The property keeps the `dbQueue` name because it is
+    // referenced across dozens of `DM*` extension files.
+    let dbQueue: DatabasePool
     private let dbPath: String
     private var lastStatusUpdateTime: Date = .distantPast
     private let statusUpdateInterval: TimeInterval = 0.5
@@ -44,16 +49,15 @@ class DatabaseManager: ObservableObject {
         // Configure database before creating the queue
         var config = Configuration()
         config.prepareDatabase { db in
-            // Set journal mode to WAL
-            try db.execute(sql: "PRAGMA journal_mode = WAL")
-            // Enable synchronous mode for better durability
+            // DatabasePool manages WAL itself; NORMAL sync and a busy timeout
+            // are the recommended per-connection settings under WAL.
             try db.execute(sql: "PRAGMA synchronous = NORMAL")
-            // Set a reasonable busy timeout
             try db.execute(sql: "PRAGMA busy_timeout = 5000")
         }
 
-        // Initialize database queue with configuration
-        dbQueue = try DatabaseQueue(path: dbPath, configuration: config)
+        // A pool (concurrent readers + one writer under WAL) rather than a
+        // serial queue, so UI reads are not blocked behind scan writes.
+        dbQueue = try DatabasePool(path: dbPath, configuration: config)
 
         // Use migration system for both new and existing databases
         try DatabaseMigrator.migrate(dbQueue)

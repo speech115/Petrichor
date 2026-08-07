@@ -24,7 +24,7 @@ final class LyricsStore {
 
     func lyrics(
         for track: Track,
-        using dbQueue: DatabaseQueue,
+        using dbQueue: any DatabaseReader,
         databaseManager: DatabaseManager?,
         forceReload: Bool = false
     ) async throws -> Lyrics {
