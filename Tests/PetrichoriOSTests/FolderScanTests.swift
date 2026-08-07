@@ -125,3 +125,43 @@ import Testing
     // behavior, not something the test should pin down.
     #expect(Set(artistNames).isSuperset(of: ["Annabel", "Jeune Ras"]))
 }
+
+/// Seam test «строки пропавших файлов переживают полный скан» (ADR-0001):
+/// a track whose file disappears from disk keeps its database row through a
+/// full rescan. This is the exact flow iOS reconciliation runs — the app's
+/// Documents folder is re-registered and rescanned on every launch/foreground
+/// (LibraryManager.scanLibraryRoot / reconcileLibrary), and the scan must
+/// never delete rows for files that are no longer there.
+@Test func missingFileKeepsItsRowThroughARescan() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("petrichor-rescan-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+    let first = try makeSilentMP3(artist: "Annabel", title: "Above Your Hand", album: "Rescan Test Album")
+    let second = try makeSilentMP3(artist: "Jeune Ras", title: "Hidden Gem", album: "Rescan Test Album")
+    let firstInLibrary = root.appendingPathComponent("Annabel - Above Your Hand.mp3")
+    let secondInLibrary = root.appendingPathComponent("Jeune Ras - Hidden Gem.mp3")
+    try FileManager.default.moveItem(at: first, to: firstInLibrary)
+    try FileManager.default.moveItem(at: second, to: secondInLibrary)
+
+    let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
+    _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
+
+    #expect(databaseManager.getTracksRespectingDuplicates(hideDuplicates: false).count == 2)
+
+    // The file disappears from disk (user deleted it in Files, iCloud evicted
+    // it, an external drive was unplugged). The row must survive the rescan.
+    try FileManager.default.removeItem(at: firstInLibrary)
+
+    // Re-registering the same folder row and rescanning is what
+    // scanLibraryRoot() does on every reconciliation.
+    _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
+
+    let tracks = databaseManager.getTracksRespectingDuplicates(hideDuplicates: false)
+    #expect(tracks.count == 2)
+    #expect(Set(tracks.map { $0.url.lastPathComponent }) == [
+        "Annabel - Above Your Hand.mp3",
+        "Jeune Ras - Hidden Gem.mp3"
+    ])
+}

@@ -34,7 +34,6 @@ struct GlobalScanProgress {
     let processed: Int
     let total: Int
     let added: Int
-    let removed: Int
     let isInitial: Bool
 }
 
@@ -43,7 +42,6 @@ actor GlobalScanState {
     let isInitialScan: Bool
     var processedFiles = 0
     var tracksAdded = 0
-    var tracksRemoved = 0
     
     init(totalFiles: Int, isInitialScan: Bool = false) {
         self.totalFiles = totalFiles
@@ -58,16 +56,11 @@ actor GlobalScanState {
         tracksAdded += count
     }
 
-    func incrementTracksRemoved(by count: Int) {
-        tracksRemoved += count
-    }
-
     func getProgress() -> GlobalScanProgress {
         GlobalScanProgress(
             processed: processedFiles,
             total: totalFiles,
             added: tracksAdded,
-            removed: tracksRemoved,
             isInitial: isInitialScan
         )
     }
@@ -426,9 +419,8 @@ extension DatabaseManager {
         // Any file on disk that the database does not know, or whose mtime
         // changed since the scan, needs a scan. Tracks whose file is absent
         // from disk are a steady state, not a change: the database keeps their
-        // rows on purpose (a missing file marks the track unavailable but
-        // never removes it, and a full scan does not drop such rows either),
-        // so they must not make this check fail on every launch.
+        // rows on purpose (ADR-0001) and a full scan does not drop such rows
+        // either, so they must not make this check fail on every launch.
         for (path, diskDate) in onDisk {
             guard let storedDate = stored[path],
                   abs(diskDate - storedDate) <= tolerance else {
@@ -567,16 +559,8 @@ extension DatabaseManager {
             })
         }
 
-        // Remove tracks that no longer exist (skip on fresh scan when folder has no tracks)
-        if !existingTracksByPath.isEmpty {
-            try await removeDeletedTracks(
-                folderId: folderId,
-                foundPaths: Set(musicFiles),
-                folderName: folder.name,
-                hasRemainingFiles: !musicFiles.isEmpty,
-                globalScanState: globalScanState
-            )
-        }
+        // Tracks whose file is gone from disk are not removed: the row
+        // survives on purpose (ADR-0001). The scan only adds and updates.
 
         // If no music files found, we're done
         if musicFiles.isEmpty {
@@ -670,62 +654,6 @@ extension DatabaseManager {
         )
     }
 
-    /// Remove tracks from database that no longer exist in the filesystem
-    private func removeDeletedTracks(
-        folderId: Int64,
-        foundPaths: Set<URL>,
-        folderName: String,
-        hasRemainingFiles: Bool,
-        globalScanState: GlobalScanState? = nil
-    ) async throws {
-        let existingTracks = getTracksForFolder(folderId)
-        let foundPathStrings = Set(foundPaths.map { LibraryPathStore.storedPath(for: $0) })
-        let tracksToRemove = existingTracks.filter {
-            !foundPathStrings.contains(LibraryPathStore.storedPath(for: $0.url))
-        }
-        let trackIdsToRemove = tracksToRemove.compactMap { $0.trackId }
-        
-        guard !trackIdsToRemove.isEmpty else { return }
-        
-        let removedCount = trackIdsToRemove.count
-
-        await globalScanState?.incrementTracksRemoved(by: removedCount)
-        if let globalScanState {
-            let progress = await globalScanState.getProgress()
-            let detail = scanProgressDetail(progress)
-            await MainActor.run {
-                NotificationManager.shared.updateActivityProgress(
-                    current: progress.processed,
-                    total: progress.total > 0 ? progress.total : progress.processed,
-                    detail: detail
-                )
-            }
-        }
-        
-        // Remove tracks from database
-        try await dbQueue.write { db in
-            for track in tracksToRemove {
-                try track.delete(db)
-                Logger.info("Removed track that no longer exists: \(track.url.lastPathComponent)")
-            }
-        }
-        
-        // Clean up orphaned metadata
-        try await cleanupAfterTrackRemoval(trackIdsToRemove)
-        
-        // Report results to user
-        await MainActor.run {
-            if !hasRemainingFiles {
-                NotificationManager.shared.addMessage(.info, String(localized: "Folder '\(folderName)' is now empty, removed \(removedCount) tracks"))
-            } else {
-                let message = removedCount == 1
-                    ? String(localized: "Removed 1 missing track from '\(folderName)'")
-                    : String(localized: "Removed \(removedCount) missing tracks from '\(folderName)'")
-                NotificationManager.shared.addMessage(.info, message)
-            }
-        }
-    }
-
     func scanProgressDetail(_ progress: GlobalScanProgress) -> String {
         let base = progress.total > 0
             ? String(localized: "\(progress.processed) of \(progress.total) files processed")
@@ -736,9 +664,6 @@ extension DatabaseManager {
             changes.append(progress.isInitial
                 ? String(localized: "\(progress.added) tracks found")
                 : String(localized: "\(progress.added) new tracks found"))
-        }
-        if progress.removed > 0 {
-            changes.append(String(localized: "\(progress.removed) tracks removed"))
         }
 
         guard !changes.isEmpty else { return base }
