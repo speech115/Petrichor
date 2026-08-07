@@ -232,7 +232,7 @@ private struct PlaylistCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            mosaic
+            ArtworkMosaic(covers: previewTracks.compactMap { $0.albumArtworkThumbnail ?? $0.artworkData })
                 .aspectRatio(1, contentMode: .fit)
 
             Text(DefaultPlaylists.displayName(for: playlist))
@@ -243,51 +243,6 @@ private struct PlaylistCard: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-    }
-
-    /// 2x2 mosaic of the first four tracks' album thumbnails; fewer tracks
-    /// show the first cover, none - a colored placeholder.
-    @ViewBuilder
-    private var mosaic: some View {
-        let covers = previewTracks.compactMap { $0.albumArtworkThumbnail ?? $0.artworkData }
-
-        if covers.count >= 4 {
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 2),
-                    GridItem(.flexible(), spacing: 2)
-                ],
-                spacing: 2
-            ) {
-                ForEach(Array(covers.prefix(4).enumerated()), id: \.offset) { _, data in
-                    mosaicTile(data)
-                }
-            }
-        } else if let cover = covers.first {
-            mosaicTile(cover)
-        } else {
-            ZStack {
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.15))
-                Image(systemName: Icons.musicNote)
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-
-    private func mosaicTile(_ data: Data) -> some View {
-        Group {
-            if let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.15))
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

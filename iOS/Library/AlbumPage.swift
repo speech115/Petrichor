@@ -41,7 +41,7 @@ struct AlbumPage: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(album.displayName)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .task(id: album.id) {
             await load()
         }
@@ -69,14 +69,9 @@ struct AlbumPage: View {
                 .frame(width: 240, height: 240)
                 .padding(.top, 16)
 
-            Text(album.displayName)
-                .font(.title2.weight(.bold))
-                .multilineTextAlignment(.center)
-
             if let artistName = album.artistName, !artistName.isEmpty {
                 Text(artistName)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(.headline)
                     .lineLimit(1)
             }
 
@@ -84,14 +79,11 @@ struct AlbumPage: View {
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
-            Button(action: playAll) {
-                Label(String(localized: "Play"), systemImage: Icons.playFill)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(tracks.isEmpty)
+            PlayShuffleRow(
+                onPlay: playAll,
+                onShuffle: shuffleAll,
+                playDisabled: tracks.isEmpty
+            )
             .padding(.top, 4)
         }
         .padding(.horizontal, 16)
@@ -177,6 +169,13 @@ struct AlbumPage: View {
     private func playAll() {
         guard let first = tracks.first else { return }
         playlistManager.playTrack(first, fromTracks: tracks)
+        playlistManager.currentQueueSource = .library
+    }
+
+    private func shuffleAll() {
+        let shuffled = tracks.shuffled()
+        guard let first = shuffled.first else { return }
+        playlistManager.playTrack(first, fromTracks: shuffled)
         playlistManager.currentQueueSource = .library
     }
 

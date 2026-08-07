@@ -57,7 +57,7 @@ struct ArtistPage: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(LibraryFilterType.artists.localizedDisplay(artistName))
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .task(id: artistName) {
             await load()
         }
@@ -85,10 +85,6 @@ struct ArtistPage: View {
                 .frame(width: 180, height: 180)
                 .padding(.top, 16)
 
-            Text(LibraryFilterType.artists.localizedDisplay(artistName))
-                .font(.title2.weight(.bold))
-                .multilineTextAlignment(.center)
-
             if let bio, !bio.isEmpty {
                 Text(bio)
                     .font(.subheadline)
@@ -96,14 +92,11 @@ struct ArtistPage: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button(action: playAll) {
-                Label(String(localized: "Play"), systemImage: Icons.playFill)
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(tracks.isEmpty)
+            PlayShuffleRow(
+                onPlay: playAll,
+                onShuffle: shuffleAll,
+                playDisabled: tracks.isEmpty
+            )
             .padding(.top, 4)
         }
         .padding(.horizontal, 16)
@@ -192,6 +185,13 @@ struct ArtistPage: View {
     private func playAll() {
         guard let first = tracks.first else { return }
         playlistManager.playTrack(first, fromTracks: tracks)
+        playlistManager.currentQueueSource = .library
+    }
+
+    private func shuffleAll() {
+        let shuffled = tracks.shuffled()
+        guard let first = shuffled.first else { return }
+        playlistManager.playTrack(first, fromTracks: shuffled)
         playlistManager.currentQueueSource = .library
     }
 

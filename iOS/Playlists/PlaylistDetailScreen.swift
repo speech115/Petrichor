@@ -40,7 +40,7 @@ struct PlaylistDetailScreen: View {
             }
         }
         .navigationTitle(playlist.map { DefaultPlaylists.displayName(for: $0) } ?? "")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if let playlist, playlist.isUserEditable {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -107,6 +107,13 @@ struct PlaylistDetailScreen: View {
 
     private func trackList(_ playlist: Playlist) -> some View {
         List {
+            Section {
+                header(playlist)
+                    .frame(maxWidth: .infinity)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+            }
+
             if !playlist.tracks.isEmpty {
                 ForEach(playlist.tracks) { track in
                     if missingPaths.contains(track.url.path) {
@@ -133,6 +140,29 @@ struct PlaylistDetailScreen: View {
                 )
             }
         }
+    }
+
+    // MARK: - Header
+
+    private func header(_ playlist: Playlist) -> some View {
+        VStack(spacing: 12) {
+            ArtworkMosaic(covers: playlist.tracks.compactMap { $0.albumArtworkThumbnail ?? $0.artworkData })
+                .frame(width: 240, height: 240)
+                .padding(.top, 16)
+
+            Text(String(localized: "\(playlist.trackCount) songs"))
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+
+            PlayShuffleRow(
+                onPlay: { playAll(playlist) },
+                onShuffle: { shuffleAll(playlist) },
+                playDisabled: playlist.tracks.isEmpty
+            )
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
     }
 
     // MARK: - Loading
@@ -193,6 +223,18 @@ struct PlaylistDetailScreen: View {
     private func play(_ track: Track, in playlist: Playlist) {
         guard let index = playlist.tracks.firstIndex(of: track) else { return }
         playlistManager.playTrackFromPlaylist(playlist, at: index)
+    }
+
+    private func playAll(_ playlist: Playlist) {
+        guard let first = playlist.tracks.first else { return }
+        playlistManager.playTrackFromPlaylist(playlist, at: playlist.tracks.firstIndex(of: first) ?? 0)
+    }
+
+    private func shuffleAll(_ playlist: Playlist) {
+        let shuffled = playlist.tracks.shuffled()
+        guard let first = shuffled.first else { return }
+        playlistManager.playTrack(first, fromTracks: shuffled)
+        playlistManager.currentQueueSource = .playlist
     }
 }
 
