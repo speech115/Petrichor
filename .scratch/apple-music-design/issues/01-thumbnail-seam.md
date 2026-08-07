@@ -18,7 +18,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** open
+**Status:** done
 
 - [ ] Миграция v9: колонка `artwork_thumbnail` на `albums` и `artists`
 - [ ] Генерация миниатюры при записи обложки на скане (переиспользовать

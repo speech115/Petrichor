@@ -18,7 +18,7 @@ Now Playing.
 
 **Blocked by:** 01
 
-**Status:** open
+**Status:** done
 
 - [ ] Трек-строки читают `artwork_thumbnail` альбома
 - [ ] Сетка альбомов и список артистов — миниатюры

@@ -8,7 +8,7 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** open
+**Status:** done
 
 - [ ] Top Result первым блоком
 - [ ] Сегменты не добавлены

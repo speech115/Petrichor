@@ -13,7 +13,7 @@
 
 **Blocked by:** 07
 
-**Status:** open
+**Status:** done
 
 - [ ] Альбом: Play/Shuffle + крупный заголовок
 - [ ] Плейлист: хедер с мозаикой 2×2 + Play/Shuffle

@@ -14,7 +14,7 @@ in-hierarchy оверлей). Один компонент трогаем оди�
 
 **Blocked by:** None — can start immediately.
 
-**Status:** open
+**Status:** done
 
 - [ ] Тонкая неинтерактивная линия прогресса в compact
 - [ ] Свайп-вниз сворачивает Now Playing
