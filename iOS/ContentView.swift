@@ -86,9 +86,22 @@ struct ContentView: View {
                 SettingsScreen()
             }
         }
-        .fullScreenCover(isPresented: $showingNowPlaying) {
-            nowPlayingCover
+        // Now Playing is an in-hierarchy overlay, not a `.fullScreenCover`. A
+        // modal cover keeps a touch-blocking layer over the tab bar for its
+        // whole ~0.5s dismiss animation (and ~1s with a zoom transition), so the
+        // mini player underneath is dead until it finishes. As a sibling overlay
+        // the mini player stays live: `allowsHitTesting(showingNowPlaying)` lets
+        // taps fall straight through the moment a dismiss starts, and the
+        // spring below is a transition we own rather than the fixed modal one.
+        .overlay {
+            if showingNowPlaying {
+                nowPlayingCover
+                    .background(Color(.systemBackground).ignoresSafeArea())
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(showingNowPlaying)
+            }
         }
+        .animation(.spring(response: 0.42, dampingFraction: 0.88), value: showingNowPlaying)
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
                 MergeEntitySheet(request: request)
@@ -249,7 +262,6 @@ struct ContentView: View {
                 }
             }
         }
-        .navigationTransition(.zoom(sourceID: NowPlayingArtworkSource.artwork, in: nowPlayingTransitionNamespace))
         .onAppear {
             playbackManager.setFineProgressSampling(true)
         }
