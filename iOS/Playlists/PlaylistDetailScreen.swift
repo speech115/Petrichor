@@ -91,6 +91,15 @@ struct PlaylistDetailScreen: View {
         } else {
             playlistManager.loadPlaylistTracks(for: playlist.id)
         }
+
+        // Playlist rows are list rows: swap the display-size artwork pass for
+        // the album thumbnail pass once the shared loader has finished.
+        if let index = playlistManager.playlists.firstIndex(where: { $0.id == playlistID }),
+           let databaseManager = playlistManager.libraryManager?.databaseManager {
+            var tracks = playlistManager.playlists[index].tracks
+            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+            playlistManager.playlists[index].tracks = tracks
+        }
     }
 
     /// Computes which track files are missing from disk. One cheap pass over

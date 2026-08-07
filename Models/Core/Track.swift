@@ -48,6 +48,10 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     
     // Transient properties for album artwork (populated separately)
     var albumArtworkData: Data?
+    /// Small display thumbnail of the album artwork. List queries populate this
+    /// instead of the full-size BLOB; detail screens and playback use the full
+    /// artwork (see `populateAlbumArtworkThumbnailsForTracks`).
+    var albumArtworkThumbnail: Data?
 
     var filename: String {
         url.lastPathComponent

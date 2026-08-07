@@ -51,6 +51,7 @@ extension DatabaseManager {
                     SELECT
                         artists.name,
                         artists.artwork_data,
+                        artists.artwork_thumbnail,
                         artists.image_source,
                         COUNT(DISTINCT track_artists.track_id) as trackCount
                     FROM artists
@@ -64,12 +65,14 @@ extension DatabaseManager {
                 struct ArtistInfo: FetchableRecord {
                     let name: String
                     let artworkData: Data?
+                    let artworkThumbnail: Data?
                     let imageSource: String?
                     let trackCount: Int
 
                     init(row: Row) throws {
                         name = row["name"]
                         artworkData = row["artwork_data"]
+                        artworkThumbnail = row["artwork_thumbnail"]
                         imageSource = row["image_source"]
                         trackCount = row["trackCount"] ?? 0
                     }
@@ -84,7 +87,8 @@ extension DatabaseManager {
                     return ArtistEntity(
                         name: info.name,
                         trackCount: info.trackCount,
-                        artworkData: artworkData
+                        artworkData: artworkData,
+                        artworkThumbnail: info.artworkThumbnail
                     )
                 }
             }
@@ -111,6 +115,7 @@ extension DatabaseManager {
                         albums.title,
                         COUNT(tracks.id) as trackCount,
                         albums.artwork_data,
+                        albums.artwork_thumbnail,
                         albums.release_year,
                         COALESCE(SUM(tracks.duration), 0) as totalDuration,
                         COALESCE(
@@ -137,6 +142,7 @@ extension DatabaseManager {
                     let title: String
                     let totalTracks: Int
                     let artworkData: Data?
+                    let artworkThumbnail: Data?
                     let releaseYear: Int?
                     let totalDuration: Double
                     let artistName: String?
@@ -147,6 +153,7 @@ extension DatabaseManager {
                         title = row["title"]
                         totalTracks = row["trackCount"] ?? 0
                         artworkData = row["artwork_data"]
+                        artworkThumbnail = row["artwork_thumbnail"]
                         releaseYear = row["release_year"]
                         totalDuration = row["totalDuration"] ?? 0
                         artistName = row["artistName"]
@@ -161,6 +168,7 @@ extension DatabaseManager {
                         name: info.title,
                         trackCount: info.totalTracks,
                         artworkData: info.artworkData,
+                        artworkThumbnail: info.artworkThumbnail,
                         albumId: info.id,
                         year: info.releaseYear.map { String($0) } ?? "",
                         duration: info.totalDuration,

@@ -134,7 +134,7 @@ struct SearchView: View {
             entityRow(
                 title: artist.displayName,
                 subtitle: artist.subtitle,
-                artworkData: artist.artworkData,
+                artworkData: artist.artworkThumbnail ?? artist.artworkData,
                 icon: LibraryFilterType.artists.icon
             )
         }
@@ -146,7 +146,7 @@ struct SearchView: View {
             entityRow(
                 title: album.displayName,
                 subtitle: album.artistName ?? album.subtitle,
-                artworkData: album.artworkData,
+                artworkData: album.artworkThumbnail ?? album.artworkData,
                 icon: LibraryFilterType.albums.icon
             )
         }

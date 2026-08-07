@@ -9,9 +9,11 @@
 // confirmation haptic at gesture completion), long-press for the full
 // context menu. VoiceOver exposes the same two actions as custom actions.
 //
-// Artwork loads lazily: rows already carrying artwork data render it directly,
-// everything else falls back to an address-fetched cover (single-track query,
-// never a full scan), cached per track.
+// Artwork loads lazily: rows already carrying a thumbnail (list queries
+// populate the small `albumArtworkThumbnail`, detail screens the full
+// artwork) render it directly, everything else falls back to an
+// address-fetched thumbnail (single-album query, never a full scan), cached
+// per track.
 //
 
 import SwiftUI
@@ -156,7 +158,10 @@ struct TrackRow: View {
             return
         }
 
-        if let data = track.artworkData, let image = UIImage(data: data) {
+        // List rows carry the album thumbnail (populated by the thumbnail
+        // queries); fall back to whatever full artwork the row already has.
+        if let data = track.albumArtworkThumbnail ?? track.artworkData,
+           let image = UIImage(data: data) {
             artworkImage = image
             TrackRowArtworkStore.shared.cache(image, for: track)
             return
@@ -170,7 +175,7 @@ struct TrackRow: View {
 
         let image = await Task.detached(priority: .utility) {
             databaseManager
-                .getArtworkData(albumId: albumId, trackId: trackId)
+                .getArtworkThumbnail(albumId: albumId, trackId: trackId)
                 .flatMap(UIImage.init(data:))
         }.value
 

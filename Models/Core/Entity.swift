@@ -39,12 +39,18 @@ protocol Entity: Identifiable {
     var subtitle: String? { get }
     var trackCount: Int { get }
     var artworkData: Data? { get }
+    /// Small display thumbnail; list rows read this instead of the full-size
+    /// `artworkData` BLOB. Nil for entities without a thumbnail source
+    /// (category and folder placeholders are small already).
+    var artworkThumbnail: Data? { get }
 }
 
 extension Entity {
     // Default: no localization. Concrete types that map to a LibraryFilterType
     // override this to translate the "Unknown X" sentinel.
     var displayName: String { name }
+
+    var artworkThumbnail: Data? { nil }
 }
 
 // MARK: - Shared Color Defaults
@@ -68,6 +74,7 @@ struct ArtistEntity: Entity {
     let tracks: [Track]
     let trackCount: Int
     let artworkData: Data?
+    let artworkThumbnail: Data?
 
     var displayName: String { LibraryFilterType.artists.localizedDisplay(name) }
 
@@ -83,14 +90,16 @@ struct ArtistEntity: Entity {
 
         let trackWithArt = tracks.first { $0.albumArtworkData != nil }
         self.artworkData = trackWithArt?.albumArtworkData
+        self.artworkThumbnail = tracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail
     }
 
-    init(name: String, trackCount: Int, artworkData: Data? = nil) {
+    init(name: String, trackCount: Int, artworkData: Data? = nil, artworkThumbnail: Data? = nil) {
         self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.artist)
         self.name = name
         self.tracks = []
         self.trackCount = trackCount
         self.artworkData = artworkData
+        self.artworkThumbnail = artworkThumbnail
     }
 }
 
@@ -101,6 +110,7 @@ struct AlbumEntity: Entity, Hashable {
     let tracks: [Track]
     let trackCount: Int
     let artworkData: Data?
+    let artworkThumbnail: Data?
     let albumId: Int64?
     let year: String?
     let duration: Double?
@@ -126,12 +136,14 @@ struct AlbumEntity: Entity, Hashable {
 
         let trackWithArt = tracks.first { $0.albumArtworkData != nil }
         self.artworkData = trackWithArt?.albumArtworkData
+        self.artworkThumbnail = tracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail
     }
 
     init(
         name: String,
         trackCount: Int,
         artworkData: Data? = nil,
+        artworkThumbnail: Data? = nil,
         albumId: Int64? = nil,
         year: String? = nil,
         duration: Double? = nil,
@@ -148,6 +160,7 @@ struct AlbumEntity: Entity, Hashable {
         self.tracks = []
         self.trackCount = trackCount
         self.artworkData = artworkData
+        self.artworkThumbnail = artworkThumbnail
         self.albumId = albumId
         self.year = year
         self.duration = duration

@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct CategoryItemsView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -14,16 +15,13 @@ struct CategoryItemsView: View {
     let filterType: LibraryFilterType
 
     @State private var items: [LibraryFilterItem] = []
+    @State private var artistThumbnails: [String: Data] = [:]
+    @State private var albumThumbnails: [Int64: Data] = [:]
 
     var body: some View {
         IndexedList(sections: sections) { item in
             NavigationLink(value: destination(for: item)) {
-                HStack {
-                    Text(item.name)
-                    Spacer()
-                    Text("\(item.count)")
-                        .foregroundColor(.secondary)
-                }
+                row(for: item)
             }
         }
         .navigationTitle(filterType.pluralDisplayName)
@@ -75,9 +73,76 @@ struct CategoryItemsView: View {
         }
     }
 
+    // MARK: - Rows
+
+    @ViewBuilder
+    private func row(for item: LibraryFilterItem) -> some View {
+        switch filterType {
+        case .artists:
+            HStack(spacing: 12) {
+                thumbnailView(data: artistThumbnails[item.name], cornerRadius: 22)
+                textRow(item)
+            }
+        case .albums:
+            HStack(spacing: 12) {
+                thumbnailView(data: item.albumId.flatMap { albumThumbnails[$0] }, cornerRadius: 6)
+                textRow(item)
+            }
+        default:
+            textRow(item)
+        }
+    }
+
+    private func textRow(_ item: LibraryFilterItem) -> some View {
+        HStack {
+            Text(item.name)
+            Spacer()
+            Text("\(item.count)")
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func thumbnailView(data: Data?, cornerRadius: CGFloat) -> some View {
+        Group {
+            if let data, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(Color.secondary.opacity(0.12))
+                    Image(systemName: Icons.musicNote)
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .frame(width: 44, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+    }
+
     private func reload() {
-        let sorted = libraryManager.getLibraryFilterItems(for: filterType)
-        items = sort(sorted)
+        let sorted = sort(libraryManager.getLibraryFilterItems(for: filterType))
+        items = sorted
+
+        // One lookup per row would be quadratic on large libraries; index the
+        // entity caches once per reload instead.
+        if filterType == .artists {
+            artistThumbnails = Dictionary(
+                libraryManager.artistEntities.compactMap { artist in
+                    artist.artworkThumbnail.map { (artist.name, $0) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+        } else if filterType == .albums {
+            albumThumbnails = Dictionary(
+                libraryManager.albumEntities.compactMap { album in
+                    album.albumId.flatMap { id in album.artworkThumbnail.map { (id, $0) } }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+        }
     }
 
     private func sort(_ items: [LibraryFilterItem]) -> [LibraryFilterItem] {

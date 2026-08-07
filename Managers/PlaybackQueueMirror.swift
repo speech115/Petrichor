@@ -135,7 +135,7 @@ extension PlaybackManager {
     /// entry on its own. The audio is already playing.
     func handleEngineAdvance(to entryId: AudioEntryId, track: Track) {
         restoredUITrack = nil
-        currentTrack = track
+        currentTrack = trackWithFullArtwork(track)
         currentFullTrack = nil
         currentEntryId = entryId
         currentTime = 0
@@ -170,7 +170,7 @@ extension PlaybackManager {
         pendingPlayOnRestore = false
         restoredUITrack = nil
         restoredPosition = 0
-        currentTrack = track
+        currentTrack = trackWithFullArtwork(track)
         currentFullTrack = nil
         currentEntryId = entryId
         currentTime = position

@@ -149,7 +149,7 @@ struct ArtistPage: View {
 
     private func albumArtwork(_ album: AlbumEntity) -> some View {
         Group {
-            if let artworkData = album.artworkData, let image = UIImage(data: artworkData) {
+            if let artworkData = album.artworkThumbnail ?? album.artworkData, let image = UIImage(data: artworkData) {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -205,9 +205,12 @@ struct ArtistPage: View {
     private func load() async {
         let name = artistName
         let libraryManager = libraryManager
+        let databaseManager = libraryManager.databaseManager
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            let tracks = libraryManager.databaseManager.getTracksForArtistEntity(name)
+            var tracks = libraryManager.databaseManager.getTracksForArtistEntity(name)
+            // Row thumbnails; the photo header keeps the full artwork.
+            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
             let info = libraryManager.databaseManager.getArtistArtworkAndBio(for: name)
             let albums = Self.albums(from: tracks)
             return (tracks: tracks, albums: albums, photo: info.artworkData, bio: info.bio)
@@ -233,6 +236,7 @@ struct ArtistPage: View {
                     name: first.album,
                     trackCount: groupedTracks.count,
                     artworkData: groupedTracks.first { $0.albumArtworkData != nil }?.albumArtworkData,
+                    artworkThumbnail: groupedTracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail,
                     albumId: first.albumId,
                     year: first.year,
                     artistName: first.albumArtist

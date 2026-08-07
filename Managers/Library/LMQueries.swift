@@ -17,11 +17,11 @@ extension LibraryManager {
         return databaseManager.getTracksForFolder(folderId)
     }
 
-    func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
+    func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil, populateArtwork: Bool = true) -> [Track] {
         if filterType.usesMultiArtistParsing && value != filterType.unknownPlaceholder {
             return databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
         } else {
-            return databaseManager.getTracksByFilterType(filterType, value: value, albumId: albumId)
+            return databaseManager.getTracksByFilterType(filterType, value: value, albumId: albumId, populateArtwork: populateArtwork)
         }
     }
 

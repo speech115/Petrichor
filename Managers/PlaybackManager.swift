@@ -281,6 +281,7 @@ class PlaybackManager: NSObject, ObservableObject {
     /// Feeds the engine the metadata for its system Now Playing tile. Called only
     /// when the engine adopts a new entry; it keeps elapsed and rate current itself.
     func publishNowPlayingMetadata(for track: Track) {
+        let track = trackWithFullArtwork(track)
         audioPlayer.setNowPlayingMetadata(
             NowPlayingMetadata(
                 title: track.title,
@@ -291,6 +292,22 @@ class PlaybackManager: NSObject, ObservableObject {
                 artworkData: track.artworkData
             )
         )
+    }
+
+    /// Ensures a track that becomes current carries full-size artwork for the
+    /// player chrome: list queries populate only thumbnails now, while the
+    /// Now Playing overlay, the lock screen tile and the macOS player art all
+    /// read `track.artworkData`. Targeted single-row fetch, skipped when the
+    /// row already has artwork (macOS queues always do).
+    func trackWithFullArtwork(_ track: Track) -> Track {
+        guard track.artworkData == nil else { return track }
+        guard let artwork = libraryManager.databaseManager.getArtworkData(
+            albumId: track.albumId,
+            trackId: track.trackId
+        ) else { return track }
+        var enriched = track
+        enriched.albumArtworkData = artwork
+        return enriched
     }
 
     /// Wires the system remote command center (lock screen / Control Center) to
