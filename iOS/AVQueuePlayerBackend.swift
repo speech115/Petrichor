@@ -118,10 +118,13 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     var state: AudioPlayerState { mapState(player.timeControlStatus) }
 
+    /// Seconds played, matching `PlaybackEngine.currentPlaybackProgress`'s
+    /// contract ("Current playback progress in seconds") and the macOS backend.
+    /// The seek bar divides this by the track's duration, so reporting a
+    /// 0...1 fraction here pinned the slider at zero while music played.
     var currentPlaybackProgress: Double {
-        guard duration > 0 else { return 0 }
         let seconds = player.currentTime().seconds
-        return seconds.isFinite ? seconds / duration : 0
+        return seconds.isFinite ? seconds : 0
     }
 
     var duration: Double {
@@ -613,7 +616,7 @@ extension AVQueuePlayerBackend {
     func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
         NowPlayingPublisher.publish(
             metadata,
-            progress: currentPlaybackProgress,
+            elapsed: currentPlaybackProgress,
             duration: duration,
             rate: Double(player.rate)
         )

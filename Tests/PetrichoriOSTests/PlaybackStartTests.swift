@@ -23,6 +23,36 @@ struct PlaybackStartTests {
         #expect(await waitForPlaying(backend), "плеер не дошёл до состояния playing")
     }
 
+    /// The seek bar divides current time by the item's duration: if the
+    /// duration is not known yet (or reported as indefinite), the bar stays
+    /// pinned at zero while the track plays - the "music plays, slider frozen"
+    /// symptom. Duration must settle to the real value shortly after start,
+    /// and progress must advance.
+    @Test func progressAdvancesOnceDurationIsKnown() async throws {
+        let url = try makeSilentWAV(seconds: 2)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let backend = AVQueuePlayerBackend()
+        backend.setQueue(
+            [QueueEntry(entryId: AudioEntryId(id: "silent"), url: url)],
+            startingAt: 0,
+            startPaused: false
+        )
+        #expect(await waitForPlaying(backend))
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline, backend.duration == 0 {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        #expect(backend.duration > 0, "длительность так и не стала известна — слайдер застынет на нуле")
+
+        let first = backend.currentPlaybackProgress
+        try await Task.sleep(for: .milliseconds(700))
+        let second = backend.currentPlaybackProgress
+        #expect(second > first, "прогресс не растёт во время воспроизведения")
+    }
+
     @Test func resumeAfterAPausedStartAlsoReachesThePlayingState() async throws {
         let url = try makeSilentWAV()
         defer { try? FileManager.default.removeItem(at: url) }
