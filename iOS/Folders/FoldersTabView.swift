@@ -24,7 +24,7 @@ struct FoldersTabView: View {
         NavigationStack {
             content
                 .navigationTitle(String(localized: "Folders"))
-                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.large)
                 .navigationDestination(for: FolderNode.self) { node in
                     FolderDetailView(node: node)
                 }

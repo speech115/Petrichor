@@ -73,7 +73,7 @@ struct SearchView: View {
                 .searchToolbarBehavior(.minimize)
                 .autocorrectionDisabled()
                 .navigationTitle(String(localized: "Search"))
-                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitleDisplayMode(.large)
                 .navigationDestination(for: LibraryDestination.self) { destination in
                     switch destination {
                     case .artist(let name):

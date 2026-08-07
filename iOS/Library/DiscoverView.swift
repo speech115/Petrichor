@@ -24,7 +24,7 @@ struct DiscoverView: View {
             )
         }
         .navigationTitle(String(localized: "Discover"))
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .onAppear {
             if libraryManager.discoverTracks.isEmpty {
                 libraryManager.loadDiscoverTracks()

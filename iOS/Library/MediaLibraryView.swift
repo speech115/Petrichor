@@ -60,7 +60,7 @@ struct MediaLibraryView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(String(localized: "Media"))
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .overlay {
             if !libraryManager.shouldShowMainUI {
                 ContentUnavailableView(

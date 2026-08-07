@@ -30,7 +30,7 @@ struct TrackListView: View {
             )
         }
         .navigationTitle(navigationTitle)
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .task(id: filterItem) {
             await load()
         }
