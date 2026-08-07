@@ -374,6 +374,16 @@ extension DatabaseManager {
     /// - Returns: true when the file set or any mtime differs from the database,
     ///   i.e. a full scan is required.
     func libraryContentsDiffer(from root: URL) async -> Bool {
+        // This runs on every launch and every return to the foreground; the
+        // full-tree walk below is the suspect cost. Log how long the check
+        // takes so a real device number (not a first-scan conflation) drives
+        // any later throttling or cheaper pre-check.
+        let checkStart = Date()
+        defer {
+            let elapsedMs = Date().timeIntervalSince(checkStart) * 1000
+            Logger.info(String(format: "libraryContentsDiffer took %.0f ms", elapsedMs))
+        }
+
         let supportedExtensions = Set(AudioFormat.supportedExtensions.map { $0.lowercased() })
         let tolerance: TimeInterval = 1.0
 
