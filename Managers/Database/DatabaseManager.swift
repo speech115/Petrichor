@@ -20,47 +20,26 @@ class DatabaseManager: ObservableObject {
     // scanning" stall). The property keeps the `dbQueue` name because it is
     // referenced across dozens of `DM*` extension files.
     let dbQueue: DatabasePool
-    private let dbPath: String
     private var lastStatusUpdateTime: Date = .distantPast
     private let statusUpdateInterval: TimeInterval = 0.5
 
     // MARK: - Initialization
 
-    init() throws {
-        // Create database in app support directory
-        let appSupport = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        // Use bundle identifier as the folder name
-        let bundleID = Bundle.main.bundleIdentifier ?? About.bundleIdentifier
-        let appDirectory = appSupport.appendingPathComponent(bundleID, isDirectory: true)
-
-        // Create directory if it doesn't exist
-        try FileManager.default.createDirectory(at: appDirectory,
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
-
-        let dbFilename = bundleID.hasSuffix(".debug") ? "petrichor-debug.db" : "petrichor.db"
-        dbPath = appDirectory.appendingPathComponent(dbFilename).path
-
-        // Configure database before creating the queue
-        var config = Configuration()
-        config.prepareDatabase { db in
-            // DatabasePool manages WAL itself; NORMAL sync and a busy timeout
-            // are the recommended per-connection settings under WAL.
-            try db.execute(sql: "PRAGMA synchronous = NORMAL")
-            try db.execute(sql: "PRAGMA busy_timeout = 5000")
-        }
-
+    /// Core init: принимает готовый пул. Тесты передают in-memory
+    /// `DatabasePool()`; прод-пул собирает `DatabaseFactory` (путь к файлу
+    /// и PRAGMA-конфиг живут там, у вызывающей стороны).
+    init(pool: DatabasePool) throws {
         // A pool (concurrent readers + one writer under WAL) rather than a
         // serial queue, so UI reads are not blocked behind scan writes.
-        dbQueue = try DatabasePool(path: dbPath, configuration: config)
+        dbQueue = pool
 
         // Use migration system for both new and existing databases
         try DatabaseMigrator.migrate(dbQueue)
+    }
+
+    /// Прод-пул: файловая база под Application Support.
+    convenience init() throws {
+        try self.init(pool: DatabaseFactory.makeApplicationSupportPool())
     }
 
     // MARK: - Database Maintenance
@@ -126,18 +105,6 @@ class DatabaseManager: ObservableObject {
         }
 
         Logger.info("Database reset completed")
-    }
-    
-    /// Get database file size in bytes
-    func getDatabaseSize() -> Int64? {
-        let fileManager = FileManager.default
-        do {
-            let attributes = try fileManager.attributesOfItem(atPath: dbPath)
-            return attributes[.size] as? Int64
-        } catch {
-            Logger.error("Failed to get database size: \(error)")
-            return nil
-        }
     }
     
     /// Vacuum the database to reclaim space

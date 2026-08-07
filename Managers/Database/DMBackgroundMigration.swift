@@ -201,7 +201,7 @@ extension DatabaseManager {
     private func convertArtworkToHEIC(progress: String?) async {
         NotificationManager.shared.startActivity(String(localized: "Optimizing Library..."))
 
-        let sizeBefore = getDatabaseSize() ?? 0
+        let sizeBefore = DatabaseFactory.databaseFileSize() ?? 0
         let batchSize = 50
         let tables = Self.artworkTableOps
 
@@ -272,7 +272,7 @@ extension DatabaseManager {
             try await vacuumDatabase()
             completeBackgroundMigration(Self.artworkMigrationIdentifier)
 
-            let sizeAfter = getDatabaseSize() ?? 0
+            let sizeAfter = DatabaseFactory.databaseFileSize() ?? 0
             let spaceSaved = max(0, sizeBefore - sizeAfter)
 
             NotificationManager.shared.stopActivity()

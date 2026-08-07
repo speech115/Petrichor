@@ -341,7 +341,7 @@ extension LibraryManager {
     }
 
     func optimizeDatabase(notifyUser: Bool = false) {
-        let sizeBefore = databaseManager.getDatabaseSize() ?? 0
+        let sizeBefore = DatabaseFactory.databaseFileSize() ?? 0
         var foldersToRemove: [Folder] = []
             
         for folder in folders where !fileManager.fileExists(atPath: folder.url.path) {
@@ -458,7 +458,7 @@ extension LibraryManager {
                 try await databaseManager.analyzeDatabase()
                 
                 // Get database size after optimization and calculate savings
-                let sizeAfter = databaseManager.getDatabaseSize() ?? 0
+                let sizeAfter = DatabaseFactory.databaseFileSize() ?? 0
                 let spaceSaved = max(0, sizeBefore - sizeAfter)
                 
                 Logger.info("Database \(context) completed")

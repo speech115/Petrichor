@@ -173,57 +173,68 @@ extension PlaylistManager {
             )
         }
         
-        let matchResult = await matchTracksToLibrary(
-            trackPaths: trackPaths,
-            sourceDirectory: sourceDirectory
+        guard let dbManager = libraryManager?.databaseManager else {
+            Logger.error("Import failed - '\(playlistName)': no database manager")
+            return PlaylistImportResult(
+                playlistName: playlistName,
+                totalTracksInFile: trackPaths.count,
+                tracksAdded: 0,
+                tracksMissing: trackPaths,
+                error: nil
+            )
+        }
+
+        let resolved = await M3UTrackResolver.resolveTracks(
+            for: trackPaths,
+            sourceDirectory: sourceDirectory,
+            using: dbManager.m3uQuery()
         )
-        
-        guard !matchResult.matchedTracks.isEmpty else {
+        let matchedTracks = trackPaths.compactMap { resolved[$0] ?? nil }
+        // `resolved` is keyed by every input path with an optional value, so
+        // the lookup is `Track??`: flatten before comparing, otherwise
+        // `.some(.none)` (path present, unresolved) is never equal to nil.
+        let unmatchedPaths = trackPaths.filter { (resolved[$0] ?? nil) == nil }
+
+        guard !matchedTracks.isEmpty else {
             Logger.error("Import failed - '\(playlistName)': 0/\(trackPaths.count) tracks found in library")
             return PlaylistImportResult(
                 playlistName: playlistName,
                 totalTracksInFile: trackPaths.count,
                 tracksAdded: 0,
-                tracksMissing: matchResult.unmatchedPaths,
+                tracksMissing: unmatchedPaths,
                 error: nil
             )
         }
-        
-        if !matchResult.unmatchedPaths.isEmpty {
-            let sample = matchResult.unmatchedPaths.prefix(3).joined(separator: ", ")
-            let more = matchResult.unmatchedPaths.count > 3 ? " (+\(matchResult.unmatchedPaths.count - 3) more)" : ""
+
+        if !unmatchedPaths.isEmpty {
+            let sample = unmatchedPaths.prefix(3).joined(separator: ", ")
+            let more = unmatchedPaths.count > 3 ? " (+\(unmatchedPaths.count - 3) more)" : ""
             let message = """
-                Partial import - '\(playlistName)': \(matchResult.matchedTracks.count)/\(trackPaths.count) \
+                Partial import - '\(playlistName)': \(matchedTracks.count)/\(trackPaths.count) \
                 tracks. Missing: \(sample)\(more)
                 """
             Logger.warning(message)
         }
-        
+
         let existingPlaylist = replacingExisting
             ? await findExistingRegularPlaylist(named: playlistName)
             : nil
         let finalPlaylistName = existingPlaylist?.name
             ?? generateUniquePlaylistName(baseName: playlistName, existingNames: usedNames)
 
-        // Populate album artwork on matched tracks before creating the playlist
-        // so that the collage artwork and gradient are available immediately
-        var mutableTracks = matchResult.matchedTracks
-        libraryManager?.databaseManager.populateAlbumArtworkForTracks(&mutableTracks)
-        let tracksWithArtwork = mutableTracks
-
         await MainActor.run {
             if let existing = existingPlaylist {
-                replaceImportedPlaylist(existing, with: tracksWithArtwork)
+                replaceImportedPlaylist(existing, with: matchedTracks)
             } else {
-                _ = createPlaylist(name: finalPlaylistName, tracks: tracksWithArtwork)
+                _ = createPlaylist(name: finalPlaylistName, tracks: matchedTracks)
             }
         }
         
         return PlaylistImportResult(
             playlistName: finalPlaylistName,
             totalTracksInFile: trackPaths.count,
-            tracksAdded: matchResult.matchedTracks.count,
-            tracksMissing: matchResult.unmatchedPaths,
+            tracksAdded: matchedTracks.count,
+            tracksMissing: unmatchedPaths,
             error: nil
         )
     }
@@ -235,115 +246,6 @@ extension PlaylistManager {
         content.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix(M3UFormat.commentPrefix) }
-    }
-    
-    private func matchTracksToLibrary(
-        trackPaths: [String],
-        sourceDirectory: URL? = nil
-    ) async -> (matchedTracks: [Track], unmatchedPaths: [String]) {
-        guard let dbManager = libraryManager?.databaseManager else {
-            return ([], trackPaths)
-        }
-        
-        var matchedTracks: [Track] = []
-        var unmatchedPaths: [String] = []
-        
-        for originalPath in trackPaths {
-            let pathVariations = generatePathVariations(originalPath, sourceDirectory: sourceDirectory)
-            
-            var matched = false
-            for path in pathVariations {
-                if let track = await dbManager.findTrackByPath(path) {
-                    matchedTracks.append(track)
-                    matched = true
-                    break
-                }
-            }
-            
-            if !matched {
-                unmatchedPaths.append(originalPath)
-            }
-        }
-        
-        if !unmatchedPaths.isEmpty {
-            let filenames = unmatchedPaths.map { ($0 as NSString).lastPathComponent }
-            let filenameMap = await dbManager.findTracksByFilenames(filenames)
-            
-            var stillUnmatched: [String] = []
-            for path in unmatchedPaths {
-                let filename = (path as NSString).lastPathComponent.lowercased()
-                if let track = filenameMap[filename] {
-                    matchedTracks.append(track)
-                } else {
-                    stillUnmatched.append(path)
-                }
-            }
-            unmatchedPaths = stillUnmatched
-        }
-
-        // Renamed-library fallback: the phone's files were renamed during
-        // transfer (numeric prefixes stripped, `,` → `;`), so even the exact
-        // filename misses. Match on the normalized key instead; ambiguous
-        // keys are refused by the query.
-        if !unmatchedPaths.isEmpty {
-            let filenames = unmatchedPaths.map { ($0 as NSString).lastPathComponent }
-            let normalizedMap = await dbManager.findTracksByNormalizedFilenames(filenames)
-
-            var stillUnmatched: [String] = []
-            for path in unmatchedPaths {
-                let filename = (path as NSString).lastPathComponent
-                if let track = normalizedMap[filename] {
-                    matchedTracks.append(track)
-                } else {
-                    stillUnmatched.append(path)
-                }
-            }
-            unmatchedPaths = stillUnmatched
-        }
-        
-        return (matchedTracks, unmatchedPaths)
-    }
-    
-    /// M3U seam: the candidate database paths for one M3U entry, in match
-    /// priority order. A relative entry like `../Spotify/x.mp3` resolves
-    /// against the M3U's own directory first (the rewritten
-    /// Documents-relative form); mac-style absolute paths are normalized as
-    /// fallbacks. The first variation is what `findTrackByPath` compares
-    /// against the Documents-relative stored path.
-    func generatePathVariations(_ path: String, sourceDirectory: URL? = nil) -> [String] {
-        var normalized = path
-        
-        for scheme in ["file://", "smb://", "afp://", "nfs://"] where normalized.lowercased().hasPrefix(scheme) {
-            normalized = String(normalized.dropFirst(scheme.count))
-            break
-        }
-        
-        // Handle Windows-style UNC paths (leading double-slash, e.g. server/share)
-        if normalized.hasPrefix("//") {
-            normalized = "/Volumes" + String(normalized.dropFirst(1))
-        }
-        
-        normalized = normalized.replacingOccurrences(of: "\\", with: "/")
-        
-        // URL decode
-        normalized = normalized.removingPercentEncoding ?? normalized
-        
-        var variations = [normalized]
-        
-        if normalized.hasPrefix("/Volumes/") {
-            variations.append(String(normalized.dropFirst(8)))
-        } else if normalized.hasPrefix("/") && !normalized.hasPrefix("/Users/") {
-            variations.append("/Volumes" + normalized)
-        } else if !normalized.hasPrefix("/"), let sourceDirectory {
-            var relativePath = normalized
-            while relativePath.hasPrefix("./") {
-                relativePath = String(relativePath.dropFirst(2))
-            }
-            let resolved = sourceDirectory.appendingPathComponent(relativePath).standardizedFileURL.path
-            variations.insert(resolved, at: 0)
-        }
-        
-        return variations
     }
     
     private func generateUniquePlaylistName(baseName: String, existingNames: Set<String>) -> String {

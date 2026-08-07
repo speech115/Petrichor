@@ -910,62 +910,47 @@ extension DatabaseManager {
         }
     }
 
-    /// Find a track by its file name
-    func findTracksByFilenames(_ filenames: [String]) async -> [String: Track] {
+    /// Narrow M3U seam primitive: all tracks whose filename is in the list
+    /// (case-insensitive), one batch read. No ambiguity policy — that lives in
+    /// `M3UTrackResolver`, which owns it for both of its filename stages.
+    func tracksByFilenames(_ filenames: [String]) async -> [Track] {
         do {
             return try await dbQueue.read { db in
                 let lowercasedFilenames = filenames.map { $0.lowercased() }
-                let tracks = try Track
+                return try Track
                     .filter(lowercasedFilenames.contains(Track.Columns.filename.lowercased))
                     .fetchAll(db)
-                var result: [String: Track] = [:]
-                var ambiguous: Set<String> = []
-                for track in tracks {
-                    let key = track.url.lastPathComponent.lowercased()
-                    if result[key] == nil {
-                        result[key] = track
-                    } else {
-                        ambiguous.insert(key)
-                    }
-                }
-                for key in ambiguous {
-                    result.removeValue(forKey: key)
-                }
-                return result
             }
         } catch {
             Logger.error("Failed to query tracks by filenames: \(error)")
-            return [:]
+            return []
         }
     }
 
-    /// M3U import fallback for renamed libraries: maps each requested filename
-    /// onto the track whose *normalized* filename matches it (numeric prefix
-    /// stripped, `;`/`,` unified, case-insensitive — see
-    /// `M3UFilenameNormalizer`), so an M3U written against the mac's original
-    /// names still lands on the phone's renamed files. Collided keys are
-    /// blocked by the matcher; the returned tracks are resolved by exact
-    /// filename so duplicate database rows are still refused.
-    func findTracksByNormalizedFilenames(_ filenames: [String]) async -> [String: Track] {
+    /// Narrow M3U seam primitive: every stored filename — the candidate pool
+    /// for the renamed-file fallback (`M3UTrackResolver` resolves names against
+    /// this list, then looks the winners up via `tracksByFilenames`).
+    func storedFilenames() async -> [String] {
         do {
-            let allFilenames = try await dbQueue.read { db in
+            return try await dbQueue.read { db in
                 try Track
                     .select(Track.Columns.filename)
                     .asRequest(of: String.self)
                     .fetchAll(db)
             }
-            let resolved = M3UFilenameMatcher.resolveAll(filenames, against: allFilenames)
-            guard !resolved.isEmpty else { return [:] }
-            let exact = await findTracksByFilenames(Array(resolved.values))
-            return resolved.reduce(into: [:]) { result, pair in
-                if let track = exact[pair.value.lowercased()] {
-                    result[pair.key] = track
-                }
-            }
         } catch {
-            Logger.error("Failed to query tracks by normalized filenames: \(error)")
-            return [:]
+            Logger.error("Failed to query stored filenames: \(error)")
+            return []
         }
+    }
+
+    /// The `M3UTrackResolver.Query` implementation backed by this database.
+    func m3uQuery() -> M3UTrackResolver.Query {
+        M3UTrackResolver.Query(
+            findTrackByPath: { path in await self.findTrackByPath(path) },
+            tracksByFilenames: { filenames in await self.tracksByFilenames(filenames) },
+            storedFilenames: { await self.storedFilenames() }
+        )
     }
 
     func getTrackCountsByFolderPath() -> [String: Int] {

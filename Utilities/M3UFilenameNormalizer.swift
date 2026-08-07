@@ -7,7 +7,9 @@
 // so the normalized key below is what actually lands a mac-written M3U on
 // the renamed database row. Normalization is a pure function of the name:
 // both sides (the M3U entry and every stored filename) go through it, and
-// the match is refused when two different files collapse onto one key.
+// the match is refused when two different files collapse onto one key —
+// that refusal lives in `M3UTrackResolver` (Core/), which owns the whole
+// ambiguity policy.
 //
 // The mac-side helper `scripts/sync-m3u.py` rewrites the same playlists by
 // file *size* (which the rename never changes) — keep the rename rules in
@@ -41,39 +43,5 @@ enum M3UFilenameNormalizer {
             .joined(separator: " ")
 
         return name.lowercased()
-    }
-}
-
-enum M3UFilenameMatcher {
-    /// Maps each requested filename onto the single candidate with the same
-    /// normalized key, or omits it when no candidate (or more than one)
-    /// matches. A key stays blocked after its first collision — with three
-    /// candidates on one key, removing the second would let the third look
-    /// unambiguous again. Building one key map for all candidates keeps the
-    /// pass linear in the library size instead of quadratic.
-    static func resolveAll(_ filenames: [String], against candidates: [String]) -> [String: String] {
-        var keyToName: [String: String] = [:]
-        var blockedKeys: Set<String> = []
-        for candidate in candidates {
-            let key = M3UFilenameNormalizer.normalize(candidate)
-            if blockedKeys.contains(key) {
-                continue
-            }
-            if keyToName[key] == nil {
-                keyToName[key] = candidate
-            } else {
-                keyToName.removeValue(forKey: key)
-                blockedKeys.insert(key)
-            }
-        }
-
-        var resolved: [String: String] = [:]
-        for filename in filenames {
-            let key = M3UFilenameNormalizer.normalize(filename)
-            if !blockedKeys.contains(key), let name = keyToName[key] {
-                resolved[filename] = name
-            }
-        }
-        return resolved
     }
 }
