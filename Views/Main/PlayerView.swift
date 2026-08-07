@@ -131,13 +131,12 @@ private struct PlayerProgressBar: View {
     }
 
     private var progressPercentage: Double {
-        guard let duration = playbackManager.currentTrack?.duration, duration > 0 else { return 0 }
-
-        if isDraggingProgress {
-            return min(1, max(0, tempProgressValue / duration))
-        } else {
-            return min(1, max(0, playbackProgressState.currentTime / duration))
-        }
+        SeekScrub.fillFraction(
+            currentTime: playbackProgressState.currentTime,
+            duration: playbackManager.currentTrack?.duration ?? 0,
+            scrubbing: isDraggingProgress,
+            scrubTime: tempProgressValue
+        )
     }
 
     private func progressDragGesture(in geometry: GeometryProxy) -> some Gesture {
@@ -146,15 +145,18 @@ private struct PlayerProgressBar: View {
                 if !isDraggingProgress {
                     isDraggingProgress = true
                 }
-                let percentage = max(0, min(1, value.location.x / geometry.size.width))
-                let duration = HelperUtils.sanitizedDuration(playbackManager.currentTrack?.duration ?? 0)
-                tempProgressValue = percentage * duration
+                tempProgressValue = SeekScrub.seekTime(
+                    position: Double(value.location.x),
+                    width: Double(geometry.size.width),
+                    duration: playbackManager.currentTrack?.duration ?? 0
+                )
             }
             .onEnded { value in
-                let percentage = max(0, min(1, value.location.x / geometry.size.width))
-                let duration = HelperUtils.sanitizedDuration(playbackManager.currentTrack?.duration ?? 0)
-                let newTime = percentage * duration
-                playbackManager.seekTo(time: newTime)
+                playbackManager.seekTo(time: SeekScrub.seekTime(
+                    position: Double(value.location.x),
+                    width: Double(geometry.size.width),
+                    duration: playbackManager.currentTrack?.duration ?? 0
+                ))
                 // Reset dragging state after seek completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     isDraggingProgress = false
@@ -163,10 +165,11 @@ private struct PlayerProgressBar: View {
     }
 
     private func handleProgressTap(at x: CGFloat, in width: CGFloat) {
-        let percentage = x / width
-        let duration = HelperUtils.sanitizedDuration(playbackManager.currentTrack?.duration ?? 0)
-        let newTime = percentage * duration
-        playbackManager.seekTo(time: newTime)
+        playbackManager.seekTo(time: SeekScrub.seekTime(
+            position: Double(x),
+            width: Double(width),
+            duration: playbackManager.currentTrack?.duration ?? 0
+        ))
     }
 }
 
