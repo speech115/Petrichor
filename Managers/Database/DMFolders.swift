@@ -371,8 +371,9 @@ extension DatabaseManager {
     /// Cheap change detection for reconciliation: enumerates audio file names and
     /// modification dates under `root` and compares them against the database
     /// without reading file contents, decoding metadata, or touching artwork.
-    /// - Returns: true when the file set or any mtime differs from the database,
-    ///   i.e. a full scan is required.
+    /// - Returns: true when a file is new or its mtime changed since the scan,
+    ///   i.e. a full scan is required. Files absent from disk are not a change:
+    ///   the database keeps their rows on purpose (see ADR-0001).
     func libraryContentsDiffer(from root: URL) async -> Bool {
         // This runs on every launch and every return to the foreground; the
         // full-tree walk below is the suspect cost. Log how long the check
@@ -422,11 +423,14 @@ extension DatabaseManager {
             }
         }
 
-        // Different file sets (added or removed files) always need a scan.
-        guard stored.count == onDisk.count else { return true }
-
-        for (path, storedDate) in stored {
-            guard let diskDate = onDisk[path],
+        // Any file on disk that the database does not know, or whose mtime
+        // changed since the scan, needs a scan. Tracks whose file is absent
+        // from disk are a steady state, not a change: the database keeps their
+        // rows on purpose (a missing file marks the track unavailable but
+        // never removes it, and a full scan does not drop such rows either),
+        // so they must not make this check fail on every launch.
+        for (path, diskDate) in onDisk {
+            guard let storedDate = stored[path],
                   abs(diskDate - storedDate) <= tolerance else {
                 return true
             }
