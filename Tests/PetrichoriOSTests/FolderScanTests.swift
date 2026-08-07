@@ -77,9 +77,12 @@ import Testing
     defer { try? FileManager.default.removeItem(at: root) }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
 
-    // Two tagged tracks sharing an album, plus an exact copy of the first in a
-    // subfolder — the duplicate-detection pass must mark the copy, and the
-    // grouping pass must land both tracks on one album row.
+    // Two tagged tracks sharing an album, plus an exact copy of the first in
+    // the same folder — the duplicate-detection pass must mark the copy, and
+    // the grouping pass must land both tracks on one album row. The copy
+    // shares the folder with the originals on purpose: album normalization
+    // merges rows per (folder, title), and a copy in a subfolder would keep
+    // its own album row in a bucket of one.
     let album = "Scanner Test Album"
     let first = try makeSilentMP3(artist: "Annabel", title: "Above Your Hand", album: album)
     let second = try makeSilentMP3(artist: "Jeune Ras", title: "Hidden Gem", album: album)
@@ -91,19 +94,15 @@ import Testing
     let secondInLibrary = root.appendingPathComponent("Jeune Ras - Hidden Gem.mp3")
     try FileManager.default.moveItem(at: first, to: firstInLibrary)
     try FileManager.default.moveItem(at: second, to: secondInLibrary)
-    let copyDir = root.appendingPathComponent("copy", isDirectory: true)
-    try FileManager.default.createDirectory(at: copyDir, withIntermediateDirectories: true)
-    try FileManager.default.copyItem(at: firstInLibrary, to: copyDir.appendingPathComponent("Annabel - Above Your Hand.mp3"))
+    let copyInLibrary = root.appendingPathComponent("Annabel - Above Your Hand (copy).mp3")
+    try FileManager.default.copyItem(at: firstInLibrary, to: copyInLibrary)
 
     // Deterministic metadata: the simulator's media service is shared and
     // flakes under parallel load, so the scan pipeline gets a fixed reader.
     MetadataEngine.readerOverride = TestMetadataReader.shared
     TestMetadataReader.shared.setOverride(for: firstInLibrary, artist: "Annabel", title: "Above Your Hand", album: album)
     TestMetadataReader.shared.setOverride(for: secondInLibrary, artist: "Jeune Ras", title: "Hidden Gem", album: album)
-    TestMetadataReader.shared.setOverride(
-        for: copyDir.appendingPathComponent("Annabel - Above Your Hand.mp3"),
-        artist: "Annabel", title: "Above Your Hand", album: album
-    )
+    TestMetadataReader.shared.setOverride(for: copyInLibrary, artist: "Annabel", title: "Above Your Hand", album: album)
 
     let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
@@ -113,6 +112,7 @@ import Testing
     #expect(tracks.count == 3)
     #expect(Set(tracks.map { $0.url.lastPathComponent }) == [
         "Annabel - Above Your Hand.mp3",
+        "Annabel - Above Your Hand (copy).mp3",
         "Jeune Ras - Hidden Gem.mp3"
     ])
 

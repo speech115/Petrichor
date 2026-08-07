@@ -106,8 +106,8 @@ struct SearchView: View {
                     ForEach(trackResults) { track in
                         TrackRow(
                             track: track,
-                            isCurrent: isCurrent(track),
-                            isPlaying: isCurrent(track) && playbackManager.isPlaying,
+                            isCurrent: playlistManager.isCurrent(track),
+                            isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
                             onPlay: { play(track) }
                         )
                     }
@@ -171,9 +171,9 @@ struct SearchView: View {
 
                 Spacer(minLength: 8)
 
-                Image(systemName: isCurrent(track) && playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
+                Image(systemName: playlistManager.isCurrent(track) && playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
                     .font(.system(size: 16))
-                    .foregroundColor(isCurrent(track) ? .accentColor : .secondary)
+                    .foregroundColor(playlistManager.isCurrent(track) ? .accentColor : .secondary)
             }
             .contentShape(Rectangle())
         }
@@ -236,16 +236,7 @@ struct SearchView: View {
         .contentShape(Rectangle())
     }
 
-    private func isCurrent(_ track: Track) -> Bool {
-        guard let currentTrack = playbackManager.currentTrack else { return false }
-        if let currentId = currentTrack.trackId, let trackId = track.trackId {
-            return currentId == trackId
-        }
-        return currentTrack.url.path == track.url.path
-    }
-
     private func play(_ track: Track) {
-        playlistManager.playTrack(track, fromTracks: trackResults)
-        playlistManager.currentQueueSource = .library
+        playlistManager.play(track, source: .library(context: trackResults))
     }
 }

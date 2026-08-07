@@ -31,7 +31,21 @@ struct PlaylistDetailScreen: View {
     var body: some View {
         Group {
             if let playlist {
-                trackList(playlist)
+                TrackListScreen(
+                    identity: AnyHashable(tracksTaskID(playlist)),
+                    load: { await loadTracks(playlist) },
+                    sectioner: { [IndexedSection(key: "", items: $0)] },
+                    usesPlainStyle: true,
+                    emptyTitle: DefaultPlaylists.noSongsText(for: playlist),
+                    emptyIcon: Icons.musicNoteList,
+                    header: { tracks in
+                        header(playlist, tracks: tracks)
+                            .frame(maxWidth: .infinity)
+                            .listRowInsets(EdgeInsets())
+                            .listRowSeparator(.hidden)
+                    },
+                    row: { track, _ in playlistTrackRow(track, playlist: playlist) }
+                )
             } else {
                 ContentUnavailableView(
                     String(localized: "Playlist Not Found"),
@@ -84,8 +98,7 @@ struct PlaylistDetailScreen: View {
                 ))
             }
         }
-        .task(id: tracksTaskID) {
-            await loadTracksIfNeeded()
+        .task(id: playlistID) {
             await refreshMissingFiles()
         }
     }
@@ -105,38 +118,17 @@ struct PlaylistDetailScreen: View {
 
     // MARK: - Track List
 
-    private func trackList(_ playlist: Playlist) -> some View {
-        List {
-            Section {
-                header(playlist)
-                    .frame(maxWidth: .infinity)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-            }
-
-            if !playlist.tracks.isEmpty {
-                ForEach(playlist.tracks) { track in
-                    if missingPaths.contains(track.url.path) {
-                        MissingTrackRow(track: track)
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    } else {
-                        TrackRow(
-                            track: track,
-                            isCurrent: isCurrent(track),
-                            isPlaying: isCurrent(track) && playbackManager.isPlaying,
-                            onPlay: { play(track, in: playlist) }
-                        )
-                    }
-                }
-            }
-        }
-        .listStyle(.plain)
-        .overlay {
-            if playlist.tracks.isEmpty {
-                ContentUnavailableView(
-                    DefaultPlaylists.noSongsText(for: playlist),
-                    systemImage: Icons.musicNoteList,
-                    description: Text(DefaultPlaylists.emptyStateText(for: playlist))
+    private func playlistTrackRow(_ track: Track, playlist: Playlist) -> some View {
+        Group {
+            if missingPaths.contains(track.url.path) {
+                MissingTrackRow(track: track)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            } else {
+                TrackRow(
+                    track: track,
+                    isCurrent: playlistManager.isCurrent(track),
+                    isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
+                    onPlay: { play(track, in: playlist) }
                 )
             }
         }
@@ -144,42 +136,34 @@ struct PlaylistDetailScreen: View {
 
     // MARK: - Header
 
-    private func header(_ playlist: Playlist) -> some View {
-        VStack(spacing: 12) {
-            ArtworkMosaic(covers: playlist.tracks.compactMap { $0.displayArtwork })
-                .frame(width: 240, height: 240)
-                .padding(.top, 16)
-
-            Text(String(localized: "\(playlist.trackCount) songs"))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            PlayShuffleRow(
-                onPlay: { playAll(playlist) },
-                onShuffle: { shuffleAll(playlist) },
-                playDisabled: playlist.tracks.isEmpty
-            )
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+    private func header(_ playlist: Playlist, tracks: [Track]) -> some View {
+        DetailHeader(
+            onPlay: { playAll(playlist, tracks: tracks) },
+            onShuffle: { shuffleAll(playlist, tracks: tracks) },
+            playDisabled: tracks.isEmpty,
+            subtitle: String(localized: "\(playlist.trackCount) songs"),
+            artwork: {
+                ArtworkMosaic(covers: tracks.compactMap { $0.displayArtwork })
+                    .frame(width: 240, height: 240)
+            }
+        )
     }
 
     // MARK: - Loading
 
-    private var tracksTaskID: String {
-        guard let playlist else { return "\(playlistID)-nil" }
-        return "\(playlistID)-\(playlist.tracks.count)-\(playlist.dateModified.timeIntervalSince1970)"
+    private func tracksTaskID(_ playlist: Playlist) -> String {
+        "\(playlistID)-\(playlist.tracks.count)-\(playlist.dateModified.timeIntervalSince1970)"
     }
 
-    private func loadTracksIfNeeded() async {
-        guard let playlist, playlist.tracks.isEmpty else { return }
-
-        if playlist.type == .smart {
-            await playlistManager.loadSmartPlaylistTracks(playlist)
-        } else {
-            playlistManager.loadPlaylistTracks(for: playlist.id)
+    private func loadTracks(_ playlist: Playlist) async -> [Track] {
+        if playlist.tracks.isEmpty {
+            if playlist.type == .smart {
+                await playlistManager.loadSmartPlaylistTracks(playlist)
+            } else {
+                playlistManager.loadPlaylistTracks(for: playlist.id)
+            }
         }
+        return playlistManager.playlists.first { $0.id == playlistID }?.tracks ?? []
     }
 
     /// Computes which track files are missing from disk. One cheap pass over
@@ -203,26 +187,17 @@ struct PlaylistDetailScreen: View {
 
     // MARK: - Playback
 
-    private func isCurrent(_ track: Track) -> Bool {
-        guard let currentTrack = playbackManager.currentTrack else { return false }
-        if let currentId = currentTrack.trackId, let trackId = track.trackId {
-            return currentId == trackId
-        }
-        return currentTrack.url.path == track.url.path
-    }
-
     private func play(_ track: Track, in playlist: Playlist) {
-        guard let index = playlist.tracks.firstIndex(of: track) else { return }
-        playlistManager.playTrackFromPlaylist(playlist, at: index)
+        playlistManager.play(track, source: .playlist(playlist))
     }
 
-    private func playAll(_ playlist: Playlist) {
-        guard let first = playlist.tracks.first else { return }
-        playlistManager.playTrackFromPlaylist(playlist, at: playlist.tracks.firstIndex(of: first) ?? 0)
+    private func playAll(_ playlist: Playlist, tracks: [Track]) {
+        guard let first = tracks.first else { return }
+        playlistManager.play(first, source: .playlist(playlist))
     }
 
-    private func shuffleAll(_ playlist: Playlist) {
-        playlistManager.playTrackShuffled(playlist.tracks)
+    private func shuffleAll(_ playlist: Playlist, tracks: [Track]) {
+        playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .playlist
     }
 }

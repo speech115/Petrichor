@@ -181,8 +181,7 @@ struct HomeTabView: View {
     // MARK: - Playback
 
     private func play(_ track: Track, in tracks: [Track]) {
-        playlistManager.playTrack(track, fromTracks: tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.play(track, source: .library(context: tracks))
     }
 
     // MARK: - Loading

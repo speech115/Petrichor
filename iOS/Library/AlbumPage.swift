@@ -15,79 +15,45 @@ struct AlbumPage: View {
 
     let album: AlbumEntity
 
-    @State private var tracks: [Track] = []
-    @State private var loadTask: Task<Void, Never>?
-
     var body: some View {
-        List {
-            Section {
-                header
+        TrackListScreen(
+            identity: AnyHashable(album.id),
+            load: { libraryManager.getTracksForAlbum(album) },
+            sectioner: Self.discSections,
+            header: { tracks in
+                header(tracks: tracks)
                     .frame(maxWidth: .infinity)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
-            }
-
-            ForEach(trackSections) { section in
-                Section {
-                    ForEach(section.tracks) { track in
-                        trackRow(track)
-                    }
-                } header: {
-                    if let title = section.title {
-                        Text(title)
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
+            },
+            row: { track, context in trackRow(track, context: context) }
+        )
         .navigationTitle(album.displayName)
         .navigationBarTitleDisplayMode(.large)
-        .task(id: album.id) {
-            await load()
+    }
+
+    /// Disc sections with "Disc N" headers, or one headerless section when the
+    /// album is a single disc.
+    private static func discSections(_ tracks: [Track]) -> [IndexedSection<Track>] {
+        let discs = Dictionary(grouping: tracks, by: { $0.discNumber ?? 1 })
+            .sorted { $0.key < $1.key }
+        if discs.count > 1 {
+            return discs.map { IndexedSection(key: String(localized: "Disc \($0.key)"), items: $0.value) }
         }
-        .onChange(of: libraryManager.tracks.count) { _, _ in
-            scheduleLoad()
-        }
-        .onDisappear {
-            loadTask?.cancel()
-        }
-        .overlay {
-            if tracks.isEmpty, libraryManager.shouldShowMainUI {
-                ContentUnavailableView(
-                    String(localized: "No Tracks"),
-                    systemImage: Icons.musicNote
-                )
-            }
-        }
+        return [IndexedSection(key: "", items: tracks)]
     }
 
     // MARK: - Header
 
-    private var header: some View {
-        VStack(spacing: 12) {
-            artwork
-                .frame(width: 240, height: 240)
-                .padding(.top, 16)
-
-            if let artistName = album.artistName, !artistName.isEmpty {
-                Text(artistName)
-                    .font(.headline)
-                    .lineLimit(1)
-            }
-
-            Text(subtitle)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            PlayShuffleRow(
-                onPlay: playAll,
-                onShuffle: shuffleAll,
-                playDisabled: tracks.isEmpty
-            )
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+    private func header(tracks: [Track]) -> some View {
+        DetailHeader(
+            onPlay: { playAll(tracks) },
+            onShuffle: { shuffleAll(tracks) },
+            playDisabled: tracks.isEmpty,
+            title: album.artistName,
+            subtitle: subtitle,
+            artwork: { artwork.frame(width: 240, height: 240) }
+        )
     }
 
     private var artwork: some View {
@@ -120,16 +86,16 @@ struct AlbumPage: View {
 
     // MARK: - Track Sections
 
-    private func trackRow(_ track: Track) -> some View {
+    private func trackRow(_ track: Track, context: [Track]) -> some View {
         HStack(spacing: 12) {
             trackNumber(track)
                 .frame(width: 28, alignment: .trailing)
 
             TrackRow(
                 track: track,
-                isCurrent: isCurrent(track),
-                isPlaying: isCurrent(track) && playbackManager.isPlaying,
-                onPlay: { play(track) }
+                isCurrent: playlistManager.isCurrent(track),
+                isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
+                onPlay: { play(track, in: context) }
             )
         }
     }
@@ -141,70 +107,19 @@ struct AlbumPage: View {
             .foregroundColor(.secondary)
     }
 
-    private var trackSections: [TrackSection] {
-        let discs = Dictionary(grouping: tracks, by: { $0.discNumber ?? 1 })
-            .map { TrackSection(disc: $0.key, tracks: $0.value) }
-            .sorted { ($0.disc ?? 1) < ($1.disc ?? 1) }
-        if discs.count > 1 {
-            return discs
-        }
-        return [TrackSection(disc: nil, tracks: tracks)]
+    // MARK: - Playback
+
+    private func play(_ track: Track, in context: [Track]) {
+        playlistManager.play(track, source: .library(context: context))
     }
 
-    // MARK: - Loading
-
-    private func isCurrent(_ track: Track) -> Bool {
-        guard let currentTrack = playbackManager.currentTrack else { return false }
-        if let currentId = currentTrack.trackId, let trackId = track.trackId {
-            return currentId == trackId
-        }
-        return currentTrack.url.path == track.url.path
-    }
-
-    private func play(_ track: Track) {
-        playlistManager.playTrack(track, fromTracks: tracks)
-        playlistManager.currentQueueSource = .library
-    }
-
-    private func playAll() {
+    private func playAll(_ tracks: [Track]) {
         guard let first = tracks.first else { return }
-        playlistManager.playTrack(first, fromTracks: tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.play(first, source: .library(context: tracks))
     }
 
-    private func shuffleAll() {
+    private func shuffleAll(_ tracks: [Track]) {
         playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .library
-    }
-
-    private func scheduleLoad() {
-        loadTask?.cancel()
-        loadTask = Task {
-            await load()
-        }
-    }
-
-    private func load() async {
-        let album = album
-        let libraryManager = libraryManager
-
-        let loaded = await Task.detached(priority: .userInitiated) {
-            // Row thumbnails; the header keeps the full artwork from `album`.
-            libraryManager.getTracksForAlbum(album)
-        }.value
-
-        guard !Task.isCancelled else { return }
-        tracks = loaded
-    }
-}
-
-private struct TrackSection: Identifiable {
-    let disc: Int?
-    let tracks: [Track]
-
-    var id: String { disc.map { "disc-\($0)" } ?? "tracks" }
-
-    var title: String? {
-        disc.map { String(localized: "Disc \($0)") }
     }
 }

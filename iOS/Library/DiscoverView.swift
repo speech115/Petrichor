@@ -18,8 +18,8 @@ struct DiscoverView: View {
         IndexedList(sections: sections) { track in
             TrackRow(
                 track: track,
-                isCurrent: isCurrent(track),
-                isPlaying: isCurrent(track) && playbackManager.isPlaying,
+                isCurrent: playlistManager.isCurrent(track),
+                isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
                 onPlay: { play(track) }
             )
         }
@@ -53,16 +53,7 @@ struct DiscoverView: View {
         }
     }
 
-    private func isCurrent(_ track: Track) -> Bool {
-        guard let currentTrack = playbackManager.currentTrack else { return false }
-        if let currentId = currentTrack.trackId, let trackId = track.trackId {
-            return currentId == trackId
-        }
-        return currentTrack.url.path == track.url.path
-    }
-
     private func play(_ track: Track) {
-        playlistManager.playTrack(track, fromTracks: libraryManager.discoverTracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.play(track, source: .library(context: libraryManager.discoverTracks))
     }
 }

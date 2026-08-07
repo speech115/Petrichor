@@ -47,8 +47,8 @@ struct ArtistPage: View {
                     ForEach(tracks) { track in
                         TrackRow(
                             track: track,
-                            isCurrent: isCurrent(track),
-                            isPlaying: isCurrent(track) && playbackManager.isPlaying,
+                            isCurrent: playlistManager.isCurrent(track),
+                            isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
                             onPlay: { play(track) }
                         )
                     }
@@ -80,27 +80,13 @@ struct ArtistPage: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 12) {
-            photo
-                .frame(width: 180, height: 180)
-                .padding(.top, 16)
-
-            if let bio, !bio.isEmpty {
-                Text(bio)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            PlayShuffleRow(
-                onPlay: playAll,
-                onShuffle: shuffleAll,
-                playDisabled: tracks.isEmpty
-            )
-            .padding(.top, 4)
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        DetailHeader(
+            onPlay: playAll,
+            onShuffle: shuffleAll,
+            playDisabled: tracks.isEmpty,
+            subtitle: bio,
+            artwork: { photo.frame(width: 180, height: 180) }
+        )
     }
 
     private var photo: some View {
@@ -169,23 +155,13 @@ struct ArtistPage: View {
 
     // MARK: - Loading
 
-    private func isCurrent(_ track: Track) -> Bool {
-        guard let currentTrack = playbackManager.currentTrack else { return false }
-        if let currentId = currentTrack.trackId, let trackId = track.trackId {
-            return currentId == trackId
-        }
-        return currentTrack.url.path == track.url.path
-    }
-
     private func play(_ track: Track) {
-        playlistManager.playTrack(track, fromTracks: tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.play(track, source: .library(context: tracks))
     }
 
     private func playAll() {
         guard let first = tracks.first else { return }
-        playlistManager.playTrack(first, fromTracks: tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.play(first, source: .library(context: tracks))
     }
 
     private func shuffleAll() {

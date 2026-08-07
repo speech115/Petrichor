@@ -11,6 +11,39 @@ import Foundation
 extension PlaylistManager {
     // MARK: - Playback Control
 
+    /// What a row tap starts: the screen phrases its playback need here,
+    /// one copy instead of the per-screen duplicate play code.
+    enum PlaySource {
+        /// A library-context list ("All Tracks", artist, album, search, home carousel).
+        case library(context: [Track])
+        /// A regular playlist row; the manager resolves the index itself.
+        case playlist(Playlist)
+        /// A folder's immediate track list.
+        case folder(context: [Track])
+    }
+
+    func play(_ track: Track, source: PlaySource) {
+        switch source {
+        case .library(let context):
+            currentQueueSource = .library
+            playTrack(track, fromTracks: context)
+        case .playlist(let playlist):
+            playTrackFromPlaylist(playlist, at: playlist.tracks.firstIndex(where: { $0.id == track.id }) ?? 0)
+        case .folder(let context):
+            playTrackFromFolder(track, folderTracks: context)
+        }
+    }
+
+    /// Is this row the currently playing track? One copy instead of the
+    /// per-screen duplicate: id match first, path match as fallback.
+    func isCurrent(_ track: Track) -> Bool {
+        guard let currentTrack = audioPlayer?.currentTrack else { return false }
+        if let currentId = currentTrack.trackId, let trackId = track.trackId {
+            return currentId == trackId
+        }
+        return currentTrack.url.path == track.url.path
+    }
+
     func playTrack(_ track: Track, fromTracks contextTracks: [Track]? = nil) {
         currentPlaylist = nil
         beginPlayback(of: track, in: contextTracks ?? [track])

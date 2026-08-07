@@ -16,20 +16,30 @@ struct FolderDetailView: View {
 
     @ObservedObject var node: FolderNode
 
-    @State private var tracks: [Track] = []
-    @State private var loadTask: Task<Void, Never>?
-
     var body: some View {
-        Group {
-            if node.children.isEmpty, tracks.isEmpty {
-                ContentUnavailableView(
-                    String(localized: "No Tracks"),
-                    systemImage: Icons.musicNote
+        TrackListScreen(
+            identity: AnyHashable(node.id),
+            load: { node.getImmediateTracks(using: libraryManager) },
+            sectioner: { [IndexedSection(key: String(localized: "Tracks"), items: $0)] },
+            headerTitle: String(localized: "Folders"),
+            showsHeader: !node.children.isEmpty,
+            showEmptyState: node.children.isEmpty,
+            header: { _ in
+                ForEach(node.children) { child in
+                    NavigationLink(value: child) {
+                        FolderRowView(node: child)
+                    }
+                }
+            },
+            row: { track, context in
+                TrackRow(
+                    track: track,
+                    isCurrent: playlistManager.isCurrent(track),
+                    isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
+                    onPlay: { play(track, in: context) }
                 )
-            } else {
-                folderList
             }
-        }
+        )
         .navigationTitle(node.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -39,76 +49,19 @@ struct FolderDetailView: View {
                 } label: {
                     Image(systemName: Icons.playFill)
                 }
-                .disabled(tracks.isEmpty)
+                .disabled(node.getImmediateTracks(using: libraryManager).isEmpty)
                 .accessibilityLabel(String(localized: "Play All"))
             }
         }
-        .task(id: node.id) {
-            await loadTracks()
-        }
-        .onDisappear {
-            loadTask?.cancel()
-        }
     }
 
-    private var folderList: some View {
-        List {
-            if !node.children.isEmpty {
-                Section(String(localized: "Folders")) {
-                    ForEach(node.children) { child in
-                        NavigationLink(value: child) {
-                            FolderRowView(node: child)
-                        }
-                    }
-                }
-            }
-            if !tracks.isEmpty {
-                Section(String(localized: "Tracks")) {
-                    ForEach(tracks) { track in
-                        TrackRow(
-                            track: track,
-                            isCurrent: isCurrent(track),
-                            isPlaying: isCurrent(track) && playbackManager.isPlaying,
-                            onPlay: { play(track) }
-                        )
-                    }
-                }
-            }
-        }
-        .listStyle(.insetGrouped)
-    }
-
-    private func isCurrent(_ track: Track) -> Bool {
-        guard let currentTrack = playbackManager.currentTrack else { return false }
-        if let currentId = currentTrack.trackId, let trackId = track.trackId {
-            return currentId == trackId
-        }
-        return currentTrack.url.path == track.url.path
-    }
-
-    private func play(_ track: Track) {
-        playlistManager.playTrackFromFolder(track, folderTracks: tracks)
+    private func play(_ track: Track, in context: [Track]) {
+        playlistManager.play(track, source: .folder(context: context))
     }
 
     private func playAll() {
+        let tracks = node.getImmediateTracks(using: libraryManager)
         guard let first = tracks.first else { return }
-        play(first)
-    }
-
-    private func loadTracks() async {
-        loadTask?.cancel()
-        loadTask = Task {
-            let node = node
-            let libraryManager = libraryManager
-
-            let loaded = await Task.detached(priority: .userInitiated) {
-                node.getImmediateTracks(using: libraryManager)
-            }.value
-
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                tracks = loaded
-            }
-        }
+        playlistManager.play(first, source: .folder(context: tracks))
     }
 }
