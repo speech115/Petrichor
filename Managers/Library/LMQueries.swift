@@ -58,4 +58,28 @@ extension LibraryManager {
             searchResults = LibrarySearch.searchTracks(tracks, with: globalSearchText)
         }
     }
+
+    /// Runs a search off the main thread and publishes the results.
+    ///
+    /// The query is not routed through `globalSearchText` so the didSet path
+    /// never double-runs the search. `@MainActor` keeps the published
+    /// assignment on the main thread — the method is non-isolated otherwise
+    /// and would resume off-main after the `await`. A stale result is
+    /// dropped: `.task(id:)` cancels the previous task when the query
+    /// changes, and the check after the `await` sees that cancellation.
+    @MainActor
+    func search(query: String) async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            searchResults = []
+            return
+        }
+
+        let results = await Task.detached(priority: .userInitiated) {
+            LibrarySearch.searchTracks([], with: trimmed)
+        }.value
+
+        guard !Task.isCancelled else { return }
+        searchResults = results
+    }
 }

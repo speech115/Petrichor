@@ -9,7 +9,8 @@
 //
 // Tracks come from the FTS5-backed `LibraryManager.searchResults`; artists
 // and albums are filtered in memory from the cached entity lists, which are
-// small next to 2829 tracks.
+// small next to 2829 tracks. The query is local state: each keystroke runs
+// the FTS search off the main thread, so typing never blocks the main actor.
 //
 
 import SwiftUI
@@ -20,14 +21,16 @@ struct SearchView: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
-    private var query: String {
-        libraryManager.globalSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    @State private var query = ""
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// FTS5 requires at least two characters (LibrarySearch); artists and
     /// albums apply the same threshold so all sections agree.
     private var isSearching: Bool {
-        query.count >= 2
+        trimmedQuery.count >= 2
     }
 
     private var trackResults: [Track] {
@@ -66,7 +69,7 @@ struct SearchView: View {
         NavigationStack {
             resultsList
                 .searchable(
-                    text: $libraryManager.globalSearchText,
+                    text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Search Library")
                 )
@@ -83,6 +86,9 @@ struct SearchView: View {
                     case .category, .tracks, .allTracks, .discover:
                         EmptyView()
                     }
+                }
+                .task(id: query) {
+                    await libraryManager.search(query: query)
                 }
         }
     }
@@ -134,14 +140,14 @@ struct SearchView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if libraryManager.globalSearchText.isEmpty {
+        if query.isEmpty {
             ContentUnavailableView(
                 String(localized: "Search Library"),
                 systemImage: Icons.magnifyingGlass,
                 description: Text(String(localized: "Find tracks, artists and albums"))
             )
         } else {
-            ContentUnavailableView.search(text: libraryManager.globalSearchText)
+            ContentUnavailableView.search(text: query)
         }
     }
 
