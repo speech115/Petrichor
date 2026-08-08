@@ -24,6 +24,7 @@ struct TrackListView: View {
                 key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
             ) },
             isIndexed: true,
+            showsHeader: false,
             header: { _ in EmptyView() },
             row: { track, context in
                 TrackRow(

@@ -189,11 +189,12 @@ extension PlaylistManager {
             sourceDirectory: sourceDirectory,
             using: dbManager.m3uQuery()
         )
-        let matchedTracks = trackPaths.compactMap { resolved[$0] ?? nil }
-        // `resolved` is keyed by every input path with an optional value, so
-        // the lookup is `Track??`: flatten before comparing, otherwise
-        // `.some(.none)` (path present, unresolved) is never equal to nil.
-        let unmatchedPaths = trackPaths.filter { (resolved[$0] ?? nil) == nil }
+        // One result per entry, in M3U order: matched tracks and the entries
+        // that stayed unmatched (missing file, refused ambiguity).
+        let matchedTracks = resolved.compactMap { $0 }
+        let unmatchedPaths = zip(trackPaths, resolved).compactMap { path, track in
+            track == nil ? path : nil
+        }
 
         guard !matchedTracks.isEmpty else {
             Logger.error("Import failed - '\(playlistName)': 0/\(trackPaths.count) tracks found in library")

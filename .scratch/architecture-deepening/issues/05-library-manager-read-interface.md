@@ -35,7 +35,7 @@ ArtistBioManager) сохраняют прямой доступ к базе — �
 
 **Status:** ready-for-agent
 
-- [x] Ни одна вьюха не обращается к `databaseManager` (0 вызовов из iOS/ и Views/)
+- [x] Ни одна вьюха не обращается к `databaseManager`; прямые вызовы остались только в менеджер-слое (LibraryReconciliation — extension LibraryManager)
 - [x] Вьюхи не мутируют состояние менеджеров как обходной путь (PlaylistDetailScreen)
 - [x] TrackRow не имеет пути в БД и не держит NSCache
 - [x] Поиск наполняет миниатюры при фильтрации

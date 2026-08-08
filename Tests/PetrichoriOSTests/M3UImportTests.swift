@@ -170,7 +170,7 @@ import Testing
 
     // Matches come back in M3U order: exact path first, then the renamed file
     // through the normalized-name stage.
-    let matched = entries.compactMap { resolved[$0] ?? nil }
+    let matched = resolved.compactMap { $0 }
     #expect(matched.count == 3)
     #expect(matched.map { $0.url.lastPathComponent } == [
         "0019 - Rik Schaffer - Ruff Ryder.mp3",
@@ -179,10 +179,7 @@ import Testing
     ])
 
     // The collided key is refused rather than guessed, and the missing file
-    // stays unmatched. `resolved` is keyed by entry string with an optional
-    // value, so the lookup is `Track??`: flatten with `?? nil` before
-    // comparing, otherwise `.some(.none)` (present, unresolved) is mistaken
-    // for `.none` (absent key).
-    #expect((resolved[entries[3]] ?? nil) == nil)
-    #expect((resolved[entries[4]] ?? nil) == nil)
+    // stays unmatched. `resolved` is one element per entry, in entry order.
+    #expect(resolved[3] == nil)
+    #expect(resolved[4] == nil)
 }

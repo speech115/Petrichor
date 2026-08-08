@@ -16,6 +16,8 @@ struct FolderDetailView: View {
 
     @ObservedObject var node: FolderNode
 
+    @State private var hasTracks = false
+
     var body: some View {
         TrackListScreen(
             identity: AnyHashable(node.id),
@@ -24,6 +26,7 @@ struct FolderDetailView: View {
             headerTitle: String(localized: "Folders"),
             showsHeader: !node.children.isEmpty,
             showEmptyState: node.children.isEmpty,
+            onRowsChange: { hasTracks = !$0.isEmpty },
             header: { _ in
                 ForEach(node.children) { child in
                     NavigationLink(value: child) {
@@ -49,7 +52,7 @@ struct FolderDetailView: View {
                 } label: {
                     Image(systemName: Icons.playFill)
                 }
-                .disabled(node.getImmediateTracks(using: libraryManager).isEmpty)
+                .disabled(!hasTracks)
                 .accessibilityLabel(String(localized: "Play All"))
             }
         }

@@ -28,7 +28,8 @@ extension PlaylistManager {
             currentQueueSource = .library
             playTrack(track, fromTracks: context)
         case .playlist(let playlist):
-            playTrackFromPlaylist(playlist, at: playlist.tracks.firstIndex(where: { $0.id == track.id }) ?? 0)
+            guard let index = playlist.tracks.firstIndex(where: { $0.id == track.id }) else { return }
+            playTrackFromPlaylist(playlist, at: index)
         case .folder(let context):
             playTrackFromFolder(track, folderTracks: context)
         }

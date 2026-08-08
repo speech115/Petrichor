@@ -15,24 +15,7 @@ enum DatabaseFactory {
     /// папка с именем бандла, `.debug`-суффикс в имени файла для debug-сборок,
     /// PRAGMA-настройки на соединение.
     static func makeApplicationSupportPool() throws -> DatabasePool {
-        // Create database in app support directory
-        let appSupport = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        // Use bundle identifier as the folder name
-        let bundleID = Bundle.main.bundleIdentifier ?? About.bundleIdentifier
-        let appDirectory = appSupport.appendingPathComponent(bundleID, isDirectory: true)
-
-        // Create directory if it doesn't exist
-        try FileManager.default.createDirectory(at: appDirectory,
-                                                withIntermediateDirectories: true,
-                                                attributes: nil)
-
-        let dbFilename = bundleID.hasSuffix(".debug") ? "petrichor-debug.db" : "petrichor.db"
-        let dbPath = appDirectory.appendingPathComponent(dbFilename).path
+        let dbPath = try databaseURL(createDirectory: true).path
 
         // Configure database before creating the queue
         var config = Configuration()
@@ -51,22 +34,34 @@ enum DatabaseFactory {
     /// размер можно только у файловой базы, собранной этим фабричным путём.
     static func databaseFileSize() -> Int64? {
         do {
-            let appSupport = try FileManager.default.url(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: false
-            )
-            let bundleID = Bundle.main.bundleIdentifier ?? About.bundleIdentifier
-            let dbFilename = bundleID.hasSuffix(".debug") ? "petrichor-debug.db" : "petrichor.db"
-            let dbPath = appSupport
-                .appendingPathComponent(bundleID, isDirectory: true)
-                .appendingPathComponent(dbFilename).path
-            let attributes = try FileManager.default.attributesOfItem(atPath: dbPath)
+            let attributes = try FileManager.default.attributesOfItem(atPath: databaseURL(createDirectory: false).path)
             return attributes[.size] as? Int64
         } catch {
             Logger.error("Failed to get database size: \(error)")
             return nil
         }
+    }
+
+    /// Файл прод-базы: `Application Support/<bundle-id>/petrichor[-debug].db`.
+    /// Папка создаётся только по запросу — запрос размера файла не должен
+    /// материализовывать каталог.
+    private static func databaseURL(createDirectory: Bool) throws -> URL {
+        let appSupport = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: createDirectory
+        )
+        let bundleID = Bundle.main.bundleIdentifier ?? About.bundleIdentifier
+        let appDirectory = appSupport.appendingPathComponent(bundleID, isDirectory: true)
+
+        if createDirectory {
+            try FileManager.default.createDirectory(at: appDirectory,
+                                                    withIntermediateDirectories: true,
+                                                    attributes: nil)
+        }
+
+        let dbFilename = bundleID.hasSuffix(".debug") ? "petrichor-debug.db" : "petrichor.db"
+        return appDirectory.appendingPathComponent(dbFilename)
     }
 }

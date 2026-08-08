@@ -32,6 +32,10 @@ struct TrackListScreen<Header: View, Row: View>: View {
     var showEmptyState = true
     var emptyTitle: String = String(localized: "No Tracks")
     var emptyIcon: String = Icons.musicNote
+    /// Called with the loaded rows after every (re)load, so hosts can derive
+    /// state from rows without re-querying (e.g. a toolbar action's
+    /// disabled flag).
+    var onRowsChange: (([Track]) -> Void)? = nil
 
     @ViewBuilder var header: ([Track]) -> Header?
     @ViewBuilder var row: (Track, [Track]) -> Row
@@ -80,7 +84,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
 
     private var listBody: some View {
         List {
-            if Header.self != EmptyView.self, showsHeader {
+            if showsHeader {
                 Section {
                     header(tracks)
                 } header: {
@@ -119,5 +123,6 @@ struct TrackListScreen<Header: View, Row: View>: View {
         guard !Task.isCancelled else { return }
         tracks = loaded
         sections = sectioner(loaded)
+        onRowsChange?(loaded)
     }
 }

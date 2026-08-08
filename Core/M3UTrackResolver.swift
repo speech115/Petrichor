@@ -75,20 +75,21 @@ enum M3UTrackResolver {
         return variations
     }
 
-    /// Матчит записи M3U против библиотеки. Ключ результата — исходная строка
-    /// записи, значение — найденный трек или nil (не найдено/отказано из-за
-    /// неоднозначности). Порядок записей сохраняется за вызывающей стороной:
-    /// она итерирует свой входной массив.
+    /// Матчит записи M3U против библиотеки. Результат — один элемент на
+    /// входную запись, в том же порядке: трек или nil (не найдено/отказано
+    /// из-за неоднозначности). Вызывающая сторона знает, какая запись чему
+    /// соответствует, по индексу — никакой словарной двойной опциональности.
     static func resolveTracks(
         for paths: [String],
         sourceDirectory: URL? = nil,
         using query: Query
-    ) async -> [String: Track?] {
-        var resolved: [String: Track?] = [:]
-        var unmatched: [String] = []
+    ) async -> [Track?] {
+        var resolved: [Track?] = []
+        resolved.reserveCapacity(paths.count)
+        var unmatched: [(index: Int, path: String)] = []
 
         // Стадия 1: прямой матч по пути (вариации записи → путь в базе).
-        for path in paths {
+        for (index, path) in paths.enumerated() {
             var matched: Track?
             for variation in pathVariations(for: path, sourceDirectory: sourceDirectory) {
                 if let track = await query.findTrackByPath(variation) {
@@ -96,24 +97,24 @@ enum M3UTrackResolver {
                     break
                 }
             }
-            resolved[path] = matched
+            resolved.append(matched)
             if matched == nil {
-                unmatched.append(path)
+                unmatched.append((index, path))
             }
         }
 
         // Стадия 2: точное имя файла, батчем.
         if !unmatched.isEmpty {
-            let filenames = unmatched.map { ($0 as NSString).lastPathComponent }
+            let filenames = unmatched.map { ($0.path as NSString).lastPathComponent }
             let byName = await tracksByExactFilenames(filenames, using: query)
 
-            var stillUnmatched: [String] = []
-            for path in unmatched {
-                let filename = (path as NSString).lastPathComponent.lowercased()
+            var stillUnmatched: [(index: Int, path: String)] = []
+            for entry in unmatched {
+                let filename = (entry.path as NSString).lastPathComponent.lowercased()
                 if let track = byName[filename] {
-                    resolved[path] = track
+                    resolved[entry.index] = track
                 } else {
-                    stillUnmatched.append(path)
+                    stillUnmatched.append(entry)
                 }
             }
             unmatched = stillUnmatched
@@ -124,17 +125,17 @@ enum M3UTrackResolver {
         // нормализованный ключ; ключи, на которые схлопнулось несколько
         // кандидатов, блокируются и не резолвятся.
         if !unmatched.isEmpty {
-            let filenames = unmatched.map { ($0 as NSString).lastPathComponent }
+            let filenames = unmatched.map { ($0.path as NSString).lastPathComponent }
             let candidates = await query.storedFilenames()
             let keyMap = resolveByNormalizedKeys(filenames, against: candidates)
 
             if !keyMap.isEmpty {
                 let byName = await tracksByExactFilenames(Array(keyMap.values), using: query)
-                for path in unmatched {
-                    let filename = (path as NSString).lastPathComponent
+                for entry in unmatched {
+                    let filename = (entry.path as NSString).lastPathComponent
                     if let candidate = keyMap[filename],
                        let track = byName[candidate.lowercased()] {
-                        resolved[path] = track
+                        resolved[entry.index] = track
                     }
                 }
             }
