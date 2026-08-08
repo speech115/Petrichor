@@ -134,3 +134,6 @@ opencode.json
 .codex/
 .cursor/
 .xcodebuildmcp/
+
+# Git worktrees
+.worktrees/
