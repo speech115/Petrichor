@@ -63,7 +63,7 @@ class AppCoordinator: ObservableObject {
         // bring newly-copied tracks into view - this call must not block
         // startup on that. Reconciliation skips the full scan entirely when
         // the library already exists and the file set has not changed.
-        Task { [libraryManager] in
+        Task(priority: .utility) { [libraryManager] in
             do {
                 try await libraryManager.reconcileLibrary()
             } catch {

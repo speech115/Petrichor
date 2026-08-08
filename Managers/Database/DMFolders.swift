@@ -5,6 +5,7 @@
 // and create corresponding records in `folders` table in the db, and scanning folders for tracks.
 //
 
+import Darwin
 import Foundation
 import GRDB
 
@@ -390,7 +391,12 @@ extension DatabaseManager {
                 result.reserveCapacity(rows.count)
                 for row in rows {
                     let path: String = row["path"]
-                    let modDate = row["date_modified"] as? Date
+                    // GRDB stores dates as SQL text. A conditional cast asks Row
+                    // for an untyped value and fails for every text date, turning
+                    // all stored mtimes into zero and forcing a full scan on every
+                    // foreground transition. A typed subscript performs GRDB's
+                    // actual Date decoding.
+                    let modDate: Date? = row["date_modified"]
                     result[path] = modDate?.timeIntervalSince1970 ?? 0
                 }
                 return result
@@ -400,32 +406,61 @@ extension DatabaseManager {
             return true
         }
 
-        // What the filesystem has right now.
-        var onDisk: [String: TimeInterval] = [:]
+        // What the filesystem has right now. The enumerator builds every URL
+        // from this exact root, so strip that prefix directly. Calling
+        // LibraryPathStore.storedPath(for:) here would resolve symlinks for the
+        // container root and every file separately — thousands of redundant
+        // filesystem lookups on each foreground transition.
+        let rootPath = root.standardizedFileURL.path
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
         if let enumerator = FileManager.default.enumerator(
             at: root,
-            includingPropertiesForKeys: [.contentModificationDateKey],
+            includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) {
             while let fileURL = enumerator.nextObject() as? URL {
                 let ext = fileURL.pathExtension.lowercased()
                 guard supportedExtensions.contains(ext) else { continue }
-                let modDate = (try? fileURL.resourceValues(forKeys: [.contentModificationDateKey]))?
-                    .contentModificationDate ?? Date.distantPast
-                onDisk[LibraryPathStore.storedPath(for: fileURL)] = modDate.timeIntervalSince1970
-            }
-        }
+                var fileInfo = stat()
+                let status: Int32 = fileURL.withUnsafeFileSystemRepresentation { filePath in
+                    guard let filePath else { return Int32(-1) }
+                    return Darwin.lstat(filePath, &fileInfo)
+                }
+                guard status == 0 else {
+                    Logger.error("Failed to read modification date: \(fileURL.path)")
+                    return true
+                }
+                let filePath = fileURL.standardizedFileURL.path
+                let path = filePath.hasPrefix(rootPrefix)
+                    ? String(filePath.dropFirst(rootPrefix.count))
+                    : LibraryPathStore.storedPath(for: fileURL)
+                let diskDate = TimeInterval(fileInfo.st_mtimespec.tv_sec)
+                    + TimeInterval(fileInfo.st_mtimespec.tv_nsec) / 1_000_000_000
 
-        // Any file on disk that the database does not know, or whose mtime
-        // changed since the scan, needs a scan. Tracks whose file is absent
-        // from disk are a steady state, not a change: the database keeps their
-        // rows on purpose (ADR-0001) and a full scan does not drop such rows
-        // either, so they must not make this check fail on every launch.
-        for (path, diskDate) in onDisk {
-            guard let storedDate = stored[path],
-                  abs(diskDate - storedDate) <= tolerance else {
-                return true
+                // Any file on disk that the database does not know, or whose
+                // mtime changed since the scan, needs a scan. Tracks absent from
+                // disk remain a steady state by design (ADR-0001).
+                guard let storedDate = stored[path] else {
+                    Logger.info("Library differs: new file \(path)")
+                    return true
+                }
+                let difference = abs(diskDate - storedDate)
+                guard difference <= tolerance else {
+                    Logger.info(
+                        String(
+                            format: "Library differs: mtime %@ disk=%.3f stored=%.3f delta=%.3f",
+                            path,
+                            diskDate,
+                            storedDate,
+                            difference
+                        )
+                    )
+                    return true
+                }
             }
+        } else {
+            Logger.error("Failed to enumerate library root: \(root.path)")
+            return true
         }
 
         return false

@@ -33,6 +33,7 @@ struct NowPlayingScreen: View {
     private var reduceMotion
 
     @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
+    @State private var paletteTask: Task<Void, Never>?
     @State private var dragOffset: CGFloat = 0
     @State private var showingQueue = false
     @State private var showingLyrics = false
@@ -84,12 +85,13 @@ struct NowPlayingScreen: View {
         // the system controls inside it (volume slider, AirPlay picker, menus)
         // have to be told which scheme they are being drawn on.
         .preferredColorScheme(.dark)
-        .animation(.spring(response: 0.32, dampingFraction: 0.92), value: dragOffset)
         .onAppear {
+            dragOffset = 0
             playbackManager.setFineProgressSampling(true)
             updatePalette()
         }
         .onDisappear {
+            paletteTask?.cancel()
             playbackManager.setFineProgressSampling(false)
         }
         .onChange(of: track?.id) { _, _ in
@@ -112,7 +114,20 @@ struct NowPlayingScreen: View {
     }
 
     private func updatePalette() {
-        palette = PlayerPalette.make(for: track, useArtworkColors: useArtworkColors)
+        paletteTask?.cancel()
+        let sourceTrack = track
+        let sourceTrackID = sourceTrack?.id
+        let shouldUseArtwork = useArtworkColors
+
+        paletteTask = Task { @MainActor in
+            let resolved = await Task.detached(priority: .userInitiated) {
+                PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
+            }.value
+            guard !Task.isCancelled,
+                  track?.id == sourceTrackID,
+                  useArtworkColors == shouldUseArtwork else { return }
+            palette = resolved
+        }
     }
 
     // MARK: - Content
@@ -310,11 +325,15 @@ struct NowPlayingScreen: View {
                 dragOffset = max(0, value.translation.height)
             }
             .onEnded { value in
-                if !panelUp,
-                   value.translation.height > 90 || value.predictedEndTranslation.height > 200 {
+                if !panelUp && (
+                    value.translation.height > 90 || value.predictedEndTranslation.height > 200
+                ) {
                     isPresented = false
+                } else {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.92)) {
+                        dragOffset = 0
+                    }
                 }
-                dragOffset = 0
             }
     }
 

@@ -74,12 +74,18 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
 
     var dominantColors: [PlatformColor] {
         guard let original = albumArtworkData else { return [] }
-        return ImageUtils.cachedDominantColors(id: id, imageData: original)
+        let artworkIdentity = albumId.map { "album-\($0)-\(original.count)" } ?? "track-\(id)-\(original.count)"
+        return ImageUtils.cachedDominantColors(id: artworkIdentity, imageData: original)
     }
 
     func backgroundGradientColors(isDark: Bool) -> [Color] {
         guard let original = albumArtworkData else { return [] }
-        return ImageUtils.cachedBackgroundGradientColors(id: id, imageData: original, isDark: isDark)
+        let artworkIdentity = albumId.map { "album-\($0)-\(original.count)" } ?? "track-\(id)-\(original.count)"
+        return ImageUtils.cachedBackgroundGradientColors(
+            id: artworkIdentity,
+            imageData: original,
+            isDark: isDark
+        )
     }
 
     // MARK: - Initialization

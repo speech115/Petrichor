@@ -46,7 +46,7 @@ struct PetrichorApp: App {
                             hasAppearedActiveOnce = true
                             return
                         }
-                        Task {
+                        Task(priority: .utility) {
                             do {
                                 try await appCoordinator.libraryManager.reconcileLibrary()
                             } catch {

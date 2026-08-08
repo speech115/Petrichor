@@ -187,7 +187,7 @@ struct PlaylistDetailScreen: View {
     // MARK: - Loading
 
     private func tracksTaskID(_ playlist: Playlist) -> String {
-        "\(playlistID)-\(playlist.tracks.count)-\(playlist.dateModified.timeIntervalSince1970)"
+        "\(playlistID)-\(playlist.dateModified.timeIntervalSince1970)"
     }
 
     private func loadTracks(_ playlist: Playlist) async -> [Track] {

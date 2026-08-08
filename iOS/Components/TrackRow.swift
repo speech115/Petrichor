@@ -150,6 +150,7 @@ struct TrackRow: View {
         ArtworkTile(
             data: track.displayArtwork,
             cacheKey: artworkCacheKey,
+            maxPixelSize: 144,
             loader: trackArtworkLoader
         )
             .frame(width: 44, height: 44)

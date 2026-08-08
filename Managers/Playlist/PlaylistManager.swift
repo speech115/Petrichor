@@ -40,6 +40,10 @@ class PlaylistManager: ObservableObject {
     /// duplicate loads (e.g. PlaylistDetailView firing onAppear + onChange together).
     /// Mutated only on the main actor.
     internal var loadingSmartPlaylistIDs: Set<UUID> = []
+    /// Regular playlists use the same single-flight rule. A list reload can
+    /// overlap its initial `.task`; both callers otherwise materialize the same
+    /// track and artwork arrays at once.
+    internal var loadingRegularPlaylistIDs: Set<UUID> = []
 
     // MARK: - Dependencies
     internal weak var audioPlayer: PlaybackManager?
@@ -140,7 +144,9 @@ class PlaylistManager: ObservableObject {
         let shouldLoad = await MainActor.run { () -> Bool in
             guard let playlist = playlists.first(where: { $0.id == playlistId }),
                   playlist.type == .regular,
-                  playlist.tracks.isEmpty else { return false }
+                  playlist.tracks.isEmpty,
+                  !loadingRegularPlaylistIDs.contains(playlistId) else { return false }
+            loadingRegularPlaylistIDs.insert(playlistId)
             return true
         }
         guard shouldLoad else { return }
@@ -153,6 +159,7 @@ class PlaylistManager: ObservableObject {
             if let index = playlists.firstIndex(where: { $0.id == playlistId }) {
                 playlists[index].tracks = loadedTracks
             }
+            loadingRegularPlaylistIDs.remove(playlistId)
         }
     }
     

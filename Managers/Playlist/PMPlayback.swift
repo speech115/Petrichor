@@ -61,14 +61,18 @@ extension PlaylistManager {
     func playTrackFromPlaylist(_ playlist: Playlist, at index: Int) {
         guard index >= 0, index < playlist.tracks.count else { return }
 
+        let alreadyMirrorsPlaylist = currentPlaylist?.id == playlist.id
+            && currentPlaylist?.dateModified == playlist.dateModified
+            && currentQueue.count == playlist.tracks.count
         currentPlaylist = playlist
         currentQueueSource = .playlist
 
         // A playlist screen normally keeps the same queue while the user taps
-        // around it. Preserve the existing mirror so a tap only rebuilds the
-        // small AVPlayer lookahead window, not thousands of queue identities.
+        // around it. Identity + revision are enough to know that membership and
+        // order did not change; comparing every Track also compares artwork Data
+        // and puts an avoidable linear pass directly on the tap path.
         if !isShuffleEnabled,
-           currentQueue == playlist.tracks,
+           alreadyMirrorsPlaylist,
            let audioPlayer,
            audioPlayer.hasMirroredQueue {
             currentQueueIndex = index

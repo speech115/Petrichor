@@ -70,7 +70,10 @@ struct ArtworkTile: View {
                 decodeView(data: data, cacheKey: sizedCacheKey)
             } else if let loader {
                 placeholder.task(id: sizedCacheKey) {
-                    let fetched = await Task.detached(priority: .utility) { loader() }.value
+                    // This task exists only while the row is visible. Give it UI
+                    // priority so covers keep up with a fast flick even when a
+                    // background database task is active.
+                    let fetched = await Task.detached(priority: .userInitiated) { loader() }.value
                     guard !Task.isCancelled else { return }
                     loadedData = fetched
                 }
@@ -95,7 +98,7 @@ struct ArtworkTile: View {
                     .task(id: cacheKey) {
                         guard !Task.isCancelled else { return }
                         let maxPixelSize = maxPixelSize
-                        let image = await Task.detached(priority: .utility) {
+                        let image = await Task.detached(priority: .userInitiated) {
                             Self.downsample(data, maxPixelSize: maxPixelSize)
                         }.value
                         guard !Task.isCancelled else { return }

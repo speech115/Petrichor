@@ -27,15 +27,31 @@ extension LibraryManager {
     /// playlist edit must be checked on its own, against the mtimes remembered
     /// from the last import (ADR-0002).
     func reconcileLibrary() async throws {
-        if databaseManager.getAllFolders().isEmpty {
-            try await scanLibraryRoot()
-        } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
-            try await scanLibraryRoot()
-        } else {
-            Logger.info("Library contents unchanged, skipping reconciliation")
+        let shouldStart = await MainActor.run { () -> Bool in
+            guard !isReconcilingLibrary else { return false }
+            isReconcilingLibrary = true
+            return true
+        }
+        guard shouldStart else {
+            Logger.info("Library reconciliation already in progress, skipping duplicate trigger")
+            return
         }
 
-        await importLibraryPlaylistsIfNeeded()
+        do {
+            if databaseManager.getAllFolders().isEmpty {
+                try await scanLibraryRoot()
+            } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
+                try await scanLibraryRoot()
+            } else {
+                Logger.info("Library contents unchanged, skipping reconciliation")
+            }
+
+            await importLibraryPlaylistsIfNeeded()
+            await MainActor.run { isReconcilingLibrary = false }
+        } catch {
+            await MainActor.run { isReconcilingLibrary = false }
+            throw error
+        }
     }
 
     /// iOS entry point: the library *is* the app's own `Documents` folder, so

@@ -72,6 +72,10 @@ class LibraryManager: ObservableObject {
     internal let fileManager = FileManager.default
     internal var folderTrackCounts: [Int64: Int] = [:]
     private var pendingLibraryReload: DispatchWorkItem?
+    /// Serializes launch/foreground reconciliation. Scene-phase transitions can
+    /// arrive again while the filesystem walk is still running; without this
+    /// gate every caller starts another full scan against the same root.
+    internal var isReconcilingLibrary = false
 
     // Database manager
     let databaseManager: DatabaseManager
