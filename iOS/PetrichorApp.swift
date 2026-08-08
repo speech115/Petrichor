@@ -28,7 +28,10 @@ struct PetrichorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(
+                playlistManager: appCoordinator.playlistManager,
+                playbackManager: appCoordinator.playbackManager
+            )
                 .environmentObject(appCoordinator.playbackManager)
                 .environmentObject(appCoordinator.playbackManager.playbackProgressState)
                 .environmentObject(appCoordinator.libraryManager)

@@ -148,7 +148,7 @@ struct QueueRebuildRegressionTests {
     }
 }
 
-/// The lookahead window preloads only ~17 items, so a long queue must be
+/// The lookahead window preloads only the current item and its successor, so a long queue must be
 /// refilled while playing or it would silently end after the window. Playing
 /// through 18 one-second tracks proves the whole queue is consumed in order.
 @Suite(.serialized)

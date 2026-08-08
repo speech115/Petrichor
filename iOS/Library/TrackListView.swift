@@ -29,9 +29,10 @@ struct TrackListView: View {
             row: { track, context in
                 TrackRow(
                     track: track,
-                    isCurrent: playlistManager.isCurrent(track),
-                    isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
-                    onPlay: { play(track, in: context) }
+                    onPlay: { play(track, in: context) },
+                    playlistManager: playlistManager,
+                    libraryManager: libraryManager,
+                    playbackManager: playbackManager
                 )
             }
         )

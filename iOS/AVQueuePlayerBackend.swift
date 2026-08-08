@@ -50,6 +50,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// a stale anchor drifts while paused).
     private var nowPlayingMetadata: NowPlayingMetadata?
     private var nowPlayingArtwork: MPMediaItemArtwork?
+    private var nowPlayingArtworkTask: Task<Void, Never>?
+    private var nowPlayingArtworkRevision = 0
 
     // MARK: - Queue item failure tracking
 
@@ -110,6 +112,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     }
 
     deinit {
+        nowPlayingArtworkTask?.cancel()
         currentItemObservation?.invalidate()
         timeControlObservation?.invalidate()
         itemStatusObservations.values.forEach { $0.invalidate() }
@@ -228,12 +231,10 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     // MARK: - Player items
 
-    /// Сколько треков вперёд ставится в плеер заранее. Больше — плавнее
-    /// переход между треками, дороже старт: каждый `AVPlayerItem` делает
-    /// синхронный XPC-запрос к медиасервису, и построение всей очереди
-    /// сразу (тысячи треков из «Все треки») вешает главный поток, пока
-    /// watchdog не убьёт приложение.
-    private static let lookaheadItemCount = 16
+    /// Один следующий трек уже стоит в `AVQueuePlayer`, чего достаточно для
+    /// бесшовной передачи. Более широкое окно не улучшает этот переход, зато
+    /// каждый лишний `AVPlayerItem` делает синхронный XPC-запрос при тапе.
+    private static let lookaheadItemCount = 1
 
     #if DEBUG
     /// Сколько `AVPlayerItem` физически стоит в плеере. Тестовый доступ к
@@ -638,11 +639,34 @@ extension AVQueuePlayerBackend {
     // MARK: - Now Playing
 
     func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
-        if metadata?.artworkData != nowPlayingMetadata?.artworkData {
-            nowPlayingArtwork = NowPlayingPublisher.artwork(from: metadata?.artworkData)
-        }
+        applyNowPlayingMetadata(metadata)
+    }
+
+    private func applyNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
+        let artworkChanged = metadata?.artworkData != nowPlayingMetadata?.artworkData
         nowPlayingMetadata = metadata
+
+        guard artworkChanged else {
+            publishNowPlaying()
+            return
+        }
+
+        nowPlayingArtworkRevision += 1
+        let revision = nowPlayingArtworkRevision
+        nowPlayingArtworkTask?.cancel()
+        nowPlayingArtwork = nil
         publishNowPlaying()
+
+        guard let artworkData = metadata?.artworkData else { return }
+        nowPlayingArtworkTask = Task.detached(priority: .utility) { [weak self] in
+            let artwork = NowPlayingPublisher.artwork(from: artworkData)
+            guard !Task.isCancelled else { return }
+            self?.runOnMain { [weak self] in
+                guard let self, self.nowPlayingArtworkRevision == revision else { return }
+                self.nowPlayingArtwork = artwork
+                self.publishNowPlaying()
+            }
+        }
     }
 
     /// Publishes the last metadata with the current playhead and rate. The

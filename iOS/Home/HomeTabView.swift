@@ -54,7 +54,12 @@ struct HomeTabView: View {
                 destinationView(destination)
             }
             .navigationDestination(for: UUID.self) { playlistID in
-                PlaylistDetailScreen(playlistID: playlistID)
+                PlaylistDetailScreen(
+                    playlistID: playlistID,
+                    playlistManager: playlistManager,
+                    playbackManager: playbackManager,
+                    playlistCatalog: playlistManager.catalogObservation
+                )
             }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {

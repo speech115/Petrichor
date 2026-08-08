@@ -39,9 +39,10 @@ struct DiscoverTabView: View {
                 row: { track, tracks in
                     TrackRow(
                         track: track,
-                        isCurrent: playlistManager.isCurrent(track),
-                        isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
-                        onPlay: { play(track, in: tracks) }
+                        onPlay: { play(track, in: tracks) },
+                        playlistManager: playlistManager,
+                        libraryManager: libraryManager,
+                        playbackManager: playbackManager
                     )
                 }
             )

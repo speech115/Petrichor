@@ -23,6 +23,7 @@ struct ArtistPage: View {
     @State private var tracks: [Track] = []
     @State private var albums: [AlbumEntity] = []
     @State private var photoData: Data?
+    @State private var headerDominantColor: PlatformColor?
     @State private var bio: String?
     @State private var loadTask: Task<Void, Never>?
 
@@ -50,9 +51,10 @@ struct ArtistPage: View {
                     ForEach(tracks) { track in
                         TrackRow(
                             track: track,
-                            isCurrent: playlistManager.isCurrent(track),
-                            isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
-                            onPlay: { play(track) }
+                            onPlay: { play(track) },
+                            playlistManager: playlistManager,
+                            libraryManager: libraryManager,
+                            playbackManager: playbackManager
                         )
                     }
                 }
@@ -62,6 +64,9 @@ struct ArtistPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: artistName) {
             await load()
+        }
+        .task(id: tintTaskID) {
+            await updateHeaderTint()
         }
         .onChange(of: libraryManager.libraryRevision) { _, _ in
             scheduleLoad()
@@ -95,11 +100,26 @@ struct ArtistPage: View {
 
     private var headerTint: Color? {
         NowPlayingArtwork.headerTint(
-            forDominantColor: photoData.flatMap {
-                ImageUtils.cachedDominantColors(id: artistName, imageData: $0).first
-            },
+            forDominantColor: headerDominantColor,
             enabled: useArtworkColors
         )
+    }
+
+    private var tintTaskID: String {
+        "\(artistName)-\(photoData?.count ?? 0)-\(useArtworkColors)"
+    }
+
+    private func updateHeaderTint() async {
+        guard useArtworkColors, let photoData else {
+            headerDominantColor = nil
+            return
+        }
+        let cacheID = artistName
+        let dominant = await Task.detached(priority: .utility) {
+            ImageUtils.cachedDominantColors(id: cacheID, imageData: photoData).first
+        }.value
+        guard !Task.isCancelled else { return }
+        headerDominantColor = dominant
     }
 
     private var photo: some View {

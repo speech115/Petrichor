@@ -20,7 +20,9 @@ import SwiftUI
 
 struct PlaylistsTabView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var playlistManager: PlaylistManager
+    let playlistManager: PlaylistManager
+    let playbackManager: PlaybackManager
+    @ObservedObject private var playlistCatalog: PlaylistCatalogObservation
 
     @Binding var showingPlaylistImporter: Bool
     @Binding var showingSettings: Bool
@@ -28,9 +30,18 @@ struct PlaylistsTabView: View {
     @State private var playlistPreviews: [UUID: [Track]] = [:]
     @State private var loadTask: Task<Void, Never>?
 
-    /// Ties each row to the detail screen it opens, so the push is the
-    /// system's zoom transition instead of a slide.
-    @Namespace private var openNamespace
+    init(
+        playlistManager: PlaylistManager,
+        playbackManager: PlaybackManager,
+        showingPlaylistImporter: Binding<Bool>,
+        showingSettings: Binding<Bool>
+    ) {
+        self.playlistManager = playlistManager
+        self.playbackManager = playbackManager
+        playlistCatalog = playlistManager.catalogObservation
+        _showingPlaylistImporter = showingPlaylistImporter
+        _showingSettings = showingSettings
+    }
 
     private static let previewLimit = 4
 
@@ -60,12 +71,13 @@ struct PlaylistsTabView: View {
             }
             .listStyle(.insetGrouped)
             .rootTitle(String(localized: "Playlists"))
-            // The springy expand Apple Music opens a playlist with is the
-            // system zoom transition: the row is the source, the detail screen
-            // grows out of it and settles with the platform's own spring.
             .navigationDestination(for: UUID.self) { playlistID in
-                PlaylistDetailScreen(playlistID: playlistID)
-                    .navigationTransition(.zoom(sourceID: playlistID, in: openNamespace))
+                PlaylistDetailScreen(
+                    playlistID: playlistID,
+                    playlistManager: playlistManager,
+                    playbackManager: playbackManager,
+                    playlistCatalog: playlistCatalog
+                )
             }
             // The top-left is the title's, as it is in every other tab, so
             // creating and importing share one menu on the right beside the
@@ -100,7 +112,7 @@ struct PlaylistsTabView: View {
                 }
             }
             .onAppear(perform: scheduleLoad)
-            .onChange(of: playlistManager.playlists.count) { _, _ in
+            .onChange(of: playlistCatalog.playlists.count) { _, _ in
                 scheduleLoad()
             }
             .onDisappear {
@@ -110,15 +122,15 @@ struct PlaylistsTabView: View {
     }
 
     private var isEmpty: Bool {
-        playlistManager.playlists.isEmpty
+        playlistCatalog.playlists.isEmpty
     }
 
     /// Smart playlists in the manager's order, then user playlists sorted by
     /// their stored name — which keeps the export numbering as the order
     /// inside each source section even though the numbers are not shown.
     private var displayPlaylists: [Playlist] {
-        let smart = playlistManager.playlists.filter { $0.type == .smart }
-        let regular = playlistManager.playlists
+        let smart = playlistCatalog.playlists.filter { $0.type == .smart }
+        let regular = playlistCatalog.playlists
             .filter { $0.type == .regular && !PlaylistSource.isHidden($0) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         return smart + regular
@@ -173,11 +185,6 @@ struct PlaylistsTabView: View {
                     playlist: playlist,
                     previewTracks: playlistPreviews[playlist.id] ?? []
                 )
-                // The source is the row's content, not the NavigationLink
-                // around it: the link is wrapped by the list cell, whose frame
-                // the push cannot resolve, and an unresolved source makes the
-                // zoom start from the middle of the screen instead of the row.
-                .matchedTransitionSource(id: playlist.id, in: openNamespace)
             }
             // Vertical insets are not decoration: at zero the covers of
             // consecutive rows touch, and a column of identical service marks

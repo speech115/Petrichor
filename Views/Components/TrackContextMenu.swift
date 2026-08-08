@@ -290,8 +290,7 @@ enum TrackContextMenu {
             let trackId = track.trackId
             
             for playlist in playlists {
-                // More efficient containment check
-                let isInPlaylist = trackId != nil && playlist.tracks.contains { $0.trackId == trackId }
+                let isInPlaylist = trackId != nil && playlistManager.playlistContainsTrack(track, in: playlist)
                 let playlistName = DefaultPlaylists.displayName(for: playlist)
                 let title = isInPlaylist ? "✓ \(playlistName)" : playlistName
                 

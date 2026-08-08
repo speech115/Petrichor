@@ -6,7 +6,54 @@
 // directory where each file is prefixed with `PM`.
 //
 
+import Combine
 import Foundation
+
+private struct PlaylistMembershipCacheEntry {
+    let dateModified: Date
+    let loadedTrackCount: Int
+    let trackIDs: Set<Int64>
+}
+
+/// Narrow publisher for screens that render the playlist catalog but must not
+/// redraw for queue-index, shuffle, repeat, or modal changes.
+final class PlaylistCatalogObservation: ObservableObject {
+    @Published private(set) var playlists: [Playlist]
+    private var subscription: AnyCancellable?
+
+    init(manager: PlaylistManager) {
+        playlists = manager.playlists
+        subscription = manager.$playlists.sink { [weak self] playlists in
+            self?.playlists = playlists
+        }
+    }
+}
+
+/// Narrow publisher for the root create-playlist sheet. ContentView used to
+/// observe all of PlaylistManager just to present this one modal, causing every
+/// queue mutation to rebuild the entire tab hierarchy.
+final class PlaylistCreatePresentationObservation: ObservableObject {
+    @Published private(set) var isPresented: Bool
+    @Published private(set) var playlistName: String
+    @Published private(set) var tracksToAdd: [Track]
+    private var subscriptions: Set<AnyCancellable> = []
+
+    init(manager: PlaylistManager) {
+        isPresented = manager.showingCreatePlaylistModal
+        playlistName = manager.newPlaylistName
+        tracksToAdd = manager.tracksToAddToNewPlaylist
+
+        manager.$showingCreatePlaylistModal
+            .sink { [weak self] in self?.isPresented = $0 }
+            .store(in: &subscriptions)
+        manager.$newPlaylistName
+            .sink { [weak self] in self?.playlistName = $0 }
+            .store(in: &subscriptions)
+        manager.$tracksToAddToNewPlaylist
+            .sink { [weak self] in self?.tracksToAdd = $0 }
+            .store(in: &subscriptions)
+    }
+}
 
 class PlaylistManager: ObservableObject {
     @Published var playlists: [Playlist] = []
@@ -27,6 +74,9 @@ class PlaylistManager: ObservableObject {
     @Published var showingRegularPlaylistEditor = false
     @Published var regularPlaylistToEdit: Playlist?
 
+    lazy var catalogObservation = PlaylistCatalogObservation(manager: self)
+    lazy var createPresentationObservation = PlaylistCreatePresentationObservation(manager: self)
+
     enum QueueSource {
         case library
         case folder
@@ -45,6 +95,11 @@ class PlaylistManager: ObservableObject {
     /// track and artwork arrays at once.
     internal var loadingRegularPlaylistIDs: Set<UUID> = []
 
+    /// Context menus ask the same membership question for every visible row.
+    /// Keep one ID set per loaded playlist so those checks stay O(1) instead of
+    /// walking a 1000+ track array for every row update.
+    private var playlistMembershipCache: [UUID: PlaylistMembershipCacheEntry] = [:]
+
     // MARK: - Dependencies
     internal weak var audioPlayer: PlaybackManager?
 
@@ -61,6 +116,25 @@ class PlaylistManager: ObservableObject {
         self.libraryManager = manager
         Logger.info("Library manager set, loading playlists...")
         loadPlaylists()
+    }
+
+    func playlistContainsTrack(_ track: Track, in playlist: Playlist) -> Bool {
+        guard let trackID = track.trackId else { return false }
+
+        let loadedTrackCount = playlist.tracks.count
+        let cached = playlistMembershipCache[playlist.id]
+        if cached?.dateModified == playlist.dateModified,
+           cached?.loadedTrackCount == loadedTrackCount {
+            return cached?.trackIDs.contains(trackID) ?? false
+        }
+
+        let trackIDs = Set(playlist.tracks.compactMap(\.trackId))
+        playlistMembershipCache[playlist.id] = PlaylistMembershipCacheEntry(
+            dateModified: playlist.dateModified,
+            loadedTrackCount: loadedTrackCount,
+            trackIDs: trackIDs
+        )
+        return trackIDs.contains(trackID)
     }
 
     // MARK: - Convenience Methods

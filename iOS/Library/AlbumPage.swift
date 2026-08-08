@@ -18,6 +18,7 @@ struct AlbumPage: View {
 
     let album: AlbumEntity
     @State private var artworkData: Data?
+    @State private var headerDominantColor: PlatformColor?
 
     var body: some View {
         TrackListScreen(
@@ -43,6 +44,9 @@ struct AlbumPage: View {
             artworkData = await Task.detached(priority: .utility) {
                 database.getArtworkData(albumId: albumId, trackId: nil)
             }.value
+        }
+        .task(id: tintTaskID) {
+            await updateHeaderTint()
         }
     }
 
@@ -97,11 +101,26 @@ struct AlbumPage: View {
 
     private var headerTint: Color? {
         NowPlayingArtwork.headerTint(
-            forDominantColor: artworkData.flatMap {
-                ImageUtils.cachedDominantColors(id: album.id.uuidString, imageData: $0).first
-            },
+            forDominantColor: headerDominantColor,
             enabled: useArtworkColors
         )
+    }
+
+    private var tintTaskID: String {
+        "\(album.id)-\(artworkData?.count ?? 0)-\(useArtworkColors)"
+    }
+
+    private func updateHeaderTint() async {
+        guard useArtworkColors, let artworkData else {
+            headerDominantColor = nil
+            return
+        }
+        let cacheID = album.id.uuidString
+        let dominant = await Task.detached(priority: .utility) {
+            ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
+        }.value
+        guard !Task.isCancelled else { return }
+        headerDominantColor = dominant
     }
 
     // MARK: - Track Sections
@@ -113,9 +132,10 @@ struct AlbumPage: View {
 
             TrackRow(
                 track: track,
-                isCurrent: playlistManager.isCurrent(track),
-                isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
-                onPlay: { play(track, in: context) }
+                onPlay: { play(track, in: context) },
+                playlistManager: playlistManager,
+                libraryManager: libraryManager,
+                playbackManager: playbackManager
             )
         }
     }

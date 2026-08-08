@@ -10,6 +10,19 @@ import AVFoundation
 import Combine
 import Foundation
 
+final class PlaybackAvailabilityObservation: ObservableObject {
+    @Published private(set) var hasCurrentTrack: Bool
+    private var subscription: AnyCancellable?
+
+    init(manager: PlaybackManager) {
+        hasCurrentTrack = manager.currentTrack != nil
+        subscription = manager.$currentTrack
+            .map { $0 != nil }
+            .removeDuplicates()
+            .sink { [weak self] in self?.hasCurrentTrack = $0 }
+    }
+}
+
 class PlaybackManager: NSObject, ObservableObject {
     let playbackProgressState = PlaybackProgressState()
     
@@ -38,6 +51,7 @@ class PlaybackManager: NSObject, ObservableObject {
         }
     }
     @Published var restoredUITrack: Track?
+    lazy var availabilityObservation = PlaybackAvailabilityObservation(manager: self)
 
     // MARK: - Computed Properties
     

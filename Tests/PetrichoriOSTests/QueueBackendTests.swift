@@ -86,7 +86,7 @@ struct QueueBackendTests {
         let backend = AVQueuePlayerBackend()
         backend.setQueue(makeManyEntries(40, url: url), startingAt: 0, startPaused: true)
 
-        #expect(backend.preloadedItemCount == 17, "текущий + 16 следующих, а не вся очередь")
+        #expect(backend.preloadedItemCount == 2, "текущий + один следующий, а не вся очередь")
         #expect(backend.queue.count == 40, "логическая очередь хранит всё")
     }
 }
@@ -96,7 +96,7 @@ struct QueueBackendTests {
         let backend = AVQueuePlayerBackend()
         backend.setQueue(makeManyEntries(5, url: url), startingAt: 0, startPaused: true)
 
-        #expect(backend.preloadedItemCount == 5)
+        #expect(backend.preloadedItemCount == 2)
     }
 }
 
@@ -107,7 +107,7 @@ struct QueueBackendTests {
 
         (0..<10).forEach { _ in backend.append(makeEntry("extra", url: url)) }
 
-        #expect(backend.preloadedItemCount == 17, "долив не превышает lookahead-окно")
+        #expect(backend.preloadedItemCount == 2, "долив не превышает lookahead-окно")
         #expect(backend.queue.count == 20)
     }
 }
@@ -119,7 +119,7 @@ struct QueueBackendTests {
 
         backend.playQueueEntry(at: 20, startPaused: true)
 
-        #expect(backend.preloadedItemCount == 17, "окно лимитировано даже при прыжке в середину очереди")
+        #expect(backend.preloadedItemCount == 2, "окно лимитировано даже при прыжке в середину очереди")
         #expect(backend.queueIndex(of: AudioEntryId(id: "t20")) == 20)
     }
 }

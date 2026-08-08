@@ -29,9 +29,11 @@ private enum IOSSection: Hashable {
 }
 
 struct ContentView: View {
-    @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var libraryManager: LibraryManager
-    @EnvironmentObject var playlistManager: PlaylistManager
+    let playlistManager: PlaylistManager
+    let playbackManager: PlaybackManager
+    @ObservedObject private var createPlaylistPresentation: PlaylistCreatePresentationObservation
+    @ObservedObject private var playbackAvailability: PlaybackAvailabilityObservation
 
     @State private var selectedTab: IOSSection = .home
     @State private var homePath: [LibraryDestination] = []
@@ -43,6 +45,13 @@ struct ContentView: View {
     /// Incremented every time the Search tab is tapped while Search is already
     /// open. SearchView watches it and raises the keyboard.
     @State private var searchFocusRequest = 0
+
+    init(playlistManager: PlaylistManager, playbackManager: PlaybackManager) {
+        self.playlistManager = playlistManager
+        self.playbackManager = playbackManager
+        createPlaylistPresentation = playlistManager.createPresentationObservation
+        playbackAvailability = playbackManager.availabilityObservation
+    }
 
     var body: some View {
         TabView(selection: tabSelection) {
@@ -84,7 +93,7 @@ struct ContentView: View {
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory(isEnabled: playbackManager.currentTrack != nil) {
+        .tabViewBottomAccessory(isEnabled: playbackAvailability.hasCurrentTrack) {
             MiniPlayerAccessory(showingNowPlaying: $showingNowPlaying)
         }
         .sheet(isPresented: $showingSettings) {
@@ -94,11 +103,11 @@ struct ContentView: View {
         }
         // The create-playlist sheet lives here, not in a tab: TrackRow's
         // "New Playlist..." and the Playlists tab's menu both open it.
-        .sheet(isPresented: $playlistManager.showingCreatePlaylistModal) {
+        .sheet(isPresented: createPlaylistPresentedBinding) {
             CreatePlaylistSheet(
-                isPresented: $playlistManager.showingCreatePlaylistModal,
-                playlistName: $playlistManager.newPlaylistName,
-                tracksToAdd: playlistManager.tracksToAddToNewPlaylist
+                isPresented: createPlaylistPresentedBinding,
+                playlistName: createPlaylistNameBinding,
+                tracksToAdd: createPlaylistPresentation.tracksToAdd
             ) {
                 playlistManager.createPlaylistFromModal()
             }
@@ -208,8 +217,24 @@ struct ContentView: View {
 
     private var playlistsTab: some View {
         PlaylistsTabView(
+            playlistManager: playlistManager,
+            playbackManager: playbackManager,
             showingPlaylistImporter: $showingPlaylistImporter,
             showingSettings: $showingSettings
+        )
+    }
+
+    private var createPlaylistPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { createPlaylistPresentation.isPresented },
+            set: { playlistManager.showingCreatePlaylistModal = $0 }
+        )
+    }
+
+    private var createPlaylistNameBinding: Binding<String> {
+        Binding(
+            get: { createPlaylistPresentation.playlistName },
+            set: { playlistManager.newPlaylistName = $0 }
         )
     }
 

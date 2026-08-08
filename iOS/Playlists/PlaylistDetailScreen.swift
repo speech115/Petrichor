@@ -15,9 +15,11 @@ import SwiftUI
 
 struct PlaylistDetailScreen: View {
     let playlistID: UUID
+    let playlistManager: PlaylistManager
+    let playbackManager: PlaybackManager
+    @ObservedObject var playlistCatalog: PlaylistCatalogObservation
 
-    @EnvironmentObject private var playlistManager: PlaylistManager
-    @EnvironmentObject private var playbackManager: PlaybackManager
+    @EnvironmentObject private var libraryManager: LibraryManager
 
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
@@ -26,9 +28,10 @@ struct PlaylistDetailScreen: View {
     @State private var showingRenameAlert = false
     @State private var renameText = ""
     @State private var showingDeleteConfirmation = false
+    @State private var headerDominantColor: PlatformColor?
 
     private var playlist: Playlist? {
-        playlistManager.playlists.first { $0.id == playlistID }
+        playlistCatalog.playlists.first { $0.id == playlistID }
     }
 
     var body: some View {
@@ -104,6 +107,9 @@ struct PlaylistDetailScreen: View {
         .task(id: playlistID) {
             await refreshMissingFiles()
         }
+        .task(id: tintTaskID) {
+            await updateHeaderTint()
+        }
     }
 
     // MARK: - Rename
@@ -129,10 +135,13 @@ struct PlaylistDetailScreen: View {
             } else {
                 TrackRow(
                     track: track,
-                    isCurrent: playlistManager.isCurrent(track),
-                    isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
-                    onPlay: { play(track, in: playlist) }
+                    onPlay: { play(track, in: playlist) },
+                    playlistManager: playlistManager,
+                    libraryManager: libraryManager,
+                    playbackManager: playbackManager,
+                    menuContext: .playlist(playlist)
                 )
+                .equatable()
             }
         }
     }
@@ -146,7 +155,7 @@ struct PlaylistDetailScreen: View {
             playDisabled: tracks.isEmpty,
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
-            tint: headerTint(playlist),
+            tint: headerTint,
             artwork: {
                 if playlist.coverArtworkData != nil {
                     ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 12, iconSize: 56)
@@ -175,13 +184,28 @@ struct PlaylistDetailScreen: View {
     }
 
     /// The custom cover tints the header; a mosaic has no single color.
-    private func headerTint(_ playlist: Playlist) -> Color? {
+    private var headerTint: Color? {
         NowPlayingArtwork.headerTint(
-            forDominantColor: playlist.coverArtworkData.flatMap {
-                ImageUtils.cachedDominantColors(id: playlist.id.uuidString, imageData: $0).first
-            },
+            forDominantColor: headerDominantColor,
             enabled: useArtworkColors
         )
+    }
+
+    private var tintTaskID: String {
+        "\(playlistID)-\(playlist?.coverArtworkData?.count ?? 0)-\(useArtworkColors)"
+    }
+
+    private func updateHeaderTint() async {
+        guard useArtworkColors, let artworkData = playlist?.coverArtworkData else {
+            headerDominantColor = nil
+            return
+        }
+        let cacheID = playlistID.uuidString
+        let dominant = await Task.detached(priority: .utility) {
+            ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
+        }.value
+        guard !Task.isCancelled else { return }
+        headerDominantColor = dominant
     }
 
     // MARK: - Loading

@@ -118,9 +118,10 @@ struct SearchView: View {
                     ForEach(trackResults) { track in
                         TrackRow(
                             track: track,
-                            isCurrent: playlistManager.isCurrent(track),
-                            isPlaying: playlistManager.isCurrent(track) && playbackManager.isPlaying,
-                            onPlay: { play(track) }
+                            onPlay: { play(track) },
+                            playlistManager: playlistManager,
+                            libraryManager: libraryManager,
+                            playbackManager: playbackManager
                         )
                     }
                 }
