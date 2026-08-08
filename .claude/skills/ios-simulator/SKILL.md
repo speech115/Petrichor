@@ -20,7 +20,9 @@ raw `xcodebuild`, `xcrun` or `simctl` when they are available. SwiftUI-вьюх�
 ## Before you start
 
 Работает на macOS 26.6, Xcode 26.6, Node 26. MCP-сервер сконфигурирован
-в проекте для всех клиентов — один и тот же `npx -y xcodebuildmcp@2.6.2 mcp`:
+в проекте для всех клиентов — один и тот же
+`/Users/sereja/.npm-global/bin/xcodebuildmcp mcp` (глобальная установка
+2.7.0, не `npx` — npx-старт отваливался по таймаутам health-пробы):
 
 | Клиент | Конфиг |
 |---|---|
@@ -77,7 +79,7 @@ Simulator само по себе не доказательство, что пр�
 1. `snapshot_ui` — получить актуальное accessibility-дерево с
    `elementRef`.
 2. Тапай только по текущим `elementRef`, у которых снапшот показывает
-   намеренное действие. XcodeBuildMCP 2.6.2 не принимает координаты для
+   намеренное действие. XcodeBuildMCP 2.7.0 не принимает координаты для
    `tap`; если у элемента нет пригодного ref — доложи accessibility-блокер,
    не переходи на десктопную автоматизацию.
 3. После навигации или изменения лэйаута обновляй снапшот — elementRef
@@ -117,6 +119,6 @@ Simulator само по себе не доказательство, что пр�
 ## Upstream
 
 Адаптировано из `pingdotgg/t3code/.agents/skills/ios-debugger-agent`
-(MIT, форк OpenAI build-ios-apps), выровнено под XcodeBuildMCP 2.6.2 —
-имена инструментов в 2.6.2: `build_run_sim`, `test_sim`, `launch_app_sim`,
+(MIT, форк OpenAI build-ios-apps), выровнено под XcodeBuildMCP 2.7.0 —
+имена инструментов: `build_run_sim`, `test_sim`, `launch_app_sim`,
 `snapshot_ui`, `tap`, `wait_for_ui`, `gesture`, `swipe`, `screenshot`.
