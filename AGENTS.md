@@ -12,7 +12,8 @@
 ### Issue tracker
 
 Локальный markdown: задачи и спеки лежат в `.scratch/<feature>/`. Удалённого
-трекера нет — репозиторий без remote. См. `docs/agents/issue-tracker.md`.
+трекера нет — remote `origin` (приватный форк `speech115/Petrichor`) служит
+только для бэкапа веток, не для тикетов. См. `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
