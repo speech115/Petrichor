@@ -95,6 +95,9 @@ struct NowPlayingScreen: View {
         .onChange(of: track?.id) { _, _ in
             updatePalette()
         }
+        .onChange(of: track?.artworkData?.count) { _, _ in
+            updatePalette()
+        }
         .onChange(of: useArtworkColors) { _, _ in
             updatePalette()
         }
@@ -166,25 +169,13 @@ struct NowPlayingScreen: View {
     // MARK: - Artwork
 
     private var artwork: some View {
-        Group {
-            if let data = track?.artworkData, let image = UIImage(data: data) {
-                Color.clear
-                    .overlay {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .clipped()
-            } else {
-                ZStack {
-                    Rectangle().fill(Color.white.opacity(0.1))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 72, weight: .light))
-                        .foregroundColor(palette.secondary)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        ArtworkTile(
+            data: track?.displayArtwork,
+            cacheKey: track.map { "now-playing-\($0.id)" },
+            cornerRadius: 12,
+            iconSize: 72,
+            maxPixelSize: 960
+        )
         .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }
 

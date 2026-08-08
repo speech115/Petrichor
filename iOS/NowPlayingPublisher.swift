@@ -11,12 +11,23 @@ import MediaPlayer
 import UIKit
 
 enum NowPlayingPublisher {
+    static func artwork(from data: Data?) -> MPMediaItemArtwork? {
+        guard let data, let image = UIImage(data: data) else { return nil }
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }
+
     /// - Parameter elapsed: Seconds already played, so the lock-screen tile's
     ///   elapsed-time indicator matches the app's own seek bar.
     /// - Parameter rate: The player's instantaneous rate (0 while paused, 1
     ///   while playing). Without it the system assumes 1.0 and keeps
     ///   advancing the lock-screen elapsed-time indicator while paused.
-    static func publish(_ metadata: NowPlayingMetadata?, elapsed: Double, duration: Double, rate: Double) {
+    static func publish(
+        _ metadata: NowPlayingMetadata?,
+        artwork: MPMediaItemArtwork?,
+        elapsed: Double,
+        duration: Double,
+        rate: Double
+    ) {
         guard let metadata else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
             return
@@ -31,8 +42,8 @@ enum NowPlayingPublisher {
             MPNowPlayingInfoPropertyPlaybackRate: rate
         ]
 
-        if let data = metadata.artworkData, let image = UIImage(data: data) {
-            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        if let artwork {
+            info[MPMediaItemPropertyArtwork] = artwork
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info

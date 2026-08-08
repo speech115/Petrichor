@@ -88,6 +88,46 @@ extension DatabaseManager {
         }
     }
 
+    /// One album image for a visible card. Prefer the thumbnail and touch the
+    /// full BLOB only while the background thumbnail migration is incomplete.
+    func getAlbumArtworkThumbnail(albumId: Int64) -> Data? {
+        do {
+            return try dbQueue.read { db in
+                let row = try Row.fetchOne(
+                    db,
+                    sql: "SELECT artwork_thumbnail, artwork_data FROM albums WHERE id = ?",
+                    arguments: [albumId]
+                )
+                return (row?["artwork_thumbnail"] as Data?) ?? (row?["artwork_data"] as Data?)
+            }
+        } catch {
+            Logger.error("Failed to fetch album thumbnail: \(error)")
+            return nil
+        }
+    }
+
+    /// One artist image for a visible row. Preserve the artist-image setting:
+    /// while remote artist images are enabled, a row with no fetched source
+    /// keeps its placeholder instead of silently falling back to album art.
+    func getArtistArtworkThumbnail(name: String) -> Data? {
+        let requiresFetchedImage = ArtistBioManager.shared.isArtistInfoFetchEnabled
+        do {
+            return try dbQueue.read { db in
+                guard let row = try Row.fetchOne(
+                    db,
+                    sql: "SELECT artwork_thumbnail, artwork_data, image_source FROM artists WHERE name = ?",
+                    arguments: [name]
+                ) else { return nil }
+                let imageSource: String? = row["image_source"]
+                if requiresFetchedImage, imageSource == nil { return nil }
+                return (row["artwork_thumbnail"] as Data?) ?? (row["artwork_data"] as Data?)
+            }
+        } catch {
+            Logger.error("Failed to fetch artist thumbnail: \(error)")
+            return nil
+        }
+    }
+
     /// Populate album artwork for a single FullTrack
     func populateAlbumArtworkForFullTrack(_ track: inout FullTrack) {
         guard let albumId = track.albumId else { return }

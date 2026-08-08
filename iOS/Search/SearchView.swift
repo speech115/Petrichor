@@ -203,8 +203,9 @@ struct SearchView: View {
                 title: artist.displayName,
                 subtitle: artist.subtitle,
                 artworkData: artist.displayArtwork,
-                cacheKey: artist.displayName,
-                icon: LibraryFilterType.artists.icon
+                cacheKey: "artist-\(artist.name)",
+                icon: LibraryFilterType.artists.icon,
+                loader: artistArtworkLoader(for: artist.name)
             )
         }
         .buttonStyle(.plain)
@@ -216,8 +217,9 @@ struct SearchView: View {
                 title: album.displayName,
                 subtitle: album.artistName ?? album.subtitle,
                 artworkData: album.displayArtwork,
-                cacheKey: album.albumId.map(String.init),
-                icon: LibraryFilterType.albums.icon
+                cacheKey: album.albumId.map { "album-\($0)" },
+                icon: LibraryFilterType.albums.icon,
+                loader: albumArtworkLoader(for: album.albumId)
             )
         }
         .buttonStyle(.plain)
@@ -228,10 +230,11 @@ struct SearchView: View {
         subtitle: String?,
         artworkData: Data?,
         cacheKey: String?,
-        icon: String
+        icon: String,
+        loader: ArtworkDataLoader?
     ) -> some View {
         HStack(spacing: 12) {
-            ArtworkTile(data: artworkData, cacheKey: cacheKey, placeholderIcon: icon)
+            ArtworkTile(data: artworkData, cacheKey: cacheKey, placeholderIcon: icon, loader: loader)
                 .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -253,5 +256,16 @@ struct SearchView: View {
 
     private func play(_ track: Track) {
         playlistManager.play(track, source: .library(context: trackResults))
+    }
+
+    private func artistArtworkLoader(for name: String) -> ArtworkDataLoader {
+        let database = libraryManager.databaseManager
+        return ArtworkDataLoader { database.getArtistArtworkThumbnail(name: name) }
+    }
+
+    private func albumArtworkLoader(for albumId: Int64?) -> ArtworkDataLoader? {
+        guard let albumId else { return nil }
+        let database = libraryManager.databaseManager
+        return ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumId) }
     }
 }

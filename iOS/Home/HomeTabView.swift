@@ -66,7 +66,10 @@ struct HomeTabView: View {
                 }
             }
             .onAppear(perform: scheduleLoad)
-            .onChange(of: libraryManager.tracks.count) { _, _ in
+            .onChange(of: libraryManager.libraryRevision) { _, _ in
+                scheduleLoad()
+            }
+            .onChange(of: libraryManager.entitiesLoaded) { _, _ in
                 scheduleLoad()
             }
             .onDisappear {
@@ -79,7 +82,7 @@ struct HomeTabView: View {
     /// populated on iOS (only the macOS Home loads it), so the empty state
     /// keys on the database-backed total instead.
     private var isEmpty: Bool {
-        libraryManager.totalTrackCount == 0
+        libraryManager.countsLoaded && libraryManager.totalTrackCount == 0
     }
 
     // MARK: - Library Block
@@ -93,7 +96,7 @@ struct HomeTabView: View {
             VStack(spacing: 0) {
                 libraryRow(
                     title: String(localized: "Songs"),
-                    count: libraryManager.totalTrackCount,
+                    count: libraryManager.countsLoaded ? libraryManager.totalTrackCount : nil,
                     value: LibraryDestination.allTracks
                 )
                 if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
@@ -122,16 +125,18 @@ struct HomeTabView: View {
         Divider().padding(.leading, 16)
     }
 
-    private func libraryRow(title: String, count: Int, value: some Hashable) -> some View {
+    private func libraryRow(title: String, count: Int?, value: some Hashable) -> some View {
         NavigationLink(value: value) {
             HStack {
                 Text(title)
                     .font(.body)
                 Spacer()
-                Text("\(count)")
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .monospacedDigit()
+                if let count {
+                    Text("\(count)")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
             }
             .padding(.horizontal, 16)
             .frame(height: 44)

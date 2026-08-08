@@ -137,11 +137,13 @@ struct TrackRow: View {
 
     /// Only for rows the album could not supply: everything else already has
     /// its thumbnail and must not touch the database.
-    private var trackArtworkLoader: (@Sendable () -> Data?)? {
+    private var trackArtworkLoader: ArtworkDataLoader? {
         guard track.displayArtwork == nil, let trackId = track.trackId else { return nil }
         let database = libraryManager.databaseManager
         let albumId = track.albumId
-        return { database.getArtworkData(albumId: albumId, trackId: trackId) }
+        return ArtworkDataLoader {
+            database.getArtworkData(albumId: albumId, trackId: trackId)
+        }
     }
 
     private var artworkView: some View {

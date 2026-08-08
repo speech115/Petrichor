@@ -63,7 +63,7 @@ struct ArtistPage: View {
         .task(id: artistName) {
             await load()
         }
-        .onChange(of: libraryManager.tracks.count) { _, _ in
+        .onChange(of: libraryManager.libraryRevision) { _, _ in
             scheduleLoad()
         }
         .onDisappear {
@@ -104,14 +104,13 @@ struct ArtistPage: View {
 
     private var photo: some View {
         Group {
-            if let photoData, let image = UIImage(data: photoData) {
-                Color.clear
-                    .overlay {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .clipped()
+            if let photoData {
+                ArtworkTile(
+                    data: photoData,
+                    cacheKey: "artist-detail-\(artistName)",
+                    cornerRadius: 90,
+                    maxPixelSize: 720
+                )
             } else {
                 ZStack {
                     Circle()
@@ -144,8 +143,18 @@ struct ArtistPage: View {
     }
 
     private func albumArtwork(_ album: AlbumEntity) -> some View {
-        ArtworkTile(data: album.displayArtwork, cacheKey: album.albumId.map(String.init))
+        ArtworkTile(
+            data: album.displayArtwork,
+            cacheKey: album.albumId.map { "album-\($0)" },
+            loader: albumArtworkLoader(for: album.albumId)
+        )
             .frame(width: 44, height: 44)
+    }
+
+    private func albumArtworkLoader(for albumId: Int64?) -> ArtworkDataLoader? {
+        guard let albumId else { return nil }
+        let database = libraryManager.databaseManager
+        return ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumId) }
     }
 
     private func albumSubtitle(_ album: AlbumEntity) -> String {

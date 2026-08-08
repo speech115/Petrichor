@@ -87,6 +87,7 @@ class PlaybackManager: NSObject, ObservableObject {
     /// position it stands in for (see `absorbInjectedEntry`).
     var injectedNext: InjectedNext?
     var queueObservers: Set<AnyCancellable> = []
+    var artworkEnrichmentTask: Task<Void, Never>?
 
     struct MirroredEntry {
         let entryId: AudioEntryId
@@ -126,6 +127,7 @@ class PlaybackManager: NSObject, ObservableObject {
     }
 
     deinit {
+        artworkEnrichmentTask?.cancel()
         stop()
         stopProgressUpdateTimer()
     }
@@ -281,7 +283,32 @@ class PlaybackManager: NSObject, ObservableObject {
     /// Feeds the engine the metadata for its system Now Playing tile. Called only
     /// when the engine adopts a new entry; it keeps elapsed and rate current itself.
     func publishNowPlayingMetadata(for track: Track) {
-        let track = trackWithFullArtwork(track)
+        artworkEnrichmentTask?.cancel()
+        setNowPlayingMetadata(for: track, artworkData: track.displayArtwork)
+
+        guard track.artworkData == nil else { return }
+        let database = libraryManager.databaseManager
+        let albumId = track.albumId
+        let trackId = track.trackId
+        let identity = track.id
+
+        artworkEnrichmentTask = Task { @MainActor [weak self] in
+            let artwork = await Task.detached(priority: .utility) {
+                database.getArtworkData(albumId: albumId, trackId: trackId)
+            }.value
+            guard !Task.isCancelled,
+                  let self,
+                  let artwork,
+                  self.currentTrack?.id == identity else { return }
+
+            var enriched = self.currentTrack ?? track
+            enriched.albumArtworkData = artwork
+            self.currentTrack = enriched
+            self.setNowPlayingMetadata(for: enriched, artworkData: artwork)
+        }
+    }
+
+    private func setNowPlayingMetadata(for track: Track, artworkData: Data?) {
         audioPlayer.setNowPlayingMetadata(
             NowPlayingMetadata(
                 title: track.title,
@@ -289,25 +316,9 @@ class PlaybackManager: NSObject, ObservableObject {
                 albumTitle: track.album,
                 albumArtist: track.albumArtist,
                 genre: track.genre,
-                artworkData: track.artworkData
+                artworkData: artworkData
             )
         )
-    }
-
-    /// Ensures a track that becomes current carries full-size artwork for the
-    /// player chrome: list queries populate only thumbnails now, while the
-    /// Now Playing overlay, the lock screen tile and the macOS player art all
-    /// read `track.artworkData`. Targeted single-row fetch, skipped when the
-    /// row already has artwork (macOS queues always do).
-    func trackWithFullArtwork(_ track: Track) -> Track {
-        guard track.artworkData == nil else { return track }
-        guard let artwork = libraryManager.databaseManager.getArtworkData(
-            albumId: track.albumId,
-            trackId: track.trackId
-        ) else { return track }
-        var enriched = track
-        enriched.albumArtworkData = artwork
-        return enriched
     }
 
     /// Wires the system remote command center (lock screen / Control Center) to

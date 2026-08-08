@@ -17,6 +17,7 @@ struct AlbumPage: View {
     private var useArtworkColors = true
 
     let album: AlbumEntity
+    @State private var artworkData: Data?
 
     var body: some View {
         TrackListScreen(
@@ -32,6 +33,17 @@ struct AlbumPage: View {
             row: { track, context in trackRow(track, context: context) }
         )
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: album.albumId) {
+            if let existing = album.artworkData {
+                artworkData = existing
+                return
+            }
+            let database = libraryManager.databaseManager
+            let albumId = album.albumId
+            artworkData = await Task.detached(priority: .utility) {
+                database.getArtworkData(albumId: albumId, trackId: nil)
+            }.value
+        }
     }
 
     /// Disc sections with "Disc N" headers, or one headerless section when the
@@ -60,26 +72,13 @@ struct AlbumPage: View {
     }
 
     private var artwork: some View {
-        Group {
-            if let artworkData = album.artworkData, let image = UIImage(data: artworkData) {
-                Color.clear
-                    .overlay {
-                        Image(uiImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .clipped()
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.secondary.opacity(0.15))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 60, weight: .light))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        ArtworkTile(
+            data: artworkData ?? album.displayArtwork,
+            cacheKey: album.albumId.map { "album-detail-\($0)" },
+            cornerRadius: 12,
+            iconSize: 60,
+            maxPixelSize: 720
+        )
         .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
     }
 
@@ -98,7 +97,9 @@ struct AlbumPage: View {
 
     private var headerTint: Color? {
         NowPlayingArtwork.headerTint(
-            forDominantColor: album.dominantColors.first,
+            forDominantColor: artworkData.flatMap {
+                ImageUtils.cachedDominantColors(id: album.id.uuidString, imageData: $0).first
+            },
             enabled: useArtworkColors
         )
     }

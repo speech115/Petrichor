@@ -63,6 +63,19 @@ extension PlaylistManager {
 
         currentPlaylist = playlist
         currentQueueSource = .playlist
+
+        // A playlist screen normally keeps the same queue while the user taps
+        // around it. Preserve the existing mirror so a tap only rebuilds the
+        // small AVPlayer lookahead window, not thousands of queue identities.
+        if !isShuffleEnabled,
+           currentQueue == playlist.tracks,
+           let audioPlayer,
+           audioPlayer.hasMirroredQueue {
+            currentQueueIndex = index
+            audioPlayer.jumpToQueueEntry(at: index)
+            return
+        }
+
         beginPlayback(of: playlist.tracks[index], in: playlist.tracks)
     }
 

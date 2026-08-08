@@ -383,26 +383,12 @@ private struct MiniPlayerAccessory: View {
     }
 
     private func artwork(size: CGFloat) -> some View {
-        Group {
-            if let data = playbackManager.currentTrack?.artworkData,
-               let image = PlatformImage(data: data) {
-                Color.clear
-                    .overlay {
-                        Image(platformImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    }
-                    .clipped()
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.15))
-                    Image(systemName: Icons.musicNote)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
+        ArtworkTile(
+            data: playbackManager.currentTrack?.displayArtwork,
+            cacheKey: playbackManager.currentTrack.map { "now-playing-\($0.id)" },
+            cornerRadius: size * 0.15,
+            maxPixelSize: 180
+        )
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.15))
     }
 }

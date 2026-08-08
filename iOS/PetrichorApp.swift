@@ -20,7 +20,10 @@ struct PetrichorApp: App {
     @State private var hasAppearedActiveOnce = false
 
     init() {
-        _appCoordinator = StateObject(wrappedValue: AppCoordinator())
+        // iPhone rows load artwork only as they become visible. Keeping every
+        // album and artist BLOB in the shared entity cache costs hundreds of
+        // megabytes on a real library and makes launch contend with the UI.
+        _appCoordinator = StateObject(wrappedValue: AppCoordinator(cacheEntityArtwork: false))
     }
 
     var body: some Scene {

@@ -39,7 +39,7 @@ extension DatabaseManager {
     // MARK: - Home - Entities
     
     /// Get all artist entities
-    func getArtistEntities() -> [ArtistEntity] {
+    func getArtistEntities(includeArtwork: Bool = true) -> [ArtistEntity] {
         let isImageFetchEnabled = ArtistBioManager.shared.isArtistInfoFetchEnabled
 
         do {
@@ -47,12 +47,13 @@ extension DatabaseManager {
                 // Live count honoring the hide-duplicates setting, so the grid matches the detail view.
                 let hideDuplicates = UserDefaults.standard.bool(forKey: "hideDuplicateTracks")
                 let duplicateClause = hideDuplicates ? "AND tracks.is_duplicate = 0" : ""
+                let artworkColumns = includeArtwork
+                    ? "artists.artwork_data, artists.artwork_thumbnail, artists.image_source"
+                    : "NULL AS artwork_data, NULL AS artwork_thumbnail, NULL AS image_source"
                 let sql = """
                     SELECT
                         artists.name,
-                        artists.artwork_data,
-                        artists.artwork_thumbnail,
-                        artists.image_source,
+                        \(artworkColumns),
                         COUNT(DISTINCT track_artists.track_id) as trackCount
                     FROM artists
                     JOIN track_artists ON track_artists.artist_id = artists.id AND track_artists.role = 'artist'
@@ -80,7 +81,7 @@ extension DatabaseManager {
 
                 return try ArtistInfo.fetchAll(db, sql: sql).map { info in
                     // When fetch enabled: show fetched image or placeholder; when disabled: show album art
-                    let artworkData = isImageFetchEnabled
+                    let artworkData = includeArtwork && isImageFetchEnabled
                         ? (info.imageSource != nil ? info.artworkData : nil)
                         : info.artworkData
 
@@ -99,7 +100,7 @@ extension DatabaseManager {
     }
 
     /// Get all album entities without N+1 queries
-    func getAlbumEntities() -> [AlbumEntity] {
+    func getAlbumEntities(includeArtwork: Bool = true) -> [AlbumEntity] {
         do {
             return try dbQueue.read { db in
                 // Prefer the album's primary artist from the album_artists junction
@@ -109,13 +110,15 @@ extension DatabaseManager {
                 // honoring the hide-duplicates setting so the grid matches the detail view.
                 let hideDuplicates = UserDefaults.standard.bool(forKey: "hideDuplicateTracks")
                 let duplicateClause = hideDuplicates ? "AND tracks.is_duplicate = 0" : ""
+                let artworkColumns = includeArtwork
+                    ? "albums.artwork_data, albums.artwork_thumbnail"
+                    : "NULL AS artwork_data, NULL AS artwork_thumbnail"
                 let sql = """
                     SELECT
                         albums.id,
                         albums.title,
                         COUNT(tracks.id) as trackCount,
-                        albums.artwork_data,
-                        albums.artwork_thumbnail,
+                        \(artworkColumns),
                         albums.release_year,
                         COALESCE(SUM(tracks.duration), 0) as totalDuration,
                         COALESCE(

@@ -184,40 +184,58 @@ extension LibraryManager {
     }
 
     func updateArtistEntityArtwork(name: String, artworkData: Data?) {
+        // iOS keeps entity summaries metadata-only; the database write has
+        // already happened and visible rows will fetch the new image lazily.
+        guard cacheEntityArtwork else { return }
         if let index = cachedArtistEntities.firstIndex(where: { $0.name == name }) {
             let old = cachedArtistEntities[index]
             cachedArtistEntities[index] = ArtistEntity(
                 name: old.name,
                 trackCount: old.trackCount,
-                artworkData: artworkData
+                artworkData: artworkData,
+                artworkThumbnail: old.artworkThumbnail
             )
         }
     }
 
-    /// Reloads the artist and album entity caches off the main thread.
-    ///
-    /// Both `getArtistEntities` and `getAlbumEntities` pull each entity's
-    /// `artwork_data` BLOB, which for a full library is hundreds of megabytes
-    /// and seconds of work - doing it synchronously here froze the first frame
-    /// for ~3s. The fetch now runs on a background task and only the published
-    /// caches are assigned on the main actor, so every caller (launch, scan
-    /// completion, merges) is non-blocking. The previously loaded caches stay
-    /// visible until the fresh values arrive, so `entitiesLoaded` is only ever
-    /// set true - the lazy `loadEntities()` fallback still covers a first
-    /// access that races the very first load.
+    /// Reloads the entity summaries and counts off the main thread. On iOS the
+    /// summaries deliberately omit artwork; visible rows fetch one thumbnail
+    /// at a time instead of retaining the whole library's BLOBs in memory.
     func refreshEntities() {
         let dbManager = databaseManager
+        let includeArtwork = cacheEntityArtwork
         Task { @MainActor [weak self] in
-            let (artists, albums) = await Task.detached(priority: .userInitiated) {
-                (dbManager.getArtistEntities(), dbManager.getAlbumEntities())
-            }.value
+            let entityTask = Task.detached(priority: .userInitiated) {
+                let artists = dbManager.getArtistEntities(includeArtwork: includeArtwork)
+                let albums = dbManager.getAlbumEntities(includeArtwork: includeArtwork)
+                let artistNames = dbManager.getArtistNamesByRole()
+                return (artists, albums, artistNames)
+            }
+            let countTask = Task.detached(priority: .userInitiated) {
+                (
+                    tracks: dbManager.getTotalTrackCount(),
+                    artists: dbManager.getArtistCount(),
+                    albums: dbManager.getAlbumCount()
+                )
+            }
+
+            let counts = await countTask.value
             guard let self else { return }
-            self.cachedArtistEntities = artists
-            self.cachedAlbumEntities = albums
+            self.applyTotalCounts(
+                tracks: counts.tracks,
+                artists: counts.artists,
+                albums: counts.albums
+            )
+
+            let loaded = await entityTask.value
+            self.cachedArtistEntities = loaded.0
+            self.cachedAlbumEntities = loaded.1
+            if let artistNames = loaded.2 {
+                ArtistParser.setLibraryArtists(artistNames)
+            }
             self.entitiesLoaded = true
-            self.refreshArtistNameLookup()
-            self.updateTotalCounts()
-            Logger.info("Refreshed entities: \(artists.count) artists and \(albums.count) albums")
+            NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
+            Logger.info("Refreshed entities: \(loaded.0.count) artists and \(loaded.1.count) albums")
         }
     }
 
@@ -480,17 +498,6 @@ extension LibraryManager {
         
         Logger.info("Refresh check complete: \(foldersToRefresh.count)/\(folders.count) folders need refresh")
         return foldersToRefresh
-    }
-
-    internal func loadEntities() {
-        guard !entitiesLoaded else { return }
-
-        cachedArtistEntities = databaseManager.getArtistEntities()
-        cachedAlbumEntities = databaseManager.getAlbumEntities()
-
-        entitiesLoaded = true
-        refreshArtistNameLookup()
-        Logger.info("Loaded \(cachedArtistEntities.count) artists and \(cachedAlbumEntities.count) albums")
     }
 
     /// Hand `ArtistParser` the names this library already resolved, so views parsing a raw artist

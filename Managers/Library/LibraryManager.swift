@@ -35,22 +35,18 @@ class LibraryManager: ObservableObject {
     @Published private(set) var totalTrackCount: Int = 0
     @Published private(set) var artistCount: Int = 0
     @Published private(set) var albumCount: Int = 0
+    @Published private(set) var countsLoaded = false
+    @Published internal var entitiesLoaded = false
     
     static let initialScanTrackThreshold = 100
 
     // MARK: - Entity Properties
     var artistEntities: [ArtistEntity] {
-        if !entitiesLoaded {
-            loadEntities()
-        }
-        return cachedArtistEntities
+        cachedArtistEntities
     }
 
     var albumEntities: [AlbumEntity] {
-        if !entitiesLoaded {
-            loadEntities()
-        }
-        return cachedAlbumEntities
+        cachedAlbumEntities
     }
     
     var shouldShowMainUI: Bool {
@@ -71,7 +67,7 @@ class LibraryManager: ObservableObject {
     private let thresholdCheckInterval: TimeInterval = 1.0
     internal var cachedLibraryCategories: [LibraryFilterType: [LibraryFilterItem]] = [:]
     internal var libraryCategoriesLoaded = false
-    internal var entitiesLoaded = false
+    internal let cacheEntityArtwork: Bool
     internal let userDefaults = UserDefaults.standard
     internal let fileManager = FileManager.default
     internal var folderTrackCounts: [Int64: Int] = [:]
@@ -91,7 +87,8 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: - Initialization
-    init() {
+    init(cacheEntityArtwork: Bool = true) {
+        self.cacheEntityArtwork = cacheEntityArtwork
         do {
             // Initialize database manager
             databaseManager = try DatabaseManager()
@@ -188,10 +185,18 @@ class LibraryManager: ObservableObject {
         totalTrackCount = databaseManager.getTotalTrackCount()
         artistCount = databaseManager.getArtistCount()
         albumCount = databaseManager.getAlbumCount()
+        countsLoaded = true
 
         if notify {
             NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
         }
+    }
+
+    internal func applyTotalCounts(tracks: Int, artists: Int, albums: Int) {
+        totalTrackCount = tracks
+        artistCount = artists
+        albumCount = albums
+        countsLoaded = true
     }
     
     /// Debounced library reload to coalesce rapid completion events

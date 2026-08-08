@@ -33,6 +33,7 @@
 
 import AVFoundation
 import Foundation
+import MediaPlayer
 
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
@@ -48,6 +49,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// extrapolates elapsed time from the published rate+elapsed anchor, and
     /// a stale anchor drifts while paused).
     private var nowPlayingMetadata: NowPlayingMetadata?
+    private var nowPlayingArtwork: MPMediaItemArtwork?
 
     // MARK: - Queue item failure tracking
 
@@ -305,7 +307,13 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         itemEntryMap[key] = entry.entryId
         itemStatusObservations[key] = item.observe(\.status, options: [.new]) { [weak self] item, _ in
             guard let self, item.status == .failed else { return }
-            self.runOnMain { self.handleItemFailure(item) }
+            // Never mutate the tracking dictionaries re-entrantly from inside
+            // their KVO registration/removal. A failed item can report status
+            // while `makePlayerItem` is still installing its observation.
+            DispatchQueue.main.async { [weak self, weak item] in
+                guard let self, let item else { return }
+                self.handleItemFailure(item)
+            }
         }
         return item
     }
@@ -630,6 +638,9 @@ extension AVQueuePlayerBackend {
     // MARK: - Now Playing
 
     func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
+        if metadata?.artworkData != nowPlayingMetadata?.artworkData {
+            nowPlayingArtwork = NowPlayingPublisher.artwork(from: metadata?.artworkData)
+        }
         nowPlayingMetadata = metadata
         publishNowPlaying()
     }
@@ -640,11 +651,13 @@ extension AVQueuePlayerBackend {
     /// lock screen never extrapolates from a stale anchor.
     private func publishNowPlaying() {
         guard let metadata = nowPlayingMetadata else {
-            NowPlayingPublisher.publish(nil, elapsed: 0, duration: 0, rate: 0)
+            nowPlayingArtwork = nil
+            NowPlayingPublisher.publish(nil, artwork: nil, elapsed: 0, duration: 0, rate: 0)
             return
         }
         NowPlayingPublisher.publish(
             metadata,
+            artwork: nowPlayingArtwork,
             elapsed: currentPlaybackProgress,
             duration: duration,
             rate: Double(player.rate)

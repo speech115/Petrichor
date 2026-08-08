@@ -15,8 +15,6 @@ struct CategoryItemsView: View {
     let filterType: LibraryFilterType
 
     @State private var items: [LibraryFilterItem] = []
-    @State private var artistThumbnails: [String: Data] = [:]
-    @State private var albumThumbnails: [Int64: Data] = [:]
     @State private var albumEntitiesByID: [Int64: AlbumEntity] = [:]
 
     var body: some View {
@@ -34,7 +32,10 @@ struct CategoryItemsView: View {
         .navigationTitle(filterType.pluralDisplayName)
         .navigationBarTitleDisplayMode(.large)
         .onAppear(perform: reload)
-        .onChange(of: libraryManager.tracks.count) { _, _ in
+        .onChange(of: libraryManager.libraryRevision) { _, _ in
+            reload()
+        }
+        .onChange(of: libraryManager.entitiesLoaded) { _, _ in
             reload()
         }
         .overlay {
@@ -62,7 +63,7 @@ struct CategoryItemsView: View {
                     NavigationLink(value: destination(for: item)) {
                         AlbumGridCard(
                             item: item,
-                            cover: item.albumId.flatMap { albumThumbnails[$0] }
+                            artworkLoader: albumArtworkLoader(for: item.albumId)
                         )
                     }
                     .buttonStyle(.plain)
@@ -111,7 +112,12 @@ struct CategoryItemsView: View {
         switch filterType {
         case .artists:
             HStack(spacing: 12) {
-                ArtworkTile(data: artistThumbnails[item.name], cacheKey: item.name, cornerRadius: 22)
+                ArtworkTile(
+                    data: nil,
+                    cacheKey: "artist-\(item.name)",
+                    cornerRadius: 22,
+                    loader: artistArtworkLoader(for: item.name)
+                )
                     .frame(width: 44, height: 44)
                 textRow(item)
             }
@@ -133,22 +139,7 @@ struct CategoryItemsView: View {
         let sorted = sort(libraryManager.getLibraryFilterItems(for: filterType))
         items = sorted
 
-        // One lookup per row would be quadratic on large libraries; index the
-        // entity caches once per reload instead.
-        if filterType == .artists {
-            artistThumbnails = Dictionary(
-                libraryManager.artistEntities.compactMap { artist in
-                    artist.artworkThumbnail.map { (artist.name, $0) }
-                },
-                uniquingKeysWith: { first, _ in first }
-            )
-        } else if filterType == .albums {
-            albumThumbnails = Dictionary(
-                libraryManager.albumEntities.compactMap { album in
-                    album.albumId.flatMap { id in album.artworkThumbnail.map { (id, $0) } }
-                },
-                uniquingKeysWith: { first, _ in first }
-            )
+        if filterType == .albums {
             albumEntitiesByID = Dictionary(
                 libraryManager.albumEntities.compactMap { album in
                     album.albumId.map { ($0, album) }
@@ -156,6 +147,17 @@ struct CategoryItemsView: View {
                 uniquingKeysWith: { first, _ in first }
             )
         }
+    }
+
+    private func artistArtworkLoader(for name: String) -> ArtworkDataLoader {
+        let database = libraryManager.databaseManager
+        return ArtworkDataLoader { database.getArtistArtworkThumbnail(name: name) }
+    }
+
+    private func albumArtworkLoader(for albumId: Int64?) -> ArtworkDataLoader? {
+        guard let albumId else { return nil }
+        let database = libraryManager.databaseManager
+        return ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumId) }
     }
 
     private func sort(_ items: [LibraryFilterItem]) -> [LibraryFilterItem] {
@@ -176,11 +178,18 @@ struct CategoryItemsView: View {
 
 private struct AlbumGridCard: View {
     let item: LibraryFilterItem
-    let cover: Data?
+    let artworkLoader: ArtworkDataLoader?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ArtworkTile(data: cover, cacheKey: item.albumId.map(String.init), cornerRadius: 10, iconSize: 28)
+            ArtworkTile(
+                data: nil,
+                cacheKey: item.albumId.map { "album-\($0)" },
+                cornerRadius: 10,
+                iconSize: 28,
+                maxPixelSize: 600,
+                loader: artworkLoader
+            )
                 .aspectRatio(1, contentMode: .fit)
 
             Text(item.name)

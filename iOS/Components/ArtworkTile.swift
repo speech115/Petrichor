@@ -17,6 +17,22 @@
 
 import SwiftUI
 import UIKit
+import ImageIO
+
+/// Database-backed artwork reads are safe to move to a detached task because
+/// GRDB serializes access through its pool. The wrapper makes that guarantee
+/// explicit instead of converting arbitrary view closures to `@Sendable`.
+struct ArtworkDataLoader: @unchecked Sendable {
+    private let load: () -> Data?
+
+    init(_ load: @escaping () -> Data?) {
+        self.load = load
+    }
+
+    func callAsFunction() -> Data? {
+        load()
+    }
+}
 
 struct ArtworkTile: View {
     let data: Data?
@@ -26,21 +42,34 @@ struct ArtworkTile: View {
     var cornerRadius: CGFloat = 6
     var iconSize: CGFloat = 16
     var placeholderIcon: String = Icons.musicNote
+    /// Largest decoded edge in physical pixels. A 44-point row needs about
+    /// 132 pixels on a 3x phone, not the source image's full dimensions.
+    var maxPixelSize: CGFloat = 180
     /// Fetches the artwork for rows that arrive without any, called at most
     /// once per appearance and never on the main thread.
-    var loader: (@Sendable () -> Data?)? = nil
+    var loader: ArtworkDataLoader? = nil
 
     @State private var decodedImage: UIImage?
     @State private var loadedData: Data?
 
+    private var sizedCacheKey: String? {
+        cacheKey.map {
+            // The current track first arrives with a thumbnail and is enriched
+            // with full artwork after audio starts. Keep those decoded images
+            // distinct so the larger view cannot remain stuck on the thumbnail.
+            let dataVersion = data.map { "#\($0.count)" } ?? ""
+            return "\($0)\(dataVersion)@\(Int(maxPixelSize.rounded(.up)))"
+        }
+    }
+
     var body: some View {
         Group {
-            if let cacheKey, let cached = RowArtworkCache.shared.image(forKey: cacheKey) {
+            if let sizedCacheKey, let cached = RowArtworkCache.shared.image(forKey: sizedCacheKey) {
                 artworkImage(cached)
             } else if let data = data ?? loadedData {
-                decodeView(data: data, cacheKey: cacheKey)
+                decodeView(data: data, cacheKey: sizedCacheKey)
             } else if let loader {
-                placeholder.task(id: cacheKey) {
+                placeholder.task(id: sizedCacheKey) {
                     let fetched = await Task.detached(priority: .utility) { loader() }.value
                     guard !Task.isCancelled else { return }
                     loadedData = fetched
@@ -53,7 +82,7 @@ struct ArtworkTile: View {
         // the state below resets to the placeholder instead of flashing the
         // previous track's image. Rows without a cacheKey (rare) key on the
         // data hash.
-        .id(cacheKey ?? data.map { "\($0.hashValue)" })
+        .id(sizedCacheKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
@@ -65,8 +94,9 @@ struct ArtworkTile: View {
                 placeholder
                     .task(id: cacheKey) {
                         guard !Task.isCancelled else { return }
+                        let maxPixelSize = maxPixelSize
                         let image = await Task.detached(priority: .utility) {
-                            UIImage(data: data)?.preparingForDisplay()
+                            Self.downsample(data, maxPixelSize: maxPixelSize)
                         }.value
                         guard !Task.isCancelled else { return }
                         if let image {
@@ -78,6 +108,20 @@ struct ArtworkTile: View {
                     }
             }
         }
+    }
+
+    private static nonisolated func downsample(_ data: Data, maxPixelSize: CGFloat) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maxPixelSize.rounded(.up))),
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: image)
     }
 
     /// `Image.resizable().aspectRatio(contentMode: .fill)` does not just draw
