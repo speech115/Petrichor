@@ -17,11 +17,17 @@ import SwiftUI
 import UIKit
 
 struct SearchView: View {
+    @Binding var showingSettings: Bool
+    /// Bumped by the tab bar when Search is tapped while already open; each
+    /// bump puts the keyboard back up without clearing what was typed.
+    let focusRequest: Int
+
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
     @State private var query = ""
+    @FocusState private var isSearchFieldFocused: Bool
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -73,19 +79,25 @@ struct SearchView: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Search Library")
                 )
+                .searchFocused($isSearchFieldFocused)
                 .searchToolbarBehavior(.minimize)
                 .autocorrectionDisabled()
-                .navigationTitle(String(localized: "Search"))
-                .navigationBarTitleDisplayMode(.large)
+                .rootTitle(String(localized: "Search"))
+                .toolbar {
+                    SettingsToolbarItem(showingSettings: $showingSettings)
+                }
                 .navigationDestination(for: LibraryDestination.self) { destination in
                     switch destination {
                     case .artist(let name):
                         ArtistPage(artistName: name)
                     case .album(let album):
                         AlbumPage(album: album)
-                    case .category, .tracks, .allTracks, .discover:
+                    case .category, .tracks, .allTracks:
                         EmptyView()
                     }
+                }
+                .onChange(of: focusRequest) { _, _ in
+                    isSearchFieldFocused = true
                 }
                 .task(id: query) {
                     await libraryManager.search(query: query)

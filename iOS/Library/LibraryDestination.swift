@@ -11,7 +11,6 @@
 import Foundation
 
 enum LibraryDestination: Hashable {
-    case discover
     case category(LibraryFilterType)
     case tracks(LibraryFilterItem)
     case allTracks

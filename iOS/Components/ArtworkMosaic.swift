@@ -31,10 +31,18 @@ struct ArtworkMosaic: View {
                 ArtworkTile(data: nil, cornerRadius: 10, iconSize: 28)
             }
         }
+        // Square first, then clip: `clipShape` cuts to the view's own bounds,
+        // so a branch that laid out wider than its frame would be clipped to
+        // the wrong, wider rectangle and still bleed over the row beside it.
+        .aspectRatio(1, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
+    /// The square belongs on the tile: a resizable image has no intrinsic size
+    /// to bound the grid's row height, so a non-square cover makes the grid
+    /// grow past the frame it was given and spill over its neighbours.
     private func tile(_ data: Data) -> some View {
         ArtworkTile(data: data, cornerRadius: 8)
+            .aspectRatio(1, contentMode: .fit)
     }
 }

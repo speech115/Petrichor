@@ -105,9 +105,13 @@ struct ArtistPage: View {
     private var photo: some View {
         Group {
             if let photoData, let image = UIImage(data: photoData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                Color.clear
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    }
+                    .clipped()
             } else {
                 ZStack {
                     Circle()

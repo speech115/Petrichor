@@ -9,6 +9,11 @@
 // `cacheKey` (album id for list rows) so a row that scrolls back into view
 // does not re-decode its JPEG/HEIC.
 //
+// A row with no artwork in hand can name a `loader`: it runs off the main
+// thread only for the rows actually on screen. That is the path for tracks
+// whose cover hangs off the track rather than an album — pulling those blobs
+// into every list up front would carry tens of megabytes the list never shows.
+//
 
 import SwiftUI
 import UIKit
@@ -21,15 +26,25 @@ struct ArtworkTile: View {
     var cornerRadius: CGFloat = 6
     var iconSize: CGFloat = 16
     var placeholderIcon: String = Icons.musicNote
+    /// Fetches the artwork for rows that arrive without any, called at most
+    /// once per appearance and never on the main thread.
+    var loader: (@Sendable () -> Data?)? = nil
 
     @State private var decodedImage: UIImage?
+    @State private var loadedData: Data?
 
     var body: some View {
         Group {
             if let cacheKey, let cached = RowArtworkCache.shared.image(forKey: cacheKey) {
                 artworkImage(cached)
-            } else if let data {
+            } else if let data = data ?? loadedData {
                 decodeView(data: data, cacheKey: cacheKey)
+            } else if let loader {
+                placeholder.task(id: cacheKey) {
+                    let fetched = await Task.detached(priority: .utility) { loader() }.value
+                    guard !Task.isCancelled else { return }
+                    loadedData = fetched
+                }
             } else {
                 placeholder
             }
@@ -65,10 +80,20 @@ struct ArtworkTile: View {
         }
     }
 
+    /// `Image.resizable().aspectRatio(contentMode: .fill)` does not just draw
+    /// past its frame — it *reports* the enlarged size as its own, so every
+    /// clip and frame above it lands on the wrong rectangle and a wide cover
+    /// spills over the row beside it. Anchoring the layout on `Color.clear`
+    /// pins the reported size to whatever was proposed and clips the image to
+    /// that, which is the only arrangement where the caller's frame holds.
     private func artworkImage(_ image: UIImage) -> some View {
-        Image(uiImage: image)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
+        Color.clear
+            .overlay {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            }
+            .clipped()
     }
 
     private var placeholder: some View {

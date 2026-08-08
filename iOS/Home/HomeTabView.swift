@@ -4,14 +4,14 @@
 // The Home tab, top to bottom:
 //   1. Recently Played - a horizontal shelf of albums (large squares are
 //      containers, not songs), grouped from the recently played tracks.
-//   2. Discover - a 4xN horizontal grid of songs from the weekly rotation.
-//   3. Library - three rows (Songs, Favorites, Top 25 Most Played) with
+//   2. Library - three rows (Songs, Favorites, Top 25 Most Played) with
 //      counts on the right, leading to the all-tracks list and the smart
 //      playlists.
 //
 // Every section title is itself a link - the chevron sits flush against the
 // word, there is no "See All" label. Settings live in the navigation bar;
-// the playlists grid, import and "+" moved to the Playlists tab.
+// the playlists grid moved to the Playlists tab and Discover became a tab of
+// its own, so Home no longer carries a shelf of it.
 //
 
 import SwiftUI
@@ -25,7 +25,6 @@ struct HomeTabView: View {
     @Binding var showingSettings: Bool
 
     @State private var recentAlbums: [AlbumEntity] = []
-    @State private var discoverTracks: [Track] = []
     @State private var loadTask: Task<Void, Never>?
 
     /// Tracks fetched per refresh; the grouping caps the shelf itself.
@@ -36,35 +35,20 @@ struct HomeTabView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    ContinueListeningCard()
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
                             albums: recentAlbums,
                             headerValue: smartPlaylistID(DefaultPlaylists.recentlyPlayed)
                         )
                     }
-                    if !discoverTracks.isEmpty {
-                        SongShelf(
-                            title: String(localized: "Discover"),
-                            destination: .discover,
-                            tracks: discoverTracks,
-                            onPlay: { play($0, in: discoverTracks) }
-                        )
-                    }
                     librarySection
                 }
                 .padding(.vertical, 8)
             }
-            .navigationTitle(String(localized: "Home"))
-            .navigationBarTitleDisplayMode(.large)
+            .rootTitle(String(localized: "Home"))
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: Icons.settings)
-                    }
-                    .accessibilityLabel(String(localized: "Settings"))
-                }
+                SettingsToolbarItem(showingSettings: $showingSettings)
             }
             .navigationDestination(for: LibraryDestination.self) { destination in
                 destinationView(destination)
@@ -169,8 +153,6 @@ struct HomeTabView: View {
     @ViewBuilder
     private func destinationView(_ destination: LibraryDestination) -> some View {
         switch destination {
-        case .discover:
-            DiscoverView()
         case .category(let filterType):
             CategoryItemsView(filterType: filterType)
         case .tracks(let item):
@@ -182,12 +164,6 @@ struct HomeTabView: View {
         case .album(let album):
             AlbumPage(album: album)
         }
-    }
-
-    // MARK: - Playback
-
-    private func play(_ track: Track, in tracks: [Track]) {
-        playlistManager.play(track, source: .library(context: tracks))
     }
 
     // MARK: - Loading
@@ -208,11 +184,6 @@ struct HomeTabView: View {
         let fetchLimit = Self.recentTracksFetchLimit
         let albumLimit = Self.albumShelfLimit
 
-        // The manager keeps the weekly Discover rotation; the Home grid
-        // reads only thumbnails.
-        libraryManager.loadDiscoverTracks(populateArtwork: false)
-        let managerDiscover = libraryManager.discoverTracks
-
         let loaded = await Task.detached(priority: .userInitiated) {
             let recentTracks = libraryManager.getRecentlyPlayedTracks(limit: fetchLimit)
             let albumCounts = Dictionary(
@@ -226,12 +197,11 @@ struct HomeTabView: View {
                 limit: albumLimit,
                 trackCountsByAlbumID: albumCounts
             )
-            return (albums, managerDiscover)
+            return albums
         }.value
 
         guard !Task.isCancelled else { return }
-        recentAlbums = loaded.0
-        discoverTracks = loaded.1
+        recentAlbums = loaded
     }
 }
 

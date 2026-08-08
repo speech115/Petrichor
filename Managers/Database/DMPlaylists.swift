@@ -323,7 +323,24 @@ extension DatabaseManager {
                 let rows = try Row.fetchAll(db, sql: sql, arguments: [playlistId.uuidString])
                 var tracks: [Track] = []
                 tracks.reserveCapacity(rows.count)
+                // The same audio file can sit in several folders — the VK
+                // export writes a track into the flat folder and into every
+                // sub-playlist folder it belongs to — and the M3U lists each
+                // copy, so the playlist shows the song two or three times.
+                // Repeats of one file collapse to their first appearance here.
+                //
+                // This is not the "Hide duplicate songs" setting and cannot be:
+                // that one drops every copy the library did not elect primary,
+                // wherever it lives, which empties playlists whose own copy
+                // lost the election ("Любимые песни" keeps 5 tracks of 30).
+                var seenGroups = Set<String>()
                 for row in rows {
+                    // `Track` does not carry the group; the row does, because
+                    // the query selects the whole table.
+                    if let group = row["duplicate_group_id"] as String?,
+                       !seenGroups.insert(group).inserted {
+                        continue
+                    }
                     var track = try Track(row: row)
                     track.dateAdded = row["playlist_date_added"]
                     tracks.append(track)
@@ -377,6 +394,17 @@ extension DatabaseManager {
             }
             tracks = Array(tracks.prefix(limit))
             populateAlbumArtworkThumbnailsForTracks(&tracks)
+            // A cover that hangs off the track rather than an album is the only
+            // artwork hundreds of these tracks have — the VK exports especially
+            // — and without this the preview mosaic comes back empty and the
+            // playlist wears a placeholder note. At most `limit` rows, so the
+            // display-size read costs four images, not the playlist's worth.
+            for index in tracks.indices where tracks[index].displayArtwork == nil {
+                tracks[index].albumArtworkData = getArtworkData(
+                    albumId: tracks[index].albumId,
+                    trackId: tracks[index].trackId
+                )
+            }
             return tracks
         } catch {
             Logger.error("Failed to load preview tracks for playlist \(playlist.id): \(error)")

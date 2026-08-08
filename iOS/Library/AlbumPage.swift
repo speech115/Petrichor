@@ -62,9 +62,13 @@ struct AlbumPage: View {
     private var artwork: some View {
         Group {
             if let artworkData = album.artworkData, let image = UIImage(data: artworkData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
+                Color.clear
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    }
+                    .clipped()
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)

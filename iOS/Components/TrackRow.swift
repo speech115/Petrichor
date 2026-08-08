@@ -9,9 +9,12 @@
 // confirmation haptic at gesture completion), long-press for the full
 // context menu. VoiceOver exposes the same two actions as custom actions.
 //
-// Artwork is carried by the track: every list wrapper in LibraryManager
-// fills `albumArtworkThumbnail` before rows are handed to the screen, so
-// the row has no path into the database (and no artwork cache of its own).
+// Artwork is normally carried by the track: every list wrapper in
+// LibraryManager fills `albumArtworkThumbnail` before rows are handed to the
+// screen. The one case it cannot cover is a cover that hangs off the track
+// instead of an album — 404 of them in a 2919-track library, full size, so
+// loading them with every list would cost ~29 MB of blobs no list shows at
+// once. Those rows fetch their own, one row at a time, as they appear.
 //
 
 import SwiftUI
@@ -25,6 +28,7 @@ struct TrackRow: View {
     var menuContext: TrackContextMenu.MenuContext = .library
 
     @EnvironmentObject private var playlistManager: PlaylistManager
+    @EnvironmentObject private var libraryManager: LibraryManager
 
     @State private var showingPlaylistPicker = false
 
@@ -84,7 +88,7 @@ struct TrackRow: View {
             titleVisibility: .visible
         ) {
             ForEach(regularPlaylists) { playlist in
-                Button(DefaultPlaylists.displayName(for: playlist)) {
+                Button(PlaylistDisplay.name(for: playlist)) {
                     playlistManager.updateTrackInPlaylist(track: track, playlist: playlist, add: true)
                 }
             }
@@ -126,8 +130,26 @@ struct TrackRow: View {
 
     // MARK: - Artwork
 
+    private var artworkCacheKey: String? {
+        if let albumId = track.albumId { return "album-\(albumId)" }
+        return track.trackId.map { "track-\($0)" }
+    }
+
+    /// Only for rows the album could not supply: everything else already has
+    /// its thumbnail and must not touch the database.
+    private var trackArtworkLoader: (@Sendable () -> Data?)? {
+        guard track.displayArtwork == nil, let trackId = track.trackId else { return nil }
+        let database = libraryManager.databaseManager
+        let albumId = track.albumId
+        return { database.getArtworkData(albumId: albumId, trackId: trackId) }
+    }
+
     private var artworkView: some View {
-        ArtworkTile(data: track.displayArtwork, cacheKey: track.albumId.map(String.init))
+        ArtworkTile(
+            data: track.displayArtwork,
+            cacheKey: artworkCacheKey,
+            loader: trackArtworkLoader
+        )
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6))
     }
