@@ -29,3 +29,12 @@
 - [x] Экран тёмный при светлой обложке и в светлой теме
 - [x] Скраббер и громкость без ручек
 - [x] Очередь и текст поднимаются панелями поверх обложки
+
+## Comments
+
+### 2026-08-09 — performance follow-up
+
+Presentation baseline уточнён коммитом `8a53d44`: открытие, закрытие и
+интерактивный drag управляются одним `NowPlayingPresentationLayer`; внутренний
+экран не должен добавлять собственный removal-transition. Причина и покадровая
+проверка записаны в `.scratch/playlist-perf/issues/13-now-playing-unified-transition.md`.

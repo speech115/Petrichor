@@ -30,6 +30,16 @@
 
 ## Проверка
 
-Устройство (скилл `.claude/skills/petrichor-device/`): громкость двигается
+Устройство (скилл `.agents/skills/petrichor-device/`): громкость двигается
 вместе с аппаратными кнопками, AirPlay видит колонки, обложка сжимается на паузе
 без рывка, свайп вниз по-прежнему закрывает экран мгновенно.
+
+## Comments
+
+### 2026-08-09 — актуальный presentation baseline
+
+Перед реализацией этой полировки сохранить единый
+`NowPlayingPresentationLayer` из `8a53d44`: фон, artwork и controls композятся и
+двигаются вместе, а drag-offset принадлежит родителю. Не добавлять вложенный
+`.transition(.move)` или отдельный offset обложки. Детали:
+`.scratch/playlist-perf/issues/13-now-playing-unified-transition.md`.

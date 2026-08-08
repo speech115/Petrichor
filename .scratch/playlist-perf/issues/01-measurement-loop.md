@@ -68,7 +68,7 @@ Blocked by: —
   импорт M3U в приложении создаёт плейлист (поведение закреплено
   `Tests/PetrichoriOSTests/M3UImportTests.swift`).
 - Залить: `xcrun simctl push booted org.Petrichor.ios <файлы> Documents/Music/`
-  (симулятор iPhone 17 Pro Max, см. `.claude/skills/ios-simulator/SKILL.md`).
+  (симулятор iPhone 17 Pro Max, см. `.agents/skills/ios-simulator/SKILL.md`).
 - Запустить приложение (xcodebuildmcp `build_run_sim`), дождаться скана,
   открыть плейлист big через UI-автоматизацию (`snapshot_ui` + `tap`),
   снять цифры signpost-интервалов из логов
