@@ -113,29 +113,13 @@ struct ContentView: View {
             }
             .environmentObject(playlistManager)
         }
-        // Now Playing is an in-hierarchy overlay, not a `.fullScreenCover`. A
-        // modal cover keeps a touch-blocking layer over the tab bar for its
-        // whole ~0.5s dismiss animation (and ~1s with a zoom transition), so the
-        // mini player underneath is dead until it finishes. As a sibling overlay
-        // the mini player stays live: `allowsHitTesting(showingNowPlaying)` lets
-        // taps fall straight through the moment a dismiss starts, and the
-        // spring below is a transition we own rather than the fixed modal one.
+        // Keep Now Playing in this hierarchy, but let one presentation layer own
+        // mounting, drag progress and dismissal. A conditional `.move`
+        // transition used to start after NowPlayingScreen had already moved its
+        // content, so the cover and the surface visibly travelled in two steps.
         .overlay {
-            if showingNowPlaying {
-                NowPlayingScreen(isPresented: $showingNowPlaying)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom),
-                        removal: .move(edge: .bottom).combined(with: .opacity)
-                    ))
-                    .allowsHitTesting(showingNowPlaying)
-            }
+            NowPlayingPresentationLayer(isPresented: $showingNowPlaying)
         }
-        .animation(
-            showingNowPlaying
-                ? .spring(response: 0.38, dampingFraction: 0.92)
-                : .easeOut(duration: 0.24),
-            value: showingNowPlaying
-        )
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
                 MergeEntitySheet(request: request)
@@ -291,6 +275,119 @@ struct ContentView: View {
         }
 
         return parts.joined(separator: "\n")
+    }
+}
+
+// MARK: - Now Playing Presentation
+
+/// Mounts the player one run-loop turn below the viewport, then moves the
+/// entire composited surface as one layer. The same offset is driven by the
+/// interactive drag, so releasing a successful dismissal continues from the
+/// user's finger instead of starting a second transition from the top.
+private struct NowPlayingPresentationLayer: View {
+    @Binding var isPresented: Bool
+
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
+
+    @State private var isMounted = false
+    @State private var isVisible = false
+    @State private var dragOffset: CGFloat = 0
+    @State private var lifecycleTask: Task<Void, Never>?
+
+    private var entranceAnimation: Animation {
+        reduceMotion
+            ? .easeOut(duration: 0.20)
+            : .spring(response: 0.38, dampingFraction: 0.92)
+    }
+
+    private var exitDuration: Double {
+        reduceMotion ? 0.20 : 0.24
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            if isMounted {
+                NowPlayingScreen(
+                    isPresented: $isPresented,
+                    presentationDragOffset: $dragOffset
+                )
+                // Force the gradient, cover and controls through one compositor
+                // transform. Without this, the decoded UIImage layer can commit
+                // a frame before the rest of the newly inserted hierarchy.
+                .compositingGroup()
+                .offset(y: verticalOffset(in: geometry))
+                .opacity(isVisible ? 1 : 0)
+                .allowsHitTesting(isVisible)
+                .accessibilityHidden(!isVisible)
+            }
+        }
+        .ignoresSafeArea()
+        .onChange(of: isPresented, initial: true) { _, presented in
+            updatePresentation(presented)
+        }
+        .onDisappear {
+            lifecycleTask?.cancel()
+        }
+    }
+
+    private func verticalOffset(in geometry: GeometryProxy) -> CGFloat {
+        guard !reduceMotion else { return 0 }
+        return isVisible ? max(0, dragOffset) : geometry.size.height
+    }
+
+    private func updatePresentation(_ presented: Bool) {
+        lifecycleTask?.cancel()
+        if presented {
+            present()
+        } else {
+            dismiss()
+        }
+    }
+
+    private func present() {
+        dragOffset = 0
+
+        if !isMounted {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isVisible = false
+                isMounted = true
+            }
+        }
+
+        // The off-screen mounted frame must commit before the entrance begins;
+        // otherwise SwiftUI can insert the cached cover at its final position
+        // and animate the surrounding hierarchy one frame later.
+        lifecycleTask = Task { @MainActor in
+            await Task.yield()
+            guard !Task.isCancelled, isPresented, isMounted else { return }
+            withAnimation(entranceAnimation) {
+                isVisible = true
+            }
+        }
+    }
+
+    private func dismiss() {
+        guard isMounted else { return }
+
+        let duration = exitDuration
+        withAnimation(.easeOut(duration: duration)) {
+            isVisible = false
+        }
+
+        lifecycleTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            guard !Task.isCancelled, !isPresented else { return }
+
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isMounted = false
+                dragOffset = 0
+            }
+        }
     }
 }
 

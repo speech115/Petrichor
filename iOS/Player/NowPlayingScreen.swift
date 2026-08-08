@@ -22,6 +22,7 @@ import MediaPlayer
 
 struct NowPlayingScreen: View {
     @Binding var isPresented: Bool
+    @Binding var presentationDragOffset: CGFloat
 
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
@@ -34,7 +35,6 @@ struct NowPlayingScreen: View {
 
     @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
     @State private var paletteTask: Task<Void, Never>?
-    @State private var dragOffset: CGFloat = 0
     @State private var showingQueue = false
     @State private var showingLyrics = false
 
@@ -52,7 +52,6 @@ struct NowPlayingScreen: View {
                 background
 
                 content(in: geometry.size)
-                    .offset(y: max(0, dragOffset))
 
                 if panelUp {
                     panelDismissLayer
@@ -86,7 +85,6 @@ struct NowPlayingScreen: View {
         // have to be told which scheme they are being drawn on.
         .preferredColorScheme(.dark)
         .onAppear {
-            dragOffset = 0
             playbackManager.setFineProgressSampling(true)
             updatePalette()
         }
@@ -171,14 +169,17 @@ struct NowPlayingScreen: View {
     // MARK: - Grabber
 
     private var grabber: some View {
-        Capsule()
-            .fill(Color.white.opacity(0.35))
-            .frame(width: 36, height: 5)
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-            .onTapGesture { isPresented = false }
-            .accessibilityLabel(String(localized: "Close"))
-            .accessibilityAddTraits(.isButton)
+        Button {
+            isPresented = false
+        } label: {
+            Capsule()
+                .fill(Color.white.opacity(0.35))
+                .frame(width: 36, height: 5)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "Close"))
     }
 
     // MARK: - Artwork
@@ -323,16 +324,16 @@ struct NowPlayingScreen: View {
         DragGesture(minimumDistance: 20)
             .onChanged { value in
                 guard !panelUp else { return }
-                dragOffset = max(0, value.translation.height)
+                presentationDragOffset = max(0, value.translation.height)
             }
             .onEnded { value in
-                if !panelUp && (
-                    value.translation.height > 90 || value.predictedEndTranslation.height > 200
-                ) {
+                let shouldDismiss = presentationDragOffset > 90
+                    || value.predictedEndTranslation.height > 200
+                if !panelUp && shouldDismiss {
                     isPresented = false
                 } else {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.92)) {
-                        dragOffset = 0
+                        presentationDragOffset = 0
                     }
                 }
             }
