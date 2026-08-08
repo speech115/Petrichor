@@ -767,7 +767,7 @@ private struct FormatBadge: View {
 }
 
 struct FavoriteButtonView: View, Equatable {
-    let trackId: UUID
+    let trackId: String
     let isFavorite: Bool
     let onToggle: () -> Void
 
@@ -791,7 +791,7 @@ struct FavoriteButtonView: View, Equatable {
 }
 
 struct TrackArtworkInfo: Equatable {
-    let id: UUID
+    let id: String
     let artworkData: Data?
 
     static func == (lhs: TrackArtworkInfo, rhs: TrackArtworkInfo) -> Bool {

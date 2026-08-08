@@ -62,7 +62,7 @@ struct ImmersiveView: View {
     @AppStorage(immersivePanelStateKey)
     private var panel: ImmersivePanel = .none
     @State private var cachedArtwork: NSImage?
-    @State private var currentTrackId: UUID?
+    @State private var currentTrackId: String?
     @State private var gradientColors: [Color] = []
 
     // Cached alongside gradientColors so the ~10 text/border call sites read a
@@ -78,7 +78,7 @@ struct ImmersiveView: View {
     /// Artwork/gradient/adaptive color are seeded from ContentView so they're present
     /// on the very first frame; otherwise they'd populate in `onAppear` (after
     /// insertion) and pop/fade in while the view is sliding up.
-    init(isPresented: Binding<Bool>, artwork: NSImage?, gradient: [Color], trackID: UUID?, isDarkMode: Bool) {
+    init(isPresented: Binding<Bool>, artwork: NSImage?, gradient: [Color], trackID: String?, isDarkMode: Bool) {
         _isPresented = isPresented
         _cachedArtwork = State(initialValue: artwork)
         _gradientColors = State(initialValue: gradient)

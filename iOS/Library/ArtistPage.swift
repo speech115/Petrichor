@@ -127,22 +127,8 @@ struct ArtistPage: View {
     }
 
     private func albumArtwork(_ album: AlbumEntity) -> some View {
-        Group {
-            if let artworkData = album.displayArtwork, let image = UIImage(data: artworkData) {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.secondary.opacity(0.12))
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        ArtworkTile(data: album.displayArtwork, cacheKey: album.albumId.map(String.init))
+            .frame(width: 44, height: 44)
     }
 
     private func albumSubtitle(_ album: AlbumEntity) -> String {

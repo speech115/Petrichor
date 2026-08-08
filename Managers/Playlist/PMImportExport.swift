@@ -313,7 +313,7 @@ extension PlaylistManager {
     
     private func exportSinglePlaylist(_ playlist: Playlist, to fileURL: URL) async -> PlaylistExportResult {
         let tracks = playlist.tracks.isEmpty
-            ? await MainActor.run { getPlaylistTracks(playlist) }
+            ? await getPlaylistTracks(playlist)
             : playlist.tracks
         
         let m3uContent = generateM3UContent(for: tracks)

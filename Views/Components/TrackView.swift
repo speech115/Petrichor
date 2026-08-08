@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Track View
 struct TrackView: View {
     let tracks: [Track]
-    @Binding var selectedTrackID: UUID?
+    @Binding var selectedTrackID: String?
     let playlistID: UUID?
     let entityID: UUID?
     var queueSource: PlaylistManager.QueueSource = .library

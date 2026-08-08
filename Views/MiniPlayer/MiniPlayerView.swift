@@ -77,7 +77,7 @@ struct MiniPlayerView: View {
 
     @State private var isHovering = false
     @State private var cachedArtwork: NSImage?
-    @State private var currentTrackId: UUID?
+    @State private var currentTrackId: String?
     @State private var miniWindow: NSWindow?
     @State private var gradientColors: [Color] = []
     @State private var showingClearConfirmation = false

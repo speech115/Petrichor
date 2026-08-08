@@ -9,15 +9,15 @@ final class LyricsStore {
     private init() {}
 
     struct Lyrics {
-        let trackId: UUID
+        let trackId: String
         let lines: [LyricLine]
         let hasTimed: Bool
     }
 
     private var cached: Lyrics?
-    private var inFlight: [UUID: Task<Lyrics, Error>] = [:]
+    private var inFlight: [String: Task<Lyrics, Error>] = [:]
 
-    func cachedLyrics(for trackId: UUID) -> Lyrics? {
+    func cachedLyrics(for trackId: String) -> Lyrics? {
         guard let cached, cached.trackId == trackId else { return nil }
         return cached
     }

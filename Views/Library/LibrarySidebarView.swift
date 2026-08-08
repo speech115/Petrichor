@@ -58,7 +58,7 @@ struct LibrarySidebarView: View {
         .onChange(of: selectedFilterType) { _, newType in
             handleFilterTypeChange(newType)
         }
-        .onChange(of: libraryManager.tracks) {
+        .onChange(of: libraryManager.libraryRevision) {
             updateFilteredItems()
         }
         .onChange(of: sortAscending) {

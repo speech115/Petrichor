@@ -3,7 +3,12 @@ import GRDB
 import SwiftUI
 
 struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRecord {
-    let id = UUID()
+    /// Stable identity derived from the database row, so a reload of the same
+    /// content produces the same ids (List diffing, caches). Unpersisted
+    /// tracks fall back to their file path.
+    var id: String {
+        trackId.map(String.init) ?? url.absoluteString
+    }
     var trackId: Int64?
     let url: URL
     

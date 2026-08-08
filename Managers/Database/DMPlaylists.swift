@@ -305,47 +305,38 @@ extension DatabaseManager {
     func loadTracksForPlaylist(_ playlistId: UUID, populateArtwork: Bool = true) -> [Track] {
         do {
             return try dbQueue.read { db in
-                // Get playlist tracks in order with their dateAdded
-                let playlistTracks = try PlaylistTrack
-                    .filter(PlaylistTrack.Columns.playlistId == playlistId.uuidString)
-                    .order(PlaylistTrack.Columns.position)
-                    .fetchAll(db)
-                
-                guard !playlistTracks.isEmpty else {
-                    return []
+                // One JOIN instead of the two-phase `IN (1000+)` fetch: the
+                // junction row carries position order and the playlist's
+                // date_added, so no dictionary or manual re-sorting is needed.
+                // Duplicate track_ids would naturally produce two rows.
+                var sql = """
+                    SELECT tracks.*, playlist_tracks.date_added AS playlist_date_added
+                    FROM playlist_tracks
+                    JOIN tracks ON tracks.id = playlist_tracks.track_id
+                    WHERE playlist_tracks.playlist_id = ?
+                    """
+                if UserDefaults.standard.bool(forKey: "hideDuplicateTracks") {
+                    sql += " AND tracks.is_duplicate = 0"
                 }
-                
-                let trackIds = playlistTracks.map { $0.trackId }
-                
-                // Fetch tracks for this playlist only
-                let tracks = try applyDuplicateFilter(Track.all())
-                    .filter(trackIds.contains(Track.Columns.trackId))
-                    .fetchAll(db)
-                
-                // Create dictionaries for quick lookup
-                var trackDict: [Int64: Track] = [:]
-                for track in tracks {
-                    if let trackId = track.trackId {
-                        trackDict[trackId] = track
-                    }
+                sql += " ORDER BY playlist_tracks.position"
+
+                let rows = try Row.fetchAll(db, sql: sql, arguments: [playlistId.uuidString])
+                var tracks: [Track] = []
+                tracks.reserveCapacity(rows.count)
+                for row in rows {
+                    var track = try Track(row: row)
+                    track.dateAdded = row["playlist_date_added"]
+                    tracks.append(track)
                 }
-                
-                var sortedTracks: [Track] = []
-                for playlistTrack in playlistTracks {
-                    if var track = trackDict[playlistTrack.trackId] {
-                        track.dateAdded = playlistTrack.dateAdded
-                        sortedTracks.append(track)
-                    }
-                }
-                
+
                 // List contexts pass `false` and fill thumbnails themselves
                 // (populateAlbumArtworkThumbnailsForTracks); the playlist rows
                 // never read the display-size BLOB.
                 if populateArtwork {
-                    try populateAlbumArtworkForTracks(&sortedTracks, db: db)
+                    try populateAlbumArtworkForTracks(&tracks, db: db)
                 }
-                
-                return sortedTracks
+
+                return tracks
             }
         } catch {
             Logger.error("Failed to load tracks for playlist \(playlistId): \(error)")

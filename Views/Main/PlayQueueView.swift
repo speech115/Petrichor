@@ -179,7 +179,7 @@ struct PlayQueueContent: View {
         )
         .onDrag {
             draggedIndex = position
-            return NSItemProvider(object: track.id.uuidString as NSString)
+            return NSItemProvider(object: track.id as NSString)
         }
         .onDrop(of: [UTType.text], delegate: QueueDropDelegate(
             destinationIndex: position,

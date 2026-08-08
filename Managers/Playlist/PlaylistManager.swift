@@ -131,25 +131,37 @@ class PlaylistManager: ObservableObject {
     
     /// Ensure tracks are loaded for a playlist. Rows are list rows: the
     /// display-size artwork pass is skipped and album thumbnails are filled
-    /// here, inside the manager.
-    func loadPlaylistTracks(for playlistId: UUID) {
-        guard let playlist = playlists.first(where: { $0.id == playlistId }),
-              playlist.type == .regular,
-              playlist.tracks.isEmpty,
-              let dbManager = libraryManager?.databaseManager else {
-            return
+    /// here, inside the manager. Reads stay off the main thread; every access
+    /// to `playlists` is isolated via `MainActor.run` (mirrors
+    /// `loadSmartPlaylistTracks`).
+    func loadPlaylistTracks(for playlistId: UUID) async {
+        guard let dbManager = libraryManager?.databaseManager else { return }
+
+        let shouldLoad = await MainActor.run { () -> Bool in
+            guard let playlist = playlists.first(where: { $0.id == playlistId }),
+                  playlist.type == .regular,
+                  playlist.tracks.isEmpty else { return false }
+            return true
         }
-        
+        guard shouldLoad else { return }
+
         var tracks = dbManager.loadTracksForPlaylist(playlistId, populateArtwork: false)
         dbManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-        
-        if let index = playlists.firstIndex(where: { $0.id == playlistId }) {
-            playlists[index].tracks = tracks
+        let loadedTracks = tracks
+
+        await MainActor.run {
+            if let index = playlists.firstIndex(where: { $0.id == playlistId }) {
+                playlists[index].tracks = loadedTracks
+            }
         }
     }
     
-    /// Get tracks for a playlist, loading them if needed
-    func getPlaylistTracks(_ playlist: Playlist) -> [Track] {
+    /// Get tracks for a playlist, loading them if needed. Async: the load
+    /// path is the same `loadPlaylistTracks` used by the list screens, which
+    /// never pulls the display-size artwork BLOBs (export and automation
+    /// only need the file URLs). `playlists` reads are isolated via
+    /// `MainActor.run`, mirroring `loadPlaylistTracks`.
+    func getPlaylistTracks(_ playlist: Playlist) async -> [Track] {
         if playlist.type == .smart {
             // Smart playlists are already handled differently
             return playlist.tracks
@@ -157,19 +169,12 @@ class PlaylistManager: ObservableObject {
         
         // For regular playlists, load tracks if not already loaded
         if playlist.tracks.isEmpty {
-            if let dbManager = libraryManager?.databaseManager {
-                let tracks = dbManager.loadTracksForPlaylist(playlist.id)
-                
-                // Update the playlist with loaded tracks
-                if let index = playlists.firstIndex(where: { $0.id == playlist.id }) {
-                    playlists[index].tracks = tracks
-                }
-                
-                return tracks
-            }
+            await loadPlaylistTracks(for: playlist.id)
         }
         
-        return playlist.tracks
+        return await MainActor.run {
+            playlists.first { $0.id == playlist.id }?.tracks ?? []
+        }
     }
     
     /// Sort playlists: smart playlists first (by dateCreated), then regular playlists (by sortOrder, dateCreated as tiebreaker)

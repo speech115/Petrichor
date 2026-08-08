@@ -134,6 +134,7 @@ extension LibraryManager {
 
         folders = resolvedFolders
         tracks = []
+        libraryRevision += 1
 
         loadLibraryCategories()
         updateSearchResults()
@@ -176,6 +177,7 @@ extension LibraryManager {
             
             await MainActor.run {
                 self.tracks = loadedTracks
+                self.libraryRevision += 1
                 self.updateSearchResults()
             }
         }
@@ -229,6 +231,7 @@ extension LibraryManager {
             let loaded = await Task.detached { self.databaseManager.getAllTracks() }.value
             await MainActor.run {
                 self.tracks = loaded
+                self.libraryRevision += 1
                 self.updateSearchResults()
                 NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
             }

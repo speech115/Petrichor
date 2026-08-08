@@ -100,7 +100,12 @@ extension PlaylistManager {
             try await dbManager.savePlaylistAsync(playlist)
 
             if !criteria.autoUpdate {
-                let evaluated = (try? await dbManager.getTracksForSmartPlaylist(playlist)) ?? []
+                // Only trackIds are persisted into the snapshot, so the full
+                // artwork pass would be wasted I/O.
+                let evaluated = (try? await dbManager.getTracksForSmartPlaylist(
+                    playlist,
+                    populateArtwork: false
+                )) ?? []
                 try await dbManager.saveSmartPlaylistSnapshot(playlistId: playlist.id, tracks: evaluated)
             }
 
@@ -200,8 +205,15 @@ extension PlaylistManager {
             }
 
             // Hot: full refresh (each query only loads normalized tables if its rules need them).
+            // List rows never read the display-size BLOB: thumbnails only, mirroring
+            // loadSmartPlaylistTracks (rows 137-141).
             for playlist in hot {
-                let refreshed = (try? await dbManager.getTracksForSmartPlaylist(playlist)) ?? []
+                var loaded = (try? await dbManager.getTracksForSmartPlaylist(
+                    playlist,
+                    populateArtwork: false
+                )) ?? []
+                dbManager.populateAlbumArtworkThumbnailsForTracks(&loaded)
+                let refreshed = loaded
                 await MainActor.run {
                     if let index = self.playlists.firstIndex(where: { $0.id == playlist.id }) {
                         self.playlists[index].tracks = refreshed

@@ -64,7 +64,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
         .task(id: identity) {
             await loadRows()
         }
-        .onChange(of: libraryManager.tracks) { _, _ in
+        .onChange(of: libraryManager.libraryRevision) { _, _ in
             scheduleLoad()
         }
         .onDisappear {

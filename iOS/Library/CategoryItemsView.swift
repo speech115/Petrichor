@@ -111,7 +111,7 @@ struct CategoryItemsView: View {
         switch filterType {
         case .artists:
             HStack(spacing: 12) {
-                ArtworkTile(data: artistThumbnails[item.name], cornerRadius: 22)
+                ArtworkTile(data: artistThumbnails[item.name], cacheKey: item.name, cornerRadius: 22)
                     .frame(width: 44, height: 44)
                 textRow(item)
             }
@@ -180,7 +180,7 @@ private struct AlbumGridCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            ArtworkTile(data: cover, cornerRadius: 10, iconSize: 28)
+            ArtworkTile(data: cover, cacheKey: item.albumId.map(String.init), cornerRadius: 10, iconSize: 28)
                 .aspectRatio(1, contentMode: .fit)
 
             Text(item.name)

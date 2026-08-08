@@ -21,7 +21,7 @@ struct HomeView: View {
     private var trackTableRowSize: TableRowSize = .expanded
     
     @Binding var selectedSidebarItem: HomeSidebarItem?
-    @State private var selectedTrackID: UUID?
+    @State private var selectedTrackID: String?
     @State private var pinnedItemTracks: [Track] = []
     @State private var pinnedEntity: (any Entity)?
     @State private var sortedArtistEntities: [ArtistEntity] = []

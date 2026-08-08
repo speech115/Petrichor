@@ -143,7 +143,7 @@ struct PlaylistDetailScreen: View {
             playDisabled: tracks.isEmpty,
             subtitle: String(localized: "\(playlist.trackCount) songs"),
             artwork: {
-                ArtworkMosaic(covers: tracks.compactMap { $0.displayArtwork })
+                ArtworkMosaic(covers: Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4)))
                     .frame(width: 240, height: 240)
             }
         )
@@ -160,7 +160,7 @@ struct PlaylistDetailScreen: View {
             if playlist.type == .smart {
                 await playlistManager.loadSmartPlaylistTracks(playlist)
             } else {
-                playlistManager.loadPlaylistTracks(for: playlist.id)
+                await playlistManager.loadPlaylistTracks(for: playlist.id)
             }
         }
         return playlistManager.playlists.first { $0.id == playlistID }?.tracks ?? []
@@ -168,17 +168,18 @@ struct PlaylistDetailScreen: View {
 
     /// Computes which track files are missing from disk. One cheap pass over
     /// the list on open and on every track-set change, so a returned file
-    /// revives its row without any reordering.
+    /// revives its row without any reordering. Path building happens inside
+    /// the detached task so the main thread never walks the track list.
     private func refreshMissingFiles() async {
         guard let playlist else {
             missingPaths = []
             return
         }
 
-        let paths = playlist.tracks.map(\.url.path)
+        let tracks = playlist.tracks
 
         let missing = await Task.detached(priority: .utility) {
-            Set(paths.filter { !FileManager.default.fileExists(atPath: $0) })
+            Set(tracks.map(\.url.path).filter { !FileManager.default.fileExists(atPath: $0) })
         }.value
 
         guard !Task.isCancelled else { return }

@@ -122,7 +122,7 @@ extension LibraryManager {
     }
 
     @MainActor
-    func cachedLyrics(for trackId: UUID) -> LyricsStore.Lyrics? {
+    func cachedLyrics(for trackId: String) -> LyricsStore.Lyrics? {
         LyricsStore.shared.cachedLyrics(for: trackId)
     }
 

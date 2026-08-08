@@ -12,7 +12,7 @@ struct LibraryView: View {
     @AppStorage("trackTableRowSize")
     private var trackTableRowSize: TableRowSize = .expanded
 
-    @State private var selectedTrackID: UUID?
+    @State private var selectedTrackID: String?
     @State private var isLibrarySearchActive = false
     @State private var isViewReady = false
     @State private var trackTableSortOrder = [KeyPathComparator(\Track.title)]
@@ -34,9 +34,12 @@ struct LibraryView: View {
                 .onDisappear {
                     isViewReady = false
                 }
-                .onChange(of: libraryManager.tracks) { _, newTracks in
+                .onChange(of: libraryManager.libraryRevision) { _, _ in
                     if let currentItem = selectedFilterItem, currentItem.isAllItem {
-                        selectedFilterItem = LibraryFilterItem.allItem(for: selectedFilterType, totalCount: newTracks.count)
+                        selectedFilterItem = LibraryFilterItem.allItem(
+                            for: selectedFilterType,
+                            totalCount: libraryManager.tracks.count
+                        )
                     }
                 }
                 .onChange(of: selectedFilterItem) {

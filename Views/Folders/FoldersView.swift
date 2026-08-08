@@ -5,7 +5,7 @@ struct FoldersView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
     @Binding var selectedFolderNode: FolderNode?
-    @State private var selectedTrackID: UUID?
+    @State private var selectedTrackID: String?
     @State private var folderTracks: [Track] = []
     @State private var trackTableSortOrder = [KeyPathComparator(\Track.title)]
 

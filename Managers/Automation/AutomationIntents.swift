@@ -317,7 +317,7 @@ struct PlayPlaylistIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        AutomationManager.shared.playPlaylist(id: playlist.id)
+        _ = await AutomationManager.shared.playPlaylist(id: playlist.id)
         return .result()
     }
 }
@@ -364,7 +364,7 @@ struct AddPlaylistToQueueIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        AutomationManager.shared.enqueuePlaylist(id: playlist.id, playNext: false)
+        await AutomationManager.shared.enqueuePlaylist(id: playlist.id, playNext: false)
         return .result()
     }
 }
@@ -379,7 +379,7 @@ struct PlayPlaylistNextIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        AutomationManager.shared.enqueuePlaylist(id: playlist.id, playNext: true)
+        await AutomationManager.shared.enqueuePlaylist(id: playlist.id, playNext: true)
         return .result()
     }
 }

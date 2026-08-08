@@ -8,7 +8,7 @@ struct EntityDetailView: View {
     @EnvironmentObject var playlistManager: PlaylistManager
     @EnvironmentObject var libraryManager: LibraryManager
     @State private var tracks: [Track] = []
-    @State private var selectedTrackID: UUID?
+    @State private var selectedTrackID: String?
     @State private var isLoading = true
     @State private var isBackButtonHovered = false
     @State private var isArtworkHovered = false

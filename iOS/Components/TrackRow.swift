@@ -125,7 +125,7 @@ struct TrackRow: View {
     // MARK: - Artwork
 
     private var artworkView: some View {
-        ArtworkTile(data: track.displayArtwork)
+        ArtworkTile(data: track.displayArtwork, cacheKey: track.albumId.map(String.init))
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6))
     }

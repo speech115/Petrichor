@@ -4,7 +4,7 @@ struct PlaylistDetailView: View {
     let playlistID: UUID
 
     @EnvironmentObject var playlistManager: PlaylistManager
-    @State private var selectedTrackID: UUID?
+    @State private var selectedTrackID: String?
     @State private var gradientColors: [Color] = []
     @State private var artworkData: Data?
 
@@ -373,7 +373,7 @@ struct PlaylistDetailView: View {
             return
         }
         gradientColors = ImageUtils.cachedBackgroundGradientColors(
-            id: playlist.id,
+            id: playlist.id.uuidString,
             imageData: artworkData,
             isDark: colorScheme == .dark
         )
@@ -448,7 +448,9 @@ struct PlaylistDetailView: View {
             }
         } else if playlist.type == .regular && playlist.tracks.isEmpty {
             // Load regular playlist tracks
-            playlistManager.loadPlaylistTracks(for: playlist.id)
+            Task {
+                await playlistManager.loadPlaylistTracks(for: playlist.id)
+            }
         }
     }
 

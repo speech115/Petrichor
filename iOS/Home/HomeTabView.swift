@@ -280,7 +280,7 @@ private struct HomeTrackCard: View {
     }
 
     private var artwork: some View {
-        ArtworkTile(data: track.displayArtwork, cornerRadius: 10, iconSize: 28)
+        ArtworkTile(data: track.displayArtwork, cacheKey: track.albumId.map(String.init), cornerRadius: 10, iconSize: 28)
             .frame(width: 140, height: 140)
     }
 }

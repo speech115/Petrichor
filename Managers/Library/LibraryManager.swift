@@ -11,6 +11,11 @@ import Foundation
 
 class LibraryManager: ObservableObject {
     @Published var tracks: [Track] = []
+    /// Bumped on every reassignment of `tracks`. Screens subscribe to this
+    /// instead of comparing the whole track array (thousands of id
+    /// comparisons per reload). Mutate only at the tracks-reset sites in
+    /// `LMLibrary` and `resetAllData` below.
+    @Published var libraryRevision: Int = 0
     @Published var folders: [Folder] = []
     @Published var isScanning: Bool = false
     @Published var isInitialOnboardingScan: Bool = false
@@ -386,6 +391,7 @@ class LibraryManager: ObservableObject {
             // Clear in-memory data
             folders.removeAll()
             tracks.removeAll()
+            libraryRevision += 1
             // Static parser state outlives the database, so drop the deleted library's names
             ArtistParser.setLibraryArtists([:])
 

@@ -314,10 +314,10 @@ enum ImageUtils {
 
     /// Returns cached dominant colors for the given ID, extracting from imageData on cache miss.
     static func cachedDominantColors(
-        id: UUID,
+        id: String,
         imageData: Data
     ) -> [PlatformColor] {
-        let cacheKey = "\(id.uuidString)-dominantColors" as NSString
+        let cacheKey = "\(id)-dominantColors" as NSString
         if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors
         }
@@ -329,12 +329,12 @@ enum ImageUtils {
 
     /// Returns cached background gradient colors for the given ID and color scheme.
     static func cachedBackgroundGradientColors(
-        id: UUID,
+        id: String,
         imageData: Data,
         isDark: Bool
     ) -> [Color] {
         let suffix = isDark ? "dark" : "light"
-        let cacheKey = "\(id.uuidString)-gradient-\(suffix)" as NSString
+        let cacheKey = "\(id)-gradient-\(suffix)" as NSString
         if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors.map { Color(platformColor: $0) }
         }

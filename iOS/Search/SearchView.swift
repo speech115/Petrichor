@@ -181,7 +181,7 @@ struct SearchView: View {
     }
 
     private func topResultArtwork(_ track: Track) -> some View {
-        ArtworkTile(data: track.displayArtwork, cornerRadius: 8, iconSize: 20)
+        ArtworkTile(data: track.displayArtwork, cacheKey: track.albumId.map(String.init), cornerRadius: 8, iconSize: 20)
             .frame(width: 56, height: 56)
     }
 
@@ -191,6 +191,7 @@ struct SearchView: View {
                 title: artist.displayName,
                 subtitle: artist.subtitle,
                 artworkData: artist.displayArtwork,
+                cacheKey: artist.displayName,
                 icon: LibraryFilterType.artists.icon
             )
         }
@@ -203,6 +204,7 @@ struct SearchView: View {
                 title: album.displayName,
                 subtitle: album.artistName ?? album.subtitle,
                 artworkData: album.displayArtwork,
+                cacheKey: album.albumId.map(String.init),
                 icon: LibraryFilterType.albums.icon
             )
         }
@@ -213,10 +215,11 @@ struct SearchView: View {
         title: String,
         subtitle: String?,
         artworkData: Data?,
+        cacheKey: String?,
         icon: String
     ) -> some View {
         HStack(spacing: 12) {
-            ArtworkTile(data: artworkData, placeholderIcon: icon)
+            ArtworkTile(data: artworkData, cacheKey: cacheKey, placeholderIcon: icon)
                 .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 2) {
