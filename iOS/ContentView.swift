@@ -1,12 +1,15 @@
 //
 // ContentView (iOS)
 //
-// iPhone main window: four tabs per the design spec — Home, Playlists,
-// Folders, Search — with the system bottom tab accessory as the mini player.
-// The tab bar minimizes on scroll down and the accessory expands with it.
+// iPhone main window: two tabs per the design spec — Home and Playlists —
+// plus the system search tab, which iOS 26 draws as a round button right of
+// the tab bar pill. The tab bar minimizes on scroll down and the accessory
+// (mini player) expands with it.
 //
 
 import SwiftUI
+import AVKit
+import MediaPlayer
 import UniformTypeIdentifiers
 
 enum RightSidebarContent: Equatable {
@@ -18,8 +21,7 @@ enum RightSidebarContent: Equatable {
 
 private enum IOSSection: Hashable {
     case home
-    case media
-    case folders
+    case playlists
     case search
 }
 
@@ -35,9 +37,11 @@ struct ContentView: View {
 
     @Environment(\.colorScheme)
     private var colorScheme
+    @Environment(\.accessibilityReduceMotion)
+    private var reduceMotion
 
     @State private var selectedTab: IOSSection = .home
-    @State private var mediaPath: [LibraryDestination] = []
+    @State private var homePath: [LibraryDestination] = []
 
     @Namespace private var miniPlayerArtworkNamespace
     @State private var nowPlayingDragOffset: CGFloat = 0
@@ -46,9 +50,12 @@ struct ContentView: View {
     @State private var showingNowPlaying = false
     @State private var showingQueue = false
     @State private var showingLyrics = false
-    @State private var showingFileImporter = false
     @State private var showingPlaylistImporter = false
     @State private var importSummary: String?
+    /// Artwork-derived background gradient of the Now Playing cover, cached
+    /// per track so the gradient never recomputes inside `body` while fine
+    /// progress sampling is active.
+    @State private var npBackgroundGradient: [Color] = []
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -61,17 +68,14 @@ struct ContentView: View {
                     SymbolImage(Icons.musicNoteHouse)
                 }
             }
-            Tab(value: IOSSection.media) {
-                mediaTab
+            Tab(value: IOSSection.playlists) {
+                playlistsTab
             } label: {
                 Label {
-                    Text(String(localized: "Media"))
+                    Text(String(localized: "Playlists"))
                 } icon: {
                     SymbolImage(Icons.musicNoteList)
                 }
-            }
-            Tab(String(localized: "Folders"), systemImage: Icons.folder, value: IOSSection.folders) {
-                foldersTab
             }
             Tab(String(localized: "Search"), systemImage: Icons.magnifyingGlass, value: IOSSection.search, role: .search) {
                 searchTab
@@ -88,6 +92,18 @@ struct ContentView: View {
             NavigationStack {
                 SettingsScreen()
             }
+        }
+        // The create-playlist sheet lives here, not in a tab: TrackRow's
+        // "New Playlist..." and the Playlists tab's "+" both open it.
+        .sheet(isPresented: $playlistManager.showingCreatePlaylistModal) {
+            CreatePlaylistSheet(
+                isPresented: $playlistManager.showingCreatePlaylistModal,
+                playlistName: $playlistManager.newPlaylistName,
+                tracksToAdd: playlistManager.tracksToAddToNewPlaylist
+            ) {
+                playlistManager.createPlaylistFromModal()
+            }
+            .environmentObject(playlistManager)
         }
         // Now Playing is an in-hierarchy overlay, not a `.fullScreenCover`. A
         // modal cover keeps a touch-blocking layer over the tab bar for its
@@ -110,15 +126,6 @@ struct ContentView: View {
             NavigationStack {
                 MergeEntitySheet(request: request)
                     .environmentObject(libraryManager)
-            }
-        }
-        .fileImporter(
-            isPresented: $showingFileImporter,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: true
-        ) { result in
-            if case .success(let urls) = result {
-                libraryManager.addFolder(urls: urls)
             }
         }
         .fileImporter(
@@ -152,17 +159,13 @@ struct ContentView: View {
         } message: {
             Text(importSummary ?? "")
         }
-        .onReceive(NotificationCenter.default.publisher(for: .showFolderImporter)) { _ in
-            showingFileImporter = true
-        }
         .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
             if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,
                let filterValue = notification.userInfo?["filterValue"] as? String {
-                selectedTab = .media
-                if let item = libraryManager.getLibraryFilterItems(for: filterType)
-                    .first(where: { $0.name == filterValue }) {
-                    mediaPath = [LibraryDestination.tracks(item)]
-                }
+                let items = libraryManager.getLibraryFilterItems(for: filterType)
+                guard let item = items.first(where: { $0.name == filterValue }) else { return }
+                selectedTab = .home
+                homePath = [destination(for: filterType, item: item)]
             }
         }
     }
@@ -170,28 +173,43 @@ struct ContentView: View {
     // MARK: - Home Tab
 
     private var homeTab: some View {
-        HomeTabView(showingPlaylistImporter: $showingPlaylistImporter)
-    }
-
-    // MARK: - Media Tab
-
-    private var mediaTab: some View {
-        MediaLibraryView(
-            path: $mediaPath,
+        HomeTabView(
+            path: $homePath,
             showingSettings: $showingSettings
         )
     }
 
-    // MARK: - Folders Tab
+    // MARK: - Playlists Tab
 
-    private var foldersTab: some View {
-        FoldersTabView(showingFileImporter: $showingFileImporter)
+    private var playlistsTab: some View {
+        PlaylistsTabView(showingPlaylistImporter: $showingPlaylistImporter)
     }
 
     // MARK: - Search Tab
 
     private var searchTab: some View {
         SearchView()
+    }
+
+    /// Where a "Go to..." context-menu item lands in the Home stack. Artists
+    /// and albums get their detail pages; everything else (genres, years,
+    /// composers, album artists) becomes a plain filtered track list.
+    private func destination(for filterType: LibraryFilterType, item: LibraryFilterItem) -> LibraryDestination {
+        switch filterType {
+        case .artists:
+            return .artist(name: item.name)
+        case .albums:
+            return .album(albumEntity(for: item) ?? AlbumEntity(name: item.name, trackCount: item.count))
+        default:
+            return .tracks(item)
+        }
+    }
+
+    private func albumEntity(for item: LibraryFilterItem) -> AlbumEntity? {
+        if let albumId = item.albumId {
+            return libraryManager.albumEntities.first { $0.albumId == albumId }
+        }
+        return libraryManager.albumEntities.first { $0.name == item.name }
     }
 
     // MARK: - Now Playing Cover
@@ -237,7 +255,17 @@ struct ContentView: View {
                 .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showingQueue)
                 .animation(.spring(response: 0.38, dampingFraction: 0.86), value: showingLyrics)
             }
-            .background(.ultraThinMaterial)
+            .background {
+                if npBackgroundGradient.isEmpty {
+                    Color(.systemBackground)
+                } else {
+                    LinearGradient(
+                        colors: npBackgroundGradient,
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 16) {
@@ -270,10 +298,25 @@ struct ContentView: View {
         }
         .onAppear {
             playbackManager.setFineProgressSampling(true)
+            updateNPBackgroundGradient()
+        }
+        .onChange(of: playbackManager.currentTrack?.id) { _, _ in
+            updateNPBackgroundGradient()
+        }
+        .onChange(of: colorScheme) { _, _ in
+            updateNPBackgroundGradient()
         }
         .onDisappear {
             playbackManager.setFineProgressSampling(false)
         }
+    }
+
+    private func updateNPBackgroundGradient() {
+        npBackgroundGradient = NowPlayingArtwork.gradient(
+            for: playbackManager.currentTrack,
+            isDark: colorScheme == .dark,
+            enabled: useArtworkColors
+        )
     }
 
     /// Pulling the Now Playing overlay down collapses it. The cover follows
@@ -298,6 +341,11 @@ struct ContentView: View {
 
             nowPlayingArtwork
                 .frame(width: artworkSize, height: artworkSize)
+                .scaleEffect(playbackManager.isPlaying ? 1 : 0.86)
+                .animation(
+                    reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.68),
+                    value: playbackManager.isPlaying
+                )
 
             PlayerTrackDetailsView(
                 track: playbackManager.currentTrack,
@@ -321,6 +369,13 @@ struct ContentView: View {
                 scale: 1.4
             )
 
+            // The system volume slider: it stays in sync with the hardware
+            // buttons, which no hand-rolled control can guarantee.
+            SystemVolumeSlider(tint: UIColor(controlAccent))
+                .frame(height: 44)
+                .padding(.horizontal, 32)
+                .padding(.top, 2)
+
             HStack(spacing: 40) {
                 Button {
                     UISelectionFeedbackGenerator().selectionChanged()
@@ -334,6 +389,10 @@ struct ContentView: View {
                 }
                 .disabled(playbackManager.currentTrack == nil)
                 .accessibilityLabel(String(localized: "Lyrics"))
+
+                AirPlayButton(tint: .secondaryLabel)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
 
                 Button {
                     UISelectionFeedbackGenerator().selectionChanged()
@@ -591,5 +650,46 @@ private struct MiniPlayerAccessory: View {
             in: artworkNamespace,
             isSource: !showingNowPlaying
         )
+    }
+}
+
+// MARK: - System Volume Slider
+
+/// The system volume control: a UIKit `MPVolumeView` stripped to its slider.
+/// It reflects the hardware buttons' volume and moves with them, which no
+/// custom control can do.
+private struct SystemVolumeSlider: UIViewRepresentable {
+    let tint: UIColor
+
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView(frame: .zero)
+        view.showsRouteButton = false
+        view.showsVolumeSlider = true
+        view.tintColor = tint
+        return view
+    }
+
+    func updateUIView(_ view: MPVolumeView, context: Context) {
+        view.tintColor = tint
+    }
+}
+
+// MARK: - AirPlay Button
+
+/// The system AirPlay route picker, matching the tint of the surrounding
+/// Lyrics/Queue buttons.
+private struct AirPlayButton: UIViewRepresentable {
+    let tint: UIColor
+
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let view = AVRoutePickerView(frame: .zero)
+        view.tintColor = tint
+        view.activeTintColor = tint
+        return view
+    }
+
+    func updateUIView(_ view: AVRoutePickerView, context: Context) {
+        view.tintColor = tint
+        view.activeTintColor = tint
     }
 }

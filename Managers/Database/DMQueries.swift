@@ -714,26 +714,6 @@ extension DatabaseManager {
         }
     }
 
-    /// Recently added tracks for the Home carousel, newest first, with album
-    /// thumbnails only.
-    func getRecentlyAddedTracks(limit: Int = 10) -> [Track] {
-        do {
-            var tracks = try dbQueue.read { db in
-                try Track.lightweightRequest()
-                    .order(Track.Columns.dateAdded.desc)
-                    .limit(limit)
-                    .fetchAll(db)
-            }
-
-            populateAlbumArtworkThumbnailsForTracks(&tracks)
-
-            return tracks
-        } catch {
-            Logger.error("Failed to fetch recently added tracks: \(error)")
-            return []
-        }
-    }
-
     func getTracksForFolder(_ folderId: Int64) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in

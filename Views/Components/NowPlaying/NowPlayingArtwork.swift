@@ -12,15 +12,33 @@ enum NowPlayingArtwork {
     /// Primary artwork color, used to tint controls / highlights. Falls back to the
     /// accent color when tinting is disabled or artwork colors are unavailable.
     static func tint(for track: Track?, useArtworkTint: Bool) -> Color {
-        guard useArtworkTint, let dominant = track?.dominantColors.first else {
-            // Use the system accent (the empty AccentColor asset means Color.accentColor won't track it).
-            #if os(macOS)
-            return Color(nsColor: .controlAccentColor)
-            #else
-            return Color.accentColor
-            #endif
-        }
-        return Color(platformColor: dominant)
+        guard useArtworkTint else { return accentFallback() }
+        return tint(forDominantColor: track?.dominantColors.first)
+    }
+
+    /// Primary artwork color from an explicit dominant color; falls back to
+    /// the accent color when the artwork has none.
+    static func tint(forDominantColor dominantColor: PlatformColor?) -> Color {
+        guard let dominantColor else { return accentFallback() }
+        return Color(platformColor: dominantColor)
+    }
+
+    /// Detail-header background tint: nil when artwork colors are disabled or
+    /// the artwork has no dominant color, so the header renders plain. The
+    /// screens hold their own `useArtworkColors` AppStorage; this is the
+    /// shared guard-and-map for their `tint:` parameter.
+    static func headerTint(forDominantColor dominantColor: PlatformColor?, enabled: Bool) -> Color? {
+        guard enabled, let dominantColor else { return nil }
+        return Color(platformColor: dominantColor)
+    }
+
+    private static func accentFallback() -> Color {
+        // Use the system accent (the empty AccentColor asset means Color.accentColor won't track it).
+        #if os(macOS)
+        return Color(nsColor: .controlAccentColor)
+        #else
+        return Color.accentColor
+        #endif
     }
 
     /// A luminance-adjusted dominant color for the secondary transport controls

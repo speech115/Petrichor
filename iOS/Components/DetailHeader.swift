@@ -1,9 +1,15 @@
 //
 // DetailHeader (iOS)
 //
-// Shared detail-page header: artwork slot, optional title and subtitle, and
-// the Play/Shuffle row. Replaces the three per-screen copies (artist photo +
+// Shared detail-page header: artwork slot, title and subtitle, and the
+// Play/Shuffle row. Replaces the three per-screen copies (artist photo +
 // bio, album artwork + year, playlist mosaic + count).
+//
+// The background picks up the artwork's dominant color as a vertical
+// gradient from the top of the header to transparent, honoring the
+// "useArtworkColors" setting; the screen resolves the color and passes it
+// in (nil renders a plain background). The title lives here, under the
+// artwork, not in the navigation bar.
 //
 
 import SwiftUI
@@ -14,33 +20,49 @@ struct DetailHeader<Artwork: View>: View {
     var playDisabled = false
     var title: String? = nil
     var subtitle: String? = nil
+    /// Artwork-derived tint; nil when artwork colors are disabled or the
+    /// artwork has no dominant color.
+    var tint: Color? = nil
 
     @ViewBuilder var artwork: () -> Artwork
 
     var body: some View {
-        VStack(spacing: 12) {
-            artwork()
-                .padding(.top, 16)
-
-            if let title, !title.isEmpty {
-                Text(title)
-                    .font(.headline)
-                    .lineLimit(1)
+        ZStack(alignment: .top) {
+            if let tint {
+                LinearGradient(
+                    colors: [tint.opacity(0.35), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 340)
+                .allowsHitTesting(false)
             }
 
-            if let subtitle, !subtitle.isEmpty {
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            VStack(spacing: 12) {
+                artwork()
+                    .padding(.top, 16)
 
-            PlayShuffleRow(
-                onPlay: onPlay,
-                onShuffle: onShuffle,
-                playDisabled: playDisabled
-            )
-            .padding(.top, 4)
+                if let title, !title.isEmpty {
+                    Text(title)
+                        .font(.title2.weight(.bold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                }
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                PlayShuffleRow(
+                    onPlay: onPlay,
+                    onShuffle: onShuffle,
+                    playDisabled: playDisabled
+                )
+                .padding(.top, 4)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)

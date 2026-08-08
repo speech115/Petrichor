@@ -2,7 +2,7 @@
 // PlaybackSmokeUITests
 //
 // The user-visible regression behind the "player does not open" bug: launching
-// a track from "All Tracks" must not hang the main thread (watchdog kill) and
+// a track from "Songs" must not hang the main thread (watchdog kill) and
 // must surface the mini player and the Now Playing screen. Requires audio
 // fixtures in the app's Documents folder on the simulator - see the comment in
 // setUp for how to seed them.
@@ -25,22 +25,25 @@ final class PlaybackSmokeUITests: XCTestCase {
     /// The scanner picks them up on launch; titles fall back to file names.
     /// The iOS port plays MP3 only (AVAssetMetadataReader), so WAV fixtures
     /// will never appear in the library.
-    func testLaunchingATrackFromAllTracksReachesThePlayer() throws {
+    func testLaunchingATrackFromSongsReachesThePlayer() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Home is the default tab; All Tracks lives in the Media tab.
-        let mediaTab = app.tabBars.buttons["Media"]
-        XCTAssertTrue(mediaTab.waitForExistence(timeout: 30), "вкладка Media не появилась")
-        mediaTab.tap()
-
-        // The category list must appear once the initial scan has settled.
-        let allTracks = app.buttons["All Tracks"]
+        // Home is the default tab; the Songs row lives in the Library section
+        // at the bottom of the Home scroll.
+        let songsRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Songs'")
+        ).firstMatch
         XCTAssertTrue(
-            allTracks.waitForExistence(timeout: 60),
-            "категории библиотеки не появились (Documents пуст?)"
+            songsRow.waitForExistence(timeout: 60),
+            "строка Songs не появилась (Documents пуст?)"
         )
-        allTracks.tap()
+        var scrollAttempts = 0
+        while !songsRow.isHittable && scrollAttempts < 6 {
+            app.swipeUp()
+            scrollAttempts += 1
+        }
+        songsRow.tap()
 
         // The track list is alphabet-indexed; tap the seeded "Alpha One" row
         // by name, so the test is immune to whatever else sits in Documents.

@@ -19,6 +19,9 @@ struct PlaylistDetailScreen: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
     @EnvironmentObject private var playbackManager: PlaybackManager
 
+    @AppStorage("useArtworkColors")
+    private var useArtworkColors = true
+
     @State private var missingPaths: Set<String> = []
     @State private var showingRenameAlert = false
     @State private var renameText = ""
@@ -53,8 +56,8 @@ struct PlaylistDetailScreen: View {
                 )
             }
         }
-        .navigationTitle(playlist.map { DefaultPlaylists.displayName(for: $0) } ?? "")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationTitle(playlist == nil ? String(localized: "Playlist Not Found") : "")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let playlist, playlist.isUserEditable {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -141,11 +144,37 @@ struct PlaylistDetailScreen: View {
             onPlay: { playAll(playlist, tracks: tracks) },
             onShuffle: { shuffleAll(playlist, tracks: tracks) },
             playDisabled: tracks.isEmpty,
-            subtitle: String(localized: "\(playlist.trackCount) songs"),
+            title: DefaultPlaylists.displayName(for: playlist),
+            subtitle: subtitle(playlist),
+            tint: headerTint(playlist),
             artwork: {
-                ArtworkMosaic(covers: Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4)))
-                    .frame(width: 240, height: 240)
+                if playlist.coverArtworkData != nil {
+                    ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 12, iconSize: 56)
+                        .frame(width: 240, height: 240)
+                } else {
+                    ArtworkMosaic(covers: Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4)))
+                        .frame(width: 240, height: 240)
+                }
             }
+        )
+    }
+
+    /// "N songs" plus the total duration, mirroring the macOS header.
+    private func subtitle(_ playlist: Playlist) -> String {
+        let count = String(localized: "\(playlist.trackCount) songs")
+        if playlist.trackCount > 0 {
+            return "\(count) • \(playlist.formattedTotalDuration)"
+        }
+        return count
+    }
+
+    /// The custom cover tints the header; a mosaic has no single color.
+    private func headerTint(_ playlist: Playlist) -> Color? {
+        NowPlayingArtwork.headerTint(
+            forDominantColor: playlist.coverArtworkData.flatMap {
+                ImageUtils.cachedDominantColors(id: playlist.id.uuidString, imageData: $0).first
+            },
+            enabled: useArtworkColors
         )
     }
 

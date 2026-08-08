@@ -71,10 +71,6 @@ extension LibraryManager {
         databaseManager.getRecentlyPlayedTracks(limit: limit)
     }
 
-    func getRecentlyAddedTracks(limit: Int = 10) -> [Track] {
-        databaseManager.getRecentlyAddedTracks(limit: limit)
-    }
-
     func getPlaylistPreviewTracks(_ playlist: Playlist, limit: Int = 4) -> [Track] {
         databaseManager.getPlaylistPreviewTracks(playlist, limit: limit)
     }

@@ -1308,6 +1308,17 @@
         }
       }
     },
+    "Songs" : {
+      "comment" : "Title for the all-tracks list. Renamed from \"All Tracks\" to avoid confusion with the \"Все треки\" user playlist.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有歌曲"
+          }
+        }
+      }
+    },
     "All Years" : {
       "localizations" : {
         "zh-Hans" : {

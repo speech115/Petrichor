@@ -46,10 +46,12 @@ struct TrackRow: View {
 
                 Spacer(minLength: 8)
 
-                Image(systemName: isPlaying ? Icons.pauseFill : Icons.playFill)
-                    .font(.system(size: 14))
-                    .foregroundColor(isCurrent ? .accentColor : .clear)
-                    .frame(width: 18)
+                if isCurrent {
+                    EqualizerBars(animating: isPlaying)
+                } else {
+                    Color.clear
+                        .frame(width: 18)
+                }
             }
             .contentShape(Rectangle())
         }

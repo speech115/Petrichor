@@ -15,6 +15,9 @@ struct ArtistPage: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
+    @AppStorage("useArtworkColors")
+    private var useArtworkColors = true
+
     let artistName: String
 
     @State private var tracks: [Track] = []
@@ -56,8 +59,7 @@ struct ArtistPage: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(LibraryFilterType.artists.localizedDisplay(artistName))
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .task(id: artistName) {
             await load()
         }
@@ -84,8 +86,19 @@ struct ArtistPage: View {
             onPlay: playAll,
             onShuffle: shuffleAll,
             playDisabled: tracks.isEmpty,
+            title: LibraryFilterType.artists.localizedDisplay(artistName),
             subtitle: bio,
+            tint: headerTint,
             artwork: { photo.frame(width: 180, height: 180) }
+        )
+    }
+
+    private var headerTint: Color? {
+        NowPlayingArtwork.headerTint(
+            forDominantColor: photoData.flatMap {
+                ImageUtils.cachedDominantColors(id: artistName, imageData: $0).first
+            },
+            enabled: useArtworkColors
         )
     }
 

@@ -13,6 +13,9 @@ struct AlbumPage: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
+    @AppStorage("useArtworkColors")
+    private var useArtworkColors = true
+
     let album: AlbumEntity
 
     var body: some View {
@@ -28,8 +31,7 @@ struct AlbumPage: View {
             },
             row: { track, context in trackRow(track, context: context) }
         )
-        .navigationTitle(album.displayName)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     /// Disc sections with "Disc N" headers, or one headerless section when the
@@ -50,8 +52,9 @@ struct AlbumPage: View {
             onPlay: { playAll(tracks) },
             onShuffle: { shuffleAll(tracks) },
             playDisabled: tracks.isEmpty,
-            title: album.artistName,
+            title: album.displayName,
             subtitle: subtitle,
+            tint: headerTint,
             artwork: { artwork.frame(width: 240, height: 240) }
         )
     }
@@ -77,11 +80,23 @@ struct AlbumPage: View {
     }
 
     private var subtitle: String {
+        var parts: [String] = []
+        if let artistName = album.artistName, !artistName.isEmpty {
+            parts.append(LibraryFilterType.artists.localizedDisplay(artistName))
+        }
         let year = LibraryFilterType.years.localizedDisplay(album.year ?? "")
         if !year.isEmpty, year != LibraryFilterType.years.localizedUnknownPlaceholder {
-            return "\(year) • \(String(localized: "\(album.trackCount) songs"))"
+            parts.append(year)
         }
-        return String(localized: "\(album.trackCount) songs")
+        parts.append(String(localized: "\(album.trackCount) songs"))
+        return parts.joined(separator: " • ")
+    }
+
+    private var headerTint: Color? {
+        NowPlayingArtwork.headerTint(
+            forDominantColor: album.dominantColors.first,
+            enabled: useArtworkColors
+        )
     }
 
     // MARK: - Track Sections

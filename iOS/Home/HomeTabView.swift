@@ -1,100 +1,83 @@
 //
 // HomeTabView (iOS)
 //
-// The Home tab: the playlists grid on top (smart playlists first, then user
-// playlists alphabetically - source-name prefixes cluster on their own), then
-// three horizontal track-card carousels: Recently Played, Discover, Recently
-// Added. A playlist card shows a 2x2 mosaic of its first four tracks' album
-// thumbnails; fewer than four tracks fall back to a single cover or a
-// placeholder. Track cards play their track on tap.
+// The Home tab, top to bottom:
+//   1. Recently Played - a horizontal shelf of albums (large squares are
+//      containers, not songs), grouped from the recently played tracks.
+//   2. Discover - a 4xN horizontal grid of songs from the weekly rotation.
+//   3. Library - three rows (Songs, Favorites, Top 25 Most Played) with
+//      counts on the right, leading to the all-tracks list and the smart
+//      playlists.
+//
+// Every section title is itself a link - the chevron sits flush against the
+// word, there is no "See All" label. Settings live in the navigation bar;
+// the playlists grid, import and "+" moved to the Playlists tab.
 //
 
 import SwiftUI
-import UIKit
 
 struct HomeTabView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playlistManager: PlaylistManager
     @EnvironmentObject private var playbackManager: PlaybackManager
 
-    @Binding var showingPlaylistImporter: Bool
+    @Binding var path: [LibraryDestination]
+    @Binding var showingSettings: Bool
 
-    @State private var recentlyPlayed: [Track] = []
-    @State private var recentlyAdded: [Track] = []
+    @State private var recentAlbums: [AlbumEntity] = []
     @State private var discoverTracks: [Track] = []
-    @State private var playlistPreviews: [UUID: [Track]] = [:]
     @State private var loadTask: Task<Void, Never>?
 
-    private static let playlistPreviewLimit = 4
-    private static let carouselLimit = 10
+    /// Tracks fetched per refresh; the grouping caps the shelf itself.
+    private static let recentTracksFetchLimit = 100
+    private static let albumShelfLimit = 10
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    if !displayPlaylists.isEmpty {
-                        playlistsSection
-                    }
-                    if !recentlyPlayed.isEmpty {
-                        carouselSection(
-                            title: String(localized: "Recently Played"),
-                            tracks: recentlyPlayed
+                    if !recentAlbums.isEmpty {
+                        RecentAlbumsShelf(
+                            albums: recentAlbums,
+                            headerValue: smartPlaylistID(DefaultPlaylists.recentlyPlayed)
                         )
                     }
                     if !discoverTracks.isEmpty {
-                        carouselSection(
+                        SongShelf(
                             title: String(localized: "Discover"),
-                            tracks: discoverTracks
+                            destination: .discover,
+                            tracks: discoverTracks,
+                            onPlay: { play($0, in: discoverTracks) }
                         )
                     }
-                    if !recentlyAdded.isEmpty {
-                        carouselSection(
-                            title: String(localized: "Recently Added"),
-                            tracks: recentlyAdded
-                        )
-                    }
+                    librarySection
                 }
                 .padding(.vertical, 8)
             }
             .navigationTitle(String(localized: "Home"))
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        playlistManager.showCreatePlaylistModal()
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel(String(localized: "New Playlist"))
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showingPlaylistImporter = true
+                        showingSettings = true
                     } label: {
-                        Image(systemName: "square.and.arrow.down")
+                        Image(systemName: Icons.settings)
                     }
-                    .accessibilityLabel(String(localized: "Import Playlists"))
+                    .accessibilityLabel(String(localized: "Settings"))
                 }
+            }
+            .navigationDestination(for: LibraryDestination.self) { destination in
+                destinationView(destination)
             }
             .navigationDestination(for: UUID.self) { playlistID in
                 PlaylistDetailScreen(playlistID: playlistID)
-            }
-            .sheet(isPresented: $playlistManager.showingCreatePlaylistModal) {
-                CreatePlaylistSheet(
-                    isPresented: $playlistManager.showingCreatePlaylistModal,
-                    playlistName: $playlistManager.newPlaylistName,
-                    tracksToAdd: playlistManager.tracksToAddToNewPlaylist
-                ) {
-                    playlistManager.createPlaylistFromModal()
-                }
-                .environmentObject(playlistManager)
             }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
                     ContentUnavailableView(
                         String(localized: "No Music"),
                         systemImage: Icons.musicNote,
-                        description: Text(String(localized: "Add a music folder to get started"))
+                        description: Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
                     )
                 }
             }
@@ -108,73 +91,96 @@ struct HomeTabView: View {
         }
     }
 
+    /// The library has no tracks at all. `libraryManager.tracks` is never
+    /// populated on iOS (only the macOS Home loads it), so the empty state
+    /// keys on the database-backed total instead.
     private var isEmpty: Bool {
-        displayPlaylists.isEmpty
-            && recentlyPlayed.isEmpty
-            && discoverTracks.isEmpty
-            && recentlyAdded.isEmpty
+        libraryManager.totalTrackCount == 0
     }
 
-    // MARK: - Playlists Grid
+    // MARK: - Library Block
 
-    /// Smart playlists in the manager's order, then user playlists
-    /// alphabetically (source prefixes cluster on their own).
-    private var displayPlaylists: [Playlist] {
-        let smart = playlistManager.playlists.filter { $0.type == .smart }
-        let regular = playlistManager.playlists
-            .filter { $0.type == .regular }
-            .sorted {
-                DefaultPlaylists.displayName(for: $0)
-                    .localizedStandardCompare(DefaultPlaylists.displayName(for: $1)) == .orderedAscending
-            }
-        return smart + regular
-    }
-
-    private var playlistsSection: some View {
+    /// The one section without a title link: it has no whole-list
+    /// destination. Rows carry their counts on the right.
+    private var librarySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(String(localized: "Playlists"))
-                .font(.title2.weight(.bold))
-                .padding(.horizontal, 16)
+            SectionTitle(title: String(localized: "Library"))
 
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 16),
-                    GridItem(.flexible(), spacing: 16)
-                ],
-                spacing: 16
-            ) {
-                ForEach(displayPlaylists) { playlist in
-                    NavigationLink(value: playlist.id) {
-                        PlaylistCard(
-                            playlist: playlist,
-                            previewTracks: playlistPreviews[playlist.id] ?? []
-                        )
-                    }
-                    .buttonStyle(.plain)
+            VStack(spacing: 0) {
+                libraryRow(
+                    title: String(localized: "Songs"),
+                    count: libraryManager.totalTrackCount,
+                    value: LibraryDestination.allTracks
+                )
+                if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
+                    rowDivider
+                    libraryRow(
+                        title: DefaultPlaylists.displayName(for: favorites),
+                        count: favorites.trackCount,
+                        value: favorites.id
+                    )
+                }
+                if let mostPlayed = smartPlaylist(DefaultPlaylists.mostPlayed) {
+                    rowDivider
+                    libraryRow(
+                        title: DefaultPlaylists.displayName(for: mostPlayed),
+                        count: mostPlayed.trackCount,
+                        value: mostPlayed.id
+                    )
                 }
             }
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
             .padding(.horizontal, 16)
         }
     }
 
-    // MARK: - Carousels
+    private var rowDivider: some View {
+        Divider().padding(.leading, 16)
+    }
 
-    private func carouselSection(title: String, tracks: [Track]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.title2.weight(.bold))
-                .padding(.horizontal, 16)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
-                    ForEach(tracks) { track in
-                        HomeTrackCard(track: track) {
-                            play(track, in: tracks)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
+    private func libraryRow(title: String, count: Int, value: some Hashable) -> some View {
+        NavigationLink(value: value) {
+            HStack {
+                Text(title)
+                    .font(.body)
+                Spacer()
+                Text("\(count)")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
             }
+            .padding(.horizontal, 16)
+            .frame(height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func smartPlaylist(_ name: String) -> Playlist? {
+        playlistManager.playlists.first { $0.type == .smart && $0.name == name }
+    }
+
+    private func smartPlaylistID(_ name: String) -> UUID? {
+        smartPlaylist(name)?.id
+    }
+
+    // MARK: - Destinations
+
+    @ViewBuilder
+    private func destinationView(_ destination: LibraryDestination) -> some View {
+        switch destination {
+        case .discover:
+            DiscoverView()
+        case .category(let filterType):
+            CategoryItemsView(filterType: filterType)
+        case .tracks(let item):
+            TrackListView(filterItem: item)
+        case .allTracks:
+            TrackListView(filterItem: nil)
+        case .artist(let name):
+            ArtistPage(artistName: name)
+        case .album(let album):
+            AlbumPage(album: album)
         }
     }
 
@@ -199,89 +205,33 @@ struct HomeTabView: View {
         }
 
         let libraryManager = libraryManager
-        let playlists = displayPlaylists
-        let previewLimit = Self.playlistPreviewLimit
-        let carouselLimit = Self.carouselLimit
+        let fetchLimit = Self.recentTracksFetchLimit
+        let albumLimit = Self.albumShelfLimit
 
-        // The manager keeps the weekly Discover rotation; the Home carousel
+        // The manager keeps the weekly Discover rotation; the Home grid
         // reads only thumbnails.
         libraryManager.loadDiscoverTracks(populateArtwork: false)
         let managerDiscover = libraryManager.discoverTracks
 
         let loaded = await Task.detached(priority: .userInitiated) {
-            let recentPlayed = libraryManager.getRecentlyPlayedTracks(limit: carouselLimit)
-            let recentAdded = libraryManager.getRecentlyAddedTracks(limit: carouselLimit)
-            let discover = managerDiscover
-            let previews = Dictionary(
-                uniqueKeysWithValues: playlists.map {
-                    ($0.id, libraryManager.getPlaylistPreviewTracks($0, limit: previewLimit))
-                }
+            let recentTracks = libraryManager.getRecentlyPlayedTracks(limit: fetchLimit)
+            let albumCounts = Dictionary(
+                libraryManager.albumEntities.compactMap { entity in
+                    entity.albumId.map { ($0, entity.trackCount) }
+                },
+                uniquingKeysWith: { first, _ in first }
             )
-            return (recentPlayed, recentAdded, discover, previews)
+            let albums = RecentAlbumsShelf.albums(
+                from: recentTracks,
+                limit: albumLimit,
+                trackCountsByAlbumID: albumCounts
+            )
+            return (albums, managerDiscover)
         }.value
 
         guard !Task.isCancelled else { return }
-        recentlyPlayed = loaded.0
-        recentlyAdded = loaded.1
-        discoverTracks = loaded.2
-        playlistPreviews = loaded.3
-    }
-}
-
-// MARK: - Playlist Card
-
-private struct PlaylistCard: View {
-    let playlist: Playlist
-    let previewTracks: [Track]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ArtworkMosaic(covers: previewTracks.compactMap { $0.displayArtwork })
-                .aspectRatio(1, contentMode: .fit)
-
-            Text(DefaultPlaylists.displayName(for: playlist))
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-
-            Text(String(localized: "\(playlist.trackCount) songs"))
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
-// MARK: - Home Track Card
-
-/// The single unit of all three carousels: album thumbnail, title, artist;
-/// a tap plays the track.
-private struct HomeTrackCard: View {
-    let track: Track
-    let onPlay: () -> Void
-
-    var body: some View {
-        Button(action: onPlay) {
-            VStack(alignment: .leading, spacing: 6) {
-                artwork
-                    .frame(width: 140, height: 140)
-
-                Text(track.title)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
-
-                Text(track.displayArtist)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-            .frame(width: 140, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var artwork: some View {
-        ArtworkTile(data: track.displayArtwork, cacheKey: track.albumId.map(String.init), cornerRadius: 10, iconSize: 28)
-            .frame(width: 140, height: 140)
+        recentAlbums = loaded.0
+        discoverTracks = loaded.1
     }
 }
 

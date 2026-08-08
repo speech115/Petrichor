@@ -1,10 +1,11 @@
 //
 // PlayShuffleRow (iOS)
 //
-// The prominent Play + Shuffle action pair shared by the album, artist and
-// playlist headers. Play starts the content in its natural order; Shuffle
-// starts it in a locally shuffled order without touching the user's
-// shuffle setting.
+// The Play + Shuffle action pair shared by the album, artist and playlist
+// headers. Both are tinted capsules of equal weight - on a 1 286-track
+// playlist people press Shuffle, so it must not read as a secondary
+// control. Play starts the content in its natural order; Shuffle starts it
+// in a locally shuffled order without touching the user's shuffle setting.
 //
 
 import SwiftUI
@@ -21,7 +22,8 @@ struct PlayShuffleRow: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
+            .tint(.accentColor)
             .controlSize(.large)
             .disabled(playDisabled)
 
@@ -31,6 +33,7 @@ struct PlayShuffleRow: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .tint(.accentColor)
             .controlSize(.large)
             .disabled(playDisabled)
         }

@@ -2,7 +2,7 @@
 // TrackListView (iOS)
 //
 // Alphabet-indexed track list for a category item (artist, album, genre, year)
-// or the whole library ("All Tracks"). The skeleton lives in TrackListScreen;
+// or the whole library ("Songs"). The skeleton lives in TrackListScreen;
 // this screen supplies the loader, the index-letter sectioner and the rows.
 //
 
@@ -40,9 +40,9 @@ struct TrackListView: View {
     }
 
     private var navigationTitle: String {
-        guard let filterItem else { return String(localized: "All Tracks") }
+        guard let filterItem else { return String(localized: "Songs") }
         if filterItem.isAllItem {
-            return String(localized: "All Tracks")
+            return String(localized: "Songs")
         }
         return filterItem.filterType.localizedDisplay(filterItem.name)
     }
