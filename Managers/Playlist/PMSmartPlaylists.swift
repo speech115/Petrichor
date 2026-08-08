@@ -119,8 +119,9 @@ extension PlaylistManager {
     // MARK: - Loading
 
     /// Load tracks for a single smart playlist on-demand. Rows are list rows:
-    /// the display-size artwork pass is skipped and album thumbnails are
-    /// filled here, inside the manager.
+    /// the display-size artwork pass is skipped. Only the first four album
+    /// thumbnails are filled for a possible header mosaic; visible rows load
+    /// their own thumbnails.
     func loadSmartPlaylistTracks(_ playlist: Playlist) async {
         guard playlist.type == .smart,
               let libraryManager = libraryManager else { return }
@@ -143,7 +144,7 @@ extension PlaylistManager {
                     playlist,
                     populateArtwork: false
                 )
-                libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&loaded)
+                libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&loaded, limit: 4)
                 tracks = loaded
             } catch {
                 Logger.error("Failed to load tracks for smart playlist '\(playlist.name)': \(error)")
@@ -153,7 +154,7 @@ extension PlaylistManager {
         } else {
             // Frozen: read the persisted one-time snapshot.
             var loaded = libraryManager.databaseManager.loadTracksForPlaylist(playlist.id, populateArtwork: false)
-            libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&loaded)
+            libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&loaded, limit: 4)
             tracks = loaded
         }
 
@@ -212,7 +213,7 @@ extension PlaylistManager {
                     playlist,
                     populateArtwork: false
                 )) ?? []
-                dbManager.populateAlbumArtworkThumbnailsForTracks(&loaded)
+                dbManager.populateAlbumArtworkThumbnailsForTracks(&loaded, limit: 4)
                 let refreshed = loaded
                 await MainActor.run {
                     if let index = self.playlists.firstIndex(where: { $0.id == playlist.id }) {

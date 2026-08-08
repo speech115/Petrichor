@@ -114,11 +114,19 @@ struct ContentView: View {
         .overlay {
             if showingNowPlaying {
                 NowPlayingScreen(isPresented: $showingNowPlaying)
-                    .transition(.move(edge: .bottom))
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
                     .allowsHitTesting(showingNowPlaying)
             }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.88), value: showingNowPlaying)
+        .animation(
+            showingNowPlaying
+                ? .spring(response: 0.38, dampingFraction: 0.92)
+                : .easeOut(duration: 0.24),
+            value: showingNowPlaying
+        )
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
                 MergeEntitySheet(request: request)

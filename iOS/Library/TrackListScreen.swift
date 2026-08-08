@@ -45,6 +45,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
     @State private var tracks: [Track] = []
     @State private var sections: [IndexedSection<Track>] = []
     @State private var loadTask: Task<Void, Never>?
+    @State private var isLoading = true
 
     var body: some View {
         Group {
@@ -57,7 +58,9 @@ struct TrackListScreen<Header: View, Row: View>: View {
             }
         }
         .overlay {
-            if showEmptyState, sections.isEmpty, libraryManager.shouldShowMainUI {
+            if isLoading, sections.isEmpty, libraryManager.shouldShowMainUI {
+                ProgressView()
+            } else if showEmptyState, sections.isEmpty, libraryManager.shouldShowMainUI {
                 ContentUnavailableView(emptyTitle, systemImage: emptyIcon)
             }
         }
@@ -116,6 +119,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
     }
 
     private func loadRows() async {
+        isLoading = true
         let loaded = await Task.detached(priority: .userInitiated) {
             await load()
         }.value
@@ -123,6 +127,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
         guard !Task.isCancelled else { return }
         tracks = loaded
         sections = sectioner(loaded)
+        isLoading = false
         onRowsChange?(loaded)
     }
 }

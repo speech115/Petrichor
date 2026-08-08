@@ -142,7 +142,11 @@ struct TrackRow: View {
         let database = libraryManager.databaseManager
         let albumId = track.albumId
         return ArtworkDataLoader {
-            database.getArtworkData(albumId: albumId, trackId: trackId)
+            if let albumId,
+               let thumbnail = database.getAlbumArtworkThumbnail(albumId: albumId) {
+                return thumbnail
+            }
+            return database.getArtworkData(albumId: nil, trackId: trackId)
         }
     }
 

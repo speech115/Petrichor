@@ -134,9 +134,10 @@ class PlaylistManager: ObservableObject {
     }
     
     /// Ensure tracks are loaded for a playlist. Rows are list rows: the
-    /// display-size artwork pass is skipped and album thumbnails are filled
-    /// here, inside the manager. Reads stay off the main thread; every access
-    /// to `playlists` is isolated via `MainActor.run` (mirrors
+    /// display-size artwork pass is skipped. Only the first four album
+    /// thumbnails are filled for a possible header mosaic; visible rows load
+    /// their own thumbnails. Reads stay off the main thread; every access to
+    /// `playlists` is isolated via `MainActor.run` (mirrors
     /// `loadSmartPlaylistTracks`).
     func loadPlaylistTracks(for playlistId: UUID) async {
         guard let dbManager = libraryManager?.databaseManager else { return }
@@ -152,7 +153,7 @@ class PlaylistManager: ObservableObject {
         guard shouldLoad else { return }
 
         var tracks = dbManager.loadTracksForPlaylist(playlistId, populateArtwork: false)
-        dbManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+        dbManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)
         let loadedTracks = tracks
 
         await MainActor.run {

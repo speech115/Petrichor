@@ -189,7 +189,8 @@ struct NowPlayingScreen: View {
             cacheKey: track.map { "now-playing-\($0.id)" },
             cornerRadius: 12,
             iconSize: 72,
-            maxPixelSize: 960
+            maxPixelSize: 960,
+            fallbackMaxPixelSize: 180
         )
         .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }

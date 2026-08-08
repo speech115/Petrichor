@@ -45,14 +45,29 @@ struct ArtworkTile: View {
     /// Largest decoded edge in physical pixels. A 44-point row needs about
     /// 132 pixels on a 3x phone, not the source image's full dimensions.
     var maxPixelSize: CGFloat = 180
+    /// An already-decoded smaller rendition that can be shown on the first
+    /// frame while this tile prepares its larger image. Now Playing uses the
+    /// mini player's cached rendition so artwork moves with the screen instead
+    /// of popping in after the opening transition.
+    var fallbackMaxPixelSize: CGFloat? = nil
     /// Fetches the artwork for rows that arrive without any, called at most
     /// once per appearance and never on the main thread.
     var loader: ArtworkDataLoader? = nil
 
     @State private var decodedImage: UIImage?
+    @State private var decodedImageKey: String?
     @State private var loadedData: Data?
+    @State private var loadedDataKey: String?
 
     private var sizedCacheKey: String? {
+        versionedCacheKey(maxPixelSize: maxPixelSize)
+    }
+
+    private var fallbackCacheKey: String? {
+        fallbackMaxPixelSize.flatMap { versionedCacheKey(maxPixelSize: $0) }
+    }
+
+    private func versionedCacheKey(maxPixelSize: CGFloat) -> String? {
         cacheKey.map {
             // The current track first arrives with a thumbnail and is enriched
             // with full artwork after audio starts. Keep those decoded images
@@ -63,11 +78,15 @@ struct ArtworkTile: View {
     }
 
     var body: some View {
+        let currentKey = sizedCacheKey
+        let resolvedData = data ?? (loadedDataKey == currentKey ? loadedData : nil)
+        let fallbackImage = fallbackCacheKey.flatMap { RowArtworkCache.shared.image(forKey: $0) }
+
         Group {
-            if let sizedCacheKey, let cached = RowArtworkCache.shared.image(forKey: sizedCacheKey) {
+            if let currentKey, let cached = RowArtworkCache.shared.image(forKey: currentKey) {
                 artworkImage(cached)
-            } else if let data = data ?? loadedData {
-                decodeView(data: data, cacheKey: sizedCacheKey)
+            } else if let resolvedData {
+                decodeView(data: resolvedData, cacheKey: currentKey, fallbackImage: fallbackImage)
             } else if let loader {
                 placeholder.task(id: sizedCacheKey) {
                     // This task exists only while the row is visible. Give it UI
@@ -76,6 +95,7 @@ struct ArtworkTile: View {
                     let fetched = await Task.detached(priority: .userInitiated) { loader() }.value
                     guard !Task.isCancelled else { return }
                     loadedData = fetched
+                    loadedDataKey = currentKey
                 }
             } else {
                 placeholder
@@ -85,32 +105,40 @@ struct ArtworkTile: View {
         // the state below resets to the placeholder instead of flashing the
         // previous track's image. Rows without a cacheKey (rare) key on the
         // data hash.
-        .id(sizedCacheKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
+        .id(currentKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
-    private func decodeView(data: Data, cacheKey: String?) -> some View {
+    private func decodeView(data: Data, cacheKey: String?, fallbackImage: UIImage?) -> some View {
         Group {
-            if let decodedImage {
+            if decodedImageKey == cacheKey, let decodedImage {
                 artworkImage(decodedImage)
+            } else if let fallbackImage {
+                artworkImage(fallbackImage)
+                    .task(id: cacheKey) {
+                        await decode(data, cacheKey: cacheKey)
+                    }
             } else {
                 placeholder
                     .task(id: cacheKey) {
-                        guard !Task.isCancelled else { return }
-                        let maxPixelSize = maxPixelSize
-                        let image = await Task.detached(priority: .userInitiated) {
-                            Self.downsample(data, maxPixelSize: maxPixelSize)
-                        }.value
-                        guard !Task.isCancelled else { return }
-                        if let image {
-                            if let cacheKey {
-                                RowArtworkCache.shared.setImage(image, forKey: cacheKey)
-                            }
-                            decodedImage = image
-                        }
+                        await decode(data, cacheKey: cacheKey)
                     }
             }
         }
+    }
+
+    private func decode(_ data: Data, cacheKey: String?) async {
+        guard !Task.isCancelled else { return }
+        let maxPixelSize = maxPixelSize
+        let image = await Task.detached(priority: .userInitiated) {
+            Self.downsample(data, maxPixelSize: maxPixelSize)
+        }.value
+        guard !Task.isCancelled, let image else { return }
+        if let cacheKey {
+            RowArtworkCache.shared.setImage(image, forKey: cacheKey)
+        }
+        decodedImage = image
+        decodedImageKey = cacheKey
     }
 
     private static nonisolated func downsample(_ data: Data, maxPixelSize: CGFloat) -> UIImage? {

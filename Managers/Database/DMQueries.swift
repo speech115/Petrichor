@@ -31,8 +31,9 @@ extension DatabaseManager {
     /// Populate track album artwork thumbnails for list rows. Lists read the
     /// small `artwork_thumbnail` column instead of the display-size BLOB; rows
     /// without a thumbnail fall back to the targeted per-row fetch in the UI.
-    func populateAlbumArtworkThumbnailsForTracks(_ tracks: inout [Track]) {
-        let albumIds = tracks.compactMap { $0.albumId }.removingDuplicates()
+    func populateAlbumArtworkThumbnailsForTracks(_ tracks: inout [Track], limit: Int? = nil) {
+        let candidates = limit.map { tracks.prefix($0) } ?? tracks.prefix(tracks.count)
+        let albumIds = candidates.compactMap { $0.albumId }.removingDuplicates()
         guard !albumIds.isEmpty else { return }
 
         do {
