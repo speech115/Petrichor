@@ -13,17 +13,32 @@
 
 import SwiftUI
 
+private struct PlayerSurfaceCoversContentKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var playerSurfaceCoversContent: Bool {
+        get { self[PlayerSurfaceCoversContentKey.self] }
+        set { self[PlayerSurfaceCoversContentKey.self] = newValue }
+    }
+}
+
 struct EqualizerBars: View {
     var animating: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playerSurfaceCoversContent) private var playerSurfaceCoversContent
 
     private static let barHeights: [CGFloat] = [14, 20, 10]
     private static let speeds: [Double] = [6.0, 4.6, 7.4]
     private static let phaseOffsets: [Double] = [0, 2.1, 4.3]
 
     var body: some View {
-        TimelineView(.animation(paused: !(animating && !reduceMotion))) { context in
+        TimelineView(.animation(
+            minimumInterval: 1.0 / 30.0,
+            paused: !(animating && !reduceMotion && !playerSurfaceCoversContent)
+        )) { context in
             let phase = context.date.timeIntervalSinceReferenceDate
 
             HStack(alignment: .bottom, spacing: 2.5) {

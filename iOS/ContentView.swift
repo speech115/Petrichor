@@ -40,6 +40,7 @@ struct ContentView: View {
 
     @State private var showingSettings = false
     @State private var showingNowPlaying = false
+    @State private var nowPlayingMounted = false
     @State private var showingPlaylistImporter = false
     @State private var importSummary: String?
     /// Incremented every time the Search tab is tapped while Search is already
@@ -54,48 +55,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView(selection: tabSelection) {
-            Tab(value: IOSSection.home) {
-                homeTab
-            } label: {
-                Label {
-                    Text(String(localized: "Home"))
-                } icon: {
-                    SymbolImage(Icons.musicNoteHouse)
-                }
-            }
-            Tab(value: IOSSection.discover) {
-                discoverTab
-            } label: {
-                Label {
-                    Text(String(localized: "Discover"))
-                } icon: {
-                    SymbolImage(Icons.sparkles)
-                }
-            }
-            Tab(value: IOSSection.playlists) {
-                playlistsTab
-            } label: {
-                Label {
-                    Text(String(localized: "Playlists"))
-                } icon: {
-                    SymbolImage(Icons.musicNoteList)
-                }
-            }
-            Tab(value: IOSSection.search) {
-                searchTab
-            } label: {
-                Label {
-                    Text(String(localized: "Search"))
-                } icon: {
-                    SymbolImage(Icons.magnifyingGlass)
-                }
-            }
-        }
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .tabViewBottomAccessory(isEnabled: playbackAvailability.hasCurrentTrack) {
-            MiniPlayerAccessory(showingNowPlaying: $showingNowPlaying)
-        }
+        mainInterface
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
                 SettingsScreen()
@@ -118,7 +78,12 @@ struct ContentView: View {
         // transition used to start after NowPlayingScreen had already moved its
         // content, so the cover and the surface visibly travelled in two steps.
         .overlay {
-            NowPlayingPresentationLayer(isPresented: $showingNowPlaying)
+            NowPlayingPresentationLayer(
+                isPresented: $showingNowPlaying,
+                isMounted: $nowPlayingMounted,
+                playbackManager: playbackManager,
+                playlistManager: playlistManager
+            )
         }
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
@@ -166,6 +131,59 @@ struct ContentView: View {
                 homePath = [destination(for: filterType, item: item)]
             }
         }
+    }
+
+    private var mainInterface: some View {
+        TabView(selection: tabSelection) {
+            Tab(value: IOSSection.home) {
+                homeTab
+            } label: {
+                Label {
+                    Text(String(localized: "Home"))
+                } icon: {
+                    SymbolImage(Icons.musicNoteHouse)
+                }
+            }
+            Tab(value: IOSSection.discover) {
+                discoverTab
+            } label: {
+                Label {
+                    Text(String(localized: "Discover"))
+                } icon: {
+                    SymbolImage(Icons.sparkles)
+                }
+            }
+            Tab(value: IOSSection.playlists) {
+                playlistsTab
+            } label: {
+                Label {
+                    Text(String(localized: "Playlists"))
+                } icon: {
+                    SymbolImage(Icons.musicNoteList)
+                }
+            }
+            Tab(value: IOSSection.search) {
+                searchTab
+            } label: {
+                Label {
+                    Text(String(localized: "Search"))
+                } icon: {
+                    SymbolImage(Icons.magnifyingGlass)
+                }
+            }
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .tabViewBottomAccessory(isEnabled: playbackAvailability.hasCurrentTrack) {
+            MiniPlayerAccessory(
+                playbackManager: playbackManager,
+                showingNowPlaying: $showingNowPlaying
+            )
+            .opacity(nowPlayingMounted ? 0 : 1)
+            .animation(nil, value: nowPlayingMounted)
+        }
+        .environment(\.playerSurfaceCoversContent, nowPlayingMounted)
+        .allowsHitTesting(!nowPlayingMounted)
+        .accessibilityHidden(nowPlayingMounted)
     }
 
     /// Tapping the tab you are already on still runs the selection setter,
@@ -286,11 +304,13 @@ struct ContentView: View {
 /// user's finger instead of starting a second transition from the top.
 private struct NowPlayingPresentationLayer: View {
     @Binding var isPresented: Bool
+    @Binding var isMounted: Bool
+    let playbackManager: PlaybackManager
+    let playlistManager: PlaylistManager
 
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
-    @State private var isMounted = false
     @State private var isVisible = false
     @State private var dragOffset: CGFloat = 0
     @State private var lifecycleTask: Task<Void, Never>?
@@ -298,11 +318,11 @@ private struct NowPlayingPresentationLayer: View {
     private var entranceAnimation: Animation {
         reduceMotion
             ? .easeOut(duration: 0.20)
-            : .spring(response: 0.38, dampingFraction: 0.92)
+            : .spring(response: 0.30, dampingFraction: 0.94)
     }
 
     private var exitDuration: Double {
-        reduceMotion ? 0.20 : 0.24
+        reduceMotion ? 0.20 : 0.22
     }
 
     var body: some View {
@@ -310,16 +330,19 @@ private struct NowPlayingPresentationLayer: View {
             if isMounted {
                 NowPlayingScreen(
                     isPresented: $isPresented,
-                    presentationDragOffset: $dragOffset
+                    presentationDragOffset: $dragOffset,
+                    playbackManager: playbackManager,
+                    playlistManager: playlistManager
                 )
                 // Force the gradient, cover and controls through one compositor
                 // transform. Without this, the decoded UIImage layer can commit
                 // a frame before the rest of the newly inserted hierarchy.
                 .compositingGroup()
-                .offset(y: verticalOffset(in: geometry))
-                .opacity(isVisible ? 1 : 0)
+                .offset(y: reduceMotion ? 0 : verticalOffset(in: geometry))
+                .opacity(reduceMotion && !isVisible ? 0 : 1)
                 .allowsHitTesting(isVisible)
                 .accessibilityHidden(!isVisible)
+                .accessibilityAddTraits(.isModal)
             }
         }
         .ignoresSafeArea()
@@ -332,7 +355,6 @@ private struct NowPlayingPresentationLayer: View {
     }
 
     private func verticalOffset(in geometry: GeometryProxy) -> CGFloat {
-        guard !reduceMotion else { return 0 }
         return isVisible ? max(0, dragOffset) : geometry.size.height
     }
 
@@ -396,33 +418,37 @@ private struct NowPlayingPresentationLayer: View {
 private struct MiniPlayerAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement)
     private var placement
-    @EnvironmentObject private var playbackManager: PlaybackManager
-    @EnvironmentObject private var playbackProgressState: PlaybackProgressState
+    @Environment(\.playerSurfaceCoversContent)
+    private var playerSurfaceCoversContent
+    let playbackManager: PlaybackManager
+    @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
+    private let playbackProgressState: PlaybackProgressState
     @Binding var showingNowPlaying: Bool
 
-    var body: some View {
-        if placement == .expanded {
-            expandedRow
-        } else {
-            compactRow
-        }
+    init(playbackManager: PlaybackManager, showingNowPlaying: Binding<Bool>) {
+        self.playbackManager = playbackManager
+        playbackPresentation = playbackManager.presentationObservation
+        playbackProgressState = playbackManager.playbackProgressState
+        _showingNowPlaying = showingNowPlaying
     }
 
-    private var compactRow: some View {
+    var body: some View {
+        let isCompact = placement == .inline
+
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Button {
                     showingNowPlaying = true
                 } label: {
                     HStack(spacing: 12) {
-                        artwork(size: 44)
+                        artwork(size: isCompact ? 44 : 56)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(playbackManager.currentTrack?.title ?? "")
-                                .font(.subheadline.weight(.semibold))
+                            Text(playbackPresentation.currentTrack?.title ?? "")
+                                .font(isCompact ? .subheadline.weight(.semibold) : .headline)
                                 .lineLimit(1)
-                            Text(playbackManager.currentTrack?.displayArtist ?? "")
-                                .font(.caption)
+                            Text(playbackPresentation.currentTrack?.displayArtist ?? "")
+                                .font(isCompact ? .caption : .subheadline)
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
@@ -437,53 +463,61 @@ private struct MiniPlayerAccessory: View {
                 playPauseButton
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 8)
+            .padding(.vertical, isCompact ? 8 : 10)
 
-            progressLine
-        }
-    }
-
-    private var expandedRow: some View {
-        HStack(spacing: 12) {
-            Button {
-                showingNowPlaying = true
-            } label: {
-                HStack(spacing: 12) {
-                    artwork(size: 56)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(playbackManager.currentTrack?.title ?? "")
-                            .font(.headline)
-                            .lineLimit(1)
-                        Text(playbackManager.currentTrack?.displayArtist ?? "")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                .contentShape(Rectangle())
+            if isCompact && !playerSurfaceCoversContent {
+                progressLine
+                    .frame(height: 3)
+                    .padding(.bottom, 6)
             }
-            .accessibilityIdentifier("MiniPlayer")
-            .buttonStyle(.plain)
-
-            Spacer()
-
-            playPauseButton
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
     }
 
     /// Thin non-interactive progress line under the compact row, like Apple
     /// Music's mini player. The expanded row has no line - Now Playing owns
     /// the scrubber there.
     private var progressLine: some View {
-        let duration = playbackManager.currentTrack?.duration ?? 0
+        MiniPlayerProgressLine(
+            duration: playbackPresentation.currentTrack?.duration ?? 0,
+            playbackProgressState: playbackProgressState
+        )
+    }
+
+    private var playPauseButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            playbackManager.togglePlayPause()
+        } label: {
+            Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
+                .font(.system(size: 22))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(playbackPresentation.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
+    }
+
+    private func artwork(size: CGFloat) -> some View {
+        ArtworkTile(
+            data: playbackPresentation.currentTrack?.displayArtwork,
+            cacheKey: playbackPresentation.currentTrack.map { "now-playing-\($0.id)" },
+            cornerRadius: size * 0.15,
+            maxPixelSize: 180
+        )
+        .frame(width: size, height: size)
+    }
+}
+
+private struct MiniPlayerProgressLine: View {
+    let duration: Double
+    @ObservedObject var playbackProgressState: PlaybackProgressState
+
+    var body: some View {
         let progress = duration > 0
             ? min(max(playbackProgressState.currentTime / duration, 0), 1)
             : 0
 
-        return GeometryReader { geometry in
+        GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color.secondary.opacity(0.18))
@@ -494,31 +528,6 @@ private struct MiniPlayerAccessory: View {
         }
         .frame(height: 3)
         .padding(.horizontal, 16)
-        .padding(.bottom, 6)
         .allowsHitTesting(false)
-    }
-
-    private var playPauseButton: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            playbackManager.togglePlayPause()
-        } label: {
-            Image(systemName: playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
-                .font(.system(size: 22))
-                .frame(width: 44, height: 44)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
-    }
-
-    private func artwork(size: CGFloat) -> some View {
-        ArtworkTile(
-            data: playbackManager.currentTrack?.displayArtwork,
-            cacheKey: playbackManager.currentTrack.map { "now-playing-\($0.id)" },
-            cornerRadius: size * 0.15,
-            maxPixelSize: 180
-        )
-        .frame(width: size, height: size)
     }
 }

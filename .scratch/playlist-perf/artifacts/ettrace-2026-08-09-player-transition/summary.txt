@@ -1,0 +1,93 @@
+## output_259.json
+Trace: /tmp/codex-ios-ettrace.petrichor.30ycpe/run-clean-20260809-042344.wJ9bHy/output_259.json
+Total duration:     23.668659
+Idle self total:    21.272933
+Unattributed total: 0.000000
+Active total:       2.395726
+
+Threads
+ 23.668659  100.00%total output_259
+
+Top active self frames
+  0.371715   15.52%active task_policy_set
+  0.106860    4.46%active semaphore_destroy
+  0.096530    4.03%active <deduplicated_symbol>
+  0.083666    3.49%active _pthread_mutex_unlock_init_slow
+  0.061926    2.58%active ETTrace
+  0.055892    2.33%active objc_msgSend
+  0.050081    2.09%active mach_vm_map
+  0.038962    1.63%active AG::Graph::UpdateStack::update()
+  0.032975    1.38%active AG::Graph::propagate_dirty(AG::AttributeID)
+  0.022844    0.95%active swift::MetadataCacheKey::operator==(swift::MetadataCacheKey const&) const
+  0.022816    0.95%active swift_retain
+  0.022556    0.94%active swift_bridgeObjectRelease
+  0.022443    0.94%active ___CFBasicHashFindBucket_Linear
+  0.021522    0.90%active specialized find1<A>(_:key:filter:)
+  0.017224    0.72%active ____sigwait_nocancel
+  0.017137    0.72%active libicucore.A.dylib
+  0.017083    0.71%active DYLD-STUB$$pthread_getspecific
+  0.017058    0.71%active bool swift::RefCounts<swift::RefCountBitsT<(swift::RefCountInlinedness)1>>::doDecrementSlow<(swift::PerformDeinit)1>(swift::RefCountBitsT<(swift::RefCountInlinedness)1>, unsigned int)
+  0.017021    0.71%active task_info
+  0.016859    0.70%active __libplatform_init
+  0.016703    0.70%active _xzm_xzone_malloc
+  0.016628    0.69%active -[MTLSerializerCommandEncoder writeSegmentHeader:continuation:]
+  0.016129    0.67%active AG::Subgraph::update(unsigned int)
+  0.015760    0.66%active _free
+  0.015736    0.66%active _os_alloc_slow
+  0.011617    0.48%active aa_render
+  0.011551    0.48%active swift::_getWitnessTable(swift::TargetProtocolConformanceDescriptor<swift::InProcess> const*, swift::TargetMetadata<swift::InProcess> const*, void const* const*)
+  0.011462    0.48%active std::__1::pair<swift::HashMapElementWrapper<swift::GenericCacheEntry>*, unsigned int> swift::ConcurrentReadableHashMap<swift::HashMapElementWrapper<swift::GenericCacheEntry>, swift::Mutex>::find<swift::MetadataCacheKey>(swift::MetadataCacheKey const&, swift::ConcurrentReadableHashMap<swift::HashMapElementWrapper<swift::GenericCacheEntry>, swift::Mutex>::IndexStorage, unsigned long, swift::HashMapElementWrapper<swift::GenericCacheEntry>*)
+  0.011410    0.48%active __CF_IS_OBJC
+  0.011406    0.48%active CFStringGetBytes
+  0.011405    0.48%active libsystem_platform.dylib
+  0.011403    0.48%active _UIHostingView.as<A>(_:)
+  0.011400    0.48%active -[NSObject dealloc]
+  0.011383    0.48%active swift_arrayDestroy
+  0.011380    0.48%active _platform_memset
+  0.011378    0.47%active _simple_asl_init
+  0.011376    0.47%active objc_release_x19
+  0.011358    0.47%active swift_getEnumCaseMultiPayload
+  0.011350    0.47%active -[UIView(UIKitManual) superview]
+  0.011327    0.47%active __CFStringHash
+
+Top inclusive frames
+  2.930974  122.34%active ETTrace
+  2.395726  100.00%active closure #1 in KitRendererCommon(_:)
+  2.395726  100.00%active __debug_main_executable_dylib_entry_point
+  2.196632   91.69%active <deduplicated_symbol>
+  1.921546   80.21%active UIKitCore
+  0.779371   32.53%active -[UIResponder undoManager]
+  0.763580   31.87%active schedulerStepScheduledMainSectionContinue
+  0.762695   31.84%active UC::DriverCore::continueProcessing()
+  0.757990   31.64%active _UIUpdateSequenceRunNext
+  0.627738   26.20%active mshMIGPerform
+  0.574723   23.99%active _dispatch_call_block_and_release
+  0.498581   20.81%active CA::Transaction::commit()
+  0.498578   20.81%active __setupUpdateSequence_block_invoke_2
+  0.492895   20.57%active _UIApplicationFlushCATransaction
+  0.492895   20.57%active CA::Transaction::flush_as_runloop_observer(bool)
+  0.490713   20.48%active AG::Graph::UpdateStack::update()
+  0.487537   20.35%active _handleNonMainThreadCallback
+  0.477909   19.95%active CA::Context::commit_transaction(CA::Transaction*, double, double*)
+  0.473746   19.77%active _XCopyAttributeValue
+  0.473746   19.77%active _AXXMIGCopyAttributeValue
+  0.434335   18.13%active AVQueuePlayerBackend.runOnMain(_:)
+  0.399658   16.68%active specialized GraphHost.runTransaction(_:do:id:)
+  0.371779   15.52%active _pthread_mutex_check_init_slow
+  0.371715   15.52%active task_policy_set
+  0.371702   15.52%active surrogatePlaybackItem_GetCurrentTime
+  0.371702   15.52%active itemasync_GetCurrentTime
+  0.371702   15.52%active AVQueuePlayerBackend.publishNowPlaying()
+  0.371702   15.52%active AVQueuePlayerBackend.currentPlaybackProgress.getter
+  0.371702   15.52%active -[AVPlayerItem currentTime]
+  0.371702   15.52%active -[AVPlayerItem _currentTimeWithOptionalFoldedTimebase:]
+  0.366339   15.29%active NSKeyValueNotifyObserver
+  0.366339   15.29%active NSKeyValueDidChangeWithPerThreadPendingNotifications
+  0.366339   15.29%active NSKeyValueDidChange
+  0.366339   15.29%active @objc NSKeyValueObservation.Helper._swizzle_me_observeValue(forKeyPath:of:change:context:)
+  0.366339   15.29%active -[AVPlayer didChangeValueForKey:]
+  0.366051   15.28%active __CFRunLoopDoSources0
+  0.366012   15.28%active itemfig_GetCurrentTime
+  0.366012   15.28%active _pthread_mutex_droplock
+  0.360650   15.05%active ViewGraphRootValueUpdater.updateGraph<A>(body:)
+  0.360650   15.05%active ViewGraphRootValueUpdater._updateViewGraph<A>(body:)

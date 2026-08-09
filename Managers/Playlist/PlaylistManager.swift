@@ -55,6 +55,49 @@ final class PlaylistCreatePresentationObservation: ObservableObject {
     }
 }
 
+/// Narrow publisher for transport controls. Queue and catalog mutations do not
+/// invalidate the play/pause row just to keep these two mode glyphs current.
+final class PlaylistTransportObservation: ObservableObject {
+    @Published private(set) var isShuffleEnabled: Bool
+    @Published private(set) var repeatMode: RepeatMode
+    private var subscriptions: Set<AnyCancellable> = []
+
+    init(manager: PlaylistManager) {
+        isShuffleEnabled = manager.isShuffleEnabled
+        repeatMode = manager.repeatMode
+
+        manager.$isShuffleEnabled
+            .removeDuplicates()
+            .sink { [weak self] in self?.isShuffleEnabled = $0 }
+            .store(in: &subscriptions)
+        manager.$repeatMode
+            .removeDuplicates(by: { $0 == $1 })
+            .sink { [weak self] in self?.repeatMode = $0 }
+            .store(in: &subscriptions)
+    }
+}
+
+/// Narrow publisher for the queue panel. Playlist catalog, modal, shuffle and
+/// repeat publications stay outside this observation boundary.
+final class PlaylistQueueObservation: ObservableObject {
+    @Published private(set) var currentQueue: [Track]
+    @Published private(set) var currentQueueIndex: Int
+    private var subscriptions: Set<AnyCancellable> = []
+
+    init(manager: PlaylistManager) {
+        currentQueue = manager.currentQueue
+        currentQueueIndex = manager.currentQueueIndex
+
+        manager.$currentQueue
+            .sink { [weak self] in self?.currentQueue = $0 }
+            .store(in: &subscriptions)
+        manager.$currentQueueIndex
+            .removeDuplicates()
+            .sink { [weak self] in self?.currentQueueIndex = $0 }
+            .store(in: &subscriptions)
+    }
+}
+
 class PlaylistManager: ObservableObject {
     @Published var playlists: [Playlist] = []
     @Published var currentPlaylist: Playlist?
@@ -76,6 +119,8 @@ class PlaylistManager: ObservableObject {
 
     lazy var catalogObservation = PlaylistCatalogObservation(manager: self)
     lazy var createPresentationObservation = PlaylistCreatePresentationObservation(manager: self)
+    lazy var transportObservation = PlaylistTransportObservation(manager: self)
+    lazy var queueObservation = PlaylistQueueObservation(manager: self)
 
     enum QueueSource {
         case library

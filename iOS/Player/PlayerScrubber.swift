@@ -14,15 +14,24 @@ import SwiftUI
 
 struct PlayerScrubber: View {
     let palette: PlayerPalette
-
-    @EnvironmentObject private var playbackManager: PlaybackManager
-    @EnvironmentObject private var playbackProgressState: PlaybackProgressState
+    let playbackManager: PlaybackManager
+    @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
+    @ObservedObject private var playbackProgressState: PlaybackProgressState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
+    @State private var releaseTask: Task<Void, Never>?
+
+    init(palette: PlayerPalette, playbackManager: PlaybackManager) {
+        self.palette = palette
+        self.playbackManager = playbackManager
+        playbackPresentation = playbackManager.presentationObservation
+        playbackProgressState = playbackManager.playbackProgressState
+    }
 
     private var duration: Double {
-        playbackManager.currentTrack?.duration ?? 0
+        playbackPresentation.currentTrack?.duration ?? 0
     }
 
     private var elapsed: Double {
@@ -42,25 +51,30 @@ struct PlayerScrubber: View {
             .monospacedDigit()
             .foregroundColor(palette.secondary)
         }
-        .disabled(playbackManager.currentTrack == nil)
+        .disabled(playbackPresentation.currentTrack == nil)
+        .onDisappear {
+            releaseTask?.cancel()
+        }
     }
 
     private var track: some View {
         GeometryReader { geometry in
-            let height: CGFloat = isScrubbing ? 12 : 7
-
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color.white.opacity(0.22))
                 Capsule()
                     .fill(palette.control)
-                    .frame(width: max(height, geometry.size.width * fraction))
+                    .frame(width: max(12, geometry.size.width * fraction))
             }
-            .frame(height: height)
+            .frame(height: 12)
+            .scaleEffect(y: isScrubbing ? 1 : 7 / 12)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(scrubGesture(width: geometry.size.width))
-            .animation(.spring(response: 0.28, dampingFraction: 0.8), value: isScrubbing)
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88),
+                value: isScrubbing
+            )
         }
         .frame(height: 20)
     }
@@ -77,6 +91,7 @@ struct PlayerScrubber: View {
     private func scrubGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                releaseTask?.cancel()
                 if !isScrubbing {
                     isScrubbing = true
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
@@ -98,7 +113,10 @@ struct PlayerScrubber: View {
                 // The playhead needs a beat to catch up with the seek; ending
                 // the scrub immediately would snap the bar back to the old
                 // position for one frame.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                releaseTask?.cancel()
+                releaseTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    guard !Task.isCancelled else { return }
                     isScrubbing = false
                 }
             }

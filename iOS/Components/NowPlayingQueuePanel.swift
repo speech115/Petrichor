@@ -11,21 +11,37 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct NowPlayingQueuePanel: View {
-    @EnvironmentObject private var playbackManager: PlaybackManager
-    @EnvironmentObject private var playlistManager: PlaylistManager
+    private struct QueueOccurrence: Identifiable {
+        let id: String
+        let track: Track
+        let position: Int
+    }
 
     let accentColor: Color
-    let onDismiss: () -> Void
+    let playbackManager: PlaybackManager
+    let playlistManager: PlaylistManager
+    @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
+    @ObservedObject private var playlistQueue: PlaylistQueueObservation
 
     @State private var draggedIndex: Int?
 
+    init(
+        accentColor: Color,
+        playbackManager: PlaybackManager,
+        playlistManager: PlaylistManager
+    ) {
+        self.accentColor = accentColor
+        self.playbackManager = playbackManager
+        self.playlistManager = playlistManager
+        playbackPresentation = playbackManager.presentationObservation
+        playlistQueue = playlistManager.queueObservation
+    }
+
     var body: some View {
-        NowPlayingPanel(title: String(localized: "Queue"), onDismiss: onDismiss) {
-            if playlistManager.currentQueue.isEmpty {
-                emptyQueueView
-            } else {
-                queueList
-            }
+        if playlistQueue.currentQueue.isEmpty {
+            emptyQueueView
+        } else {
+            queueList
         }
     }
 
@@ -44,8 +60,8 @@ struct NowPlayingQueuePanel: View {
 
     private var queueList: some View {
         List {
-            ForEach(Array(playlistManager.currentQueue.enumerated()), id: \.element.id) { pair in
-                queueRow(for: pair.element, at: pair.offset)
+            ForEach(queueOccurrences) { occurrence in
+                queueRow(for: occurrence.track, at: occurrence.position)
             }
         }
         .listStyle(.plain)
@@ -53,8 +69,22 @@ struct NowPlayingQueuePanel: View {
         .listRowSpacing(0)
     }
 
+    private var queueOccurrences: [QueueOccurrence] {
+        var occurrencesByTrackID: [String: Int] = [:]
+
+        return playlistQueue.currentQueue.enumerated().map { position, track in
+            let occurrence = occurrencesByTrackID[track.id, default: 0]
+            occurrencesByTrackID[track.id] = occurrence + 1
+            return QueueOccurrence(
+                id: "\(track.id)#\(occurrence)",
+                track: track,
+                position: position
+            )
+        }
+    }
+
     private func queueRow(for track: Track, at position: Int) -> some View {
-        let isCurrentTrack = position == playlistManager.currentQueueIndex
+        let isCurrentTrack = position == playlistQueue.currentQueueIndex
 
         return HStack(spacing: 12) {
             positionIndicator(isCurrentTrack: isCurrentTrack, position: position)
@@ -105,7 +135,7 @@ struct NowPlayingQueuePanel: View {
     private func positionIndicator(isCurrentTrack: Bool, position: Int) -> some View {
         Group {
             if isCurrentTrack {
-                Image(systemName: playbackManager.isPlaying ? Icons.playFill : Icons.pauseFill)
+                Image(systemName: playbackPresentation.isPlaying ? Icons.playFill : Icons.pauseFill)
                     .font(.system(size: 12))
                     .foregroundColor(accentColor)
             } else {
@@ -135,7 +165,7 @@ private struct QueueDropDelegate: DropDelegate {
 
     func dropEntered(info: DropInfo) {
         guard let from = draggedIndex, from != destinationIndex else { return }
-        withAnimation(.default) {
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
             playlistManager.moveInQueue(from: from, to: destinationIndex)
         }
         draggedIndex = destinationIndex

@@ -11,9 +11,10 @@ import SwiftUI
 
 struct NowPlayingLyricsPanel: View {
     @EnvironmentObject private var libraryManager: LibraryManager
-    @EnvironmentObject private var playbackManager: PlaybackManager
-
-    let onDismiss: () -> Void
+    let playbackManager: PlaybackManager
+    @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
+    private let playbackProgressState: PlaybackProgressState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var lyricLines: [LyricLine] = []
     @State private var isLoading = true
@@ -21,20 +22,24 @@ struct NowPlayingLyricsPanel: View {
     @State private var currentLineIndex = -1
     @State private var hasTimedLyrics = false
 
+    init(playbackManager: PlaybackManager) {
+        self.playbackManager = playbackManager
+        playbackPresentation = playbackManager.presentationObservation
+        playbackProgressState = playbackManager.playbackProgressState
+    }
+
     private var currentTrack: Track? {
-        playbackManager.currentTrack
+        playbackPresentation.currentTrack
     }
 
     var body: some View {
-        NowPlayingPanel(title: String(localized: "Lyrics"), onDismiss: onDismiss) {
-            Group {
-                if isLoading {
-                    loadingView
-                } else if lyricLines.isEmpty {
-                    emptyLyricsView
-                } else {
-                    lyricsContent
-                }
+        Group {
+            if isLoading {
+                loadingView
+            } else if lyricLines.isEmpty {
+                emptyLyricsView
+            } else {
+                lyricsContent
             }
         }
         .onAppear {
@@ -46,10 +51,10 @@ struct NowPlayingLyricsPanel: View {
         .onDisappear {
             playbackManager.setFineProgressSampling(false)
         }
-        .onChange(of: playbackManager.currentTrack?.id) { _, _ in
+        .onChange(of: playbackPresentation.currentTrack?.id) { _, _ in
             loadLyricsForCurrentTrack()
         }
-        .onReceive(playbackManager.playbackProgressState.$currentTime) { newTime in
+        .onReceive(playbackProgressState.$currentTime) { newTime in
             updateCurrentLine(for: newTime)
         }
     }
@@ -57,6 +62,25 @@ struct NowPlayingLyricsPanel: View {
     // MARK: - Loading View
 
     private var loadingView: some View {
+        Group {
+            if reduceMotion {
+                loadingPlaceholders
+                    .opacity(0.5)
+            } else {
+                loadingPlaceholders
+                    .phaseAnimator(
+                        [0.3, 0.7],
+                        content: { view, opacity in
+                            view.opacity(opacity)
+                        },
+                        animation: { _ in .easeInOut(duration: 0.85) }
+                    )
+            }
+        }
+        .accessibilityLabel(String(localized: "Loading lyrics"))
+    }
+
+    private var loadingPlaceholders: some View {
         VStack(spacing: 12) {
             ForEach([170.0, 130.0, 190.0, 110.0], id: \.self) { width in
                 Capsule()
@@ -65,14 +89,6 @@ struct NowPlayingLyricsPanel: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .phaseAnimator(
-            [0.3, 0.7],
-            content: { view, opacity in
-                view.opacity(opacity)
-            },
-            animation: { _ in .easeInOut(duration: 0.85) }
-        )
-        .accessibilityLabel(String(localized: "Loading lyrics"))
     }
 
     // MARK: - Empty Lyrics View
@@ -103,7 +119,7 @@ struct NowPlayingLyricsPanel: View {
     private var lyricsContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: 12) {
+                LazyVStack(spacing: 12) {
                     ForEach(Array(lyricLines.enumerated()), id: \.offset) { index, line in
                         Text(line.text.isEmpty ? " " : line.text)
                             .font(.system(size: 15))
@@ -113,7 +129,6 @@ struct NowPlayingLyricsPanel: View {
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)
                             .id(index)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentLineIndex)
                     }
                 }
                 .padding(20)
@@ -123,8 +138,12 @@ struct NowPlayingLyricsPanel: View {
             .scrollIndicators(.never)
             .onChange(of: currentLineIndex) { _, newIndex in
                 guard hasTimedLyrics else { return }
-                withAnimation {
+                if reduceMotion {
                     proxy.scrollTo(newIndex, anchor: .center)
+                } else {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                        proxy.scrollTo(newIndex, anchor: .center)
+                    }
                 }
             }
         }
@@ -148,7 +167,7 @@ struct NowPlayingLyricsPanel: View {
             hasTimedLyrics = cached.hasTimed
             isLoading = false
             fetchFailed = false
-            updateCurrentLine(for: playbackManager.playbackProgressState.currentTime)
+            updateCurrentLine(for: playbackProgressState.currentTime)
             return
         }
 
@@ -193,8 +212,12 @@ struct NowPlayingLyricsPanel: View {
         let newIndex = LyricsTimeline.activeLineIndex(in: lyricLines, at: time)
 
         if newIndex != currentLineIndex {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            if reduceMotion {
                 currentLineIndex = newIndex
+            } else {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                    currentLineIndex = newIndex
+                }
             }
         }
     }

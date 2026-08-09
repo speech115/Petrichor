@@ -1,0 +1,131 @@
+Trace: /tmp/codex-ios-ettrace.petrichor.30ycpe/run-clean-20260809-042344.wJ9bHy/output_259.json
+Total duration:     23.668659
+Idle self total:    21.272933
+Unattributed total: 0.000000
+Active total:       2.395726
+
+Threads
+ 23.668659  100.00%total output_259
+
+Top active self frames
+  0.371715   15.52%active task_policy_set
+  0.106860    4.46%active semaphore_destroy
+  0.096530    4.03%active <deduplicated_symbol>
+  0.083666    3.49%active _pthread_mutex_unlock_init_slow
+  0.061926    2.58%active ETTrace
+  0.055892    2.33%active objc_msgSend
+  0.050081    2.09%active mach_vm_map
+  0.038962    1.63%active AG::Graph::UpdateStack::update()
+  0.032975    1.38%active AG::Graph::propagate_dirty(AG::AttributeID)
+  0.022844    0.95%active swift::MetadataCacheKey::operator==(swift::MetadataCacheKey const&) const
+  0.022816    0.95%active swift_retain
+  0.022556    0.94%active swift_bridgeObjectRelease
+  0.022443    0.94%active ___CFBasicHashFindBucket_Linear
+  0.021522    0.90%active specialized find1<A>(_:key:filter:)
+  0.017224    0.72%active ____sigwait_nocancel
+  0.017137    0.72%active libicucore.A.dylib
+  0.017083    0.71%active DYLD-STUB$$pthread_getspecific
+  0.017058    0.71%active bool swift::RefCounts<swift::RefCountBitsT<(swift::RefCountInlinedness)1>>::doDecrementSlow<(swift::PerformDeinit)1>(swift::RefCountBitsT<(swift::RefCountInlinedness)1>, unsigned int)
+  0.017021    0.71%active task_info
+  0.016859    0.70%active __libplatform_init
+  0.016703    0.70%active _xzm_xzone_malloc
+  0.016628    0.69%active -[MTLSerializerCommandEncoder writeSegmentHeader:continuation:]
+  0.016129    0.67%active AG::Subgraph::update(unsigned int)
+  0.015760    0.66%active _free
+  0.015736    0.66%active _os_alloc_slow
+  0.011617    0.48%active aa_render
+  0.011551    0.48%active swift::_getWitnessTable(swift::TargetProtocolConformanceDescriptor<swift::InProcess> const*, swift::TargetMetadata<swift::InProcess> const*, void const* const*)
+  0.011462    0.48%active std::__1::pair<swift::HashMapElementWrapper<swift::GenericCacheEntry>*, unsigned int> swift::ConcurrentReadableHashMap<swift::HashMapElementWrapper<swift::GenericCacheEntry>, swift::Mutex>::find<swift::MetadataCacheKey>(swift::MetadataCacheKey const&, swift::ConcurrentReadableHashMap<swift::HashMapElementWrapper<swift::GenericCacheEntry>, swift::Mutex>::IndexStorage, unsigned long, swift::HashMapElementWrapper<swift::GenericCacheEntry>*)
+  0.011410    0.48%active __CF_IS_OBJC
+  0.011406    0.48%active CFStringGetBytes
+  0.011405    0.48%active libsystem_platform.dylib
+  0.011403    0.48%active _UIHostingView.as<A>(_:)
+  0.011400    0.48%active -[NSObject dealloc]
+  0.011383    0.48%active swift_arrayDestroy
+  0.011380    0.48%active _platform_memset
+  0.011378    0.47%active _simple_asl_init
+  0.011376    0.47%active objc_release_x19
+  0.011358    0.47%active swift_getEnumCaseMultiPayload
+  0.011350    0.47%active -[UIView(UIKitManual) superview]
+  0.011327    0.47%active __CFStringHash
+  0.011307    0.47%active AGGraphGetValue
+  0.011306    0.47%active getCache(swift::TargetTypeContextDescriptor<swift::InProcess> const&)
+  0.010955    0.46%active swift::runtime::AccessSet::insert(swift::runtime::Access*, void*, void*, swift::ExclusivityFlags)
+  0.010915    0.46%active -[__NSDictionaryM objectForKey:]
+  0.010425    0.44%active __mac_syscall
+  0.010346    0.43%active weak_entry_for_referent
+  0.005870    0.25%active A8_mark_constmask(BltDepth const*, BltOp const*, MODE)
+  0.005844    0.24%active DisplayList.ViewUpdater.Platform.updateItemView(_:index:item:state:)
+  0.005831    0.24%active AG::LayoutDescriptor::compare(unsigned char const*, unsigned char const*, unsigned char const*, unsigned long, unsigned int)
+  0.005799    0.24%active aa_cubeto
+  0.005793    0.24%active specialized Set.formUnion<A>(_:)
+  0.005787    0.24%active protocol witness for StatefulRule.updateValue() in conformance StaticBody<A, B>
+  0.005785    0.24%active __swift_instantiateCanonicalPrespecializedGenericMetadata
+  0.005782    0.24%active RawKeyPathComponent._computedArgumentSize.getter
+  0.005780    0.24%active CA::Render::Shmem::copy_image(CGColorSpace*)
+  0.005778    0.24%active initializeWithCopy for SubscriptionLifetime.StateType
+  0.005777    0.24%active Hasher.combine(bytes:)
+  0.005776    0.24%active _platform_strnlen
+  0.005771    0.24%active _xzm_xzone_malloc_from_freelist_chunk
+  0.005771    0.24%active _xzm_xzone_malloc_tiny
+  0.005767    0.24%active _pthread_mutex_check_init_slow
+  0.005765    0.24%active __swift_instantiateGenericMetadata
+  0.005761    0.24%active strcspn
+  0.005759    0.24%active swift_cvw_destroyImpl(swift::OpaqueValue*, swift::TargetMetadata<swift::InProcess> const*)
+  0.005759    0.24%active _StringGuts.reserveCapacity(_:)
+  0.005756    0.24%active CFBasicHashFindBucket
+  0.005756    0.24%active initializeWithCopy for AccessibilityProperties
+  0.005753    0.24%active std::__1::pair<swift::GenericCacheEntry*, bool> swift::StableAddressConcurrentReadableHashMap<swift::GenericCacheEntry, swift::TaggedMetadataAllocator<(unsigned short)14>, swift::Mutex>::getOrInsert<swift::MetadataCacheKey, swift::MetadataWaitQueue::Worker&, swift::MetadataRequest&, swift::TargetTypeContextDescriptor<swift::InProcess> const*&, void const* const*&>(swift::MetadataCacheKey, swift::MetadataWaitQueue::Worker&, swift::MetadataRequest&, swift::TargetTypeContextDescriptor<swift::InProcess> const*&, void const* const*&)
+  0.005750    0.24%active swift::Demangle::__runtime::Demangler::demangleAssociatedTypeSimple(swift::Demangle::__runtime::Node*)
+  0.005748    0.24%active AGGraphGetWeakValue
+  0.005745    0.24%active $defer #1 <A>() in PlatformViewLayoutEngine.sizeThatFits(_:)
+  0.005742    0.24%active type metadata accessor for AlertStorage
+  0.005742    0.24%active CGImageGetHeadroomInfo
+  0.005738    0.24%active swift_release
+  0.005732    0.24%active __CFBasicHashRehash
+  0.005730    0.24%active icu::UnicodeString::copyFrom(icu::UnicodeString const&, signed char)
+  0.005727    0.24%active objc_msgSend$actualScaleFactor
+  0.005726    0.24%active CAObject_defaultValueForAtom
+  0.005724    0.24%active Int._rawHashValue(seed:)
+  0.005722    0.24%active destroy for CollectionViewListDataSource
+  0.005720    0.24%active ResolvedStyledText.lineHeightScalingAdjustment(lineHeightMultiple:maximumLineHeight:minimumLineHeight:)
+  0.005719    0.24%active View.disabled(_:)
+  0.005718    0.24%active _platform_strcpy
+  0.005717    0.24%active closure #2 in KeyPath.makeInitializeFunction()
+  0.005717    0.24%active swift_getAssociatedTypeWitness
+  0.005716    0.24%active Hasher._finalize()
+  0.005714    0.24%active initializeWithCopy for ClosedRange<>.Index
+  0.005713    0.24%active outlined init with copy of AccessibilityAttachmentStorage
+  0.005712    0.24%active specialized ShapeStyledDisplayList.updateValue()
+  0.005711    0.24%active objc_storeStrong
+  0.005711    0.24%active AG::LayoutDescriptor::Compare::Enum::Enum(AG::swift::metadata const*, AG::LayoutDescriptor::Compare::Enum::Mode, unsigned int, unsigned long, unsigned char const*, unsigned char const*, unsigned char*, unsigned char*, bool)
+  0.005710    0.24%active validateUTF8(_:)
+  0.005710    0.24%active _os_nospin_lock_unlock_slow
+  0.005708    0.24%active aa_new_edge
+  0.005704    0.24%active CA::Layer::collect_layers_(CA::Layer::CollectLayersData*)
+  0.005704    0.24%active NavigationState.StackContent.Views.ViewsSequence.view(at:state:baseDepth:)
+  0.005703    0.24%active _platform_strncmp
+  0.005703    0.24%active CA::Render::Path::encode(CA::Render::Encoder*) const
+  0.005703    0.24%active mach_voucher_extract_attr_content
+  0.005703    0.24%active ____NSDictionaryI_new_block_invoke
+
+Top focused inclusive frames
+  0.371702   15.52%active AVQueuePlayerBackend.publishNowPlaying()
+  0.015999    0.67%active protocol witness for PlaybackBackend.setNowPlayingMetadata(_:) in conformance AVQueuePlayerBackend
+  0.015999    0.67%active PlaybackManager.setNowPlayingMetadata(for:artworkData:)
+  0.015999    0.67%active PlaybackManager.publishNowPlayingMetadata(for:)
+  0.015999    0.67%active PlaybackEngine.setNowPlayingMetadata(_:)
+  0.015999    0.67%active AVQueuePlayerBackend.setNowPlayingMetadata(_:)
+  0.015999    0.67%active AVQueuePlayerBackend.applyNowPlayingMetadata(_:)
+  0.010575    0.44%active PlayerTransport.hasTrack.getter
+  0.005793    0.24%active static PlaceholderContentView._makeView(view:inputs:)
+  0.005719    0.24%active protocol witness for View.body.getter in conformance PlayerScrubber
+  0.005719    0.24%active PlayerScrubber.body.getter
+  0.005715    0.24%active closure #1 in NowPlayingPresentationLayer.body.getter
+  0.005715    0.24%active NowPlayingPresentationLayer.verticalOffset(in:)
+  0.005288    0.22%active protocol witness for View.body.getter in conformance PlayerTransport
+  0.005288    0.22%active closure #1 in closure #1 in PlayerTransport.body.getter
+  0.005288    0.22%active closure #1 in PlayerTransport.body.getter
+  0.005288    0.22%active PlayerTransport.transportButton(_:size:action:)
+  0.005288    0.22%active PlayerTransport.body.getter
+  0.000000    0.00%active [MPNowPlayingInfoCenter(NowPlayingInfo) _onQueue_pushNowPlayingInfoAndRetry:]_block_invoke.25

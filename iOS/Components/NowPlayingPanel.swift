@@ -13,13 +13,21 @@ import SwiftUI
 struct NowPlayingPanel<Content: View>: View {
     let title: String
     let onDismiss: () -> Void
+    let onDragChanged: (CGFloat) -> Void
+    let onDragEnded: (_ translation: CGFloat, _ predictedTranslation: CGFloat) -> Void
     private let content: Content
 
-    @State private var dragOffset: CGFloat = 0
-
-    init(title: String, onDismiss: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+    init(
+        title: String,
+        onDismiss: @escaping () -> Void,
+        onDragChanged: @escaping (CGFloat) -> Void,
+        onDragEnded: @escaping (_ translation: CGFloat, _ predictedTranslation: CGFloat) -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
         self.title = title
         self.onDismiss = onDismiss
+        self.onDragChanged = onDragChanged
+        self.onDragEnded = onDragEnded
         self.content = content()
     }
 
@@ -31,7 +39,6 @@ struct NowPlayingPanel<Content: View>: View {
         .background(.ultraThinMaterial)
         .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
         .shadow(color: .black.opacity(0.25), radius: 20, y: -4)
-        .offset(y: max(0, dragOffset))
     }
 
     // MARK: - Header
@@ -70,13 +77,13 @@ struct NowPlayingPanel<Content: View>: View {
     private var dismissGesture: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
-                dragOffset = max(0, value.translation.height)
+                onDragChanged(value.translation.height)
             }
             .onEnded { value in
-                if value.translation.height > 80 || value.predictedEndTranslation.height > 160 {
-                    onDismiss()
-                }
-                dragOffset = 0
+                onDragEnded(
+                    value.translation.height,
+                    value.predictedEndTranslation.height
+                )
             }
     }
 }

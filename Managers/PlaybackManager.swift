@@ -23,6 +23,27 @@ final class PlaybackAvailabilityObservation: ObservableObject {
     }
 }
 
+/// Narrow publisher for player surfaces that render track identity and the
+/// play/pause state without observing volume, restoration, or manager commands.
+final class PlaybackPresentationObservation: ObservableObject {
+    @Published private(set) var currentTrack: Track?
+    @Published private(set) var isPlaying: Bool
+    private var subscriptions: Set<AnyCancellable> = []
+
+    init(manager: PlaybackManager) {
+        currentTrack = manager.currentTrack
+        isPlaying = manager.isPlaying
+
+        manager.$currentTrack
+            .sink { [weak self] in self?.currentTrack = $0 }
+            .store(in: &subscriptions)
+        manager.$isPlaying
+            .removeDuplicates()
+            .sink { [weak self] in self?.isPlaying = $0 }
+            .store(in: &subscriptions)
+    }
+}
+
 class PlaybackManager: NSObject, ObservableObject {
     let playbackProgressState = PlaybackProgressState()
     
@@ -52,6 +73,7 @@ class PlaybackManager: NSObject, ObservableObject {
     }
     @Published var restoredUITrack: Track?
     lazy var availabilityObservation = PlaybackAvailabilityObservation(manager: self)
+    lazy var presentationObservation = PlaybackPresentationObservation(manager: self)
 
     // MARK: - Computed Properties
     

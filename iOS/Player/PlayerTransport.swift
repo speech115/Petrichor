@@ -13,12 +13,26 @@ import SwiftUI
 
 struct PlayerTransport: View {
     let palette: PlayerPalette
+    let playbackManager: PlaybackManager
+    let playlistManager: PlaylistManager
+    @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
+    @ObservedObject private var playlistTransport: PlaylistTransportObservation
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @EnvironmentObject private var playbackManager: PlaybackManager
-    @EnvironmentObject private var playlistManager: PlaylistManager
+    init(
+        palette: PlayerPalette,
+        playbackManager: PlaybackManager,
+        playlistManager: PlaylistManager
+    ) {
+        self.palette = palette
+        self.playbackManager = playbackManager
+        self.playlistManager = playlistManager
+        playbackPresentation = playbackManager.presentationObservation
+        playlistTransport = playlistManager.transportObservation
+    }
 
     private var hasTrack: Bool {
-        playbackManager.currentTrack != nil
+        playbackPresentation.currentTrack != nil
     }
 
     var body: some View {
@@ -56,7 +70,7 @@ struct PlayerTransport: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             playbackManager.togglePlayPause()
         } label: {
-            Image(systemName: playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
+            Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
                 .font(.system(size: 42))
                 .foregroundColor(palette.foreground)
                 .contentTransition(.symbolEffect(.replace.offUp))
@@ -66,7 +80,7 @@ struct PlayerTransport: View {
         .buttonStyle(TransportButtonStyle())
         .disabled(!hasTrack)
         .accessibilityLabel(
-            playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play")
+            playbackPresentation.isPlaying ? String(localized: "Pause") : String(localized: "Play")
         )
     }
 
@@ -90,7 +104,7 @@ struct PlayerTransport: View {
     private var shuffleButton: some View {
         modeButton(
             icon: Icons.shuffleFill,
-            isActive: playlistManager.isShuffleEnabled,
+            isActive: playlistTransport.isShuffleEnabled,
             label: String(localized: "Shuffle")
         ) {
             playlistManager.toggleShuffle()
@@ -99,8 +113,8 @@ struct PlayerTransport: View {
 
     private var repeatButton: some View {
         modeButton(
-            icon: Icons.repeatIcon(for: playlistManager.repeatMode),
-            isActive: playlistManager.repeatMode != .off,
+            icon: Icons.repeatIcon(for: playlistTransport.repeatMode),
+            isActive: playlistTransport.repeatMode != .off,
             label: String(localized: "Repeat")
         ) {
             playlistManager.toggleRepeatMode()
@@ -123,11 +137,16 @@ struct PlayerTransport: View {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .medium))
                 .foregroundColor(isActive ? palette.foreground : palette.secondary)
+                .contentTransition(.symbolEffect(.replace.offUp))
                 .frame(width: 44, height: 34)
                 .background {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(palette.chip)
                         .opacity(isActive ? 1 : 0)
+                        .animation(
+                            reduceMotion ? nil : .easeOut(duration: 0.16),
+                            value: isActive
+                        )
                 }
                 .contentShape(Rectangle())
         }
