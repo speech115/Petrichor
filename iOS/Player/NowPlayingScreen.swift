@@ -549,7 +549,9 @@ struct SystemVolumeSlider: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MPVolumeView {
         let view = MPVolumeView(frame: .zero)
-        view.showsRouteButton = false
+        // `showsRouteButton` is deprecated (iOS 13) and a no-op since: `MPVolumeView`
+        // has not shown a route button on its own since AirPlay routing moved to
+        // `AVRoutePickerView` (see `AirPlayButton` below, which is that picker).
         view.showsVolumeSlider = true
         view.tintColor = tint
         view.setVolumeThumbImage(UIImage(), for: .normal)
