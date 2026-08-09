@@ -88,3 +88,4 @@ Blocked by: 12
 - Текущая Debug-сборка собрана для generic iOS device, установлена и запущена
   на iPhone через `petrichor-device`; процесс Petrichor подтверждён. Физическим
   экраном iPhone Codex не управлял.
+- Commit с исправлением: `bfdee2f fix(ios): smooth now playing transitions`.
