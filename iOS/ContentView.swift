@@ -452,13 +452,14 @@ private struct MiniPlayerAccessory: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
+
+                        Spacer(minLength: 0)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .accessibilityIdentifier("MiniPlayer")
                 .buttonStyle(.plain)
-
-                Spacer()
 
                 playPauseButton
             }

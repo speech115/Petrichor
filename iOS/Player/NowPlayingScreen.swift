@@ -117,10 +117,9 @@ struct NowPlayingScreen: View {
                 }
             }
         }
-        // The player is its own dark surface whatever the app's scheme is, so
-        // the system controls inside it (volume slider, AirPlay picker, menus)
-        // have to be told which scheme they are being drawn on.
-        .preferredColorScheme(.dark)
+        // Keep the player's controls legible on its dark artwork surface
+        // without changing the color scheme of the playlist underneath it.
+        .environment(\.colorScheme, .dark)
         .onAppear {
             playbackManager.setFineProgressSampling(true)
             updatePalette()
@@ -190,11 +189,6 @@ struct NowPlayingScreen: View {
 
             artwork
                 .frame(width: artworkSide, height: artworkSide)
-                .scaleEffect(playbackPresentation.isPlaying ? 1 : 0.86)
-                .animation(
-                    reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.86),
-                    value: playbackPresentation.isPlaying
-                )
 
             Spacer(minLength: 12)
 

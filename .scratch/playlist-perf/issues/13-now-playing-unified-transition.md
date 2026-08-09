@@ -69,3 +69,22 @@ Blocked by: 12
 - Артефакты профиля: `.scratch/playlist-perf/artifacts/ettrace-2026-08-09-player-transition/`.
 - Fresh gate: simulator build succeeded; 66/66 tests passed. Физический iPhone
   не использовался. Commit/push/deploy в этом follow-up не выполнялись.
+
+### 2026-08-09 — light-theme и large-playlist follow-up
+
+- `.preferredColorScheme(.dark)` на overlay перекрашивал всю сцену сразу после
+  mount. Now Playing теперь задаёт dark color scheme только своему subtree через
+  environment, поэтому светлый плейлист под ним не меняет тему.
+- Убрано независимое масштабирование artwork по `isPlaying`: оно накладывалось
+  на интерактивный offset и выглядело как растяжение или повтор движения.
+- Кнопка открытия mini-player теперь занимает всю свободную ширину строки до
+  отдельной Play/Pause-кнопки; прежний `Spacer` оставлял визуально активную, но
+  нетапабельную область.
+- На светлом симуляторе со списком из 1505 треков три последовательных цикла
+  открытия с первого тапа и drag-dismiss прошли успешно.
+- Покадровый regression check: исходная запись — одномоментный luminance jump
+  217,2 и artwork scale spread 13,6% (FAIL); новая — 128,6 и 0% (PASS).
+- Fresh simulator gate после правок: build succeeded; 66/66 tests passed.
+- Текущая Debug-сборка собрана для generic iOS device, установлена и запущена
+  на iPhone через `petrichor-device`; процесс Petrichor подтверждён. Физическим
+  экраном iPhone Codex не управлял.
