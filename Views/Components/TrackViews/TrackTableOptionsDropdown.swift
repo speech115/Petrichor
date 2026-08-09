@@ -1,24 +1,14 @@
 import SwiftUI
 
 // MARK: - Sort Field Enum
+//
+// The base `TrackSortField` declaration lives in `Models/Enums/TrackSortField.swift`
+// (shared with iOS via `PlaylistSortManager`). Everything below is the
+// `KeyPathComparator<Track>` / `Table`-sort machinery, which reaches into
+// macOS-only `sortable*` properties on `Track` declared in `TrackTableView.swift` —
+// it stays here, next to the dropdown view that is its only real user.
 
-enum TrackSortField: String, CaseIterable {
-    case trackNumber
-    case discNumber
-    case favorite
-    case title
-    case artist
-    case album
-    case genre
-    case year
-    case composer
-    case filename
-    case duration
-    case dateAdded
-    case playCount
-    case lastPlayedDate
-    case custom
-
+extension TrackSortField {
     var displayName: String {
         switch self {
         case .trackNumber:    return String(localized: "Track number (#)")

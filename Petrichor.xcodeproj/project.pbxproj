@@ -85,6 +85,7 @@
 		55A000000000000000000012 /* Exceptions for "Views" folder in "PetrichoriOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Components/ActivityAnimation.swift,
 				Components/ArtistImageSheet.swift,
 				Components/EntityGridView.swift,
 				Components/EntityView.swift,
@@ -103,10 +104,12 @@
 				Components/Sidebar/SidebarProtocol.swift,
 				Components/SidebarView.swift,
 				Components/TrackView.swift,
+				Components/TrackViews/TrackTableOptionsDropdown.swift,
 				Components/TrackViews/TrackTableView.swift,
 				Components/ViewExtensions.swift,
 				Components/Widgets/IconOnlyDropdown.swift,
 				Components/Widgets/MarqueeText.swift,
+				Components/Widgets/NotificationTray.swift,
 				Components/Widgets/SearchInputField.swift,
 				Components/Widgets/TabbedButtons.swift,
 				Components/Widgets/VerticalSlider.swift,
