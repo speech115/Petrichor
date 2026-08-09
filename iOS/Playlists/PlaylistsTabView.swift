@@ -260,7 +260,7 @@ private struct PlaylistRowView: View {
         } else if let cover = PlaylistCover.of(playlist) {
             PlaylistCoverView(cover: cover)
         } else {
-            ArtworkMosaic(covers: PlaylistCover.mosaicCovers(for: playlist, from: previewTracks))
+            ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: previewTracks))
         }
     }
 }

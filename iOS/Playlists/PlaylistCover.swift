@@ -10,7 +10,8 @@
 // pulled from their CDN; `shazam` is Shazam's current mark; `vkMusic` is the
 // VK Музыка app icon; `frankieShow` is the show's own order-of-merit mark from
 // Серебряный дождь; `yandexLikes` is Yandex Music's `favorit-playlist-cover`,
-// the moulded heart every "Мне нравится" wears, off their own avatars CDN.
+// the moulded heart every "Мне нравится" wears, off their own avatars CDN;
+// `tylerInstrumental` is the artwork its owner picked for that playlist.
 //
 // `appleFavorites` is Apple Music's favorites star, redrawn as a vector so it
 // can carry a light and a dark version of itself — the asset catalog swaps
@@ -25,6 +26,7 @@ enum PlaylistCover {
     case likedSongs
     case shazam
     case top2020
+    case tylerInstrumental
     case vkMusic
     case yandexLikes
 
@@ -38,12 +40,10 @@ enum PlaylistCover {
         return PlaylistSource.pinnedEntry(for: playlist)?.cover
     }
 
-    /// What the mosaic gets: the first four covers, or only the first when the
-    /// playlist was pinned to show one. `ArtworkMosaic` already draws a single
-    /// cover full-bleed, so the choice is just how many it is handed.
-    static func mosaicCovers(for playlist: Playlist, from tracks: [Track]) -> [Data] {
-        let limit = PlaylistSource.pinnedEntry(for: playlist)?.usesFirstTrackCover == true ? 1 : 4
-        return Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(limit))
+    /// The four covers the mosaic samples when a playlist has no cover of its
+    /// own.
+    static func mosaicCovers(from tracks: [Track]) -> [Data] {
+        Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4))
     }
 }
 
@@ -62,6 +62,8 @@ struct PlaylistCoverView: View {
                 artwork("cover-liked-songs")
             case .top2020:
                 artwork("cover-top-2020")
+            case .tylerInstrumental:
+                artwork("cover-tyler-instrumental")
             case .shazam:
                 shazam
             case .vkMusic:
