@@ -3,8 +3,10 @@
 Форк `kushalpandya/Petrichor` (MIT © Kushal Pandya). Один проект, два таргета:
 `Petrichor` (macOS 14+) и `PetrichoriOS` (iOS 26+). Работа идёт в `main`.
 
-Канон дизайна: `docs/superpowers/specs/2026-08-05-petrichor-ios-design.md`.
-Расхождение кода со спекой — дефект кода, а не повод переписать спеку.
+Канон дизайна: спека
+`docs/superpowers/specs/2026-08-05-petrichor-ios-design.md` — замороженный
+исторический документ (2026-08-09); живой канон — `CONTEXT.md` и `docs/adr/`.
+Расхождение кода со спекой дефектом кода не считается.
 
 ## Ветки и PR
 

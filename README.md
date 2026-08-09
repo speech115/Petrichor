@@ -23,6 +23,7 @@
 <img src=".github/assets/hero_screenshot.png" width="824" alt="Screenshot"/><br/>
 
 </div>
+> 📱 For the iPhone (iOS) port, see [README-iOS.md](README-iOS.md).
 
 ---
 
