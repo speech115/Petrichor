@@ -59,7 +59,7 @@ struct NowPlayingPanel<Content: View>: View {
 
                 Button(action: onDismiss) {
                     Image(systemName: Icons.chevronDown)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: min(closeIconSize, 20), weight: .semibold))
                         .foregroundColor(.secondary)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
@@ -73,6 +73,9 @@ struct NowPlayingPanel<Content: View>: View {
         .gesture(dismissGesture)
         .accessibilityAddTraits(.isHeader)
     }
+
+    /// The close glyph scales with Dynamic Type inside its fixed 32 pt button.
+    @ScaledMetric(relativeTo: .subheadline) private var closeIconSize: CGFloat = 14
 
     /// Measured in `.global` for the same reason the player's dismissal is: the
     /// header rides on the surface this drag offsets, so a local translation

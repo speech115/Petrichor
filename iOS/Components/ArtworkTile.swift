@@ -40,7 +40,9 @@ struct ArtworkTile: View {
     /// per appearance and are not cached.
     var cacheKey: String? = nil
     var cornerRadius: CGFloat = 6
-    var iconSize: CGFloat = 16
+    /// Placeholder glyph size, following Dynamic Type. Capped at 36 so the
+    /// icon never outgrows the smallest tile that hosts it (a 44 pt row).
+    @ScaledMetric(relativeTo: .body) var iconSize: CGFloat = 16
     var placeholderIcon: String = Icons.musicNote
     /// Largest decoded edge in physical pixels. A 44-point row needs about
     /// 132 pixels on a 3x phone, not the source image's full dimensions.
@@ -53,6 +55,10 @@ struct ArtworkTile: View {
     /// Fetches the artwork for rows that arrive without any, called at most
     /// once per appearance and never on the main thread.
     var loader: ArtworkDataLoader? = nil
+    /// Tiles that sit next to text naming the content (rows, cards, headers)
+    /// are decoration for VoiceOver and are skipped; standalone tiles keep
+    /// their default element so a caller can attach a label.
+    var isDecorative: Bool = false
 
     @State private var decodedImage: UIImage?
     @State private var decodedImageKey: String?
@@ -107,6 +113,7 @@ struct ArtworkTile: View {
         // data hash.
         .id(currentKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .accessibilityHidden(isDecorative)
     }
 
     /// The decoded image cross-fades over the placeholder it replaces. Only on
@@ -176,6 +183,7 @@ struct ArtworkTile: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .accessibilityHidden(isDecorative)
             }
             .clipped()
     }
@@ -185,8 +193,9 @@ struct ArtworkTile: View {
             RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(Color.secondary.opacity(0.12))
             Image(systemName: placeholderIcon)
-                .font(.system(size: iconSize))
+                .font(.system(size: min(iconSize, 36)))
                 .foregroundColor(.secondary)
+                .accessibilityHidden(isDecorative)
         }
     }
 }

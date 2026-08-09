@@ -43,14 +43,14 @@ struct PlayerTransport: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 34) {
-                transportButton(Icons.backwardFill, size: 32) {
+                transportButton(Icons.backwardFill, size: min(transportIconSize, 44)) {
                     playlistManager.playPreviousTrack()
                 }
                 .accessibilityLabel(String(localized: "Previous"))
 
                 playPauseButton
 
-                transportButton(Icons.forwardFill, size: 32) {
+                transportButton(Icons.forwardFill, size: min(transportIconSize, 44)) {
                     playlistManager.playNextTrack()
                 }
                 .accessibilityLabel(String(localized: "Next"))
@@ -63,6 +63,13 @@ struct PlayerTransport: View {
         }
     }
 
+    /// The transport is a fixed composition: the glyphs scale with Dynamic
+    /// Type but each stays inside the frame its button owns (62/56/34 pt).
+    /// The caps below are those frames minus a small margin.
+    @ScaledMetric(relativeTo: .title) private var playPauseIconSize: CGFloat = 42
+    @ScaledMetric(relativeTo: .title) private var transportIconSize: CGFloat = 32
+    @ScaledMetric(relativeTo: .subheadline) private var flankIconSize: CGFloat = 17
+
     // MARK: - Center
 
     private var playPauseButton: some View {
@@ -71,7 +78,7 @@ struct PlayerTransport: View {
             playbackManager.togglePlayPause()
         } label: {
             Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
-                .font(.system(size: 42))
+                .font(.system(size: min(playPauseIconSize, 56)))
                 .foregroundColor(palette.foreground)
                 .contentTransition(.symbolEffect(.replace.offUp))
                 .frame(width: 62, height: 62)
@@ -135,7 +142,7 @@ struct PlayerTransport: View {
             action()
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: min(flankIconSize, 24), weight: .medium))
                 .foregroundColor(isActive ? palette.foreground : palette.secondary)
                 .contentTransition(.symbolEffect(.replace.offUp))
                 .frame(width: 44, height: 34)

@@ -185,7 +185,7 @@ struct SearchView: View {
                 Spacer(minLength: 8)
 
                 Image(systemName: playlistManager.isCurrent(track) && playbackManager.isPlaying ? Icons.pauseFill : Icons.playFill)
-                    .font(.system(size: 16))
+                    .font(.body)
                     .foregroundColor(playlistManager.isCurrent(track) ? .accentColor : .secondary)
             }
             .contentShape(Rectangle())
@@ -194,7 +194,13 @@ struct SearchView: View {
     }
 
     private func topResultArtwork(_ track: Track) -> some View {
-        ArtworkTile(data: track.displayArtwork, cacheKey: track.albumId.map(String.init), cornerRadius: 8, iconSize: 20)
+        ArtworkTile(
+            data: track.displayArtwork,
+            cacheKey: track.albumId.map(String.init),
+            cornerRadius: 8,
+            iconSize: 20,
+            isDecorative: true
+        )
             .frame(width: 56, height: 56)
     }
 
@@ -235,7 +241,13 @@ struct SearchView: View {
         loader: ArtworkDataLoader?
     ) -> some View {
         HStack(spacing: 12) {
-            ArtworkTile(data: artworkData, cacheKey: cacheKey, placeholderIcon: icon, loader: loader)
+            ArtworkTile(
+                data: artworkData,
+                cacheKey: cacheKey,
+                placeholderIcon: icon,
+                loader: loader,
+                isDecorative: true
+            )
                 .frame(width: 44, height: 44)
 
             VStack(alignment: .leading, spacing: 2) {

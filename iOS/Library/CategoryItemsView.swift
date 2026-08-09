@@ -116,7 +116,8 @@ struct CategoryItemsView: View {
                     data: nil,
                     cacheKey: "artist-\(item.name)",
                     cornerRadius: 22,
-                    loader: artistArtworkLoader(for: item.name)
+                    loader: artistArtworkLoader(for: item.name),
+                    isDecorative: true
                 )
                     .frame(width: 44, height: 44)
                 textRow(item)
@@ -188,7 +189,9 @@ private struct AlbumGridCard: View {
                 cornerRadius: 10,
                 iconSize: 28,
                 maxPixelSize: 600,
-                loader: artworkLoader
+                loader: artworkLoader,
+                // The card's name and count sit right below the cover.
+                isDecorative: true
             )
                 .aspectRatio(1, contentMode: .fit)
 

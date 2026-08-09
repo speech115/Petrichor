@@ -38,6 +38,11 @@ struct PlayerScrubber: View {
         isScrubbing ? scrubTime : playbackProgressState.currentTime
     }
 
+    /// The scrubber reads to VoiceOver as one element: "Playback position,
+    /// 1:23 of 3:45, adjustable". Swiping up or down seeks by a fixed step;
+    /// the visible bar and the times are presentation for the same value.
+    private static let accessibilitySeekStep: Double = 15
+
     var body: some View {
         VStack(spacing: 6) {
             track
@@ -47,14 +52,42 @@ struct PlayerScrubber: View {
                 Spacer(minLength: 8)
                 Text("-" + HelperUtils.formattedDuration(max(0, duration - elapsed)))
             }
-            .font(.system(size: 12, weight: .medium))
+            // A real text style, not a scaled raw size: the audit's Dynamic
+            // Type check only recognises fonts linked to a text style, and
+            // caption (12 pt) matches the fixed size it replaces. The row
+            // grows with the type size; the player layout absorbs it.
+            .font(.caption.weight(.medium))
             .monospacedDigit()
             .foregroundColor(palette.secondary)
         }
         .disabled(playbackPresentation.currentTrack == nil)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "Playback position"))
+        .accessibilityValue(accessibilityValue)
+        // `.accessibilityAdjustableAction` itself adds the adjustable trait.
+        .accessibilityAdjustableAction { direction in
+            let step = Self.accessibilitySeekStep
+            let target: Double
+            switch direction {
+            case .increment:
+                target = min(duration, elapsed + step)
+            case .decrement:
+                target = max(0, elapsed - step)
+            @unknown default:
+                return
+            }
+            scrubTime = target
+            playbackManager.seekTo(time: target)
+        }
         .onDisappear {
             releaseTask?.cancel()
         }
+    }
+
+    private var accessibilityValue: String {
+        String(
+            localized: "\(HelperUtils.formattedDuration(elapsed)) of \(HelperUtils.formattedDuration(duration))"
+        )
     }
 
     private var track: some View {

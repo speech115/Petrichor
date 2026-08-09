@@ -43,6 +43,10 @@ struct TrackRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // One VoiceOver element per row: "title, artist" in a single phrase.
+        // The custom actions below stay on that same element, so the row
+        // remains operable after combining.
+        .accessibilityElement(children: .combine)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
             Button {
                 showingPlaylistPicker = true
@@ -151,10 +155,15 @@ struct TrackRow: View {
             data: track.displayArtwork,
             cacheKey: artworkCacheKey,
             maxPixelSize: 144,
-            loader: trackArtworkLoader
+            loader: trackArtworkLoader,
+            isDecorative: true
         )
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            // accessibilityHidden alone leaves the decoded image in the tree;
+            // collapsing the tile to one element first actually hides it.
+            .accessibilityElement(children: .ignore)
+            .accessibilityHidden(true)
     }
 }
 
@@ -225,7 +234,7 @@ private struct TrackPlaybackStatus: View {
                     .lineLimit(1)
                 Text(track.displayArtist)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.secondaryText)
                     .lineLimit(1)
             }
 

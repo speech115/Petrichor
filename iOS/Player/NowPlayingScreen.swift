@@ -75,6 +75,14 @@ struct NowPlayingScreen: View {
     @State private var slidesForward = true
     @State private var lastQueueIndex: Int?
 
+    // The player is a fixed composition: title, scrubber, transport, volume
+    // and accessory share the space the artwork leaves. Glyphs scale with
+    // Dynamic Type but stay capped, so at the largest accessibility size
+    // nothing grows past its slot or crowds its neighbour.
+    @ScaledMetric(relativeTo: .subheadline) private var chipIconSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .caption) private var volumeIconSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .body) private var accessoryIconSize: CGFloat = 20
+
     init(
         isPresented: Binding<Bool>,
         presentationDragOffset: Binding<CGFloat>,
@@ -291,7 +299,10 @@ struct NowPlayingScreen: View {
             cornerRadius: 12,
             iconSize: 72,
             maxPixelSize: 960,
-            fallbackMaxPixelSize: 180
+            fallbackMaxPixelSize: 180,
+            // The title and artist right below name the content; the cover
+            // itself adds nothing VoiceOver cannot already say.
+            isDecorative: true
         )
         .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }
@@ -301,11 +312,16 @@ struct NowPlayingScreen: View {
     private var titleRow: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
+                // Real text styles (22 pt, close to the fixed 21 they
+                // replace): the audit's Dynamic Type check only recognises
+                // fonts linked to a text style, and title2 is the largest
+                // style that still fits the fixed title row at the biggest
+                // accessibility size.
                 Text(displayedTrack?.title ?? "")
-                    .font(.system(size: 21, weight: .bold))
+                    .font(.title2.weight(.bold))
                     .foregroundColor(palette.foreground)
                 Text(displayedTrack?.displayArtist ?? "")
-                    .font(.system(size: 21))
+                    .font(.title2)
                     .foregroundColor(palette.secondary)
             }
             .lineLimit(1)
@@ -350,7 +366,7 @@ struct NowPlayingScreen: View {
 
     private func chipLabel(icon: String, isActive: Bool) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: min(chipIconSize, 20), weight: .semibold))
             .foregroundColor(isActive ? palette.foreground : palette.secondary)
             .contentTransition(.symbolEffect(.replace.offUp))
             .frame(width: 30, height: 30)
@@ -367,7 +383,7 @@ struct NowPlayingScreen: View {
                 .frame(height: 24)
             Image(systemName: "speaker.wave.3.fill")
         }
-        .font(.system(size: 12))
+        .font(.system(size: min(volumeIconSize, 16)))
         .foregroundColor(palette.secondary)
     }
 
@@ -380,7 +396,7 @@ struct NowPlayingScreen: View {
                 presentPanel(.lyrics)
             } label: {
                 SymbolImage(Icons.customLyrics)
-                    .font(.system(size: 20))
+                    .font(.system(size: min(accessoryIconSize, 24)))
                     .foregroundColor(palette.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -399,7 +415,7 @@ struct NowPlayingScreen: View {
                 presentPanel(.queue)
             } label: {
                 Image(systemName: Icons.queueList)
-                    .font(.system(size: 20))
+                    .font(.system(size: min(accessoryIconSize, 24)))
                     .foregroundColor(palette.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)

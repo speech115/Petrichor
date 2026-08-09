@@ -157,19 +157,24 @@ struct PlaylistDetailScreen: View {
             subtitle: subtitle(playlist),
             tint: headerTint,
             artwork: {
-                if playlist.coverArtworkData != nil {
-                    ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 12, iconSize: 56)
-                        .frame(width: 240, height: 240)
-                } else if let cover = PlaylistCover.of(playlist) {
-                    PlaylistCoverView(cover: cover, cornerRadius: 12)
-                        .frame(width: 240, height: 240)
-                // No service-mark fallback here: the row for this playlist
-                // shows the mosaic, and the page it opens has to show the same
-                // cover it grew out of.
-                } else {
-                    ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: tracks))
-                        .frame(width: 240, height: 240)
+                Group {
+                    if playlist.coverArtworkData != nil {
+                        ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 12, iconSize: 56)
+                            .frame(width: 240, height: 240)
+                    } else if let cover = PlaylistCover.of(playlist) {
+                        PlaylistCoverView(cover: cover, cornerRadius: 12)
+                            .frame(width: 240, height: 240)
+                    // No service-mark fallback here: the row for this playlist
+                    // shows the mosaic, and the page it opens has to show the
+                    // same cover it grew out of.
+                    } else {
+                        ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: tracks))
+                            .frame(width: 240, height: 240)
+                    }
                 }
+                // The title and subtitle under the cover name the playlist;
+                // the artwork itself is decoration for VoiceOver.
+                .accessibilityHidden(true)
             }
         )
     }
@@ -274,7 +279,7 @@ private struct MissingTrackRow: View {
                 RoundedRectangle(cornerRadius: 6)
                     .fill(Color.secondary.opacity(0.12))
                 Image(systemName: Icons.questionmarkCircle)
-                    .font(.system(size: 16))
+                    .font(.body)
                     .foregroundColor(.secondary)
             }
             .frame(width: 44, height: 44)

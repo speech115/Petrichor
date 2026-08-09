@@ -138,12 +138,14 @@ struct HomeTabView: View {
                 if let count {
                     Text("\(count)")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.secondaryText)
                         .monospacedDigit()
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: 44)
+            // Min, not fixed: the row grows with Dynamic Type instead of
+            // clipping the title at the largest accessibility sizes.
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

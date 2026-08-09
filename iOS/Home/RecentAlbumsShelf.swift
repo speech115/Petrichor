@@ -34,7 +34,8 @@ struct RecentAlbumsShelf: View {
                                     data: album.displayArtwork,
                                     cacheKey: album.albumId.map(String.init),
                                     cornerRadius: 10,
-                                    iconSize: 28
+                                    iconSize: 28,
+                                    isDecorative: true
                                 )
                                 .frame(width: 130, height: 130)
 
@@ -49,6 +50,8 @@ struct RecentAlbumsShelf: View {
                             }
                             .frame(width: 130, alignment: .leading)
                             .contentShape(Rectangle())
+                            // One card = one element, read as "name, artist".
+                            .accessibilityElement(children: .combine)
                         }
                         .buttonStyle(.plain)
                     }

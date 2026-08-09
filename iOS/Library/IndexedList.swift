@@ -46,6 +46,10 @@ enum IndexedListSectionFactory {
 struct IndexedList<Item: Identifiable, Row: View>: View {
     let sections: [IndexedSection<Item>]
     let row: (Item) -> Row
+    /// The section the index bar is currently on, for VoiceOver's value and
+    /// adjustable action. Touch updates it as the finger drags; the adjustable
+    /// action moves it one section at a time.
+    @State private var indexSelection: String?
 
     init(
         sections: [IndexedSection<Item>],
@@ -84,12 +88,16 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
             VStack(spacing: 0) {
                 ForEach(keys, id: \.self) { key in
                     Text(key)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.secondary)
+                        // A real text style, not a scaled raw size: the
+                        // accessibility audit only recognises fonts linked
+                        // to a text style, and the bar's letters must pass
+                        // its Dynamic Type gate.
+                        .font(.caption2.weight(.medium))
+                        .foregroundColor(.secondaryText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            proxy.scrollTo(key, anchor: .top)
+                            selectSection(key, in: keys, proxy: proxy)
                         }
                 }
             }
@@ -103,12 +111,44 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                                 * CGFloat(keys.count)
                         )
                         guard keys.indices.contains(index) else { return }
-                        proxy.scrollTo(keys[index], anchor: .top)
+                        let key = keys[index]
+                        indexSelection = key
+                        proxy.scrollTo(key, anchor: .top)
                     }
             )
         }
         .frame(width: 24)
         .padding(.trailing, 2)
+        // One element: the letters are touch targets, not separate VoiceOver
+        // elements. Value carries the current section; the adjustable action
+        // moves through sections the way the drag does.
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Index"))
+        .accessibilityValue(indexSelection ?? keys.first ?? "")
+        // `.accessibilityAdjustableAction` itself adds the adjustable trait.
+        .accessibilityAdjustableAction { direction in
+            guard let current = indexSelection ?? keys.first,
+                  let currentIndex = keys.firstIndex(of: current) else { return }
+            switch direction {
+            case .increment:
+                if currentIndex + 1 < keys.count {
+                    selectSection(keys[currentIndex + 1], in: keys, proxy: proxy)
+                }
+            case .decrement:
+                if currentIndex > 0 {
+                    selectSection(keys[currentIndex - 1], in: keys, proxy: proxy)
+                }
+            @unknown default:
+                break
+            }
+        }
     }
+
+    /// Moves the list to `key`'s section and records it as the current one.
+    private func selectSection(_ key: String, in keys: [String], proxy: ScrollViewProxy) {
+        indexSelection = key
+        proxy.scrollTo(key, anchor: .top)
+    }
+
+
 }
