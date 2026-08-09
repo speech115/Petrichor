@@ -9,6 +9,14 @@
 
 import SwiftUI
 
+/// The app's brand accent: system pink darkened until it clears the WCAG AA
+/// bar (4.5:1) against the white Form cells and list backgrounds the tinted
+/// controls sit on. System `.pink` measures ~3.6:1 there, and the
+/// accessibility gate flags every tinted control (links, enabled switches).
+extension Color {
+    static let brandAccent = Color(red: 0.871, green: 0.122, blue: 0.302)
+}
+
 @main
 struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
@@ -56,7 +64,7 @@ struct PetrichorApp: App {
                 .environmentObject(appCoordinator.playbackManager.playbackProgressState)
                 .environmentObject(appCoordinator.libraryManager)
                 .environmentObject(appCoordinator.playlistManager)
-                .tint(.pink)
+                .tint(.brandAccent)
                 .onAppear {
                     // Re-apply the stored color scheme: overrideUserInterfaceStyle
                     // does not survive a relaunch on its own.

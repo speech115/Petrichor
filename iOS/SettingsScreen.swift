@@ -109,6 +109,11 @@ struct SettingsScreen: View {
 
     private var musicSection: some View {
         Section {
+            Toggle(String(localized: "Hide duplicate songs"), isOn: $hideDuplicateTracks)
+                .onChange(of: hideDuplicateTracks) { _, _ in
+                    libraryManager.reloadForDuplicateVisibilityChange()
+                }
+
             Toggle(String(localized: "Fetch lyrics from the internet"), isOn: $onlineLyricsEnabled)
 
             Toggle(String(localized: "Fetch artist photos and bios from the internet"), isOn: $artistInfoFetchEnabled)
@@ -116,11 +121,6 @@ struct SettingsScreen: View {
                     if enabled {
                         ArtistBioManager.shared.fetchMissingArtistImages(using: libraryManager)
                     }
-                }
-
-            Toggle(String(localized: "Hide duplicate songs"), isOn: $hideDuplicateTracks)
-                .onChange(of: hideDuplicateTracks) { _, _ in
-                    libraryManager.reloadForDuplicateVisibilityChange()
                 }
         } header: {
             sectionHeader(String(localized: "Music"))

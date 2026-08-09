@@ -229,9 +229,11 @@ private struct TrackPlaybackStatus: View {
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
+                // No line limit on the title: the accessibility audit flags
+                // any truncation ("Text clipped"), and a wrapped title keeps
+                // the full name readable at accessibility sizes.
                 Text(track.title)
                     .font(.body.weight(isCurrent ? .semibold : .regular))
-                    .lineLimit(1)
                 Text(track.displayArtist)
                     .font(.subheadline)
                     .foregroundColor(.secondaryText)

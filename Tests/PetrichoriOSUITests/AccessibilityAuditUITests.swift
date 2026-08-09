@@ -55,6 +55,24 @@ final class AccessibilityAuditUITests: XCTestCase {
         add(attachment)
     }
 
+
+    /// TEMP-DEBUG: audit reporting each issue.
+    private func debugAudit(_ app: XCUIApplication) throws {
+        let handler: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+            print("=====AUDIT-ISSUE-BEGIN=====")
+            print("type:", issue.auditType.rawValue)
+            print("desc:", issue.compactDescription)
+            print("detail:", issue.detailedDescription)
+            print("elem:", issue.element as Any)
+            print("etype:", issue.element?.elementType.rawValue as Any)
+            print("frame:", issue.element?.frame as Any)
+            print("label:", issue.element?.label as Any, "value:", issue.element?.value as Any)
+            print("=====AUDIT-ISSUE-END=====")
+            return false
+        }
+        try app.performAccessibilityAudit(for: .all, handler)
+    }
+
     // MARK: - Audits
 
     func testHomeScreenPassesAccessibilityAudit() async throws {
@@ -79,7 +97,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(alphaRow.waitForExistence(timeout: 30), "список треков не загрузился")
 
-        try app.performAccessibilityAudit()
+        try debugAudit(app)
 
         attachScreenshot(of: app, named: "AX-TrackList")
     }

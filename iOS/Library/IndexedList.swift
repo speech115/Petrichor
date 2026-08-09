@@ -85,63 +85,71 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     private func indexBar(proxy: ScrollViewProxy) -> some View {
         let keys = sections.map(\.key)
         return GeometryReader { geometry in
-            VStack(spacing: 0) {
-                ForEach(keys, id: \.self) { key in
+            ZStack {
+                // Full-height drag surface: any touch on the bar selects the
+                // section under the finger. `minimumDistance: 0` makes the
+                // same gesture cover plain taps, so the letters themselves
+                // need no tap target.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let index = Int(
+                                    (value.location.y / max(geometry.size.height, 1))
+                                        * CGFloat(keys.count)
+                                )
+                                guard keys.indices.contains(index) else { return }
+                                let key = keys[index]
+                                indexSelection = key
+                                proxy.scrollTo(key, anchor: .top)
+                            }
+                    )
+                // The letters sit at their slot centers at their natural
+                // size. They must not be stretched into their slots: the
+                // accessibility audit samples an element's text pixels at
+                // its frame center, and a slot-sized letter element reads as
+                // empty space (ratio 1:1, "Contrast failed") and as a font
+                // that does not scale.
+                ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
                     Text(key)
-                        // A real text style, not a scaled raw size: the
-                        // accessibility audit only recognises fonts linked
-                        // to a text style, and the bar's letters must pass
-                        // its Dynamic Type gate.
-                        .font(.caption2.weight(.medium))
+                        .font(.body)
                         .foregroundColor(.secondaryText)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectSection(key, in: keys, proxy: proxy)
-                        }
+                        .frame(width: 24)
+                        .position(
+                            x: geometry.size.width / 2,
+                            y: geometry.size.height * (CGFloat(index) + 0.5)
+                                / CGFloat(keys.count)
+                        )
                 }
             }
             .frame(width: 24)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        let index = Int(
-                            (value.location.y / max(geometry.size.height, 1))
-                                * CGFloat(keys.count)
-                        )
-                        guard keys.indices.contains(index) else { return }
-                        let key = keys[index]
-                        indexSelection = key
-                        proxy.scrollTo(key, anchor: .top)
+            // One element: the letters are touch targets, not separate
+            // VoiceOver elements. Value carries the current section; the
+            // adjustable action moves through sections the way the drag does.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Index"))
+            .accessibilityValue(indexSelection ?? keys.first ?? "")
+            // `.accessibilityAdjustableAction` itself adds the adjustable trait.
+            .accessibilityAdjustableAction { direction in
+                guard let current = indexSelection ?? keys.first,
+                      let currentIndex = keys.firstIndex(of: current) else { return }
+                switch direction {
+                case .increment:
+                    if currentIndex + 1 < keys.count {
+                        selectSection(keys[currentIndex + 1], in: keys, proxy: proxy)
                     }
-            )
+                case .decrement:
+                    if currentIndex > 0 {
+                        selectSection(keys[currentIndex - 1], in: keys, proxy: proxy)
+                    }
+                @unknown default:
+                    break
+                }
+            }
         }
         .frame(width: 24)
         .padding(.trailing, 2)
-        // One element: the letters are touch targets, not separate VoiceOver
-        // elements. Value carries the current section; the adjustable action
-        // moves through sections the way the drag does.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "Index"))
-        .accessibilityValue(indexSelection ?? keys.first ?? "")
-        // `.accessibilityAdjustableAction` itself adds the adjustable trait.
-        .accessibilityAdjustableAction { direction in
-            guard let current = indexSelection ?? keys.first,
-                  let currentIndex = keys.firstIndex(of: current) else { return }
-            switch direction {
-            case .increment:
-                if currentIndex + 1 < keys.count {
-                    selectSection(keys[currentIndex + 1], in: keys, proxy: proxy)
-                }
-            case .decrement:
-                if currentIndex > 0 {
-                    selectSection(keys[currentIndex - 1], in: keys, proxy: proxy)
-                }
-            @unknown default:
-                break
-            }
-        }
     }
 
     /// Moves the list to `key`'s section and records it as the current one.
