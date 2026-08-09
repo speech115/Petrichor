@@ -150,25 +150,35 @@ struct AVAssetMetadataReader: MetadataReader {
         // `AVMetadataItem.value` and friends are deprecated since iOS 16 in
         // favor of `load(...)`, which is also the non-blocking path: values
         // load asynchronously instead of pinning the caller thread on I/O.
+        //
+        // A missing tag (no matching item) is normal and silent. A thrown
+        // load error is different: the tag is present but AVFoundation
+        // couldn't decode it (a truncated or malformed frame), and that goes
+        // to the log via `Self.loggedLoad` instead of collapsing into the
+        // same `nil` a missing tag produces — see ticket 08 / the ticket 03
+        // review this fixes.
+        let url = metadata.url
 
         func string(for commonKey: AVMetadataKey) async -> String? {
-            guard let item = items.first(where: { $0.commonKey == commonKey }),
-                  let value = try? await item.load(.value) else { return nil }
-            return stringValue(value as Any)
+            guard let item = items.first(where: { $0.commonKey == commonKey }) else { return nil }
+            let value = await Self.loggedLoad(tag: commonKey.rawValue, url: url) { try await item.load(.value) }
+            return stringValue(value)
         }
 
         func string(forRawKeys keys: [String], in items: [AVMetadataItem]) async -> String? {
             for key in keys {
-                if let item = items.first(where: { ($0.key as? String)?.lowercased() == key.lowercased() }),
-                   let value = try? await item.load(.value),
-                   let string = stringValue(value as Any) {
+                guard let item = items.first(where: { ($0.key as? String)?.lowercased() == key.lowercased() }) else {
+                    continue
+                }
+                let value = await Self.loggedLoad(tag: key, url: url) { try await item.load(.value) }
+                if let string = stringValue(value) {
                     return string
                 }
             }
             return nil
         }
 
-        func stringValue(_ value: Any) -> String? {
+        func stringValue(_ value: Any?) -> String? {
             if let string = value as? String {
                 return string.isEmpty ? nil : string
             }
@@ -196,49 +206,70 @@ struct AVAssetMetadataReader: MetadataReader {
         }
 
         if let yearItem = byKey[AVMetadataIdentifier.id3MetadataYear.rawValue] {
-            let value = try? await yearItem.load(.value)
-            metadata.year = stringValue(value as Any)
+            let value = await Self.loggedLoad(tag: "year", url: url) { try await yearItem.load(.value) }
+            metadata.year = stringValue(value)
             metadata.releaseDate = metadata.year
         } else if let dateItem = items.first(where: { $0.commonKey == .commonKeyCreationDate }) {
-            let dateString = (try? await dateItem.load(.stringValue))?.nilIfEmpty
-            metadata.releaseDate = dateString
-            metadata.year = MetadataMapping.year(fromDateString: dateString ?? "")
+            let dateString = await Self.loggedLoad(tag: "creationDate", url: url) { try await dateItem.load(.stringValue) }
+            let cleaned = dateString?.nilIfEmpty
+            metadata.releaseDate = cleaned
+            metadata.year = MetadataMapping.year(fromDateString: cleaned ?? "")
         }
 
         if let trackNumberItem = items.first(where: { $0.identifier == .id3MetadataTrackNumber }) {
-            let trackInfo = await Self.trackNumberInfo(from: trackNumberItem)
+            let trackInfo = await Self.trackNumberInfo(from: trackNumberItem, url: url)
             metadata.trackNumber = trackInfo.number
             metadata.totalTracks = trackInfo.total
         }
 
         if let artworkItem = items.first(where: { $0.commonKey == .commonKeyArtwork }) {
-            if let data = try? await artworkItem.load(.dataValue) {
+            // `??` is an autoclosure without an async overload (see the note
+            // above), so the fallback attempt has to be its own step.
+            var data = await Self.loggedLoad(tag: "artwork", url: url) { try await artworkItem.load(.dataValue) }
+            if data == nil {
+                data = await Self.loggedLoad(tag: "artwork", url: url) { try await artworkItem.load(.value) } as? Data
+            }
+            if let data {
                 metadata.artworkData = await MetadataMapping.compressedArtwork(
                     from: data,
-                    source: metadata.url.lastPathComponent,
-                    cache: nil
-                )
-            } else if let rawValue = try? await artworkItem.load(.value),
-                      let data = rawValue as? Data {
-                metadata.artworkData = await MetadataMapping.compressedArtwork(
-                    from: data,
-                    source: metadata.url.lastPathComponent,
+                    source: url.lastPathComponent,
                     cache: nil
                 )
             }
         }
     }
 
-    private static func trackNumberInfo(from item: AVMetadataItem) async -> (number: Int?, total: Int?) {
-        if let data = try? await item.load(.dataValue), data.count >= 2 {
+    /// Loads an item's property, treating a missing value as expected
+    /// (returns `nil` silently — most tags on most files are simply absent)
+    /// and a thrown error as diagnostic-worthy (logs, then returns `nil`).
+    /// The reader's contract to its caller does not change either way:
+    /// `map(_:into:)` always returns a best-effort `TrackMetadata`, never
+    /// throws. This only makes the "tag present but undecodable" case
+    /// visible instead of indistinguishable from "tag absent".
+    private static func loggedLoad<Value>(
+        tag: String,
+        url: URL,
+        _ load: () async throws -> Value?
+    ) async -> Value? {
+        do {
+            return try await load()
+        } catch {
+            Logger.warning("Failed to load \(tag) tag for \(url.lastPathComponent): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func trackNumberInfo(from item: AVMetadataItem, url: URL) async -> (number: Int?, total: Int?) {
+        if let data = await loggedLoad(tag: "trackNumber.data", url: url, { try await item.load(.dataValue) }),
+           data.count >= 2 {
             let number = Int(data[0])
             let total = data.count >= 3 ? Int(data[2]) : nil
             return (number > 0 ? number : nil, total)
         }
-        if let number = try? await item.load(.numberValue) {
+        if let number = await loggedLoad(tag: "trackNumber.number", url: url, { try await item.load(.numberValue) }) {
             return (number.intValue, nil)
         }
-        if let string = try? await item.load(.stringValue) {
+        if let string = await loggedLoad(tag: "trackNumber.string", url: url, { try await item.load(.stringValue) }) {
             let parts = string.split(separator: "/").map { Int($0.trimmingCharacters(in: .whitespaces)) }
             return (parts.first ?? nil, parts.count > 1 ? parts[1] : nil)
         }
