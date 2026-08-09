@@ -57,7 +57,17 @@ struct NowPlayingScreen: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
-    @State private var palette = PlayerPalette.neutral
+    /// The cover's share of the screen backs off at accessibility text sizes:
+    /// title and artist use a real, uncapped text style (`.title2`), and at
+    /// the largest categories that block alone can need well over 150pt more
+    /// than it does at the default size. A fixed 44% for the artwork left no
+    /// room to absorb that, and the controls below ran off the bottom of the
+    /// screen — this is what the "may be clipped at larger Dynamic Type
+    /// sizes" audit finding was catching.
+    @Environment(\.dynamicTypeSize)
+    private var dynamicTypeSize
+
+    @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
     @State private var hasAppliedPalette = false
     @State private var paletteTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
@@ -201,8 +211,13 @@ struct NowPlayingScreen: View {
 
     private func content(in size: CGSize) -> some View {
         // The cover takes what the controls leave, capped so it never becomes
-        // a letterbox on a short screen or a wall on a tall one.
-        let artworkSide = min(size.width - 56, size.height * 0.44)
+        // a letterbox on a short screen or a wall on a tall one. At
+        // accessibility text sizes the title/artist block below needs
+        // significantly more height (a real, uncapped text style), so the
+        // cover gives back some of its share to keep the controls on screen.
+        let artworkRatio: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.30 : 0.44
+        let artworkSide = min(size.width - 56, size.height * artworkRatio)
+        let controlSpacing: CGFloat = dynamicTypeSize.isAccessibilitySize ? 14 : 22
 
         return VStack(spacing: 0) {
             grabber
@@ -216,7 +231,7 @@ struct NowPlayingScreen: View {
 
             Spacer(minLength: 12)
 
-            VStack(spacing: 22) {
+            VStack(spacing: controlSpacing) {
                 titleRow
                 PlayerScrubber(
                     palette: palette,
@@ -312,11 +327,13 @@ struct NowPlayingScreen: View {
     private var titleRow: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                // Real text styles (22 pt, close to the fixed 21 they
-                // replace): the audit's Dynamic Type check only recognises
-                // fonts linked to a text style, and title2 is the largest
-                // style that still fits the fixed title row at the biggest
-                // accessibility size.
+                // A real text style, not a raw size: the audit's Dynamic Type
+                // check only accepts fonts that scale fully with a text
+                // style — capping the type size (via `.dynamicTypeSize`) is
+                // itself flagged as "partially unsupported". No line limit
+                // either: the audit flags any clipping risk, and letting the
+                // title/artist wrap at the largest accessibility sizes is
+                // the only way to keep the style uncapped without clipping.
                 Text(displayedTrack?.title ?? "")
                     .font(.title2.weight(.bold))
                     .foregroundColor(palette.foreground)
@@ -324,7 +341,6 @@ struct NowPlayingScreen: View {
                     .font(.title2)
                     .foregroundColor(palette.secondary)
             }
-            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             // Travels with the cover but half as far — the names sit in a
             // narrower column, and matching the cover's 40pt there overshoots.
