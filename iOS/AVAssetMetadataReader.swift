@@ -147,17 +147,21 @@ struct AVAssetMetadataReader: MetadataReader {
             }
         }
 
-        func string(for commonKey: AVMetadataKey) -> String? {
+        // `AVMetadataItem.value` and friends are deprecated since iOS 16 in
+        // favor of `load(...)`, which is also the non-blocking path: values
+        // load asynchronously instead of pinning the caller thread on I/O.
+
+        func string(for commonKey: AVMetadataKey) async -> String? {
             guard let item = items.first(where: { $0.commonKey == commonKey }),
-                  let value = item.value else { return nil }
-            return stringValue(value)
+                  let value = try? await item.load(.value) else { return nil }
+            return stringValue(value as Any)
         }
 
-        func string(forRawKeys keys: [String], in items: [AVMetadataItem]) -> String? {
+        func string(forRawKeys keys: [String], in items: [AVMetadataItem]) async -> String? {
             for key in keys {
                 if let item = items.first(where: { ($0.key as? String)?.lowercased() == key.lowercased() }),
-                   let value = item.value,
-                   let string = stringValue(value) {
+                   let value = try? await item.load(.value),
+                   let string = stringValue(value as Any) {
                     return string
                 }
             }
@@ -174,51 +178,67 @@ struct AVAssetMetadataReader: MetadataReader {
             return nil
         }
 
-        metadata.title = string(for: .commonKeyTitle)
-        metadata.artist = string(for: .commonKeyArtist)
-        metadata.album = string(for: .commonKeyAlbumName)
-        metadata.albumArtist = string(for: AVMetadataKey(rawValue: "albumArtist"))
-            ?? string(forRawKeys: ["©ART", "TPE2"], in: items)
-        metadata.composer = string(for: AVMetadataKey(rawValue: "composer"))
-            ?? string(forRawKeys: ["©wrt", "TCOM"], in: items)
-        metadata.genre = string(for: AVMetadataKey(rawValue: "genre"))
-            ?? string(forRawKeys: ["©gen", "TCON", "gnre"], in: items)
+        metadata.title = await string(for: .commonKeyTitle)
+        metadata.artist = await string(for: .commonKeyArtist)
+        metadata.album = await string(for: .commonKeyAlbumName)
+        // `??` is an autoclosure, so the fallback must load in a separate step.
+        metadata.albumArtist = await string(for: AVMetadataKey(rawValue: "albumArtist"))
+        if metadata.albumArtist == nil {
+            metadata.albumArtist = await string(forRawKeys: ["©ART", "TPE2"], in: items)
+        }
+        metadata.composer = await string(for: AVMetadataKey(rawValue: "composer"))
+        if metadata.composer == nil {
+            metadata.composer = await string(forRawKeys: ["©wrt", "TCOM"], in: items)
+        }
+        metadata.genre = await string(for: AVMetadataKey(rawValue: "genre"))
+        if metadata.genre == nil {
+            metadata.genre = await string(forRawKeys: ["©gen", "TCON", "gnre"], in: items)
+        }
 
         if let yearItem = byKey[AVMetadataIdentifier.id3MetadataYear.rawValue] {
-            metadata.year = stringValue(yearItem.value ?? "")
+            let value = try? await yearItem.load(.value)
+            metadata.year = stringValue(value as Any)
             metadata.releaseDate = metadata.year
         } else if let dateItem = items.first(where: { $0.commonKey == .commonKeyCreationDate }) {
-            let dateString = stringValue(dateItem.value ?? "")
+            let dateString = (try? await dateItem.load(.stringValue))?.nilIfEmpty
             metadata.releaseDate = dateString
             metadata.year = MetadataMapping.year(fromDateString: dateString ?? "")
         }
 
         if let trackNumberItem = items.first(where: { $0.identifier == .id3MetadataTrackNumber }) {
-            let trackInfo = Self.trackNumberInfo(from: trackNumberItem)
+            let trackInfo = await Self.trackNumberInfo(from: trackNumberItem)
             metadata.trackNumber = trackInfo.number
             metadata.totalTracks = trackInfo.total
         }
 
-        if let artworkItem = items.first(where: { $0.commonKey == .commonKeyArtwork }),
-           let data = artworkItem.dataValue ?? artworkItem.value as? Data {
-            metadata.artworkData = await MetadataMapping.compressedArtwork(
-                from: data,
-                source: metadata.url.lastPathComponent,
-                cache: nil
-            )
+        if let artworkItem = items.first(where: { $0.commonKey == .commonKeyArtwork }) {
+            if let data = try? await artworkItem.load(.dataValue) {
+                metadata.artworkData = await MetadataMapping.compressedArtwork(
+                    from: data,
+                    source: metadata.url.lastPathComponent,
+                    cache: nil
+                )
+            } else if let rawValue = try? await artworkItem.load(.value),
+                      let data = rawValue as? Data {
+                metadata.artworkData = await MetadataMapping.compressedArtwork(
+                    from: data,
+                    source: metadata.url.lastPathComponent,
+                    cache: nil
+                )
+            }
         }
     }
 
-    private static func trackNumberInfo(from item: AVMetadataItem) -> (number: Int?, total: Int?) {
-        if let data = item.dataValue, data.count >= 2 {
+    private static func trackNumberInfo(from item: AVMetadataItem) async -> (number: Int?, total: Int?) {
+        if let data = try? await item.load(.dataValue), data.count >= 2 {
             let number = Int(data[0])
             let total = data.count >= 3 ? Int(data[2]) : nil
             return (number > 0 ? number : nil, total)
         }
-        if let number = item.numberValue {
+        if let number = try? await item.load(.numberValue) {
             return (number.intValue, nil)
         }
-        if let string = item.value as? String {
+        if let string = try? await item.load(.stringValue) {
             let parts = string.split(separator: "/").map { Int($0.trimmingCharacters(in: .whitespaces)) }
             return (parts.first ?? nil, parts.count > 1 ? parts[1] : nil)
         }
