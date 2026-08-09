@@ -271,7 +271,7 @@ struct NowPlayingScreen: View {
                 }
 
                 Menu {
-                    TrackContextMenuContent(items: contextMenuItems)
+                    TrackMenuContent(track: track, playlistManager: playlistManager)
                 } label: {
                     chipLabel(icon: "ellipsis", isActive: false)
                 }
@@ -454,8 +454,12 @@ struct NowPlayingScreen: View {
 
     // MARK: - Dismissal
 
+    /// `.global` is load-bearing. The surface this gesture lives on is the one
+    /// the offset moves, so a `.local` translation is measured against a ruler
+    /// that slides with the finger: the offset grows, the local position shrinks
+    /// by the same amount, and the surface oscillates one step per frame.
     private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
+        DragGesture(minimumDistance: 20, coordinateSpace: .global)
             .onChanged { value in
                 guard !panelUp else { return }
                 presentationDragOffset = max(0, value.translation.height)
@@ -471,14 +475,6 @@ struct NowPlayingScreen: View {
                     }
                 }
             }
-    }
-
-    private var contextMenuItems: [ContextMenuItem] {
-        guard let track else { return [] }
-        return TrackContextMenu.createPlayerViewMenuItems(
-            for: track,
-            playlistManager: playlistManager
-        )
     }
 }
 

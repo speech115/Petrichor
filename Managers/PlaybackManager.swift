@@ -463,8 +463,14 @@ class PlaybackManager: NSObject, ObservableObject {
         // 1s by default; 0.5s only while the lyrics view is open (it needs finer
         // line timing). Sampling faster than 1s otherwise just doubles UI
         // re-renders for no benefit, so it's scoped to when lyrics are visible.
-        let interval: DispatchTimeInterval = fineProgressSampling ? .milliseconds(500) : .seconds(1)
-        timer.schedule(deadline: .now(), repeating: interval, leeway: .milliseconds(50))
+        let seconds: Double = fineProgressSampling ? 0.5 : 1
+        timer.schedule(
+            deadline: .now(),
+            repeating: .milliseconds(Int(seconds * 1000)),
+            leeway: .milliseconds(50)
+        )
+        // Progress bars tween between samples and need the rate to do it.
+        playbackProgressState.sampleInterval = seconds
 
         timer.setEventHandler { [weak self] in
             // Gate on the engine's live state, not the cached isPlaying flag, which

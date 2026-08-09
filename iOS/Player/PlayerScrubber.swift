@@ -64,7 +64,10 @@ struct PlayerScrubber: View {
                     .fill(Color.white.opacity(0.22))
                 Capsule()
                     .fill(palette.control)
-                    .frame(width: max(12, geometry.size.width * fraction))
+                    // No minimum width: a floor here left a stub of fill sitting
+                    // at 0:00, so the bar never read as being at the very start.
+                    .frame(width: geometry.size.width * fraction)
+                    .animation(fillAnimation, value: fraction)
             }
             .frame(height: 12)
             .scaleEffect(y: isScrubbing ? 1 : 7 / 12)
@@ -77,6 +80,15 @@ struct PlayerScrubber: View {
             )
         }
         .frame(height: 20)
+    }
+
+    /// The playhead arrives once per sample, not once per frame, so the fill
+    /// would step half a second at a time. Tweening linearly across exactly one
+    /// sampling interval lands each new value just as the next one arrives,
+    /// which is what makes the bar move continuously. Off while scrubbing: there
+    /// the fill must sit under the finger, not chase it.
+    private var fillAnimation: Animation? {
+        isScrubbing ? nil : .linear(duration: playbackProgressState.sampleInterval)
     }
 
     private var fraction: Double {

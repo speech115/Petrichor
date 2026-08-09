@@ -43,6 +43,7 @@ struct ContentView: View {
     @State private var nowPlayingMounted = false
     @State private var showingPlaylistImporter = false
     @State private var importSummary: String?
+    @State private var trackInfoTrack: Track?
     /// Incremented every time the Search tab is tapped while Search is already
     /// open. SearchView watches it and raises the keyboard.
     @State private var searchFocusRequest = 0
@@ -91,6 +92,13 @@ struct ContentView: View {
                     .environmentObject(libraryManager)
             }
         }
+        // Presented from here, not from the row or the player, so "Show Info"
+        // reaches the same sheet from a list deep in a NavigationStack and from
+        // the player surface that covers it.
+        .sheet(item: $trackInfoTrack) { track in
+            TrackInfoSheet(track: track)
+                .environmentObject(libraryManager)
+        }
         .fileImporter(
             isPresented: $showingPlaylistImporter,
             allowedContentTypes: ["m3u", "m3u8"].compactMap { UTType(filenameExtension: $0) },
@@ -129,6 +137,11 @@ struct ContentView: View {
                 guard let item = items.first(where: { $0.name == filterValue }) else { return }
                 selectedTab = .home
                 homePath = [destination(for: filterType, item: item)]
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showTrackInfo)) { notification in
+            if let track = notification.userInfo?["track"] as? Track {
+                trackInfoTrack = track
             }
         }
     }
@@ -174,12 +187,13 @@ struct ContentView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory(isEnabled: playbackAvailability.hasCurrentTrack) {
+            // Never hidden while the player is up. The full surface is opaque
+            // and covers it anyway; hiding it meant a drag revealed an empty
+            // accessory and the artwork and title snapped in at unmount.
             MiniPlayerAccessory(
                 playbackManager: playbackManager,
                 showingNowPlaying: $showingNowPlaying
             )
-            .opacity(nowPlayingMounted ? 0 : 1)
-            .animation(nil, value: nowPlayingMounted)
         }
         .environment(\.playerSurfaceCoversContent, nowPlayingMounted)
         .allowsHitTesting(!nowPlayingMounted)
@@ -334,10 +348,6 @@ private struct NowPlayingPresentationLayer: View {
                     playbackManager: playbackManager,
                     playlistManager: playlistManager
                 )
-                // Force the gradient, cover and controls through one compositor
-                // transform. Without this, the decoded UIImage layer can commit
-                // a frame before the rest of the newly inserted hierarchy.
-                .compositingGroup()
                 .offset(y: reduceMotion ? 0 : verticalOffset(in: geometry))
                 .opacity(reduceMotion && !isVisible ? 0 : 1)
                 .allowsHitTesting(isVisible)
@@ -418,8 +428,6 @@ private struct NowPlayingPresentationLayer: View {
 private struct MiniPlayerAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement)
     private var placement
-    @Environment(\.playerSurfaceCoversContent)
-    private var playerSurfaceCoversContent
     let playbackManager: PlaybackManager
     @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
     private let playbackProgressState: PlaybackProgressState
@@ -466,7 +474,7 @@ private struct MiniPlayerAccessory: View {
             .padding(.horizontal, 16)
             .padding(.vertical, isCompact ? 8 : 10)
 
-            if isCompact && !playerSurfaceCoversContent {
+            if isCompact {
                 progressLine
                     .frame(height: 3)
                     .padding(.bottom, 6)
@@ -525,6 +533,12 @@ private struct MiniPlayerProgressLine: View {
                 Capsule()
                     .fill(Color.accentColor.opacity(0.75))
                     .frame(width: geometry.size.width * progress)
+                    // Same tween as the player's scrubber: the playhead lands
+                    // once per sample, the line has to cross the gap itself.
+                    .animation(
+                        .linear(duration: playbackProgressState.sampleInterval),
+                        value: progress
+                    )
             }
         }
         .frame(height: 3)

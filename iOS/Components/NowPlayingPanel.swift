@@ -74,8 +74,11 @@ struct NowPlayingPanel<Content: View>: View {
         .accessibilityAddTraits(.isHeader)
     }
 
+    /// Measured in `.global` for the same reason the player's dismissal is: the
+    /// header rides on the surface this drag offsets, so a local translation
+    /// would cancel itself out frame by frame.
     private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
             .onChanged { value in
                 onDragChanged(value.translation.height)
             }

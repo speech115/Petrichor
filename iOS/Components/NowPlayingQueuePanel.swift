@@ -2,9 +2,16 @@
 // NowPlayingQueuePanel (iOS)
 //
 // The playback queue as a panel over the Now Playing artwork. Shows the whole
-// queue with the current track highlighted; rows reorder by dragging and a
-// swipe removes them from the queue. Reuses PlaylistManager's queue methods —
-// the view presents what the manager already does.
+// queue with the current track highlighted; a tap jumps playback to that
+// entry, rows reorder by dragging and a swipe removes them from the queue.
+// Reuses PlaylistManager's queue methods — the view presents what the manager
+// already does.
+//
+// Secondary text uses `.foregroundStyle(.secondary)`, not
+// `Color.secondary`. The player sets its dark scheme through the SwiftUI
+// environment, which does not reach the trait collection a `List` resolves
+// semantic colors against: the artist, duration and position numbers came out
+// in the light appearance's near-black and vanished into the panel.
 //
 
 import SwiftUI
@@ -86,28 +93,33 @@ struct NowPlayingQueuePanel: View {
     private func queueRow(for track: Track, at position: Int) -> some View {
         let isCurrentTrack = position == playlistQueue.currentQueueIndex
 
-        return HStack(spacing: 12) {
-            positionIndicator(isCurrentTrack: isCurrentTrack, position: position)
+        return Button {
+            playlistManager.playFromQueue(at: position)
+        } label: {
+            HStack(spacing: 12) {
+                positionIndicator(isCurrentTrack: isCurrentTrack, position: position)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(track.title)
-                    .font(.body.weight(isCurrentTrack ? .semibold : .regular))
-                    .lineLimit(1)
-                Text(track.displayArtist)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(.body.weight(isCurrentTrack ? .semibold : .regular))
+                        .lineLimit(1)
+                    Text(track.displayArtist)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(HelperUtils.formattedShortDuration(track.duration))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-
-            Spacer(minLength: 8)
-
-            Text(HelperUtils.formattedShortDuration(track.duration))
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .monospacedDigit()
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
+        .buttonStyle(.plain)
         .listRowBackground(isCurrentTrack ? accentColor.opacity(0.16) : Color.clear)
         .listRowSeparator(.hidden)
         .onDrag {
@@ -141,7 +153,7 @@ struct NowPlayingQueuePanel: View {
             } else {
                 Text("\(position + 1)")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(.secondary)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)

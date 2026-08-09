@@ -113,68 +113,7 @@ struct TrackRow: View {
 
         Divider()
 
-        Button(action: showTrackInfo) {
-            Label(String(localized: "Show Info"), systemImage: Icons.infoCircle)
-        }
-        Button {
-            UIPasteboard.general.string = track.url.path
-        } label: {
-            Label(String(localized: "Copy File Path"), systemImage: "doc.on.doc")
-        }
-
-        Menu {
-            ForEach(goToDestinations) { destination in
-                Button(destination.title) {
-                    NotificationCenter.default.post(
-                        name: .goToLibraryFilter,
-                        object: nil,
-                        userInfo: [
-                            "filterType": destination.filterType,
-                            "filterValue": destination.value
-                        ]
-                    )
-                }
-            }
-        } label: {
-            Label(String(localized: "Go to"), systemImage: "arrow.up.right.square")
-        }
-
-        Menu {
-            Button {
-                playlistManager.showCreatePlaylistModal(with: [track])
-            } label: {
-                Label(String(localized: "New Playlist..."), systemImage: "plus")
-            }
-
-            ForEach(regularPlaylists) { playlist in
-                let isInPlaylist = playlistManager.playlistContainsTrack(track, in: playlist)
-                Button {
-                    playlistManager.updateTrackInPlaylist(
-                        track: track,
-                        playlist: playlist,
-                        add: !isInPlaylist
-                    )
-                } label: {
-                    Label(
-                        DefaultPlaylists.displayName(for: playlist),
-                        systemImage: isInPlaylist ? "checkmark" : "plus"
-                    )
-                }
-            }
-        } label: {
-            Label(String(localized: "Add to Playlist"), systemImage: "text.badge.plus")
-        }
-
-        Button {
-            playlistManager.toggleFavorite(for: track)
-        } label: {
-            Label(
-                track.isFavorite
-                    ? String(localized: "Remove from Favorites")
-                    : String(localized: "Add to Favorites"),
-                systemImage: track.isFavorite ? Icons.starFill : Icons.star
-            )
-        }
+        TrackMenuContent(track: track, playlistManager: playlistManager)
 
         if case .playlist(let playlist) = menuContext, playlist.type == .regular {
             Button(role: .destructive) {
@@ -183,37 +122,6 @@ struct TrackRow: View {
                 Label(String(localized: "Remove from Playlist"), systemImage: Icons.trash)
             }
         }
-    }
-
-    private var goToDestinations: [TrackFilterDestination] {
-        LibraryFilterType.allCases.flatMap { filterType in
-            let value = filterType.getValue(from: track)
-            let values: [String]
-            if filterType.usesMultiArtistParsing {
-                values = ArtistParser.parse(
-                    value,
-                    unknownPlaceholder: filterType.unknownPlaceholder,
-                    role: filterType.artistRole
-                )
-            } else {
-                values = [value.isEmpty ? filterType.unknownPlaceholder : value]
-            }
-            return values.map { filterValue in
-                TrackFilterDestination(
-                    filterType: filterType,
-                    value: filterValue,
-                    title: "\(filterType.pluralDisplayName): \(filterType.localizedDisplay(filterValue))"
-                )
-            }
-        }
-    }
-
-    private func showTrackInfo() {
-        NotificationCenter.default.post(
-            name: NSNotification.Name("ShowTrackInfo"),
-            object: nil,
-            userInfo: ["track": track]
-        )
     }
 
     // MARK: - Artwork
@@ -248,14 +156,6 @@ struct TrackRow: View {
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6))
     }
-}
-
-private struct TrackFilterDestination: Identifiable {
-    let filterType: LibraryFilterType
-    let value: String
-    let title: String
-
-    var id: String { "\(filterType.rawValue)-\(value)" }
 }
 
 extension TrackRow: Equatable {

@@ -116,18 +116,25 @@ struct NowPlayingLyricsPanel: View {
 
     // MARK: - Lyrics Content with Conditional Synced Highlight
 
+    /// Every line keeps one weight and one layout. Swapping `.regular` for
+    /// `.bold` on the active line re-measures its text, which reflows the stack
+    /// under a scroll that is animating to that very line — the two fight and
+    /// the highlight stutters across both the old line and the new one. Colour,
+    /// opacity and scale carry the highlight instead; none of them touch layout.
     private var lyricsContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 12) {
                     ForEach(Array(lyricLines.enumerated()), id: \.offset) { index, line in
+                        let isActive = hasTimedLyrics && currentLineIndex == index
+
                         Text(line.text.isEmpty ? " " : line.text)
-                            .font(.system(size: 15))
-                            .fontWeight(hasTimedLyrics && currentLineIndex == index ? .bold : .regular)
-                            .scaleEffect(hasTimedLyrics && currentLineIndex == index ? 1.08 : 1.0)
-                            .foregroundColor(hasTimedLyrics && currentLineIndex == index ? .primary : .secondary)
+                            .font(.system(size: 15, weight: .semibold))
+                            .opacity(isActive ? 1 : 0.45)
+                            .scaleEffect(isActive ? 1.06 : 1.0)
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)
+                            .animation(highlightAnimation, value: isActive)
                             .id(index)
                     }
                 }
@@ -137,16 +144,20 @@ struct NowPlayingLyricsPanel: View {
             }
             .scrollIndicators(.never)
             .onChange(of: currentLineIndex) { _, newIndex in
-                guard hasTimedLyrics else { return }
-                if reduceMotion {
+                guard hasTimedLyrics, newIndex >= 0 else { return }
+                withAnimation(scrollAnimation) {
                     proxy.scrollTo(newIndex, anchor: .center)
-                } else {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-                        proxy.scrollTo(newIndex, anchor: .center)
-                    }
                 }
             }
         }
+    }
+
+    private var highlightAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.22)
+    }
+
+    private var scrollAnimation: Animation? {
+        reduceMotion ? nil : .easeInOut(duration: 0.32)
     }
 
     // MARK: - Helper Methods
@@ -211,14 +222,11 @@ struct NowPlayingLyricsPanel: View {
 
         let newIndex = LyricsTimeline.activeLineIndex(in: lyricLines, at: time)
 
+        // Written plainly: the highlight and the scroll each declare their own
+        // animation. Wrapping the index change here layered a third transaction
+        // over both and drove them at different speeds.
         if newIndex != currentLineIndex {
-            if reduceMotion {
-                currentLineIndex = newIndex
-            } else {
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-                    currentLineIndex = newIndex
-                }
-            }
+            currentLineIndex = newIndex
         }
     }
 }
