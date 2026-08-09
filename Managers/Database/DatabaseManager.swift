@@ -9,10 +9,12 @@
 import Foundation
 import GRDB
 
-class DatabaseManager: ObservableObject {
+/// Pure `DatabasePool` wrapper. All mutable state lives either inside the
+/// thread-safe pool or in `scanActivity` (a main-actor observation object),
+/// so the manager itself is `Sendable` and can be captured freely by
+/// background scan tasks.
+final class DatabaseManager: Sendable {
     // MARK: - Properties
-    @Published var isScanning: Bool = false
-    @Published var scanStatusMessage: String = ""
 
     // A pool, not a single serial queue: readers run concurrently with the
     // writer under WAL, so a library scan or reconciliation writing tracks no
@@ -20,8 +22,12 @@ class DatabaseManager: ObservableObject {
     // scanning" stall). The property keeps the `dbQueue` name because it is
     // referenced across dozens of `DM*` extension files.
     let dbQueue: DatabasePool
-    private var lastStatusUpdateTime: Date = .distantPast
-    private let statusUpdateInterval: TimeInterval = 0.5
+
+    /// Main-actor observation of library scan activity (`isScanning`,
+    /// `scanStatusMessage`, progress throttle). DM* scan code publishes
+    /// through it; the UI mirrors it onto `LibraryManager`'s published
+    /// surface.
+    let scanActivity = ScanActivityObservation()
 
     // MARK: - Initialization
 
@@ -69,24 +75,13 @@ class DatabaseManager: ObservableObject {
 
     // MARK: - Helper Methods
     
-    internal func updateScanStatus(_ message: String) {
-        let now = Date()
-        guard now.timeIntervalSince(lastStatusUpdateTime) >= statusUpdateInterval else { return }
-        lastStatusUpdateTime = now
-        
-        Task { @MainActor in
-            self.scanStatusMessage = message
-        }
-    }
-
-    /// Clean up database file and recreate schema
+/// Clean up database file and recreate schema
     /// Warning: This will delete all data!
     func resetDatabase() throws {
         Task { @MainActor in
-            self.isScanning = false
-            self.scanStatusMessage = ""
+            self.scanActivity.finishScan()
         }
-        
+
         // Erase the database
         try dbQueue.erase()
         

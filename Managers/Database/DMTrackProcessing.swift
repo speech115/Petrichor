@@ -161,9 +161,9 @@ extension DatabaseManager {
                     let progress = await globalState.getProgress()
                     
                     if progress.total > 0 {
-                        updateScanStatus("Processing: \(progress.processed)/\(progress.total) files")
+                        await self.scanActivity.updateStatus("Processing: \(progress.processed)/\(progress.total) files")
                     } else {
-                        updateScanStatus("Processing: \(progress.processed) files")
+                        await self.scanActivity.updateStatus("Processing: \(progress.processed) files")
                     }
 
                     await MainActor.run {
@@ -185,7 +185,7 @@ extension DatabaseManager {
                     let currentProcessed = await scanState.getProcessedCount()
                     
                     await MainActor.run {
-                        self.scanStatusMessage = "Processing: \(currentProcessed)/\(totalFiles) files in \(folderName)"
+                        self.scanActivity.scanStatusMessage = "Processing: \(currentProcessed)/\(totalFiles) files in \(folderName)"
                     }
                 }
             }

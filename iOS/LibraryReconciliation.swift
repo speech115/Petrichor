@@ -66,8 +66,9 @@ extension LibraryManager {
     /// and rescans it.
     ///
     /// Progress is *not* reported through a callback: `scanFoldersForTracks`
-    /// already publishes it through `databaseManager.isScanning` /
-    /// `scanStatusMessage` (both `@Published`) and through
+    /// already publishes it through `databaseManager.scanActivity`
+    /// (`isScanning` / `scanStatusMessage`, both `@Published` on the
+    /// main-actor observation object) and through
     /// `NotificationManager.shared`'s activity tray, so adding a parallel
     /// progress mechanism here would just be a second, redundant channel.
     func scanLibraryRoot() async throws {

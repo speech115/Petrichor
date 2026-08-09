@@ -101,12 +101,13 @@ class LibraryManager: ObservableObject {
             fatalError("Failed to initialize database: \(error)")
         }
 
-        // Observe database manager scanning state
-        databaseManager.$isScanning
+        // Observe database manager scanning state (mirrored from its
+        // main-actor `ScanActivityObservation`).
+        databaseManager.scanActivity.$isScanning
             .receive(on: DispatchQueue.main)
             .assign(to: &$isScanning)
 
-        databaseManager.$scanStatusMessage
+        databaseManager.scanActivity.$scanStatusMessage
             .receive(on: DispatchQueue.main)
             .assign(to: &$scanStatusMessage)
 
