@@ -9,9 +9,8 @@ Status: ready-for-agent
 комментарий в его setUp) — в CI он пройти не может по существу. При этом
 джоба `ios-test` в `.github/workflows/ci.yml` формально запускает
 `xcodebuild test` по схеме `PetrichoriOS`. Release-сборка iOS не проверяется
-нигде: джоба `release-build` собирает только macOS и только на push в
-`main`/теги, куда `ios-port` не попадает — Release-only поломки (оптимизатор,
-выключенные assert'ы) всплывут при заливке на телефон.
+нигде: джоба `release-build` собирает только macOS — Release-only поломки
+(оптимизатор, выключенные assert'ы) всплывут при заливке на телефон.
 
 ## Что сделать
 
