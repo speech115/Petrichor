@@ -43,46 +43,48 @@ class RemoteCommandManager {
         // Add handler for play command
         commandCenter.playCommand.addTarget { [weak audioPlayer] _ in
             guard let audioPlayer = audioPlayer else { return .commandFailed }
-
-            if !audioPlayer.isPlaying {
+            return MainActor.assumeIsolated {
+                guard !audioPlayer.isPlaying else { return .commandFailed }
                 audioPlayer.togglePlayPause()
                 return .success
             }
-            return .commandFailed
         }
 
         // Add handler for pause command
         commandCenter.pauseCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer, audioPlayer.isPlaying else {
-                return .commandFailed
+            guard let audioPlayer = audioPlayer else { return .commandFailed }
+            return MainActor.assumeIsolated {
+                guard audioPlayer.isPlaying else { return .commandFailed }
+                audioPlayer.togglePlayPause()
+                return .success
             }
-
-            audioPlayer.togglePlayPause()
-            return .success
         }
 
         // Add handler for toggle play/pause command
         commandCenter.togglePlayPauseCommand.addTarget { [weak audioPlayer] _ in
             guard let audioPlayer = audioPlayer else { return .commandFailed }
-
-            audioPlayer.togglePlayPause()
-            return .success
+            return MainActor.assumeIsolated {
+                audioPlayer.togglePlayPause()
+                return .success
+            }
         }
 
         // Add handler for next track command
         commandCenter.nextTrackCommand.addTarget { [weak playlistManager] _ in
             guard let playlistManager = playlistManager else { return .commandFailed }
-
-            playlistManager.playNextTrack()
-            return .success
+            return MainActor.assumeIsolated {
+                playlistManager.playNextTrack()
+                return .success
+            }
         }
 
         // Add handler for previous track command
         commandCenter.previousTrackCommand.addTarget { [weak playlistManager] _ in
             guard let playlistManager = playlistManager else { return .commandFailed }
-
-            playlistManager.playPreviousTrack()
-            return .success
+            return MainActor.assumeIsolated {
+                playlistManager.playPreviousTrack()
+                return .success
+            }
         }
 
         // Add handler for seeking
@@ -91,9 +93,10 @@ class RemoteCommandManager {
                   let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
                 return .commandFailed
             }
-
-            audioPlayer.seekTo(time: positionEvent.positionTime)
-            return .success
+            return MainActor.assumeIsolated {
+                audioPlayer.seekTo(time: positionEvent.positionTime)
+                return .success
+            }
         }
     }
 }

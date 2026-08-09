@@ -188,7 +188,9 @@ class AppCoordinator: ObservableObject {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.libraryDidLoad()
+                Task { @MainActor [weak self] in
+                    self?.libraryDidLoad()
+                }
             }
             return
         }

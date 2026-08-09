@@ -398,12 +398,14 @@ class LibraryManager: ObservableObject {
         Logger.info("LibraryManager: Starting auto-scan timer with interval: \(interval) seconds (\(currentInterval.displayName))")
 
         fileWatcherTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
 
-            // Only refresh if we're not currently scanning
-            if !self.isScanning && !NotificationManager.shared.isActivityInProgress {
-                Logger.info("Starting periodic refresh...")
-                self.refreshLibrary()
+                // Only refresh if we're not currently scanning
+                if !self.isScanning && !NotificationManager.shared.isActivityInProgress {
+                    Logger.info("Starting periodic refresh...")
+                    self.refreshLibrary()
+                }
             }
         }
     }
