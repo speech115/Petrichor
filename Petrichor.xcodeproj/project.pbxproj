@@ -71,6 +71,13 @@
 		55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Automation/AMContent.swift,
+				Automation/AMQuery.swift,
+				Automation/AMTransport.swift,
+				Automation/AutomationEntities.swift,
+				Automation/AutomationIntents.swift,
+				Automation/AutomationManager.swift,
+				Automation/AutomationShortcuts.swift,
 				MenuBarManager.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
