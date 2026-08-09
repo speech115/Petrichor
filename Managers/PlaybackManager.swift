@@ -348,7 +348,7 @@ class PlaybackManager: NSObject, ObservableObject {
         audioPlayer.setNowPlayingMetadata(
             NowPlayingMetadata(
                 title: track.title,
-                artist: track.artist,
+                artist: track.displayArtist,
                 albumTitle: track.album,
                 albumArtist: track.albumArtist,
                 genre: track.genre,

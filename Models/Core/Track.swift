@@ -66,11 +66,24 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
 
     // These translate only the stored English "Unknown X" sentinel for display.
     // Use at UI display sites only; sorting/grouping/queries use the raw fields.
-    var displayArtist: String { LibraryFilterType.artists.localizedDisplay(artist) }
+    var displayArtist: String { Track.commaSeparated(LibraryFilterType.artists.localizedDisplay(artist)) }
     var displayAlbum: String { LibraryFilterType.albums.localizedDisplay(album) }
     var displayGenre: String { LibraryFilterType.genres.localizedDisplay(genre) }
     var displayComposer: String { LibraryFilterType.composers.localizedDisplay(composer) }
     var displayYear: String { LibraryFilterType.years.localizedDisplay(year) }
+
+    /// One list separator for every exporter. The Яндекс Музыка files write
+    /// several performers as "A; B" where every other source writes "A, B";
+    /// the tag itself is left alone — `ArtistParser` already splits on both —
+    /// and the comma is put on here, at the one place the string is read.
+    private static func commaSeparated(_ value: String) -> String {
+        guard value.contains(";") else { return value }
+        return value
+            .split(separator: ";")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+    }
 
     var dominantColors: [PlatformColor] {
         guard let original = albumArtworkData else { return [] }
