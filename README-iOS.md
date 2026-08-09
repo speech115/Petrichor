@@ -2,8 +2,8 @@
 
 Порт маковского [Petrichor](https://github.com/kushalpandya/Petrichor) на iPhone:
 тот же проект, два таргета — `Petrichor` (macOS) и `PetrichoriOS` (iOS). Оба
-таргета показывают одну и ту же локальную библиотеку и собираются из одного
-`Petrichor.xcodeproj`.
+таргета показывают одну и ту же библиотеку (своя копия на каждом устройстве) и
+собираются из одного `Petrichor.xcodeproj`.
 
 ## Требования
 
@@ -22,8 +22,7 @@ xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=i
 xcodebuild -scheme Petrichor -destination 'platform=macOS' build
 ```
 
-Выход на реальное устройство — через скилл `.claude/skills/petrichor-device/`
-(обычный device destination на рабочей машине не работает).
+Выход на реальное устройство — через скилл `.claude/skills/petrichor-device/`.
 
 ## Как музыка попадает на телефон
 
@@ -39,7 +38,7 @@ xcodebuild -scheme Petrichor -destination 'platform=macOS' build
 - Воспроизведение — только MP3 (AVFoundation): FLAC на iOS не играет.
 - Избранное и счётчики прослушиваний, набранные на телефоне, теряются при
   переносе библиотеки (ADR 0003); синк телефон→мак — в работе
-  (`PlaybackJournal`, тикет 05 плана `official-port-gaps`).
+  (`PlaybackJournal`, тикет 05: `.scratch/official-port-gaps/issues/05-playback-journal.md`).
 
 ## Скриншоты
 
