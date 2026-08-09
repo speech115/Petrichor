@@ -71,11 +71,41 @@ final actor SpotlightIndexer {
     }
 
     /// Entry point, called from `LibraryManager`'s iOS reconciliation and
-    /// rescan paths after the database is up to date. Fire-and-forget: runs
-    /// at `.utility` priority and never blocks the caller.
+    /// rescan paths after the database is up to date, and from
+    /// `observeLibraryChanges()` below. Fire-and-forget: runs at `.utility`
+    /// priority and never blocks the caller.
     nonisolated static func scheduleSync(with databaseManager: DatabaseManager) {
         Task(priority: .utility) {
             await SpotlightIndexer.shared.syncAfterReconciliation(databaseManager: databaseManager)
+        }
+    }
+
+    // MARK: - Change Notifications
+
+    private nonisolated(unsafe) static var isObservingLibraryChanges = false
+
+    /// Real database deletions - folder removal (`DMFolders.removeFolder`
+    /// cascades to its tracks) and entity merges (`DMMerge.mergeAlbums` /
+    /// `mergeArtists`) - happen in `Managers/`, which cannot import
+    /// CoreSpotlight without breaking the platform-neutral seam rule. Every
+    /// one of those call sites already ends by posting `.libraryDataDidChange`
+    /// (folder removal through `loadMusicLibrary()` -> `refreshEntities()`,
+    /// merges directly), so this listens for that instead: a resync re-diffs
+    /// the live database against the snapshot, and the only entries it ever
+    /// removes are ones no longer present there (ADR-0001 - a file merely
+    /// missing from disk never triggers this notification on its own).
+    ///
+    /// Called once from `PetrichorApp.init()`. Idempotent.
+    nonisolated static func observeLibraryChanges() {
+        guard !isObservingLibraryChanges else { return }
+        isObservingLibraryChanges = true
+        NotificationCenter.default.addObserver(
+            forName: .libraryDataDidChange,
+            object: nil,
+            queue: nil
+        ) { _ in
+            guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
+            scheduleSync(with: databaseManager)
         }
     }
 
