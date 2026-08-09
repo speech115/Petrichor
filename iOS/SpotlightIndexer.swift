@@ -218,6 +218,18 @@ final actor SpotlightIndexer {
         return changes
     }
 
+    /// Sendable projection of the raw `SELECT` below, decoded inside the
+    /// `dbQueue.read` closure so the read stays on the async `DatabaseReader`
+    /// overload (see `makeTrackItems`).
+    private struct TrackRow: Sendable {
+        let id: Int64
+        let title: String
+        let artist: String
+        let album: String
+        let albumThumbnail: Data?
+        let trackArtwork: Data?
+    }
+
     /// Build CoreSpotlight items for a batch of track ids: title, artist and
     /// album in the description, thumbnail from the album's `artwork_thumbnail`
     /// or - for the ~404 tracks whose only cover is `track_artwork_data` -
@@ -237,19 +249,32 @@ final actor SpotlightIndexer {
             LEFT JOIN albums a ON a.id = t.album_id
             WHERE t.id IN (\(placeholders))
             """
-        let rows = try await databaseManager.dbQueue.read { db in
-            try Row.fetchAll(db, sql: sql, arguments: StatementArguments(ids))
+        // Decoded into a Sendable struct inside the closure: `Row` itself isn't
+        // Sendable, and returning it directly makes the compiler fall back to
+        // `read`'s synchronous overload, which turns the `await` above into a
+        // silent no-op (and a warning).
+        let rows: [TrackRow] = try await databaseManager.dbQueue.read { db in
+            try Row.fetchAll(db, sql: sql, arguments: StatementArguments(ids)).map { row in
+                TrackRow(
+                    id: row["id"],
+                    title: row["title"],
+                    artist: row["artist"],
+                    album: row["album"],
+                    albumThumbnail: row["album_thumbnail"],
+                    trackArtwork: row["track_artwork"]
+                )
+            }
         }
 
         var items: [CSSearchableItem] = []
         items.reserveCapacity(rows.count)
         for row in rows {
-            let id: Int64 = row["id"]
-            let title: String = row["title"]
-            let artist: String = row["artist"]
-            let album: String = row["album"]
-            let albumThumbnail: Data? = row["album_thumbnail"]
-            let trackArtwork: Data? = row["track_artwork"]
+            let id = row.id
+            let title = row.title
+            let artist = row.artist
+            let album = row.album
+            let albumThumbnail = row.albumThumbnail
+            let trackArtwork = row.trackArtwork
 
             let attributeSet = CSSearchableItemAttributeSet(contentType: UTType.audio)
             attributeSet.title = title
