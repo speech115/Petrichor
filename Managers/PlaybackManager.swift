@@ -10,6 +10,7 @@ import AVFoundation
 import Combine
 import Foundation
 
+@MainActor
 final class PlaybackAvailabilityObservation: ObservableObject {
     @Published private(set) var hasCurrentTrack: Bool
     private var subscription: AnyCancellable?
@@ -25,6 +26,7 @@ final class PlaybackAvailabilityObservation: ObservableObject {
 
 /// Narrow publisher for player surfaces that render track identity and the
 /// play/pause state without observing volume, restoration, or manager commands.
+@MainActor
 final class PlaybackPresentationObservation: ObservableObject {
     @Published private(set) var currentTrack: Track?
     @Published private(set) var isPlaying: Bool
@@ -44,6 +46,7 @@ final class PlaybackPresentationObservation: ObservableObject {
     }
 }
 
+@MainActor
 class PlaybackManager: NSObject, ObservableObject {
     let playbackProgressState = PlaybackProgressState()
     
@@ -163,9 +166,16 @@ class PlaybackManager: NSObject, ObservableObject {
     }
 
     deinit {
+        // `deinit` is never actor-isolated (even on a `@MainActor` class), so
+        // this cannot call `stop()`/`stopProgressUpdateTimer()` - both mutate
+        // `@Published` state through isolated methods. Direct stored-property
+        // access is fine here (deinit has exclusive access by construction);
+        // it does the same essential teardown - stop the engine, cancel the
+        // timer - without touching the published surface, which is pointless
+        // to update on a value about to be deallocated anyway.
         artworkEnrichmentTask?.cancel()
-        stop()
-        stopProgressUpdateTimer()
+        audioPlayer.stop()
+        progressUpdateTimer?.cancel()
     }
     
     // MARK: - Player State Management

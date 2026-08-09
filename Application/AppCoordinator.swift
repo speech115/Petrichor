@@ -6,6 +6,7 @@
 
 import SwiftUI
 
+@MainActor
 class AppCoordinator: ObservableObject {
     // MARK: - Managers
     private(set) static var shared: AppCoordinator?

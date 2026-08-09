@@ -9,6 +9,7 @@
 import Foundation
 
 
+@MainActor
 class LibraryManager: ObservableObject {
     @Published var tracks: [Track] = []
     /// Bumped on every reassignment of `tracks`. Screens subscribe to this
@@ -16,7 +17,17 @@ class LibraryManager: ObservableObject {
     /// comparisons per reload). Mutate only at the tracks-reset sites in
     /// `LMLibrary` and `resetAllData` below.
     @Published var libraryRevision: Int = 0
-    @Published var folders: [Folder] = []
+    @Published var folders: [Folder] = [] {
+        didSet {
+            // Plain stored property, not `@Published`: `deinit` can read a
+            // genuinely stored property (it has exclusive access by
+            // construction) but not `folders` itself, whose synthesized
+            // getter is main-actor-isolated like every other member of this
+            // class. Kept in sync here for the one thing `deinit` needs -
+            // releasing security-scoped bookmark access.
+            bookmarkedFolderURLs = folders.compactMap { $0.bookmarkData != nil ? $0.url : nil }
+        }
+    }
     @Published var isScanning: Bool = false
     @Published var isInitialOnboardingScan: Bool = false
     @Published var hasReachedInitialScanThreshold: Bool = false
@@ -61,6 +72,9 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: - Private/Internal Properties
+    /// Plain-stored mirror of `folders`' bookmarked URLs, kept for `deinit`
+    /// - see the `didSet` on `folders` above.
+    private var bookmarkedFolderURLs: [URL] = []
     private var fileWatcherTimer: Timer?
     private var hasPerformedInitialScan = false
     private var lastThresholdCheckTime: Date = .distantPast
@@ -180,9 +194,11 @@ class LibraryManager: ObservableObject {
 
     deinit {
         fileWatcherTimer?.invalidate()
-        // Stop accessing all security scoped resources
-        for folder in folders where folder.bookmarkData != nil {
-            folder.url.stopAccessingSecurityScopedResource()
+        // Stop accessing all security scoped resources. `deinit` is never
+        // actor-isolated, so this reads `bookmarkedFolderURLs` (a plain
+        // stored property) rather than the isolated `folders` getter.
+        for url in bookmarkedFolderURLs {
+            url.stopAccessingSecurityScopedResource()
         }
     }
     
@@ -304,8 +320,12 @@ class LibraryManager: ObservableObject {
         objectWillChange.send()
     }
 
-    /// Helper method to fetch items from database
-    internal func getLibraryFilterItemsFromDatabase(for filterType: LibraryFilterType) -> [LibraryFilterItem] {
+    /// Helper method to fetch items from database. `nonisolated`: it only
+    /// touches `databaseManager` (`Sendable`, GRDB pool-backed), which is
+    /// exactly why `loadLibraryCategories()` above fans this out across a
+    /// detached task group instead of doing all seven categories serially
+    /// on the main actor.
+    internal nonisolated func getLibraryFilterItemsFromDatabase(for filterType: LibraryFilterType) -> [LibraryFilterItem] {
         switch filterType {
         case .artists:
             return databaseManager.getArtistFilterItems()

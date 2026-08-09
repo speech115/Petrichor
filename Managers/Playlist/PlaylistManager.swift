@@ -17,6 +17,7 @@ private struct PlaylistMembershipCacheEntry {
 
 /// Narrow publisher for screens that render the playlist catalog but must not
 /// redraw for queue-index, shuffle, repeat, or modal changes.
+@MainActor
 final class PlaylistCatalogObservation: ObservableObject {
     @Published private(set) var playlists: [Playlist]
     private var subscription: AnyCancellable?
@@ -32,6 +33,7 @@ final class PlaylistCatalogObservation: ObservableObject {
 /// Narrow publisher for the root create-playlist sheet. ContentView used to
 /// observe all of PlaylistManager just to present this one modal, causing every
 /// queue mutation to rebuild the entire tab hierarchy.
+@MainActor
 final class PlaylistCreatePresentationObservation: ObservableObject {
     @Published private(set) var isPresented: Bool
     @Published private(set) var playlistName: String
@@ -57,6 +59,7 @@ final class PlaylistCreatePresentationObservation: ObservableObject {
 
 /// Narrow publisher for transport controls. Queue and catalog mutations do not
 /// invalidate the play/pause row just to keep these two mode glyphs current.
+@MainActor
 final class PlaylistTransportObservation: ObservableObject {
     @Published private(set) var isShuffleEnabled: Bool
     @Published private(set) var repeatMode: RepeatMode
@@ -79,6 +82,7 @@ final class PlaylistTransportObservation: ObservableObject {
 
 /// Narrow publisher for the queue panel. Playlist catalog, modal, shuffle and
 /// repeat publications stay outside this observation boundary.
+@MainActor
 final class PlaylistQueueObservation: ObservableObject {
     @Published private(set) var currentQueue: [Track]
     @Published private(set) var currentQueueIndex: Int
@@ -98,6 +102,7 @@ final class PlaylistQueueObservation: ObservableObject {
     }
 }
 
+@MainActor
 class PlaylistManager: ObservableObject {
     @Published var playlists: [Playlist] = []
     @Published var currentPlaylist: Playlist?

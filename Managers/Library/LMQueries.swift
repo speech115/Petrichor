@@ -162,7 +162,7 @@ extension LibraryManager {
             searchResults = []
         } else {
             // Use LibrarySearch which uses FTS from database
-            searchResults = LibrarySearch.searchTracks(tracks, with: globalSearchText)
+            searchResults = LibrarySearch.searchTracks(tracks, with: globalSearchText, databaseManager: databaseManager)
         }
     }
 
@@ -184,7 +184,7 @@ extension LibraryManager {
 
         let databaseManager = databaseManager
         let results = await Task.detached(priority: .userInitiated) {
-            var tracks = LibrarySearch.searchTracks([], with: trimmed, populateArtwork: false)
+            var tracks = LibrarySearch.searchTracks([], with: trimmed, populateArtwork: false, databaseManager: databaseManager)
             databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
             return tracks
         }.value

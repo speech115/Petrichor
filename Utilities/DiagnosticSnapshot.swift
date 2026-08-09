@@ -1,13 +1,56 @@
 import Foundation
 
 enum DiagnosticSnapshot {
+    /// The library/playlist statistics that live on the `@MainActor`
+    /// managers. Callers on a background queue (the termination/launch
+    /// snapshot in `AppDelegate`) must capture this on the main actor
+    /// *before* hopping off, since `payload` itself runs off-main so the
+    /// sysctl/JSON work never blocks the UI thread.
+    struct LibraryFields: Sendable {
+        let folderCount: Int
+        let trackCount: Int
+        let artistCount: Int
+        let albumCount: Int
+        let playlistCount: Int
+        let pinnedItemCount: Int
+        let totalDurationSec: TimeInterval
+        let totalSizeBytes: Int64
+        let formats: [String: Int]
+        let folderPaths: [String]
+    }
+
+    /// Captures the `@MainActor`-isolated library/playlist counters. Must be
+    /// called from the main actor; the result is a plain `Sendable` snapshot
+    /// safe to hand to `payload`/`write` running off-main.
+    @MainActor
+    static func captureLibraryFields() -> LibraryFields? {
+        guard let coordinator = AppCoordinator.shared else { return nil }
+        let lm = coordinator.libraryManager
+        let db = lm.databaseManager
+        return LibraryFields(
+            folderCount: lm.folders.count,
+            trackCount: lm.totalTrackCount,
+            artistCount: lm.artistCount,
+            albumCount: lm.albumCount,
+            playlistCount: coordinator.playlistManager.playlists.count,
+            pinnedItemCount: lm.pinnedItems.count,
+            totalDurationSec: db.getTotalDuration(),
+            totalSizeBytes: db.getTotalFileSize(),
+            formats: db.getTrackCountsByFormat(),
+            folderPaths: lm.folders.map { ($0.url.path as NSString).abbreviatingWithTildeInPath }
+        )
+    }
+
     /// Writes a single-entry snapshot of the current user settings, library
     /// statistics, app/OS info, and device hardware to the log file as
     /// pretty-printed JSON. Emitted at launch and termination so users can
     /// share the log for diagnosis. Always written regardless of the
     /// configured log level.
-    static func write(phase: String) {
-        Logger.diagnostic(header: "DIAGNOSTIC SNAPSHOT (\(phase))", body: serialize(payload(phase: phase)))
+    ///
+    /// `library` must be captured on the main actor first (see
+    /// `captureLibraryFields()`) when calling this off-main.
+    static func write(phase: String, library: LibraryFields?) {
+        Logger.diagnostic(header: "DIAGNOSTIC SNAPSHOT (\(phase))", body: serialize(payload(phase: phase, library: library)))
     }
 
     /// Builds the diagnostic snapshot as a JSON-serializable dictionary
@@ -15,7 +58,10 @@ enum DiagnosticSnapshot {
     /// UserDefaults with token presence only, never values). This is the
     /// single source of truth for both the logged snapshot (`write`) and the
     /// in-app "Report a Problem" flow, which attaches it as a structured field.
-    static func payload(phase: String) -> [String: Any] {
+    ///
+    /// `library` must be captured on the main actor first (see
+    /// `captureLibraryFields()`) when calling this off-main.
+    static func payload(phase: String, library: LibraryFields?) -> [String: Any] {
         let defaults = UserDefaults.standard
         var payload: [String: Any] = [
             "phase": phase,
@@ -50,30 +96,27 @@ enum DiagnosticSnapshot {
         }
         payload["device"] = device
 
-        var library: [String: Any] = [:]
-        if let coordinator = AppCoordinator.shared {
-            let lm = coordinator.libraryManager
-            let db = lm.databaseManager
-            let duration = db.getTotalDuration()
-            library["folderCount"] = lm.folders.count
-            library["trackCount"] = lm.totalTrackCount
-            library["artistCount"] = lm.artistCount
-            library["albumCount"] = lm.albumCount
-            library["playlistCount"] = coordinator.playlistManager.playlists.count
-            library["pinnedItemCount"] = lm.pinnedItems.count
-            library["totalDurationSec"] = HelperUtils.sanitizedWholeDuration(duration)
-            library["totalSize"] = bytes(db.getTotalFileSize())
-            library["formats"] = db.getTrackCountsByFormat()
-            library["folders"] = lm.folders.map { ($0.url.path as NSString).abbreviatingWithTildeInPath }
+        var libraryDict: [String: Any] = [:]
+        if let library {
+            libraryDict["folderCount"] = library.folderCount
+            libraryDict["trackCount"] = library.trackCount
+            libraryDict["artistCount"] = library.artistCount
+            libraryDict["albumCount"] = library.albumCount
+            libraryDict["playlistCount"] = library.playlistCount
+            libraryDict["pinnedItemCount"] = library.pinnedItemCount
+            libraryDict["totalDurationSec"] = HelperUtils.sanitizedWholeDuration(library.totalDurationSec)
+            libraryDict["totalSize"] = bytes(library.totalSizeBytes)
+            libraryDict["formats"] = library.formats
+            libraryDict["folders"] = library.folderPaths
         } else {
-            library["available"] = false
+            libraryDict["available"] = false
         }
         if let lastScan = defaults.object(forKey: "LastScanDate") as? Date {
-            library["lastScanDate"] = ISO8601DateFormatter().string(from: lastScan)
+            libraryDict["lastScanDate"] = ISO8601DateFormatter().string(from: lastScan)
         } else {
-            library["lastScanDate"] = NSNull()
+            libraryDict["lastScanDate"] = NSNull()
         }
-        payload["library"] = library
+        payload["library"] = libraryDict
 
         payload["settings"] = [
             "general": [
@@ -131,9 +174,12 @@ enum DiagnosticSnapshot {
     }
 
     /// Pretty-printed JSON string of the snapshot, for display in the
-    /// "Report a Problem" disclosure and for attaching to a report.
+    /// "Report a Problem" disclosure and for attaching to a report. Runs on
+    /// the main actor (called only from the "Report a Problem" view), so it
+    /// captures the library fields itself rather than requiring the caller to.
+    @MainActor
     static func prettyJSON(phase: String) -> String {
-        serialize(payload(phase: phase))
+        serialize(payload(phase: phase, library: captureLibraryFields()))
     }
 
     /// Stable, anonymous installation id. Exposed so a report can carry it even

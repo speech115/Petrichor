@@ -88,10 +88,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
 
         // Capture snapshot after state save + checkpoint so counts reflect the
-        // final persisted state.
+        // final persisted state. The `@MainActor` library counters are read
+        // here, synchronously, before hopping off to the background queue -
+        // the JSON/sysctl assembly in `write` itself must not touch them,
+        // since it deliberately runs off-main and this method (still on the
+        // main thread) blocks on it below.
+        let library = DiagnosticSnapshot.captureLibraryFields()
         let semaphore = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .userInitiated).async {
-            DiagnosticSnapshot.write(phase: "Termination")
+            DiagnosticSnapshot.write(phase: "Termination", library: library)
             semaphore.signal()
         }
         if semaphore.wait(timeout: .now() + 2.0) == .timedOut {
@@ -119,8 +124,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         #endif
 
         // Capture snapshot after state restore and app launch is complete
+        let launchLibrary = DiagnosticSnapshot.captureLibraryFields()
         DispatchQueue.global(qos: .utility).async {
-            DiagnosticSnapshot.write(phase: "Launch")
+            DiagnosticSnapshot.write(phase: "Launch", library: launchLibrary)
         }
 
         NSWindow.allowsAutomaticWindowTabbing = false

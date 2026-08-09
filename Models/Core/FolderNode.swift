@@ -26,7 +26,10 @@ class FolderNode: Identifiable, ObservableObject {
         self.isWatchFolder = isWatchFolder
     }
 
-    // Helper to get all tracks in this folder (immediate only)
+    // Helper to get all tracks in this folder (immediate only). Only called
+    // from `FoldersView` (macOS, main actor); `libraryManager` is
+    // `@MainActor`-isolated, so this needs to be too.
+    @MainActor
     func getImmediateTracks(using libraryManager: LibraryManager) -> [Track] {
         let allTracks: [Track]
         

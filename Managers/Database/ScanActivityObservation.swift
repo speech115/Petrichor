@@ -23,6 +23,14 @@ final class ScanActivityObservation: ObservableObject {
     private var lastStatusUpdateTime: Date = .distantPast
     private let statusUpdateInterval: TimeInterval = 0.5
 
+    /// `nonisolated` so `DatabaseManager` (itself not main-actor-isolated,
+    /// since it must be constructible off the main actor in tests) can
+    /// create the observation as a stored-property default. Only sets
+    /// stored properties to literal defaults — no main-actor state is
+    /// touched, which is what makes a `nonisolated init` on an otherwise
+    /// `@MainActor` type sound.
+    nonisolated init() {}
+
     /// Throttled status update: high-frequency progress callbacks (one per
     /// processed batch) only republish at most every `statusUpdateInterval`.
     /// Main-actor isolated, so the throttle state is no longer touched from
