@@ -35,7 +35,6 @@ struct HomeTabView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    ContinueListeningCard()
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
                             albums: recentAlbums,
