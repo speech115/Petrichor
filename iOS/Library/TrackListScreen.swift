@@ -46,6 +46,14 @@ struct TrackListScreen<Header: View, Row: View>: View {
     @State private var sections: [IndexedSection<Track>] = []
     @State private var loadTask: Task<Void, Never>?
     @State private var isLoading = true
+    @State private var showsSpinner = false
+    @State private var spinnerTask: Task<Void, Never>?
+
+    /// A list that arrives in 30 ms feels slower behind a spinner than with no
+    /// spinner at all: the eye reads the flash as the wait. Most of these loads
+    /// are that fast, so the spinner waits this long before claiming there is
+    /// something to wait for.
+    private var spinnerDelay: Duration { .milliseconds(200) }
 
     var body: some View {
         Group {
@@ -58,10 +66,12 @@ struct TrackListScreen<Header: View, Row: View>: View {
             }
         }
         .overlay {
-            if isLoading, sections.isEmpty, libraryManager.shouldShowMainUI {
+            if showsSpinner, sections.isEmpty, libraryManager.shouldShowMainUI {
                 ProgressView()
-            } else if showEmptyState, sections.isEmpty, libraryManager.shouldShowMainUI {
+                    .transition(.opacity)
+            } else if !isLoading, showEmptyState, sections.isEmpty, libraryManager.shouldShowMainUI {
                 ContentUnavailableView(emptyTitle, systemImage: emptyIcon)
+                    .transition(.opacity)
             }
         }
         .task(id: identity) {
@@ -72,6 +82,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
         }
         .onDisappear {
             loadTask?.cancel()
+            spinnerTask?.cancel()
         }
     }
 
@@ -120,14 +131,31 @@ struct TrackListScreen<Header: View, Row: View>: View {
 
     private func loadRows() async {
         isLoading = true
+        scheduleSpinner()
+
         let loaded = await Task.detached(priority: .userInitiated) {
             await load()
         }.value
 
+        spinnerTask?.cancel()
         guard !Task.isCancelled else { return }
         tracks = loaded
         sections = sectioner(loaded)
         isLoading = false
+        withAnimation(.easeOut(duration: AnimationDuration.standardDuration)) {
+            showsSpinner = false
+        }
         onRowsChange?(loaded)
+    }
+
+    private func scheduleSpinner() {
+        spinnerTask?.cancel()
+        spinnerTask = Task { @MainActor in
+            try? await Task.sleep(for: spinnerDelay)
+            guard !Task.isCancelled, isLoading else { return }
+            withAnimation(.easeOut(duration: AnimationDuration.standardDuration)) {
+                showsSpinner = true
+            }
+        }
     }
 }

@@ -65,6 +65,15 @@ struct NowPlayingScreen: View {
     @State private var panelVisible = false
     @State private var panelDragOffset: CGFloat = 0
     @State private var panelLifecycleTask: Task<Void, Never>?
+    /// What the cover and the title row are showing. One update behind
+    /// `track`, on purpose: the swap has to happen *inside* the animation that
+    /// carries it, and `onChange` only fires once the new track has already
+    /// been rendered. Everything else on the screen reads `track` directly.
+    @State private var displayedTrack: Track?
+    /// Set from the queue index before the swap, so the cover leaves towards
+    /// the side the new one arrives from.
+    @State private var slidesForward = true
+    @State private var lastQueueIndex: Int?
 
     init(
         isPresented: Binding<Bool>,
@@ -122,6 +131,8 @@ struct NowPlayingScreen: View {
         .environment(\.colorScheme, .dark)
         .onAppear {
             playbackManager.setFineProgressSampling(true)
+            displayedTrack = track
+            lastQueueIndex = playlistManager.currentQueueIndex
             updatePalette()
         }
         .onDisappear {
@@ -130,9 +141,14 @@ struct NowPlayingScreen: View {
             playbackManager.setFineProgressSampling(false)
         }
         .onChange(of: track?.id) { _, _ in
+            advanceDisplayedTrack()
             updatePalette()
         }
         .onChange(of: track?.artworkData?.count) { _, _ in
+            // The current track arrives with a thumbnail and is enriched with
+            // full artwork once audio starts. That is the same track, so it
+            // lands without a transition — animating it would replay the slide.
+            displayedTrack = track
             updatePalette()
         }
         .onChange(of: useArtworkColors) { _, _ in
@@ -189,6 +205,8 @@ struct NowPlayingScreen: View {
 
             artwork
                 .frame(width: artworkSide, height: artworkSide)
+                .id(displayedTrack?.id)
+                .transition(coverTransition)
 
             Spacer(minLength: 12)
 
@@ -233,10 +251,45 @@ struct NowPlayingScreen: View {
 
     // MARK: - Artwork
 
+    /// A slide rather than a clip: the cover carries a 24pt shadow, and any
+    /// container tight enough to clip the travel would cut the shadow off. 40pt
+    /// of offset under a cross-fade reads as direction without needing one.
+    private var coverTransition: AnyTransition {
+        directionalTransition(distance: 40)
+    }
+
+    private var titleTransition: AnyTransition {
+        directionalTransition(distance: 20)
+    }
+
+    private func directionalTransition(distance: CGFloat) -> AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        let entering = slidesForward ? distance : -distance
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(x: entering)),
+            removal: .opacity.combined(with: .offset(x: -entering))
+        )
+    }
+
+    private func advanceDisplayedTrack() {
+        let index = playlistManager.currentQueueIndex
+        if let lastQueueIndex {
+            slidesForward = index >= lastQueueIndex
+        }
+        lastQueueIndex = index
+
+        let animation: Animation = reduceMotion
+            ? .easeInOut(duration: AnimationDuration.mediumDuration)
+            : .spring(response: 0.32, dampingFraction: 0.9)
+        withAnimation(animation) {
+            displayedTrack = track
+        }
+    }
+
     private var artwork: some View {
         ArtworkTile(
-            data: track?.displayArtwork,
-            cacheKey: track.map { "now-playing-\($0.id)" },
+            data: displayedTrack?.displayArtwork,
+            cacheKey: displayedTrack.map { "now-playing-\($0.id)" },
             cornerRadius: 12,
             iconSize: 72,
             maxPixelSize: 960,
@@ -250,15 +303,19 @@ struct NowPlayingScreen: View {
     private var titleRow: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(track?.title ?? "")
+                Text(displayedTrack?.title ?? "")
                     .font(.system(size: 21, weight: .bold))
                     .foregroundColor(palette.foreground)
-                Text(track?.displayArtist ?? "")
+                Text(displayedTrack?.displayArtist ?? "")
                     .font(.system(size: 21))
                     .foregroundColor(palette.secondary)
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Travels with the cover but half as far — the names sit in a
+            // narrower column, and matching the cover's 40pt there overshoots.
+            .id(displayedTrack?.id)
+            .transition(titleTransition)
 
             if let track {
                 chipButton(

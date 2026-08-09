@@ -109,17 +109,24 @@ struct ArtworkTile: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
+    /// The decoded image cross-fades over the placeholder it replaces. Only on
+    /// this branch: a cache hit is drawn on the first frame by the caller above
+    /// and never changes state, so a scrolled-back row shows its cover outright
+    /// instead of blinking. The fade belongs to the decode, not to the tile.
     private func decodeView(data: Data, cacheKey: String?, fallbackImage: UIImage?) -> some View {
         Group {
             if decodedImageKey == cacheKey, let decodedImage {
                 artworkImage(decodedImage)
+                    .transition(.opacity)
             } else if let fallbackImage {
                 artworkImage(fallbackImage)
+                    .transition(.opacity)
                     .task(id: cacheKey) {
                         await decode(data, cacheKey: cacheKey)
                     }
             } else {
                 placeholder
+                    .transition(.opacity)
                     .task(id: cacheKey) {
                         await decode(data, cacheKey: cacheKey)
                     }
@@ -137,8 +144,10 @@ struct ArtworkTile: View {
         if let cacheKey {
             RowArtworkCache.shared.setImage(image, forKey: cacheKey)
         }
-        decodedImage = image
-        decodedImageKey = cacheKey
+        withAnimation(.easeOut(duration: 0.18)) {
+            decodedImage = image
+            decodedImageKey = cacheKey
+        }
     }
 
     private static nonisolated func downsample(_ data: Data, maxPixelSize: CGFloat) -> UIImage? {

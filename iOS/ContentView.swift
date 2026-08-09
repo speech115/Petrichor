@@ -460,11 +460,22 @@ private struct MiniPlayerAccessory: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
+                        // Cross-fade, not a slide: in a 44pt row a horizontal
+                        // move reads as a twitch. The track usually changes on
+                        // its own at the end of a song, with nobody's finger on
+                        // the screen, so the swap needs a bridge more than the
+                        // controls need a direction.
+                        .id(playbackPresentation.currentTrack?.id)
+                        .transition(.opacity)
 
                         Spacer(minLength: 0)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
+                    .animation(
+                        .easeInOut(duration: AnimationDuration.standardDuration),
+                        value: playbackPresentation.currentTrack?.id
+                    )
                 }
                 .accessibilityIdentifier("MiniPlayer")
                 .buttonStyle(.plain)
@@ -497,7 +508,11 @@ private struct MiniPlayerAccessory: View {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             playbackManager.togglePlayPause()
         } label: {
+            // The same morph the full player's transport uses. Without it the
+            // icon snapped here and slid there, which shows the moment someone
+            // pauses in the mini player and opens the player right after.
             Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
+                .contentTransition(.symbolEffect(.replace.offUp))
                 .font(.system(size: 22))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
