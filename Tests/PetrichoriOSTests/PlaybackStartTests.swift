@@ -190,9 +190,9 @@ struct QueueRefillTests {
 
 /// Polls instead of sleeping a fixed amount: the player reaches `.playing`
 /// only after the item loads, and that timing is not ours to predict. The
-/// timeout is generous: the simulator's media service is shared with the
-/// parallel scan suites and intermittently takes a while to start playback.
-fileprivate func waitForPlaying(_ backend: AVQueuePlayerBackend, timeout: Duration = .seconds(30)) async -> Bool {
+/// The 60-second timeout covers a cold media-service boot on hosted runners;
+/// subsequent playback starts in the same run are fast.
+fileprivate func waitForPlaying(_ backend: AVQueuePlayerBackend, timeout: Duration = .seconds(60)) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while ContinuousClock.now < deadline {
         if backend.state == .playing { return true }
