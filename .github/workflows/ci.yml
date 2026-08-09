@@ -13,15 +13,7 @@ on:
       - '.gitignore'
       - '**/*.md'
   pull_request:
-    branches: [ "main" ]
-    paths-ignore:
-      - 'README.md'
-      - 'ACKNOWLEDGEMENTS.md'
-      - 'Scripts/**'
-      - '.github/assets/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '**/*.md'
+    branches: [ "main", "ios-port" ]
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref. PRs cancel-in-progress (push a new
@@ -37,8 +29,9 @@ permissions:
 env:
   # Pinned and bumped deliberately; matches the local/ship toolchain. The
   # SwiftLint image tag in the lint job is the single lint-version pin.
-  XCODE_VERSION: '26.5'
+  XCODE_VERSION: '26.6'
   SCHEME: 'Petrichor'
+  IOS_SCHEME: 'PetrichoriOS'
   PROJECT: 'Petrichor.xcodeproj'
 
 jobs:
@@ -147,6 +140,82 @@ jobs:
           retention-days: 5
           if-no-files-found: ignore
 
+  # The iOS port has its own integration branch. Every PR into ios-port must
+  # build and run the iOS seam tests on the same Xcode version used locally.
+  ios-test:
+    name: iOS Build & Test
+    runs-on: macos-26
+    timeout-minutes: 45
+    needs: [lint, actionlint]
+    if: >-
+      (github.event_name == 'pull_request' && github.base_ref == 'ios-port') ||
+      (github.event_name == 'workflow_dispatch' && github.ref_name == 'ios-port')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: .spm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-dd-ios-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-ios-
+
+      - name: Create Secrets placeholder
+        run: |
+          {
+            echo "// CI placeholder - online features disabled"
+            echo "LASTFM_API_KEY = "
+            echo "LASTFM_SHARED_SECRET = "
+          } > Configuration/Secrets.xcconfig
+
+      - name: Ensure xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Resolve dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -clonedSourcePackagesDirPath .spm
+
+      - name: Build and test iOS
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
+            -clonedSourcePackagesDirPath .spm \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -resultBundlePath "$RUNNER_TEMP/iOS.xcresult" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      - name: Upload xcresult on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcresult
+          path: ${{ runner.temp }}/iOS.xcresult
+          retention-days: 5
+          if-no-files-found: ignore
+
   # Ad-hoc Release compile check (no secrets, not distributable). Catches
   # Release-only breaks before you tag and run Scripts/build-installer.sh.
   # Signing/notarization/DMG/Sparkle stay in the local release flow.
@@ -220,18 +289,39 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [lint, actionlint, build-analyze]
+    needs: [lint, actionlint, build-analyze, ios-test]
     if: always()
     steps:
       - name: Verify required jobs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          REF_NAME: ${{ github.ref_name }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          ACTIONLINT_RESULT: ${{ needs.actionlint.result }}
+          BUILD_RESULT: ${{ needs.build-analyze.result }}
+          IOS_RESULT: ${{ needs.ios-test.result }}
         run: |
-          echo "lint=${{ needs.lint.result }}"
-          echo "actionlint=${{ needs.actionlint.result }}"
-          echo "build-analyze=${{ needs.build-analyze.result }}"
-          if [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.actionlint.result }}" != "success" ] || \
-             [ "${{ needs.build-analyze.result }}" != "success" ]; then
+          echo "lint=$LINT_RESULT"
+          echo "actionlint=$ACTIONLINT_RESULT"
+          echo "build-analyze=$BUILD_RESULT"
+          echo "ios-test=$IOS_RESULT"
+          if [ "$LINT_RESULT" != "success" ] || \
+             [ "$ACTIONLINT_RESULT" != "success" ] || \
+             [ "$BUILD_RESULT" != "success" ]; then
             echo "::error::One or more required checks failed"
+            exit 1
+          fi
+
+          ios_required=false
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$BASE_REF" = "ios-port" ]; then
+            ios_required=true
+          fi
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$REF_NAME" = "ios-port" ]; then
+            ios_required=true
+          fi
+          if [ "$ios_required" = "true" ] && [ "$IOS_RESULT" != "success" ]; then
+            echo "::error::The required iOS build and test job failed"
             exit 1
           fi
           echo "All required checks passed ✅"
