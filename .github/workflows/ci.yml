@@ -213,6 +213,72 @@ jobs:
           retention-days: 5
           if-no-files-found: ignore
 
+  # iOS Release is exercised on demand only (workflow_dispatch): a manual
+  # pre-flight before shipping the app to a device. Same caches/secrets
+  # placeholder as ios-test, no signing. Debug-only breakage is caught by
+  # ios-test; this one catches Release-only problems (optimizer, stripped
+  # asserts) early. Deliberately NOT part of ci-summary's required list.
+  ios-release-build:
+    name: iOS Release Build
+    runs-on: macos-26
+    timeout-minutes: 45
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: .spm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-dd-ios-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-ios-release-
+
+      - name: Create Secrets placeholder
+        run: |
+          {
+            echo "// CI placeholder - online features disabled"
+            echo "LASTFM_API_KEY = "
+            echo "LASTFM_SHARED_SECRET = "
+          } > Configuration/Secrets.xcconfig
+
+      - name: Ensure xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Resolve dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -clonedSourcePackagesDirPath .spm
+
+      - name: Build iOS (Release)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -configuration Release \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
+            -clonedSourcePackagesDirPath .spm \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
   # Ad-hoc Release compile check (no secrets, not distributable). Catches
   # Release-only breaks before you tag and run Scripts/build-installer.sh.
   # Signing/notarization/DMG/Sparkle stay in the local release flow.
