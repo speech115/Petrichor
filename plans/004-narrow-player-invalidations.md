@@ -1,7 +1,8 @@
 # 004 — Narrow SwiftUI invalidation around playback and large lists
 
 - **Status**: PARTIAL
-- **Commit**: 907076d
+- **Baseline**: 907076d
+- **Implementation**: 1fca87e (player projections complete; sectioner deferred)
 - **Severity**: HIGH
 - **Category**: Performance
 - **Estimated scope**: 6–8 files, about 180 lines changed

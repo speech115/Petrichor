@@ -1,7 +1,8 @@
 # 002 — Give queue and lyrics panels one motion owner
 
-- **Status**: DONE
-- **Commit**: 907076d
+- **Status**: IMPLEMENTED
+- **Baseline**: 907076d
+- **Implementation**: 1fca87e
 - **Severity**: HIGH
 - **Category**: Interruptibility and physicality
 - **Estimated scope**: 4 files, about 140 lines changed

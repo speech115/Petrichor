@@ -83,9 +83,32 @@ Blocked by: 12
 - На светлом симуляторе со списком из 1505 треков три последовательных цикла
   открытия с первого тапа и drag-dismiss прошли успешно.
 - Покадровый regression check: исходная запись — одномоментный luminance jump
-  217,2 и artwork scale spread 13,6% (FAIL); новая — 128,6 и 0% (PASS).
+  217,2 и artwork scale spread 13,6% (FAIL); новая — 128,6 и 0% (PASS). Методика
+  и пороги сохранены в `.scratch/playlist-perf/check_player_transition_video.py`;
+  сами временные MP4 не коммитятся.
 - Fresh simulator gate после правок: build succeeded; 66/66 tests passed.
 - Текущая Debug-сборка собрана для generic iOS device, установлена и запущена
   на iPhone через `petrichor-device`; процесс Petrichor подтверждён. Физическим
   экраном iPhone Codex не управлял.
 - Commit с исправлением: `bfdee2f fix(ios): smooth now playing transitions`.
+
+### 2026-08-09 — publication и acceptance accounting
+
+- Полный animation/performance audit из предыдущего раздела опубликован как
+  `1fca87e perf(ios): polish player animation pipeline` и отправлен в
+  `origin/ios-port`; фраза «не выполнялись» выше описывает только состояние до
+  последующей просьбы пользователя закоммитить и задеплоить результат.
+- Light-theme/drag/tap fix опубликован как `bfdee2f`; tracker summary —
+  `d4855e0`. Оба находятся в `origin/ios-port`.
+- Последняя сборка только установлена и запущена на физическом iPhone. Codex не
+  управлял экраном устройства, поэтому визуальная user/device acceptance после
+  `bfdee2f` остаётся **pending**.
+
+Повторяемая проверка симуляторной записи:
+
+```bash
+xcrun simctl ui booted appearance light
+xcrun simctl io booted recordVideo --codec=h264 /tmp/now-playing.mp4
+# Остановить запись Ctrl-C после mini -> full -> drag-dismiss.
+python3 .scratch/playlist-perf/check_player_transition_video.py /tmp/now-playing.mp4
+```

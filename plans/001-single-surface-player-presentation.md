@@ -1,7 +1,8 @@
 # 001 — Present Now Playing as one uninterrupted surface
 
-- **Status**: DONE
-- **Commit**: 907076d
+- **Status**: IMPLEMENTED
+- **Baseline**: 907076d
+- **Implementation**: 1fca87e
 - **Severity**: HIGH
 - **Category**: Interruptibility, performance, accessibility
 - **Estimated scope**: 2 files, about 100 lines changed

@@ -64,7 +64,7 @@ Two things to keep in mind:
 ## Read back a file
 
 ```bash
-xcrun devicectl device copy from --device "$(scripts/device-id.sh)" \
+xcrun devicectl device copy from --device "$(.claude/skills/petrichor-device/scripts/device-id.sh)" \
   --domain-type appDataContainer --domain-identifier org.Petrichor.ios \
   --source Documents/<path> --destination ./<local-path>
 ```
