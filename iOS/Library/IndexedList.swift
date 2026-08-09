@@ -78,7 +78,10 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                             row(item)
                         }
                     } header: {
+                        // The system header gray sits at ~3.3:1 in light
+                        // mode; the shared secondary text color clears 4.5:1.
                         Text(section.key)
+                            .foregroundColor(.secondaryText)
                     }
                     .id(section.key)
                 }

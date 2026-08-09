@@ -39,14 +39,24 @@ struct RecentAlbumsShelf: View {
                                 )
                                 .frame(width: 130, height: 130)
 
+                                // 130 pt is fixed (it matches the artwork
+                                // above): any line limit reads as clipped at
+                                // the largest accessibility sizes, where a
+                                // short title alone can need more than two
+                                // lines to fit that width. No limit lets the
+                                // text wrap instead of truncating, and
+                                // `fixedSize` makes it actually claim that
+                                // height — inside a `LazyHStack` a `Text`
+                                // otherwise gets compressed to the row's
+                                // pre-scaling height instead of growing.
                                 Text(album.displayName)
                                     .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
 
                                 Text(album.artistName ?? "")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             .frame(width: 130, alignment: .leading)
                             .contentShape(Rectangle())

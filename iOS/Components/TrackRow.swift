@@ -234,10 +234,11 @@ private struct TrackPlaybackStatus: View {
                 // the full name readable at accessibility sizes.
                 Text(track.title)
                     .font(.body.weight(isCurrent ? .semibold : .regular))
+                // Same reasoning as the title: a capped line limit is what
+                // the audit calls clipped at accessibility sizes.
                 Text(track.displayArtist)
                     .font(.subheadline)
                     .foregroundColor(.secondaryText)
-                    .lineLimit(1)
             }
 
             Spacer(minLength: 8)
