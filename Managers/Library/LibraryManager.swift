@@ -91,8 +91,12 @@ class LibraryManager: ObservableObject {
     /// gate every caller starts another full scan against the same root.
     internal var isReconcilingLibrary = false
 
-    // Database manager
-    let databaseManager: DatabaseManager
+    // Database manager. `nonisolated`: a pure `Sendable` `DatabasePool` wrapper
+    // (see `DatabaseManager`'s own doc comment), so the handful of read-only
+    // query wrappers below that touch nothing else can stay `nonisolated` too
+    // and run directly inside a caller's `Task.detached` instead of forcing
+    // a hop back to the main actor for what is, underneath, a GRDB read.
+    nonisolated let databaseManager: DatabaseManager
 
     // Keys for UserDefaults
     internal enum UserDefaultsKeys {

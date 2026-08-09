@@ -634,7 +634,7 @@ private extension PlaybackManager {
 
 // MARK: - AudioPlayerDelegate
 
-extension PlaybackManager: AudioPlayerDelegate {
+extension PlaybackManager: @MainActor AudioPlayerDelegate {
     func audioPlayerDidStartPlaying(player: PlaybackEngine, with entryId: AudioEntryId) {
         DispatchQueue.main.async {
             if let injected = self.injectedNext, injected.entryId == entryId {
