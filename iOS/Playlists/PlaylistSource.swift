@@ -21,6 +21,7 @@
 
 import SwiftUI
 
+@MainActor
 enum PlaylistSource: CaseIterable {
     case spotify
     case vk

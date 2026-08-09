@@ -123,27 +123,29 @@ public struct NowPlayingMetadata {
 /// Delegate protocol for receiving playback events from the active engine.
 /// Events are always published by the `PlaybackEngine` facade, never by a concrete backend.
 public protocol AudioPlayerDelegate: AnyObject {
-    func audioPlayerDidStartPlaying(player: PlaybackEngine, with entryId: AudioEntryId)
-    func audioPlayerStateChanged(player: PlaybackEngine, with newState: AudioPlayerState, previous: AudioPlayerState)
+    func audioPlayerDidStartPlaying(player: sending PlaybackEngine, with entryId: AudioEntryId)
+    func audioPlayerStateChanged(
+        player: sending PlaybackEngine, with newState: AudioPlayerState, previous: AudioPlayerState
+    )
     func audioPlayerDidFinishPlaying(
-        player: PlaybackEngine,
+        player: sending PlaybackEngine,
         entryId: AudioEntryId,
         stopReason: AudioPlayerStopReason,
         progress: Double,
         duration: Double
     )
-    func audioPlayerUnexpectedError(player: PlaybackEngine, error: AudioPlayerError)
+    func audioPlayerUnexpectedError(player: sending PlaybackEngine, error: AudioPlayerError)
 
     // Optional methods with default implementations
-    func audioPlayerDidFinishBuffering(player: PlaybackEngine, with entryId: AudioEntryId)
-    func audioPlayerDidSkipQueueEntry(player: PlaybackEngine, entryId: AudioEntryId)
+    func audioPlayerDidFinishBuffering(player: sending PlaybackEngine, with entryId: AudioEntryId)
+    func audioPlayerDidSkipQueueEntry(player: sending PlaybackEngine, entryId: AudioEntryId)
 }
 
 // MARK: - Default Implementations
 
 public extension AudioPlayerDelegate {
-    func audioPlayerDidFinishBuffering(player: PlaybackEngine, with entryId: AudioEntryId) {}
-    func audioPlayerDidSkipQueueEntry(player: PlaybackEngine, entryId: AudioEntryId) {}
+    func audioPlayerDidFinishBuffering(player: sending PlaybackEngine, with entryId: AudioEntryId) {}
+    func audioPlayerDidSkipQueueEntry(player: sending PlaybackEngine, entryId: AudioEntryId) {}
 }
 
 // MARK: - Backend Abstraction
@@ -277,6 +279,10 @@ public class PlaybackEngine: NSObject {
 
     // MARK: - Initialization
 
+    /// `PlaybackEngine`'s sole call site (`PlaybackManager.init`) is already
+    /// `@MainActor`; `AVQueuePlayerBackend` (the iOS backend) is `@MainActor`
+    /// too now, so its initializer needs this to be as well.
+    @MainActor
     override public init() {
         #if os(macOS)
         self.backend = CrescendoPlaybackBackend()
@@ -424,11 +430,11 @@ public class PlaybackEngine: NSObject {
 
 extension PlaybackEngine: PlaybackBackendDelegate {
     func backendDidStartPlaying(with entryId: AudioEntryId) {
-        onMainActorDelegate { delegate?.audioPlayerDidStartPlaying(player: self, with: entryId) }
+        MainActor.assumeIsolated { delegate?.audioPlayerDidStartPlaying(player: self, with: entryId) }
     }
 
     func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) {
-        onMainActorDelegate { delegate?.audioPlayerStateChanged(player: self, with: newState, previous: previous) }
+        MainActor.assumeIsolated { delegate?.audioPlayerStateChanged(player: self, with: newState, previous: previous) }
     }
 
     func backendDidFinishPlaying(
@@ -437,7 +443,7 @@ extension PlaybackEngine: PlaybackBackendDelegate {
         progress: Double,
         duration: Double
     ) {
-        onMainActorDelegate {
+        MainActor.assumeIsolated {
             delegate?.audioPlayerDidFinishPlaying(
                 player: self,
                 entryId: entryId,
@@ -449,15 +455,15 @@ extension PlaybackEngine: PlaybackBackendDelegate {
     }
 
     func backendUnexpectedError(error: AudioPlayerError) {
-        onMainActorDelegate { delegate?.audioPlayerUnexpectedError(player: self, error: error) }
+        MainActor.assumeIsolated { delegate?.audioPlayerUnexpectedError(player: self, error: error) }
     }
 
     func backendDidFinishBuffering(with entryId: AudioEntryId) {
-        onMainActorDelegate { delegate?.audioPlayerDidFinishBuffering(player: self, with: entryId) }
+        MainActor.assumeIsolated { delegate?.audioPlayerDidFinishBuffering(player: self, with: entryId) }
     }
 
     func backendDidSkipQueueEntry(entryId: AudioEntryId) {
-        onMainActorDelegate { delegate?.audioPlayerDidSkipQueueEntry(player: self, entryId: entryId) }
+        MainActor.assumeIsolated { delegate?.audioPlayerDidSkipQueueEntry(player: self, entryId: entryId) }
     }
 
     /// Both `PlaybackBackend` implementations guarantee every `backendDelegate`
@@ -468,8 +474,10 @@ extension PlaybackEngine: PlaybackBackendDelegate {
     /// call it. `AudioPlayerDelegate`'s sole conformer (`PlaybackManager`) is
     /// `@MainActor`, so forwarding to `delegate` is the one place that runtime
     /// guarantee needs to become a checked one; `assumeIsolated` is that proof,
-    /// scoped to exactly this hop.
-    private func onMainActorDelegate(_ body: @MainActor () -> Void) {
-        MainActor.assumeIsolated(body)
-    }
+    /// scoped to exactly this hop. Inlined at each call site rather than
+    /// behind a shared helper: routing the closure through a named function
+    /// parameter made the checker treat `self`/the event payload as "sent"
+    /// across a boundary and flag them, where the literal, inline
+    /// `assumeIsolated { ... }` call - matching `CrescendoPlaybackBackend`'s
+    /// own `onMainStatic` idiom - does not.
 }

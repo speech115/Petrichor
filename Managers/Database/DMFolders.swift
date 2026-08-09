@@ -79,7 +79,7 @@ extension DatabaseManager {
     func addFolders(
         _ urls: [URL],
         bookmarkDataMap: [URL: Data],
-        completion: @escaping @MainActor (Result<[Folder], Error>) -> Void
+        completion: @escaping @MainActor @Sendable (Result<[Folder], Error>) -> Void
     ) {
         Task(priority: .utility) {
             do {
@@ -199,7 +199,7 @@ extension DatabaseManager {
         hardRefresh: Bool = false,
         manageActivityIndicator: Bool = true,
         globalScanState: GlobalScanState? = nil,
-        _ completion: @escaping @MainActor (Result<Void, Error>) -> Void
+        _ completion: @escaping @MainActor @Sendable (Result<Void, Error>) -> Void
     ) {
         Task {
             do {
@@ -266,7 +266,7 @@ extension DatabaseManager {
         }
     }
 
-    func removeFolder(_ folder: Folder, completion: @escaping @MainActor (Result<Void, Error>) -> Void) {
+    func removeFolder(_ folder: Folder, completion: @escaping @MainActor @Sendable (Result<Void, Error>) -> Void) {
         Task {
             do {
                 _ = try await dbQueue.write { db in
@@ -510,9 +510,7 @@ extension DatabaseManager {
                 processedFolders += 1
             } catch {
                 Logger.error("Failed to scan folder \(folder.name): \(error)")
-                Task.detached { @MainActor in
-                    NotificationManager.shared.addMessage(.error, String(localized: "Failed to scan folder '\(folder.name)'"))
-                }
+                await NotificationManager.shared.addMessage(.error, String(localized: "Failed to scan folder '\(folder.name)'"))
             }
             
             if processedFolders.isMultiple(of: 2) {

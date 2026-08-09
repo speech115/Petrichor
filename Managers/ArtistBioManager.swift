@@ -247,7 +247,7 @@ actor ArtistBioManager {
     // MARK: - MusicBrainz / Wikidata Search
 
     private func searchMusicBrainzImages(name: String, limit: Int = 6) async -> [ImageResult] {
-        await waitForRateLimit(lastRequest: &lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
+        lastMusicBrainzRequest = await waitForRateLimit(lastRequest: lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
 
         guard var components = URLComponents(string: MusicBrainz.searchURL) else { return [] }
         components.queryItems = [
@@ -292,7 +292,7 @@ actor ArtistBioManager {
 
     /// Fetch artist relationships from MusicBrainz to find Wikidata URL, then resolve image
     private func resolveImageViaMusicBrainz(mbid: String, artistName: String?, limit: Int) async -> ImageResult? {
-        await waitForRateLimit(lastRequest: &lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
+        lastMusicBrainzRequest = await waitForRateLimit(lastRequest: lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
 
         let lookupURLString = "\(MusicBrainz.searchURL)\(mbid)?inc=url-rels&fmt=json"
         guard let lookupURL = URL(string: lookupURLString) else { return nil }
@@ -332,7 +332,7 @@ actor ArtistBioManager {
         // Extract QID from URL like "https://www.wikidata.org/wiki/Q2831"
         guard let qid = wikidataUrl.split(separator: "/").last.map(String.init) else { return nil }
 
-        await waitForRateLimit(lastRequest: &lastWikimediaRequest, delay: Wikidata.rateLimitDelay)
+        lastWikimediaRequest = await waitForRateLimit(lastRequest: lastWikimediaRequest, delay: Wikidata.rateLimitDelay)
 
         guard var components = URLComponents(string: Wikidata.apiURL) else { return nil }
         components.queryItems = [
@@ -397,7 +397,7 @@ actor ArtistBioManager {
         guard let token = tmdbReadAccessToken, !token.isEmpty else { return [] }
 
         if limit == 1 {
-            await waitForRateLimit(lastRequest: &lastTMDBRequest, delay: TMDB.rateLimitDelay)
+            lastTMDBRequest = await waitForRateLimit(lastRequest: lastTMDBRequest, delay: TMDB.rateLimitDelay)
         }
 
         guard var components = URLComponents(string: TMDB.searchURL) else { return [] }
@@ -445,7 +445,7 @@ actor ArtistBioManager {
     private func fetchArtistBio(name: String) async -> String? {
         guard let apiKey = lastfmApiKey, !apiKey.isEmpty else { return nil }
 
-        await waitForRateLimit(lastRequest: &lastLastFMRequest, delay: LastFM.rateLimitDelay)
+        lastLastFMRequest = await waitForRateLimit(lastRequest: lastLastFMRequest, delay: LastFM.rateLimitDelay)
 
         guard var components = URLComponents(string: LastFM.apiBaseURL) else { return nil }
         components.queryItems = [
@@ -531,7 +531,12 @@ actor ArtistBioManager {
 
     // MARK: - Rate Limiting
 
-    private func waitForRateLimit(lastRequest: inout Date?, delay: TimeInterval) async {
+    /// Takes the previous timestamp by value and returns the new one for the
+    /// caller to store, rather than `inout`: an actor-isolated stored property
+    /// can't be passed `inout` across the `await` inside here (exclusive
+    /// access can't span a suspension point), even though nothing else could
+    /// actually touch it meanwhile.
+    private func waitForRateLimit(lastRequest: Date?, delay: TimeInterval) async -> Date {
         if let last = lastRequest {
             let elapsed = Date().timeIntervalSince(last)
             let waitTime = delay - elapsed
@@ -539,6 +544,6 @@ actor ArtistBioManager {
                 try? await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
             }
         }
-        lastRequest = Date()
+        return Date()
     }
 }

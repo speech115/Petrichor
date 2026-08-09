@@ -639,7 +639,7 @@ private extension PlaybackManager {
 // MARK: - AudioPlayerDelegate
 
 extension PlaybackManager: @MainActor AudioPlayerDelegate {
-    func audioPlayerDidStartPlaying(player: PlaybackEngine, with entryId: AudioEntryId) {
+    func audioPlayerDidStartPlaying(player: sending PlaybackEngine, with entryId: AudioEntryId) {
         DispatchQueue.main.async {
             if let injected = self.injectedNext, injected.entryId == entryId {
                 // A repeat lookahead started; fold it into the mirror, then treat it
@@ -663,7 +663,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
         }
     }
     
-    func audioPlayerStateChanged(player: PlaybackEngine, with newState: AudioPlayerState, previous: AudioPlayerState) {
+    func audioPlayerStateChanged(player: sending PlaybackEngine, with newState: AudioPlayerState, previous: AudioPlayerState) {
         DispatchQueue.main.async {
             switch newState {
             case .playing:
@@ -711,7 +711,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
     }
     
     func audioPlayerDidFinishPlaying(
-        player: PlaybackEngine,
+        player: sending PlaybackEngine,
         entryId: AudioEntryId,
         stopReason: AudioPlayerStopReason,
         progress: Double,
@@ -768,14 +768,14 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
         }
     }
     
-    func audioPlayerUnexpectedError(player: PlaybackEngine, error: AudioPlayerError) {
+    func audioPlayerUnexpectedError(player: sending PlaybackEngine, error: AudioPlayerError) {
         DispatchQueue.main.async {
             Logger.error("Audio player error: \(error.localizedDescription)")
             NotificationManager.shared.addMessage(.error, String(localized: "Playback error: \(error.localizedDescription)"))
         }
     }
 
-    func audioPlayerDidSkipQueueEntry(player: PlaybackEngine, entryId: AudioEntryId) {
+    func audioPlayerDidSkipQueueEntry(player: sending PlaybackEngine, entryId: AudioEntryId) {
         DispatchQueue.main.async {
             // The engine drops an entry it cannot decode and primes the one after it,
             // so the boundary stays gapless. Drop it from the app queue too: leaving

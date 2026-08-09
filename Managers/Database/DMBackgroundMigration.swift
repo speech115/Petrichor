@@ -224,12 +224,12 @@ extension DatabaseManager {
 
             Logger.info("Starting artwork optimization: \(totalRows) total rows")
 
-            try await Task.detached(priority: .utility) { [dbQueue, weak self] in
+            try await Task.detached(priority: .utility) { [dbQueue, weak self, tables, startIndex, resumeOffset, totalRows] in
                 guard let self = self else { return }
 
                 var totalProcessed = 0
                 if startIndex > 0 || resumeOffset > 0 {
-                    totalProcessed = try dbQueue.read { db -> Int in
+                    totalProcessed = try await dbQueue.read { db -> Int in
                         var processed = 0
                         for tableIdx in 0..<startIndex {
                             processed += try tables[tableIdx].count(db)
@@ -246,7 +246,7 @@ extension DatabaseManager {
                     var skipped = 0
 
                     while true {
-                        let rows = try dbQueue.read { db in try ops.fetchBatch(db, batchSize, offset) }
+                        let rows = try dbQueue.read { [offset] db in try ops.fetchBatch(db, batchSize, offset) }
                         if rows.isEmpty { break }
 
                         let batchConverted = try ops.compressAndUpdate(dbQueue, rows)
@@ -336,7 +336,7 @@ extension DatabaseManager {
 
         Logger.info("Rebuilding artist associations for \(totalTracks) tracks")
 
-        try await Task.detached(priority: .utility) { [dbQueue, weak self] in
+        try await Task.detached(priority: .utility) { [dbQueue, weak self, resumeOffset, totalTracks] in
             guard let self = self else { return }
 
             // Snapshot pinned items before clearing associations
@@ -348,7 +348,7 @@ extension DatabaseManager {
             defer { ArtistParser.unloadKnownArtists() }
 
             // Clear existing associations and reset stats
-            _ = try dbQueue.write { db in
+            _ = try await dbQueue.write { db in
                 try TrackArtist.deleteAll(db)
                 try AlbumArtist.deleteAll(db)
                 try Artist.updateAll(db, Artist.Columns.totalTracks.set(to: 0), Artist.Columns.totalAlbums.set(to: 0))
@@ -362,7 +362,7 @@ extension DatabaseManager {
             var offset = resumeOffset
 
             while offset < totalTracks {
-                let tracks = try dbQueue.read { db in
+                let tracks = try await dbQueue.read { [offset] db in
                     try FullTrack
                         .filter(FullTrack.Columns.isDuplicate == false)
                         .order(FullTrack.Columns.trackId)
@@ -372,7 +372,7 @@ extension DatabaseManager {
 
                 if tracks.isEmpty { break }
 
-                _ = try dbQueue.write { db in
+                _ = try await dbQueue.write { db in
                     for var track in tracks {
                         try self.processTrackArtists(track, in: db)
                         try self.processTrackAlbum(&track, in: db)
@@ -385,7 +385,7 @@ extension DatabaseManager {
             }
 
             // Update stats
-            try dbQueue.write { db in
+            try await dbQueue.write { db in
                 try self.updateEntityStats(in: db)
             }
 
@@ -522,14 +522,14 @@ extension DatabaseManager {
 
         Logger.info("Backfilling album artists across \(totalTracks) tracks")
 
-        try await Task.detached(priority: .utility) { [dbQueue, weak self] in
+        try await Task.detached(priority: .utility) { [dbQueue, weak self, resumeOffset, totalTracks] in
             guard let self = self else { return }
 
             let batchSize = 500
             var offset = resumeOffset
 
             while offset < totalTracks {
-                let tracks = try dbQueue.read { db in
+                let tracks = try await dbQueue.read { [offset] db in
                     try FullTrack
                         .order(FullTrack.Columns.trackId)
                         .limit(batchSize, offset: offset)
@@ -537,7 +537,7 @@ extension DatabaseManager {
                 }
                 if tracks.isEmpty { break }
 
-                try dbQueue.write { db in
+                try await dbQueue.write { db in
                     for track in tracks {
                         guard let trackId = track.trackId else { continue }
 
@@ -682,12 +682,12 @@ extension DatabaseManager {
 
             Logger.info("Starting thumbnail backfill: \(totalRows) rows")
 
-            try await Task.detached(priority: .utility) { [dbQueue, weak self] in
+            try await Task.detached(priority: .utility) { [dbQueue, weak self, tables, startIndex, resumeOffset, totalRows] in
                 guard let self = self else { return }
 
                 var totalProcessed = 0
                 if startIndex > 0 || resumeOffset > 0 {
-                    totalProcessed = try dbQueue.read { db -> Int in
+                    totalProcessed = try await dbQueue.read { db -> Int in
                         var processed = 0
                         for tableIdx in 0..<startIndex {
                             processed += try tables[tableIdx].count(db)
@@ -704,7 +704,7 @@ extension DatabaseManager {
                     var skipped = 0
 
                     while true {
-                        let rows = try dbQueue.read { db in try ops.fetchBatch(db, batchSize, offset) }
+                        let rows = try dbQueue.read { [offset] db in try ops.fetchBatch(db, batchSize, offset) }
                         if rows.isEmpty { break }
 
                         let batchGenerated = try ops.generateAndUpdate(dbQueue, rows)

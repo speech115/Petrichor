@@ -170,9 +170,11 @@ struct NowPlayingScreen: View {
         let shouldUseArtwork = useArtworkColors
 
         paletteTask = Task { @MainActor in
-            let resolved = await Task.detached(priority: .userInitiated) {
-                PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
-            }.value
+            // `PlayerPalette.make` reads through `ImageUtils`' color cache, which is
+            // `@MainActor` (every real caller is view code), so this no longer
+            // detaches - the cache hit path is cheap, and a cache miss's decode
+            // still runs once per track, not on every access.
+            let resolved = PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
             guard !Task.isCancelled,
                   track?.id == sourceTrackID,
                   useArtworkColors == shouldUseArtwork else { return }

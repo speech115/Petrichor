@@ -103,7 +103,7 @@ private final class PlaylistArtworkCache: Sendable {
     }
 
     func clearCache(for playlistID: UUID) {
-        cache.withLock { $0.removeValue(forKey: playlistID) }
+        cache.withLock { _ = $0.removeValue(forKey: playlistID) }
     }
 }
 

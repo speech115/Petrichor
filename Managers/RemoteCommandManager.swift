@@ -93,8 +93,12 @@ class RemoteCommandManager {
                   let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
                 return .commandFailed
             }
+            // Read the position out of the (non-Sendable) event before crossing into
+            // the isolated closure - passing `positionEvent` itself in gets flagged as
+            // sending task-isolated state across the hop.
+            let position = positionEvent.positionTime
             return MainActor.assumeIsolated {
-                audioPlayer.seekTo(time: positionEvent.positionTime)
+                audioPlayer.seekTo(time: position)
                 return .success
             }
         }

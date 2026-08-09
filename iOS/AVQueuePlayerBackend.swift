@@ -35,6 +35,7 @@ import AVFoundation
 import Foundation
 import MediaPlayer
 
+@MainActor
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
 
@@ -661,7 +662,7 @@ extension AVQueuePlayerBackend {
         nowPlayingArtworkTask = Task.detached(priority: .utility) { [weak self] in
             let artwork = NowPlayingPublisher.artwork(from: artworkData)
             guard !Task.isCancelled else { return }
-            self?.runOnMain { [weak self] in
+            await MainActor.run { [weak self] in
                 guard let self, self.nowPlayingArtworkRevision == revision else { return }
                 self.nowPlayingArtwork = artwork
                 self.publishNowPlaying()

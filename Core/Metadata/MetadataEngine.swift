@@ -65,8 +65,11 @@ actor ArtworkCompressionCache {
 
 /// Backend-agnostic contract for reading a file's tags, audio properties, and
 /// artwork into a `TrackMetadata`. Concrete readers live in their own files and
-/// hold only engine-specific code.
-protocol MetadataReader {
+/// hold only engine-specific code. `Sendable`: every conformer is a stateless
+/// struct (the test double is `@unchecked Sendable` instead - see
+/// `TestMetadataReader`), and `readerOverride` below needs to hand one across
+/// the scan pipeline's actor boundary.
+protocol MetadataReader: Sendable {
     func extractMetadata(
         from url: URL,
         externalArtwork: Data?,

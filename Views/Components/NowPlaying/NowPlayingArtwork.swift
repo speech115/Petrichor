@@ -11,6 +11,7 @@ import SwiftUI
 enum NowPlayingArtwork {
     /// Primary artwork color, used to tint controls / highlights. Falls back to the
     /// accent color when tinting is disabled or artwork colors are unavailable.
+    @MainActor
     static func tint(for track: Track?, useArtworkTint: Bool) -> Color {
         guard useArtworkTint else { return accentFallback() }
         return tint(forDominantColor: track?.dominantColors.first)
@@ -50,6 +51,7 @@ enum NowPlayingArtwork {
     ///   on dark surfaces (the mini player / immersive scrim, or the player bar in
     ///   dark mode); when `false` it is deepened for light surfaces (the player bar
     ///   in light mode).
+    @MainActor
     static func controlColor(for track: Track?, useArtworkTint: Bool, isDarkBackground: Bool) -> Color {
         // Tinting off: use the system accent (the empty AccentColor asset means Color.accentColor won't track it).
         #if os(macOS)
@@ -103,6 +105,7 @@ enum NowPlayingArtwork {
 
     /// Artwork-derived background gradient (cached per track), or empty when disabled
     /// or artwork colors are unavailable.
+    @MainActor
     static func gradient(for track: Track?, isDark: Bool, enabled: Bool) -> [Color] {
         guard enabled, let track, !track.dominantColors.isEmpty else {
             return []

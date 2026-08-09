@@ -36,6 +36,7 @@ struct PlayerPalette: Equatable {
         Color(white: 0.06)
     ])
 
+    @MainActor
     static func make(for track: Track?, useArtworkColors: Bool) -> PlayerPalette {
         guard useArtworkColors, let track else { return neutral }
 
