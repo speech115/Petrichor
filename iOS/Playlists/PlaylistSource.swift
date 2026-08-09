@@ -60,10 +60,14 @@ enum PlaylistSource: CaseIterable {
             ]
         case .vk:
             return [
-                PinnedPlaylist("ВКонтакте"),
+                PinnedPlaylist("ВКонтакте", cover: .vkMusic),
                 PinnedPlaylist("Любимые треки"),
-                PinnedPlaylist("ВКонтакте - Tyler instrumental"),
-                PinnedPlaylist("ВКонтакте - Френки шоу")
+                PinnedPlaylist(
+                    "ВКонтакте - Tyler instrumental",
+                    title: "Tyler Instrumental",
+                    usesFirstTrackCover: true
+                ),
+                PinnedPlaylist("ВКонтакте - Френки шоу", cover: .frankieShow)
             ]
         case .yandex:
             return [
@@ -125,11 +129,22 @@ struct PinnedPlaylist {
     /// opens on the stored name.
     let title: String?
     let cover: PlaylistCover?
+    /// Show the first track's artwork alone where the 2x2 mosaic would go. A
+    /// mosaic tells playlists apart by the four records it samples; for a
+    /// playlist that is one artist's instrumentals the four are the same
+    /// record four times, and the single cover says more.
+    let usesFirstTrackCover: Bool
 
-    init(_ name: String, title: String? = nil, cover: PlaylistCover? = nil) {
+    init(
+        _ name: String,
+        title: String? = nil,
+        cover: PlaylistCover? = nil,
+        usesFirstTrackCover: Bool = false
+    ) {
         self.name = name
         self.title = title
         self.cover = cover
+        self.usesFirstTrackCover = usesFirstTrackCover
     }
 }
 

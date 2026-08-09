@@ -1,27 +1,49 @@
 //
 // PlaylistCover (iOS)
 //
-// The cover a pinned playlist wears in place of the preview mosaic, so an
-// export that arrived as a bare M3U still looks like the playlist it was in
-// the service it came from.
+// The cover a playlist wears in place of the preview mosaic, so an export that
+// arrived as a bare M3U still looks like the playlist it was in the service it
+// came from — and so Favorites, which is ours and has no export behind it,
+// still looks like something rather than four sampled records.
 //
 // `likedSongs` and `top2020` are Spotify's own artwork for those playlists,
-// pulled from their CDN; `shazam` is Shazam's current mark; `yandexLikes` is
-// Yandex Music's heart glyph, taken from their own icon sprite, on the dark
-// tile their liked-tracks cover uses.
+// pulled from their CDN; `shazam` is Shazam's current mark; `vkMusic` is the
+// VK Музыка app icon; `frankieShow` is the show's own order-of-merit mark from
+// Серебряный дождь; `yandexLikes` is Yandex Music's `favorit-playlist-cover`,
+// the moulded heart every "Мне нравится" wears, off their own avatars CDN.
+//
+// `appleFavorites` is Apple Music's favorites star, redrawn as a vector so it
+// can carry a light and a dark version of itself — the asset catalog swaps
+// them, which a bitmap could not do.
 //
 
 import SwiftUI
 
 enum PlaylistCover {
+    case appleFavorites
+    case frankieShow
     case likedSongs
     case shazam
     case top2020
+    case vkMusic
     case yandexLikes
 
-    /// The pinned cover for this playlist, if it has one.
+    /// The cover for this playlist, if it has one. Favorites is the one smart
+    /// playlist with artwork: it is a real destination on both tabs, where Top
+    /// 25 is a query the library answers.
     static func of(_ playlist: Playlist) -> PlaylistCover? {
-        PlaylistSource.pinnedEntry(for: playlist)?.cover
+        if playlist.type == .smart {
+            return playlist.name == DefaultPlaylists.favorites ? .appleFavorites : nil
+        }
+        return PlaylistSource.pinnedEntry(for: playlist)?.cover
+    }
+
+    /// What the mosaic gets: the first four covers, or only the first when the
+    /// playlist was pinned to show one. `ArtworkMosaic` already draws a single
+    /// cover full-bleed, so the choice is just how many it is handed.
+    static func mosaicCovers(for playlist: Playlist, from tracks: [Track]) -> [Data] {
+        let limit = PlaylistSource.pinnedEntry(for: playlist)?.usesFirstTrackCover == true ? 1 : 4
+        return Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(limit))
     }
 }
 
@@ -32,14 +54,20 @@ struct PlaylistCoverView: View {
     var body: some View {
         Group {
             switch cover {
+            case .appleFavorites:
+                artwork("cover-apple-favorites")
+            case .frankieShow:
+                artwork("cover-frankie-show")
             case .likedSongs:
                 artwork("cover-liked-songs")
             case .top2020:
                 artwork("cover-top-2020")
             case .shazam:
                 shazam
+            case .vkMusic:
+                artwork("cover-vk-music")
             case .yandexLikes:
-                yandexLikes
+                artwork("cover-yandex-likes")
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
@@ -50,9 +78,7 @@ struct PlaylistCoverView: View {
     /// The app's own arrangement: the blue disc on white, the S showing
     /// through the mark as the tile behind it.
     private var shazam: some View {
-        GeometryReader { geometry in
-            let side = min(geometry.size.width, geometry.size.height)
-
+        square { side in
             ZStack {
                 Color.white
                 Image("logo-shazam")
@@ -62,31 +88,21 @@ struct PlaylistCoverView: View {
                     .foregroundStyle(Color(red: 0.0, green: 0.53, blue: 1.0))
                     .frame(width: side * 0.86, height: side * 0.86)
             }
-            .frame(width: side, height: side)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    // MARK: - Yandex Music likes
+    // MARK: - Layout
 
-    /// Their heart on their dark tile. The glyph is Yandex Music's own, lifted
-    /// from the icon sprite the web player serves, so the silhouette matches
-    /// the app rather than approximating it.
-    private var yandexLikes: some View {
+    /// Covers are drawn to the shorter side and centred, so a tile that is
+    /// handed a non-square frame still shows a square cover instead of a
+    /// stretched one.
+    private func square<Content: View>(@ViewBuilder _ content: @escaping (CGFloat) -> Content) -> some View {
         GeometryReader { geometry in
             let side = min(geometry.size.width, geometry.size.height)
 
-            ZStack {
-                Color(red: 0.09, green: 0.06, blue: 0.07)
-                Image("logo-yandex-heart")
-                    .resizable()
-                    .renderingMode(.template)
-                    .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(Color(red: 0.937, green: 0.176, blue: 0.235))
-                    .frame(width: side * 0.62, height: side * 0.62)
-            }
-            .frame(width: side, height: side)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            content(side)
+                .frame(width: side, height: side)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 

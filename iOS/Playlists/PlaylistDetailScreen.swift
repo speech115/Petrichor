@@ -167,7 +167,7 @@ struct PlaylistDetailScreen: View {
                 // shows the mosaic, and the page it opens has to show the same
                 // cover it grew out of.
                 } else {
-                    ArtworkMosaic(covers: Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4)))
+                    ArtworkMosaic(covers: PlaylistCover.mosaicCovers(for: playlist, from: tracks))
                         .frame(width: 240, height: 240)
                 }
             }
