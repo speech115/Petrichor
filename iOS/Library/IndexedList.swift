@@ -50,6 +50,16 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     /// adjustable action. Touch updates it as the finger drags; the adjustable
     /// action moves it one section at a time.
     @State private var indexSelection: String?
+    /// The bar is a fixed 24pt-wide column pinned to the trailing edge, with
+    /// no room to its right to grow into. A real text style is required —
+    /// the audit flags a capped/raw size as "Dynamic Type font sizes are
+    /// unsupported" even though the letters aren't individual VoiceOver
+    /// elements — but at the largest accessibility sizes that same style
+    /// renders wide enough to push letters off the screen's trailing edge.
+    /// Apple's own apps resolve this by dropping the index at accessibility
+    /// sizes (Contacts, Music); VoiceOver users still reach every section by
+    /// swiping through the list, just in more steps.
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
         sections: [IndexedSection<Item>],
@@ -75,7 +85,13 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
             }
             .listStyle(.plain)
             .overlay(alignment: .trailing) {
-                if sections.count > 1 {
+                // Hidden at accessibility Dynamic Type sizes: the bar is a
+                // fixed 24pt column with no room to grow into, and a real
+                // text style there would push letters off the screen's
+                // trailing edge. Matches Contacts/Music, which drop their
+                // own alphabet index at the same sizes; the list itself
+                // stays fully reachable by scrolling or VoiceOver swipes.
+                if sections.count > 1, !dynamicTypeSize.isAccessibilitySize {
                     indexBar(proxy: proxy)
                 }
             }
@@ -109,8 +125,10 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                 // size. They must not be stretched into their slots: the
                 // accessibility audit samples an element's text pixels at
                 // its frame center, and a slot-sized letter element reads as
-                // empty space (ratio 1:1, "Contrast failed") and as a font
-                // that does not scale.
+                // empty space (ratio 1:1, "Contrast failed"). A real text
+                // style, not a capped one — this view only renders below
+                // accessibility Dynamic Type sizes (see the overlay above),
+                // so it never needs to absorb their growth.
                 ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
                     Text(key)
                         .font(.body)
@@ -157,6 +175,4 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
         indexSelection = key
         proxy.scrollTo(key, anchor: .top)
     }
-
-
 }
