@@ -20,6 +20,21 @@ struct PetrichorApp: App {
     @State private var hasAppearedActiveOnce = false
 
     init() {
+        #if DEBUG
+        // UI tests are self-sufficient: launched with `--uitest-seed-fixtures`,
+        // the app seeds Documents/Music with the smoke-test fixtures before
+        // AppCoordinator kicks off the launch reconciliation, so a clean
+        // simulator needs no manual `simctl push`. Nothing runs without the
+        // argument, and the whole path is DEBUG-only.
+        if ProcessInfo.processInfo.arguments.contains(uitestSeedFixturesLaunchArgument) {
+            do {
+                try seedUITestFixturesIfNeeded()
+            } catch {
+                Logger.error("Failed to seed UI-test fixtures: \(error)")
+            }
+        }
+        #endif
+
         // iPhone rows load artwork only as they become visible. Keeping every
         // album and artist BLOB in the shared entity cache costs hundreds of
         // megabytes on a real library and makes launch contend with the UI.

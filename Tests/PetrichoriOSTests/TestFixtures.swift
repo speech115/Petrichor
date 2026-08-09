@@ -51,9 +51,7 @@ final class TestMetadataReader: MetadataReader, @unchecked Sendable {
         var metadata = TrackMetadata(url: url)
         let base = url.deletingPathExtension().lastPathComponent
 
-        lock.lock()
-        let override = overrides[url.path]
-        lock.unlock()
+        let override = lock.withLock { overrides[url.path] }
 
         if let override {
             metadata.artist = override.artist
@@ -113,61 +111,3 @@ func makeSilentWAV(seconds: Int = 2) throws -> URL {
     return url
 }
 
-/// Writes a short silent MP3 with optional ID3v2.3 tags. The library scan
-/// seam only imports what `AudioFormat.supportedExtensions` claims (mp3 on
-/// iOS), so the folder-scan test needs real `.mp3` files, not WAVs. The audio
-/// is a stream of well-formed MPEG-1 Layer III silence frames (128 kbps,
-/// 44.1 kHz); the tags carry artist/title/album so the scan's metadata path
-/// and artist/album grouping are exercised, not just the filename fallback.
-func makeSilentMP3(
-    artist: String? = nil,
-    title: String? = nil,
-    album: String? = nil,
-    seconds: Int = 1
-) throws -> URL {
-    var data = Data()
-
-    // ID3v2.3 header, then one frame per non-nil tag. Text is latin-1 with
-    // the 0x00 encoding byte; ASCII fixture values make that safe.
-    let tags = [
-        ("TIT2", title),
-        ("TPE1", artist),
-        ("TALB", album)
-    ].compactMap { id, value -> Data? in
-        guard let value, let bytes = value.data(using: .isoLatin1) else { return nil }
-        var frame = Data()
-        frame.append(contentsOf: Array(id.utf8))
-        frame.append(contentsOf: withUnsafeBytes(of: UInt32(bytes.count + 1).bigEndian, Array.init))
-        frame.append(contentsOf: [0, 0]) // flags
-        frame.append(0) // text encoding: latin-1
-        frame.append(bytes)
-        return frame
-    }
-    if !tags.isEmpty {
-        let tagSize = tags.reduce(0) { $0 + $1.count }
-        data.append(contentsOf: Array("ID3".utf8))
-        data.append(contentsOf: [3, 0, 0]) // version 2.3, no flags
-        // Syncsafe size: only the low 7 bits of each byte count.
-        data.append(UInt8((tagSize >> 21) & 0x7F))
-        data.append(UInt8((tagSize >> 14) & 0x7F))
-        data.append(UInt8((tagSize >> 7) & 0x7F))
-        data.append(UInt8(tagSize & 0x7F))
-        for frame in tags { data.append(frame) }
-    }
-
-    // MPEG-1 Layer III frames: header 0xFF 0xFB 0x90 0x00 (128 kbps,
-    // 44.1 kHz, no padding), frame length 144 * 128000 / 44100 = 417 bytes,
-    // main data zeroed. One frame is 1152 samples ≈ 26 ms.
-    let frameLength = 417
-    let frameCount = Int(ceil(Double(seconds) * 44_100 / 1152))
-    let frameHeader: [UInt8] = [0xFF, 0xFB, 0x90, 0x00]
-    for _ in 0..<frameCount {
-        data.append(contentsOf: frameHeader)
-        data.append(Data(count: frameLength - frameHeader.count))
-    }
-
-    let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("\(UUID().uuidString).mp3")
-    try data.write(to: url)
-    return url
-}

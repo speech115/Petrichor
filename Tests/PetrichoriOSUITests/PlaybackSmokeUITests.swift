@@ -3,9 +3,9 @@
 //
 // The user-visible regression behind the "player does not open" bug: launching
 // a track from "Songs" must not hang the main thread (watchdog kill) and
-// must surface the mini player and the Now Playing screen. Requires audio
-// fixtures in the app's Documents folder on the simulator - see the comment in
-// setUp for how to seed them.
+// must surface the mini player and the Now Playing screen. The app seeds its
+// own audio fixtures when launched with `--uitest-seed-fixtures` (DEBUG-only),
+// so the test is self-sufficient on any clean simulator.
 //
 
 import XCTest
@@ -15,18 +15,15 @@ final class PlaybackSmokeUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Seeds a few silent MP3s named "Alpha One.mp3", "Beta Two.mp3",
-    /// "Gamma Three.mp3" into the app container first, e.g.:
-    ///
-    ///   xcrun simctl push booted org.Petrichor.ios \
-    ///     ~/Music/Alpha\ One.mp3 \
-    ///     Documents/Music/Alpha\ One.mp3
-    ///
-    /// The scanner picks them up on launch; titles fall back to file names.
-    /// The iOS port plays MP3 only (AVAssetMetadataReader), so WAV fixtures
-    /// will never appear in the library.
+    /// The app seeds three silent MP3s named "Alpha One.mp3", "Beta Two.mp3",
+    /// "Gamma Three.mp3" into Documents/Music when launched with
+    /// `--uitest-seed-fixtures` (DEBUG-only, idempotent — existing files are
+    /// left untouched). The scanner picks them up on launch; titles fall back
+    /// to file names. The iOS port plays MP3 only (AVAssetMetadataReader), so
+    /// WAV fixtures will never appear in the library.
     func testLaunchingATrackFromSongsReachesThePlayer() throws {
         let app = XCUIApplication()
+        app.launchArguments += ["--uitest-seed-fixtures"]
         app.launch()
 
         // Home is the default tab; the Songs row lives in the Library section
@@ -58,8 +55,6 @@ final class PlaybackSmokeUITests: XCTestCase {
         // appears in its playing state.
         let pauseButton = app.buttons["Pause"]
         if !pauseButton.waitForExistence(timeout: 15) {
-            let visible = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "isHittable == true"))
             print("UI-DIAG buttons:", app.buttons.allElementsBoundByIndex.map(\.label).prefix(40))
             XCTFail("мини-плеер не появился в играющем состоянии (запуск трека не работает)")
         }
