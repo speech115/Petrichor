@@ -1,12 +1,15 @@
 //
 // PlaylistsTabView (iOS)
 //
-// Root of the Playlists tab: smart playlists first (Favorites and Top 25 Most
-// Played — Recently Played is Home's shelf and would only repeat it), then one
-// section per import source — Spotify, VK, Яндекс Музыка — and everything else
-// under "My Playlists". The source sections exist because the library is a
-// pile of exports from three services and a flat alphabetical list buries
-// that; grouping is what the names already encode. See `PlaylistSource`.
+// Root of the Playlists tab: one section per import source — Spotify, VK,
+// Яндекс Музыка — and then everything the library owns itself, Favorites
+// first. The source sections exist because the library is a pile of exports
+// from three services and a flat alphabetical list buries that; grouping is
+// what the names already encode. See `PlaylistSource`.
+//
+// Of the smart playlists only Favorites appears here. Both Top 25s are
+// queries the library answers rather than lists the owner keeps: Recently
+// Played is already Home's shelf, and Most Played is already a Home row.
 //
 // The service's mark rides in the section header, once, next to its name;
 // rows carry a 48 pt cover — the playlist's own artwork when it has one,
@@ -48,11 +51,6 @@ struct PlaylistsTabView: View {
     var body: some View {
         NavigationStack {
             List {
-                if !smartPlaylists.isEmpty {
-                    Section {
-                        playlistRows(smartPlaylists)
-                    }
-                }
                 ForEach(PlaylistSource.allCases, id: \.title) { source in
                     let playlists = sourcePlaylists[source] ?? []
                     if !playlists.isEmpty {
@@ -136,10 +134,9 @@ struct PlaylistsTabView: View {
         return smart + regular
     }
 
-    /// Smart playlists minus Top 25 Recently Played: Home already opens on the
-    /// Recently Played shelf, so the row here only repeated it.
-    private var smartPlaylists: [Playlist] {
-        displayPlaylists.filter { $0.type == .smart && $0.name != DefaultPlaylists.recentlyPlayed }
+    /// Favorites, the one smart playlist this tab shows.
+    private var favorites: [Playlist] {
+        displayPlaylists.filter { $0.type == .smart && $0.name == DefaultPlaylists.favorites }
     }
 
     /// Each source's playlists: the pinned ones first in their pinned order,
@@ -161,9 +158,13 @@ struct PlaylistsTabView: View {
         }
     }
 
-    /// Regular playlists that belong to no import source.
+    /// What the library owns rather than imported: Favorites, then the regular
+    /// playlists that belong to no import source. Favorites leads because it is
+    /// the one list here that fills itself and the only one worth reaching for
+    /// twice a day; the exports sit above because they are what the sections
+    /// are for.
     private var ownPlaylists: [Playlist] {
-        displayPlaylists.filter { $0.type == .regular && PlaylistSource.of($0) == nil }
+        favorites + displayPlaylists.filter { $0.type == .regular && PlaylistSource.of($0) == nil }
     }
 
     /// The service's mark belongs to the section, not to its rows: repeated
@@ -259,7 +260,7 @@ private struct PlaylistRowView: View {
         } else if let cover = PlaylistCover.of(playlist) {
             PlaylistCoverView(cover: cover)
         } else {
-            ArtworkMosaic(covers: previewTracks.compactMap { $0.displayArtwork })
+            ArtworkMosaic(covers: PlaylistCover.mosaicCovers(for: playlist, from: previewTracks))
         }
     }
 }
