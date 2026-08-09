@@ -25,6 +25,12 @@
 // scheduled after reconciliation ends (`.utility`, never before), so a cold
 // start is not slowed down by indexing.
 //
+// A database reset (`LibraryManager.resetAllData()`) is not just another
+// change to diff: it erases the file and re-migrates, so ids restart from 1
+// and the snapshot's old entries would misdescribe whatever reuses them.
+// `.libraryDataDidReset` routes that case to `resetIndex`, which wipes the
+// system index and the snapshot outright before resyncing - see there.
+//
 
 import CoreSpotlight
 import Foundation
@@ -107,6 +113,28 @@ final actor SpotlightIndexer {
             guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
             scheduleSync(with: databaseManager)
         }
+        NotificationCenter.default.addObserver(
+            forName: .libraryDataDidReset,
+            object: nil,
+            queue: nil
+        ) { _ in
+            guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
+            scheduleReset(with: databaseManager)
+        }
+    }
+
+    /// `resetDatabase()` erases the file and re-migrates: the next scan's
+    /// tracks and albums start from id 1 again. A plain resync would diff
+    /// those against the surviving snapshot and could read a reused id as
+    /// "unchanged" if its digest happens to coincide with what the deleted
+    /// row left behind - stale title/artist/album would then sit in the
+    /// system index under content that no longer matches it. Wipe first
+    /// (`resetIndex`), so the reused id has no prior digest to be confused
+    /// with; run/`scheduleSync` after that resyncs as usual.
+    nonisolated static func scheduleReset(with databaseManager: DatabaseManager) {
+        Task(priority: .utility) {
+            await SpotlightIndexer.shared.resetIndex(databaseManager: databaseManager)
+        }
     }
 
     func syncAfterReconciliation(databaseManager: DatabaseManager) async {
@@ -122,6 +150,26 @@ final actor SpotlightIndexer {
         } catch {
             Logger.error("Spotlight sync failed: \(error)")
         }
+    }
+
+    /// Clears the system index and the three id/digest snapshots outright,
+    /// then runs a normal sync: with an empty snapshot every current row
+    /// reads as new and gets freshly indexed, so nothing from before the
+    /// reset can survive under a reused id. Not gated on `isSyncing` - a
+    /// reset must win even if a sync happens to be mid-flight, since the
+    /// database underneath it was just erased regardless.
+    func resetIndex(databaseManager: DatabaseManager) async {
+        do {
+            try await index.deleteAllSearchableItems()
+        } catch {
+            Logger.error("Spotlight: failed to clear the index on reset: \(error)")
+        }
+        userDefaults.removeObject(forKey: Keys.trackSnapshot)
+        userDefaults.removeObject(forKey: Keys.albumSnapshot)
+        userDefaults.removeObject(forKey: Keys.artistSnapshot)
+        Logger.info("Spotlight: cleared the index and snapshot after a database reset")
+
+        await syncAfterReconciliation(databaseManager: databaseManager)
     }
 
     // MARK: - Sync

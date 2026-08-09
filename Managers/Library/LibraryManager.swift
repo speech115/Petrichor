@@ -407,6 +407,11 @@ class LibraryManager: ObservableObject {
             // Clear UserDefaults (remove the security bookmarks reference)
             UserDefaults.standard.removeObject(forKey: "LastScanDate")
         }
+
+        // Row ids restart from 1 after `resetDatabase()`'s erase + re-migrate;
+        // anything keyed by id elsewhere (the iOS search index) needs to know
+        // its old bookkeeping no longer applies. See `.libraryDataDidReset`.
+        NotificationCenter.default.post(name: .libraryDataDidReset, object: nil)
     }
 
     @objc
