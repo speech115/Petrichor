@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // MARK: - Track Metadata
 
@@ -121,6 +122,13 @@ enum MetadataEngine {
     /// deterministic one. The simulator's media service is a shared resource
     /// and intermittently fails `AVAsset.load(.metadata)` under parallel test
     /// load, which made the folder-scan seam tests flaky.
-    static var readerOverride: MetadataReader?
+    ///
+    /// `Mutex`-backed: tests set this once before the scan pipeline runs, and
+    /// `reader()` reads it from whatever thread the scan runs on.
+    private static let readerOverrideBox = Mutex<MetadataReader?>(nil)
+    static var readerOverride: MetadataReader? {
+        get { readerOverrideBox.withLock { $0 } }
+        set { readerOverrideBox.withLock { $0 = newValue } }
+    }
     #endif
 }

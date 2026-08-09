@@ -1,5 +1,6 @@
 import CoreImage
 import SwiftUI
+import Synchronization
 import UniformTypeIdentifiers
 
 #if os(iOS)
@@ -310,7 +311,12 @@ enum ImageUtils {
 
     // MARK: - Cached Color Lookups
 
-    private static var colorCache = NSCache<NSString, CachedPlatformColors>()
+    /// `NSCache` is thread-safe at runtime but isn't `Sendable`, so a bare
+    /// `static var` of it is flagged as unverified global mutable state. The
+    /// `Mutex` wrapper is redundant locking (NSCache already serializes
+    /// itself) but gives the checker something it can actually verify,
+    /// without an `@unchecked Sendable` box around a type this file doesn't own.
+    private static let colorCache = Mutex(NSCache<NSString, CachedPlatformColors>())
 
     /// Returns cached dominant colors for the given ID, extracting from imageData on cache miss.
     static func cachedDominantColors(
@@ -318,12 +324,12 @@ enum ImageUtils {
         imageData: Data
     ) -> [PlatformColor] {
         let cacheKey = "\(id)-dominantColors" as NSString
-        if let cached = colorCache.object(forKey: cacheKey) {
+        if let cached = colorCache.withLock({ $0.object(forKey: cacheKey) }) {
             return cached.colors
         }
 
         let colors = extractDominantColors(from: imageData)
-        colorCache.setObject(CachedPlatformColors(colors: colors), forKey: cacheKey)
+        colorCache.withLock { $0.setObject(CachedPlatformColors(colors: colors), forKey: cacheKey) }
         return colors
     }
 
@@ -335,14 +341,14 @@ enum ImageUtils {
     ) -> [Color] {
         let suffix = isDark ? "dark" : "light"
         let cacheKey = "\(id)-gradient-\(suffix)" as NSString
-        if let cached = colorCache.object(forKey: cacheKey) {
+        if let cached = colorCache.withLock({ $0.object(forKey: cacheKey) }) {
             return cached.colors.map { Color(platformColor: $0) }
         }
 
         let dominant = cachedDominantColors(id: id, imageData: imageData)
         let adjusted = backgroundGradientColors(from: dominant, isDark: isDark)
         let platformColors = adjusted.map { platformColor(from: $0) }
-        colorCache.setObject(CachedPlatformColors(colors: platformColors), forKey: cacheKey)
+        colorCache.withLock { $0.setObject(CachedPlatformColors(colors: platformColors), forKey: cacheKey) }
         return adjusted
     }
 
@@ -354,18 +360,18 @@ enum ImageUtils {
         #endif
     }
 
-    private static var generatedArtworkCache = NSCache<NSString, NSData>()
+    private static let generatedArtworkCache = Mutex(NSCache<NSString, NSData>())
 
     /// Returns procedural artwork for the seed, generating (and caching) on a cache miss.
     static func cachedCategoryArtwork(text: String, seed: String) -> Data? {
         let cacheKey = seed as NSString
-        if let cached = generatedArtworkCache.object(forKey: cacheKey) {
+        if let cached = generatedArtworkCache.withLock({ $0.object(forKey: cacheKey) }) {
             return cached as Data
         }
 
         let generated = generateCategoryArtwork(text: text, seed: seed)
         if let generated {
-            generatedArtworkCache.setObject(generated as NSData, forKey: cacheKey)
+            generatedArtworkCache.withLock { $0.setObject(generated as NSData, forKey: cacheKey) }
         }
         return generated
     }

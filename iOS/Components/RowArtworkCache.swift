@@ -9,6 +9,7 @@
 
 import UIKit
 
+@MainActor
 final class RowArtworkCache {
     static let shared = RowArtworkCache()
 

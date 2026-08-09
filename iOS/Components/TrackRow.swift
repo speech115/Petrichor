@@ -159,17 +159,26 @@ struct TrackRow: View {
 }
 
 extension TrackRow: Equatable {
-    static func == (lhs: TrackRow, rhs: TrackRow) -> Bool {
-        lhs.track.id == rhs.track.id
-            && lhs.track.title == rhs.track.title
-            && lhs.track.artist == rhs.track.artist
-            && lhs.track.isFavorite == rhs.track.isFavorite
-            && lhs.track.albumId == rhs.track.albumId
-            && lhs.track.displayArtwork?.count == rhs.track.displayArtwork?.count
-            && lhs.playlistManager === rhs.playlistManager
-            && lhs.libraryManager === rhs.libraryManager
-            && lhs.playbackManager === rhs.playbackManager
-            && sameMenuContext(lhs.menuContext, rhs.menuContext)
+    // `TrackRow` is `@MainActor`-inferred (it's a `View`), but `Equatable`'s
+    // requirement isn't isolated by its own declaration - an "isolated
+    // conformance" the checker can't verify calls into from outside. SwiftUI
+    // itself calls `==` synchronously from the main thread as part of view
+    // diffing (that's the whole point of conforming a `View` to `Equatable`),
+    // so `nonisolated` plus `assumeIsolated` turns that real guarantee into a
+    // checked one instead of leaving the conformance unimplementable.
+    nonisolated static func == (lhs: TrackRow, rhs: TrackRow) -> Bool {
+        MainActor.assumeIsolated {
+            lhs.track.id == rhs.track.id
+                && lhs.track.title == rhs.track.title
+                && lhs.track.artist == rhs.track.artist
+                && lhs.track.isFavorite == rhs.track.isFavorite
+                && lhs.track.albumId == rhs.track.albumId
+                && lhs.track.displayArtwork?.count == rhs.track.displayArtwork?.count
+                && lhs.playlistManager === rhs.playlistManager
+                && lhs.libraryManager === rhs.libraryManager
+                && lhs.playbackManager === rhs.playbackManager
+                && sameMenuContext(lhs.menuContext, rhs.menuContext)
+        }
     }
 
     private static func sameMenuContext(

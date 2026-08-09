@@ -41,6 +41,7 @@ enum ColorMode: String, CaseIterable {
     }
 
     /// Applies the mode to the whole app immediately.
+    @MainActor
     func apply() {
         #if os(macOS)
         switch self {

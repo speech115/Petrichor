@@ -202,7 +202,28 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            | tee "$RUNNER_TEMP/ios-test-raw.log" \
             | xcbeautify --renderer github-actions
+
+      # PetrichoriOS builds with SWIFT_STRICT_CONCURRENCY=complete (project.pbxproj) -
+      # this target must compile clean. Two `warning:` substrings in the raw log are
+      # not compiler warnings and stay allowlisted here:
+      #   - appintentsmetadataprocessor's info line: Automation left the iOS target in
+      #     task 03, so there is no AppIntents.framework dependency to extract
+      #     metadata from - expected, not a defect.
+      # Any other `warning:` line fails the build.
+      - name: Gate on zero compiler warnings
+        run: |
+          ALL_WARNINGS=$(grep -c 'warning:' "$RUNNER_TEMP/ios-test-raw.log" || true)
+          REAL_WARNINGS=$(grep 'warning:' "$RUNNER_TEMP/ios-test-raw.log" \
+            | grep -v 'Metadata extraction skipped\. No AppIntents\.framework dependency found' \
+            || true)
+          if [ -n "$REAL_WARNINGS" ]; then
+            echo "::error::iOS build produced compiler warnings under strict concurrency:"
+            echo "$REAL_WARNINGS"
+            exit 1
+          fi
+          echo "Zero compiler warnings ($ALL_WARNINGS 'warning:' line(s) in the raw log, all allowlisted)."
 
       - name: Upload xcresult on failure
         if: failure()

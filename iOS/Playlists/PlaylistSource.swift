@@ -139,6 +139,7 @@ struct PinnedPlaylist {
 
 // MARK: - Display Name
 
+@MainActor
 enum PlaylistDisplay {
     /// The name to show: the pinned entry's title when it renames the
     /// playlist, otherwise its own stored name.

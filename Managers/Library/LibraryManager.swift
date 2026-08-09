@@ -77,6 +77,12 @@ class LibraryManager: ObservableObject {
     private var bookmarkedFolderURLs: [URL] = []
     private var fileWatcherTimer: Timer?
     private var hasPerformedInitialScan = false
+    /// Tracks the auto-scan interval across `autoScanIntervalDidChange` calls,
+    /// distinguishing "never observed" from "observed and unchanged". An
+    /// instance property rather than a function-local static: a local `static
+    /// var` is still process-global storage to the concurrency checker, and
+    /// this one only needs to live as long as `LibraryManager` does anyway.
+    private var lastObservedAutoScanInterval: AutoScanInterval?
     private var lastThresholdCheckTime: Date = .distantPast
     private let thresholdCheckInterval: TimeInterval = 1.0
     internal var cachedLibraryCategories: [LibraryFilterType: [LibraryFilterItem]] = [:]
@@ -197,7 +203,15 @@ class LibraryManager: ObservableObject {
     }
 
     deinit {
-        fileWatcherTimer?.invalidate()
+        // `fileWatcherTimer` is MainActor-isolated storage (an implicit
+        // consequence of the class-level `@MainActor`), but `deinit` itself
+        // is never actor-isolated. There is exactly one reference left by
+        // construction - deinit only runs once nothing else can be reading
+        // or writing this instance's storage - so `assumeIsolated` reflects
+        // a real invariant here, not an assumption.
+        MainActor.assumeIsolated {
+            fileWatcherTimer?.invalidate()
+        }
         // Stop accessing all security scoped resources. `deinit` is never
         // actor-isolated, so this reads `bookmarkedFolderURLs` (a plain
         // stored property) rather than the isolated `folders` getter.
@@ -440,20 +454,14 @@ class LibraryManager: ObservableObject {
     private func autoScanIntervalDidChange() {
         let newInterval = autoScanInterval
 
-        enum LastInterval {
-            static var value: AutoScanInterval?
-            static var initialized = false
-        }
-
-        if !LastInterval.initialized {
-            LastInterval.value = newInterval
-            LastInterval.initialized = true
+        guard let previousInterval = lastObservedAutoScanInterval else {
+            lastObservedAutoScanInterval = newInterval
             return
         }
 
         // Only proceed if the interval actually changed
-        guard LastInterval.value != newInterval else { return }
-        LastInterval.value = newInterval
+        guard previousInterval != newInterval else { return }
+        lastObservedAutoScanInterval = newInterval
 
         // Check if the auto-scan interval specifically changed
         DispatchQueue.main.async { [weak self] in

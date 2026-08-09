@@ -90,9 +90,14 @@ class AppCoordinator: ObservableObject {
     }
     
     deinit {
-        // Clean up any remaining observers
-        if let observer = libraryObserver {
-            NotificationCenter.default.removeObserver(observer)
+        // `libraryObserver` is MainActor-isolated storage; `deinit` itself
+        // never is. Safe by construction - deinit only runs once nothing else
+        // can be touching this instance - so `assumeIsolated` checks exactly
+        // that instead of leaving it an unchecked assumption.
+        MainActor.assumeIsolated {
+            if let observer = libraryObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
         }
     }
     

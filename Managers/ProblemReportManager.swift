@@ -79,7 +79,11 @@ enum ProblemReportError: LocalizedError {
 /// multipart payload (user fields + optional diagnostics + recent log), and
 /// submits it to the report Worker. Follows the app's manager-singleton pattern
 /// (cf. `LyricsManager`); transient form state lives in the view.
-final class ProblemReportManager {
+///
+/// Genuinely `Sendable`, not `@unchecked`: every stored property is a `static
+/// let`, and both instance properties are computed reads of `Bundle` (itself
+/// thread-safe) - there is no mutable instance state to race on.
+final class ProblemReportManager: Sendable {
     static let shared = ProblemReportManager()
 
     private init() {}

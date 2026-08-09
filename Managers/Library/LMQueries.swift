@@ -52,7 +52,8 @@ extension LibraryManager {
         return tracks
     }
 
-    func getTracksForAlbum(_ album: AlbumEntity) -> [Track] {
+    /// `nonisolated`: see `getTracksForArtist` above.
+    nonisolated func getTracksForAlbum(_ album: AlbumEntity) -> [Track] {
         var tracks = databaseManager.getTracksForAlbumEntity(album, populateArtwork: false)
         databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
         return tracks

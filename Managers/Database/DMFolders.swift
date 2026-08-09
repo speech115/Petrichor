@@ -76,7 +76,11 @@ struct FolderEnumerationResult {
 }
 
 extension DatabaseManager {
-    func addFolders(_ urls: [URL], bookmarkDataMap: [URL: Data], completion: @escaping (Result<[Folder], Error>) -> Void) {
+    func addFolders(
+        _ urls: [URL],
+        bookmarkDataMap: [URL: Data],
+        completion: @escaping @MainActor (Result<[Folder], Error>) -> Void
+    ) {
         Task(priority: .utility) {
             do {
                 let folders = try await addFoldersAsync(urls, bookmarkDataMap: bookmarkDataMap)
@@ -195,7 +199,7 @@ extension DatabaseManager {
         hardRefresh: Bool = false,
         manageActivityIndicator: Bool = true,
         globalScanState: GlobalScanState? = nil,
-        _ completion: @escaping (Result<Void, Error>) -> Void
+        _ completion: @escaping @MainActor (Result<Void, Error>) -> Void
     ) {
         Task {
             do {
@@ -262,7 +266,7 @@ extension DatabaseManager {
         }
     }
 
-    func removeFolder(_ folder: Folder, completion: @escaping (Result<Void, Error>) -> Void) {
+    func removeFolder(_ folder: Folder, completion: @escaping @MainActor (Result<Void, Error>) -> Void) {
         Task {
             do {
                 _ = try await dbQueue.write { db in

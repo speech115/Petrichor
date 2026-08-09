@@ -9,7 +9,15 @@
 import CryptoKit
 import Foundation
 
-class ArtistBioManager {
+/// An `actor`, not a `@MainActor` class: this is a background network worker
+/// (rate-limited MusicBrainz/Wikidata/TMDB/Last.fm fetches), and its only
+/// mutable state (`fetchTask`, the per-service rate-limit timestamps) is
+/// touched exclusively from its own async methods - exactly what an actor is
+/// for. `isArtistInfoFetchEnabled`/`tmdbReadAccessToken`/`lastfmApiKey` stay
+/// `nonisolated`: they read `UserDefaults`/`Bundle` (both thread-safe) and
+/// never touch actor-isolated storage, so callers on other threads (DM*
+/// background scan code) can keep reading them synchronously.
+actor ArtistBioManager {
     // MARK: - Singleton
 
     static let shared = ArtistBioManager()
@@ -52,15 +60,15 @@ class ArtistBioManager {
     private var lastTMDBRequest: Date?
     private var lastLastFMRequest: Date?
 
-    private var tmdbReadAccessToken: String? {
+    private nonisolated var tmdbReadAccessToken: String? {
         Bundle.main.object(forInfoDictionaryKey: "TMDB_READ_ACCESS_TOKEN") as? String
     }
 
-    private var lastfmApiKey: String? {
+    private nonisolated var lastfmApiKey: String? {
         Bundle.main.object(forInfoDictionaryKey: "LASTFM_API_KEY") as? String
     }
 
-    var isArtistInfoFetchEnabled: Bool {
+    nonisolated var isArtistInfoFetchEnabled: Bool {
         UserDefaults.standard.bool(forKey: UserDefaultsKeys.artistInfoFetchEnabled)
     }
 
@@ -78,7 +86,17 @@ class ArtistBioManager {
 
     // MARK: - Public Methods
 
-    func fetchMissingArtistImages(using libraryManager: LibraryManager) {
+    /// `nonisolated` so every existing call site (UI actions, `LibraryManager`
+    /// post-scan hooks) can keep firing this synchronously instead of awaiting
+    /// a background kickoff. The actual `fetchTask` bookkeeping is isolated
+    /// actor state, so it happens in `startFetchingMissingArtistImages` below.
+    nonisolated func fetchMissingArtistImages(using libraryManager: LibraryManager) {
+        Task {
+            await startFetchingMissingArtistImages(using: libraryManager)
+        }
+    }
+
+    private func startFetchingMissingArtistImages(using libraryManager: LibraryManager) {
         fetchTask?.cancel()
 
         let databaseManager = libraryManager.databaseManager

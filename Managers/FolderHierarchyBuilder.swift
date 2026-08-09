@@ -63,15 +63,9 @@ class FolderHierarchyBuilder {
                 }
             }
 
-            let finalSubfolders = subfolders
-            let finalTrackCount = trackCount
             let dbTrackCount = tracksByFolder[LibraryPathStore.storedPath(for: node.url)] ?? 0
 
-            await MainActor.run {
-                node.children = finalSubfolders.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                node.immediateTrackCount = finalTrackCount
-                node.displayTrackCount = dbTrackCount
-            }
+            await node.apply(children: subfolders, immediateTrackCount: trackCount, displayTrackCount: dbTrackCount)
         } catch {
             Logger.error("Failed to scan folder \(node.url.path): \(error)")
         }

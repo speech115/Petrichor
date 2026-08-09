@@ -199,7 +199,7 @@ extension DatabaseManager {
     ]
 
     private func convertArtworkToHEIC(progress: String?) async {
-        NotificationManager.shared.startActivity(String(localized: "Optimizing Library..."))
+        await NotificationManager.shared.startActivity(String(localized: "Optimizing Library..."))
 
         let sizeBefore = DatabaseFactory.databaseFileSize() ?? 0
         let batchSize = 50
@@ -236,7 +236,7 @@ extension DatabaseManager {
                         }
                         return processed + resumeOffset
                     }
-                    NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
+                    await NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
                 }
 
                 for tableIndex in startIndex..<tables.count {
@@ -255,7 +255,7 @@ extension DatabaseManager {
                         totalProcessed += rows.count
                         offset += batchSize
 
-                        NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
+                        await NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
                         if let progressData = try? JSONEncoder().encode(
                             ArtworkConversionProgress(table: ops.name, offset: offset)
                         ),
@@ -275,17 +275,17 @@ extension DatabaseManager {
             let sizeAfter = DatabaseFactory.databaseFileSize() ?? 0
             let spaceSaved = max(0, sizeBefore - sizeAfter)
 
-            NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.stopActivity()
             if spaceSaved > 0 {
                 let savedMB = Double(spaceSaved) / (1024.0 * 1024.0)
-                NotificationManager.shared.addMessage(.info, String(localized: "Library optimized - reclaimed \(String(format: "%.1f", savedMB)) MB"))
+                await NotificationManager.shared.addMessage(.info, String(localized: "Library optimized - reclaimed \(String(format: "%.1f", savedMB)) MB"))
             } else {
-                NotificationManager.shared.addMessage(.info, String(localized: "Library optimized"))
+                await NotificationManager.shared.addMessage(.info, String(localized: "Library optimized"))
             }
             Logger.info("Artwork optimization completed")
         } catch {
-            NotificationManager.shared.stopActivity()
-            NotificationManager.shared.addMessage(.error, String(localized: "Failed to optimize library"))
+            await NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.addMessage(.error, String(localized: "Failed to optimize library"))
             Logger.error("Artwork optimization failed: \(error)")
         }
     }
@@ -299,7 +299,7 @@ extension DatabaseManager {
     }
 
     private func loadKnownArtistsAndRebuild(progress: String?) async {
-        NotificationManager.shared.startActivity(String(localized: "Updating Artists..."))
+        await NotificationManager.shared.startActivity(String(localized: "Updating Artists..."))
 
         var resumeOffset = 0
         if let progress = progress,
@@ -313,12 +313,12 @@ extension DatabaseManager {
             try await rebuildArtistAssociations(resumeOffset: resumeOffset)
 
             completeBackgroundMigration(Self.knownArtistsMigrationIdentifier)
-            NotificationManager.shared.stopActivity()
-            NotificationManager.shared.addMessage(.info, String(localized: "Artists information updated successfully"))
+            await NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.addMessage(.info, String(localized: "Artists information updated successfully"))
             Logger.info("Known artists migration completed")
         } catch {
-            NotificationManager.shared.stopActivity()
-            NotificationManager.shared.addMessage(.error, String(localized: "Failed to update artists information"))
+            await NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.addMessage(.error, String(localized: "Failed to update artists information"))
             Logger.error("Known artists migration failed: \(error)")
         }
     }
@@ -380,7 +380,7 @@ extension DatabaseManager {
                 }
 
                 offset += tracks.count
-                NotificationManager.shared.updateActivityProgress(current: offset, total: totalTracks)
+                await NotificationManager.shared.updateActivityProgress(current: offset, total: totalTracks)
                 self.saveProgress(offset: offset)
             }
 
@@ -490,7 +490,7 @@ extension DatabaseManager {
     }
 
     private func backfillAlbumArtists(progress: String?) async {
-        NotificationManager.shared.startActivity(String(localized: "Updating album artists..."))
+        await NotificationManager.shared.startActivity(String(localized: "Updating album artists..."))
 
         var resumeOffset = 0
         if let progress = progress,
@@ -503,12 +503,12 @@ extension DatabaseManager {
         do {
             try await performAlbumArtistBackfill(resumeOffset: resumeOffset)
             completeBackgroundMigration(Self.albumArtistBackfillIdentifier)
-            NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.stopActivity()
             Logger.info("Album-artist backfill completed")
         } catch {
             // Leave the migration unfinished (completed_at stays NULL) so it resumes
             // from the saved offset on next launch. Never rethrow - don't crash launch.
-            NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.stopActivity()
             Logger.error("Album-artist backfill failed (will resume next launch): \(error)")
         }
     }
@@ -555,7 +555,7 @@ extension DatabaseManager {
                 }
 
                 offset += tracks.count
-                NotificationManager.shared.updateActivityProgress(current: offset, total: totalTracks)
+                await NotificationManager.shared.updateActivityProgress(current: offset, total: totalTracks)
                 if let data = try? JSONEncoder().encode(AlbumArtistBackfillProgress(offset: offset)),
                    let json = String(data: data, encoding: .utf8) {
                     self.updateMigrationProgress(Self.albumArtistBackfillIdentifier, progress: json)
@@ -651,7 +651,7 @@ extension DatabaseManager {
     ]
 
     private func fillArtworkThumbnails(progress: String?) async {
-        NotificationManager.shared.startActivity(String(localized: "Generating Thumbnails..."))
+        await NotificationManager.shared.startActivity(String(localized: "Generating Thumbnails..."))
 
         let batchSize = 50
         let tables = Self.thumbnailTableOps
@@ -675,7 +675,7 @@ extension DatabaseManager {
 
             guard totalRows > 0 else {
                 completeBackgroundMigration(Self.thumbnailBackfillIdentifier)
-                NotificationManager.shared.stopActivity()
+                await NotificationManager.shared.stopActivity()
                 Logger.info("No artwork rows to thumbnail, marking backfill complete")
                 return
             }
@@ -694,7 +694,7 @@ extension DatabaseManager {
                         }
                         return processed + resumeOffset
                     }
-                    NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
+                    await NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
                 }
 
                 for tableIndex in startIndex..<tables.count {
@@ -713,7 +713,7 @@ extension DatabaseManager {
                         totalProcessed += rows.count
                         offset += batchSize
 
-                        NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
+                        await NotificationManager.shared.updateActivityProgress(current: totalProcessed, total: totalRows)
                         if let progressData = try? JSONEncoder().encode(
                             ThumbnailFillProgress(table: ops.name, offset: offset)
                         ),
@@ -728,12 +728,12 @@ extension DatabaseManager {
             }.value
 
             completeBackgroundMigration(Self.thumbnailBackfillIdentifier)
-            NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.stopActivity()
             Logger.info("Thumbnail backfill completed")
         } catch {
             // Leave the migration unfinished (completed_at stays NULL) so it resumes
             // from the saved offset on next launch. Never rethrow - don't crash launch.
-            NotificationManager.shared.stopActivity()
+            await NotificationManager.shared.stopActivity()
             Logger.error("Thumbnail backfill failed (will resume next launch): \(error)")
         }
     }

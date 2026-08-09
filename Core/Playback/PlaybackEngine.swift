@@ -61,10 +61,13 @@ public struct AudioEntryId: Hashable {
 
     // Entry ids only have to be unique within a session, so a counter is enough -
     // and a whole library queued at once mints one per track.
+    @MainActor
     private static var nextValue: UInt64 = 0
 
     /// A new identity, distinct from every other in this session. Main-thread only,
-    /// which every queue mutation already is.
+    /// which every queue mutation already is - `@MainActor` makes that a checked
+    /// requirement instead of just this comment.
+    @MainActor
     public static func fresh() -> AudioEntryId {
         nextValue &+= 1
         return AudioEntryId(id: "e\(nextValue)")

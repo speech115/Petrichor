@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import GRDB
 import ImageIO
+import Synchronization
 
 enum PlaylistType: String, Codable {
     case regular
@@ -77,23 +78,32 @@ struct SmartPlaylistCriteria: Codable, Equatable {
 }
 
 // Cache manager for playlist artwork
-private class PlaylistArtworkCache {
+//
+// `Playlist` is a plain struct passed around freely (view code, playlist
+// managers, background import/merge paths), so this cache can't assume a
+// single isolation domain the way a UI-only cache can - it needs to be
+// genuinely safe under concurrent access, not just MainActor-only. `Mutex`
+// (not `@unchecked Sendable`) is the checked way to do that for a plain
+// `Dictionary`, which - unlike `NSCache` - has no thread safety of its own.
+private final class PlaylistArtworkCache: Sendable {
     static let shared = PlaylistArtworkCache()
     // Keyed on the cover-feeding tracks' stable database IDs (order-independent), so the
     // cache survives reloads (which mint new per-instance `Track.id`s) and reorders.
-    private var cache: [UUID: (artwork: Data, trackIDs: [Int64])] = [:]
+    private let cache = Mutex<[UUID: (artwork: Data, trackIDs: [Int64])]>([:])
 
     func getCachedArtwork(for playlistID: UUID, currentTrackIDs: [Int64]) -> Data? {
-        guard let cached = cache[playlistID] else { return nil }
-        return cached.trackIDs == currentTrackIDs ? cached.artwork : nil
+        cache.withLock { cache in
+            guard let cached = cache[playlistID] else { return nil }
+            return cached.trackIDs == currentTrackIDs ? cached.artwork : nil
+        }
     }
 
     func setCachedArtwork(_ artwork: Data, for playlistID: UUID, trackIDs: [Int64]) {
-        cache[playlistID] = (artwork, trackIDs)
+        cache.withLock { $0[playlistID] = (artwork, trackIDs) }
     }
-    
+
     func clearCache(for playlistID: UUID) {
-        cache.removeValue(forKey: playlistID)
+        cache.withLock { $0.removeValue(forKey: playlistID) }
     }
 }
 

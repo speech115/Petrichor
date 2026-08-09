@@ -172,10 +172,14 @@ class PlaybackManager: NSObject, ObservableObject {
         // access is fine here (deinit has exclusive access by construction);
         // it does the same essential teardown - stop the engine, cancel the
         // timer - without touching the published surface, which is pointless
-        // to update on a value about to be deallocated anyway.
-        artworkEnrichmentTask?.cancel()
-        audioPlayer.stop()
-        progressUpdateTimer?.cancel()
+        // to update on a value about to be deallocated anyway. `assumeIsolated`
+        // makes that "exclusive access by construction" argument a checked one:
+        // deinit only runs once nothing else can observe or touch this instance.
+        MainActor.assumeIsolated {
+            artworkEnrichmentTask?.cancel()
+            audioPlayer.stop()
+            progressUpdateTimer?.cancel()
+        }
     }
     
     // MARK: - Player State Management

@@ -7,6 +7,7 @@
 import SwiftUI
 
 /// Manages playlist-specific sorting preferences
+@MainActor
 class PlaylistSortManager: ObservableObject {
     static let shared = PlaylistSortManager()
 
