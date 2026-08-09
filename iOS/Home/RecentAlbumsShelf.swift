@@ -53,9 +53,11 @@ struct RecentAlbumsShelf: View {
                                     .font(.subheadline.weight(.semibold))
                                     .fixedSize(horizontal: false, vertical: true)
 
+                                // `.secondary` measures ~3.4:1 at caption
+                                // size; the shared color clears 4.5:1.
                                 Text(album.artistName ?? "")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.secondaryText)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                             .frame(width: 130, alignment: .leading)
