@@ -138,3 +138,6 @@ opencode.json
 
 # Git worktrees
 .worktrees/
+
+# SwiftPM cloned packages (CI resolves into .spm)
+.spm/
