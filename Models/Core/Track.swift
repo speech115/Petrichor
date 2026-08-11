@@ -89,7 +89,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     var dominantColors: [PlatformColor] {
         guard let original = albumArtworkData else { return [] }
         let artworkIdentity = albumId.map { "album-\($0)-\(original.count)" } ?? "track-\(id)-\(original.count)"
-        return ImageUtils.cachedDominantColorsIfAvailable(id: artworkIdentity)
+        return ImageUtils.cachedDominantColorsIfAvailable(id: artworkIdentity, imageData: original)
     }
 
     @MainActor

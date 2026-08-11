@@ -64,8 +64,8 @@ extension Entity {
 extension Entity {
     @MainActor
     var dominantColors: [PlatformColor] {
-        guard artworkData != nil else { return [] }
-        return ImageUtils.cachedDominantColorsIfAvailable(id: id.uuidString)
+        guard let artworkData else { return [] }
+        return ImageUtils.cachedDominantColorsIfAvailable(id: id.uuidString, imageData: artworkData)
     }
 
     @MainActor

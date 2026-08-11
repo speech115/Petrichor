@@ -365,6 +365,17 @@ enum ImageUtils {
     /// for "sending" a `Value: AnyObject` payload back out, which is worse).
     @MainActor
     private static let colorCache = NSCache<NSString, CachedPlatformColors>()
+    @MainActor
+    private static var colorCacheRequestRevision: UInt64 = 0
+    @MainActor
+    private static var latestColorCacheRequest: [String: UInt64] = [:]
+
+    @MainActor
+    private static func beginColorCacheRequest(for key: String) -> UInt64 {
+        colorCacheRequestRevision &+= 1
+        latestColorCacheRequest[key] = colorCacheRequestRevision
+        return colorCacheRequestRevision
+    }
 
     /// Returns cached dominant colors for the given ID, extracting from imageData on cache miss.
     @MainActor
@@ -373,23 +384,37 @@ enum ImageUtils {
         imageData: Data
     ) async -> [PlatformColor] {
         let cacheKey = "\(id)-dominantColors" as NSString
-        if let cached = colorCache.object(forKey: cacheKey) {
+        if let cached = colorCache.object(forKey: cacheKey),
+           cached.imageData == imageData {
             return cached.colors
         }
 
+        let requestKey = cacheKey as String
+        let requestRevision = beginColorCacheRequest(for: requestKey)
         let colors = await extractDominantColors(from: imageData)
-        if let cached = colorCache.object(forKey: cacheKey) {
+        guard latestColorCacheRequest[requestKey] == requestRevision else {
+            return colors
+        }
+        if let cached = colorCache.object(forKey: cacheKey),
+           cached.imageData == imageData {
             return cached.colors
         }
-        colorCache.setObject(CachedPlatformColors(colors: colors), forKey: cacheKey)
+        colorCache.setObject(
+            CachedPlatformColors(imageData: imageData, colors: colors),
+            forKey: cacheKey
+        )
         return colors
     }
 
     /// Cache-only lookup for synchronous SwiftUI styling helpers. Cache misses
     /// never decode on MainActor; their owning view schedules the async loader.
+    /// The exact input bytes are the artwork revision, so a same-ID replacement
+    /// can never read colors produced for the previous artwork.
     @MainActor
-    static func cachedDominantColorsIfAvailable(id: String) -> [PlatformColor] {
-        colorCache.object(forKey: "\(id)-dominantColors" as NSString)?.colors ?? []
+    static func cachedDominantColorsIfAvailable(id: String, imageData: Data) -> [PlatformColor] {
+        guard let cached = colorCache.object(forKey: "\(id)-dominantColors" as NSString),
+              cached.imageData == imageData else { return [] }
+        return cached.colors
     }
 
     /// Returns cached background gradient colors for the given ID and color scheme.
@@ -401,14 +426,27 @@ enum ImageUtils {
     ) async -> [Color] {
         let suffix = isDark ? "dark" : "light"
         let cacheKey = "\(id)-gradient-\(suffix)" as NSString
-        if let cached = colorCache.object(forKey: cacheKey) {
+        if let cached = colorCache.object(forKey: cacheKey),
+           cached.imageData == imageData {
             return cached.colors.map { Color(platformColor: $0) }
         }
 
+        let requestKey = cacheKey as String
+        let requestRevision = beginColorCacheRequest(for: requestKey)
         let dominant = await cachedDominantColors(id: id, imageData: imageData)
         let adjusted = backgroundGradientColors(from: dominant, isDark: isDark)
         let platformColors = adjusted.map { platformColor(from: $0) }
-        colorCache.setObject(CachedPlatformColors(colors: platformColors), forKey: cacheKey)
+        guard latestColorCacheRequest[requestKey] == requestRevision else {
+            return adjusted
+        }
+        if let cached = colorCache.object(forKey: cacheKey),
+           cached.imageData == imageData {
+            return cached.colors.map { Color(platformColor: $0) }
+        }
+        colorCache.setObject(
+            CachedPlatformColors(imageData: imageData, colors: platformColors),
+            forKey: cacheKey
+        )
         return adjusted
     }
 
@@ -637,8 +675,14 @@ enum ImageUtils {
 // MARK: - Color Cache Object
 
 private class CachedPlatformColors: NSObject {
+    /// `Data` is copy-on-write; retaining it gives the cache an exact artwork
+    /// revision without duplicating the image buffer or relying on hash equality.
+    let imageData: Data
     let colors: [PlatformColor]
-    init(colors: [PlatformColor]) { self.colors = colors }
+    init(imageData: Data, colors: [PlatformColor]) {
+        self.imageData = imageData
+        self.colors = colors
+    }
 }
 
 // MARK: - Deterministic Hash

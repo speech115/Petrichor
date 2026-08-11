@@ -17,6 +17,7 @@ struct EntityDetailView: View {
     @State private var artworkDeleted = false
     @State private var artistBio: String?
     @State private var gradientColors: [Color] = []
+    @State private var gradientRevision: UInt64 = 0
 
     init(entity: any Entity, onBack: (() -> Void)? = nil, pinnedItem: PinnedItem? = nil) {
         self.entity = entity
@@ -480,6 +481,8 @@ struct EntityDetailView: View {
 
 extension EntityDetailView {
     private func updateGradientColors() {
+        gradientRevision &+= 1
+        let revision = gradientRevision
         guard useArtworkColors else {
             gradientColors = []
             return
@@ -487,6 +490,7 @@ extension EntityDetailView {
 
         let overrideData = overrideArtworkData
         let entity = entity
+        let artworkInput = overrideData ?? entity.artworkData
         let isDark = colorScheme == .dark
         Task { @MainActor in
             let resolved: [Color]
@@ -497,8 +501,10 @@ extension EntityDetailView {
                 resolved = await entity.backgroundGradientColors(isDark: isDark)
             }
             guard !Task.isCancelled,
+                  gradientRevision == revision,
                   self.entity.id == entity.id,
                   useArtworkColors,
+                  (self.overrideArtworkData ?? self.entity.artworkData) == artworkInput,
                   (colorScheme == .dark) == isDark else { return }
             gradientColors = resolved
         }
