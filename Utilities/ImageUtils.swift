@@ -364,18 +364,7 @@ enum ImageUtils {
     /// non-`Sendable` type (holding it behind a lock only trades this problem
     /// for "sending" a `Value: AnyObject` payload back out, which is worse).
     @MainActor
-    private static let colorCache = NSCache<NSString, CachedPlatformColors>()
-    @MainActor
-    private static var colorCacheRequestRevision: UInt64 = 0
-    @MainActor
-    private static var latestColorCacheRequest: [String: UInt64] = [:]
-
-    @MainActor
-    private static func beginColorCacheRequest(for key: String) -> UInt64 {
-        colorCacheRequestRevision &+= 1
-        latestColorCacheRequest[key] = colorCacheRequestRevision
-        return colorCacheRequestRevision
-    }
+    private static let colorCache = NSCache<ArtworkColorCacheKey, CachedPlatformColors>()
 
     /// Returns cached dominant colors for the given ID, extracting from imageData on cache miss.
     @MainActor
@@ -383,37 +372,27 @@ enum ImageUtils {
         id: String,
         imageData: Data
     ) async -> [PlatformColor] {
-        let cacheKey = "\(id)-dominantColors" as NSString
-        if let cached = colorCache.object(forKey: cacheKey),
-           cached.imageData == imageData {
+        let cacheKey = ArtworkColorCacheKey(id: id, variant: .dominant, imageData: imageData)
+        if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors
         }
 
-        let requestKey = cacheKey as String
-        let requestRevision = beginColorCacheRequest(for: requestKey)
         let colors = await extractDominantColors(from: imageData)
-        guard latestColorCacheRequest[requestKey] == requestRevision else {
-            return colors
-        }
-        if let cached = colorCache.object(forKey: cacheKey),
-           cached.imageData == imageData {
+        if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors
         }
-        colorCache.setObject(
-            CachedPlatformColors(imageData: imageData, colors: colors),
-            forKey: cacheKey
-        )
+        colorCache.setObject(CachedPlatformColors(colors: colors), forKey: cacheKey)
         return colors
     }
 
     /// Cache-only lookup for synchronous SwiftUI styling helpers. Cache misses
     /// never decode on MainActor; their owning view schedules the async loader.
-    /// The exact input bytes are the artwork revision, so a same-ID replacement
-    /// can never read colors produced for the previous artwork.
+    /// The exact input bytes are part of the cache key, so a same-ID replacement
+    /// can never address colors produced for the previous artwork.
     @MainActor
     static func cachedDominantColorsIfAvailable(id: String, imageData: Data) -> [PlatformColor] {
-        guard let cached = colorCache.object(forKey: "\(id)-dominantColors" as NSString),
-              cached.imageData == imageData else { return [] }
+        let cacheKey = ArtworkColorCacheKey(id: id, variant: .dominant, imageData: imageData)
+        guard let cached = colorCache.object(forKey: cacheKey) else { return [] }
         return cached.colors
     }
 
@@ -424,29 +403,19 @@ enum ImageUtils {
         imageData: Data,
         isDark: Bool
     ) async -> [Color] {
-        let suffix = isDark ? "dark" : "light"
-        let cacheKey = "\(id)-gradient-\(suffix)" as NSString
-        if let cached = colorCache.object(forKey: cacheKey),
-           cached.imageData == imageData {
+        let variant: ArtworkColorCacheKey.Variant = isDark ? .darkGradient : .lightGradient
+        let cacheKey = ArtworkColorCacheKey(id: id, variant: variant, imageData: imageData)
+        if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors.map { Color(platformColor: $0) }
         }
 
-        let requestKey = cacheKey as String
-        let requestRevision = beginColorCacheRequest(for: requestKey)
         let dominant = await cachedDominantColors(id: id, imageData: imageData)
         let adjusted = backgroundGradientColors(from: dominant, isDark: isDark)
         let platformColors = adjusted.map { platformColor(from: $0) }
-        guard latestColorCacheRequest[requestKey] == requestRevision else {
-            return adjusted
-        }
-        if let cached = colorCache.object(forKey: cacheKey),
-           cached.imageData == imageData {
+        if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors.map { Color(platformColor: $0) }
         }
-        colorCache.setObject(
-            CachedPlatformColors(imageData: imageData, colors: platformColors),
-            forKey: cacheKey
-        )
+        colorCache.setObject(CachedPlatformColors(colors: platformColors), forKey: cacheKey)
         return adjusted
     }
 
@@ -672,15 +641,48 @@ enum ImageUtils {
     #endif
 }
 
-// MARK: - Color Cache Object
+// MARK: - Color Cache Objects
+
+private final class ArtworkColorCacheKey: NSObject {
+    enum Variant: Int {
+        case dominant
+        case lightGradient
+        case darkGradient
+    }
+
+    let id: String
+    let variant: Variant
+    let imageData: Data
+
+    init(id: String, variant: Variant, imageData: Data) {
+        self.id = id
+        self.variant = variant
+        self.imageData = imageData
+    }
+
+    /// Keep ordinary cache hits cheap. Equal hashes are only a bucket lookup:
+    /// `isEqual` below compares the exact bytes, so same-ID, same-length artwork
+    /// revisions remain distinct without hashing a large image on MainActor.
+    override var hash: Int {
+        var hasher = Hasher()
+        hasher.combine(id)
+        hasher.combine(variant.rawValue)
+        hasher.combine(imageData.count)
+        return hasher.finalize()
+    }
+
+    override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? ArtworkColorCacheKey else { return false }
+        return id == other.id
+            && variant == other.variant
+            && imageData == other.imageData
+    }
+}
 
 private class CachedPlatformColors: NSObject {
-    /// `Data` is copy-on-write; retaining it gives the cache an exact artwork
-    /// revision without duplicating the image buffer or relying on hash equality.
-    let imageData: Data
     let colors: [PlatformColor]
-    init(imageData: Data, colors: [PlatformColor]) {
-        self.imageData = imageData
+
+    init(colors: [PlatformColor]) {
         self.colors = colors
     }
 }

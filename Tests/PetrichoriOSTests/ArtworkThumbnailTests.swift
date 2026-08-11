@@ -6,7 +6,12 @@ import UniformTypeIdentifiers
 
 // MARK: - Helpers
 
-private func makeTestImage(width: Int, height: Int) -> Data {
+private func makeTestImage(
+    width: Int,
+    height: Int,
+    backgroundColor: CGColor = CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1),
+    accentColor: CGColor = CGColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1)
+) -> Data {
     let context = CGContext(
         data: nil,
         width: width,
@@ -16,9 +21,9 @@ private func makeTestImage(width: Int, height: Int) -> Data {
         space: CGColorSpaceCreateDeviceRGB(),
         bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
     )!
-    context.setFillColor(CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1))
+    context.setFillColor(backgroundColor)
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-    context.setFillColor(CGColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1))
+    context.setFillColor(accentColor)
     context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height / 2))
 
     let image = context.makeImage()!
@@ -88,4 +93,38 @@ private func imageType(of data: Data) -> String? {
         return
     }
     #expect(imageType(of: thumbnail) == UTType.heic.identifier)
+}
+
+@MainActor
+@Test func dominantColorCacheKeysSameLengthArtworkByContent() async {
+    var firstArtwork = makeTestImage(
+        width: 32,
+        height: 32,
+        backgroundColor: CGColor(red: 0.9, green: 0.1, blue: 0.1, alpha: 1),
+        accentColor: CGColor(red: 1, green: 0.7, blue: 0.1, alpha: 1)
+    )
+    var replacementArtwork = makeTestImage(
+        width: 32,
+        height: 32,
+        backgroundColor: CGColor(red: 0.1, green: 0.1, blue: 0.9, alpha: 1),
+        accentColor: CGColor(red: 0.1, green: 0.8, blue: 0.9, alpha: 1)
+    )
+
+    let equalLength = max(firstArtwork.count, replacementArtwork.count)
+    firstArtwork.append(contentsOf: repeatElement(0, count: equalLength - firstArtwork.count))
+    replacementArtwork.append(contentsOf: repeatElement(0, count: equalLength - replacementArtwork.count))
+    #expect(firstArtwork.count == replacementArtwork.count)
+
+    let cacheID = "same-id-same-length-artwork"
+    let firstColors = await ImageUtils.cachedDominantColors(id: cacheID, imageData: firstArtwork)
+    let replacementColors = await ImageUtils.cachedDominantColors(id: cacheID, imageData: replacementArtwork)
+    guard let firstColor = firstColors.first,
+          let replacementColor = replacementColors.first else {
+        Issue.record("Dominant-color extraction returned no colors")
+        return
+    }
+
+    #expect(!firstColor.isEqual(replacementColor))
+    let firstCached = ImageUtils.cachedDominantColorsIfAvailable(id: cacheID, imageData: firstArtwork)
+    #expect(firstCached.first?.isEqual(firstColor) == true)
 }
