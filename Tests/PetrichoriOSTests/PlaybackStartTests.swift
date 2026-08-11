@@ -8,6 +8,7 @@ import Testing
 // speaker. Playback touches the process-wide `AVAudioSession`, so these run
 // serially and apart from the queue tests.
 @Suite(.serialized)
+@MainActor
 struct PlaybackStartTests {
     @Test func startingAQueueReachesThePlayingState() async throws {
         let url = try makeSilentWAV()
@@ -98,6 +99,7 @@ private final class RecordingDelegate: PlaybackBackendDelegate {
 /// counts for a track that never finished. Rebooting the queue must not emit
 /// any finish event.
 @Suite(.serialized)
+@MainActor
 struct QueueRebuildRegressionTests {
     private func waitForFinishCount(
         _ delegate: RecordingDelegate,
@@ -152,6 +154,7 @@ struct QueueRebuildRegressionTests {
 /// refilled while playing or it would silently end after the window. Playing
 /// through 18 one-second tracks proves the whole queue is consumed in order.
 @Suite(.serialized)
+@MainActor
 struct QueueRefillTests {
     @Test func aQueueLongerThanTheLookaheadWindowPlaysThroughToTheEnd() async throws {
         var urls: [URL] = []
@@ -192,6 +195,7 @@ struct QueueRefillTests {
 /// only after the item loads, and that timing is not ours to predict. The
 /// The 60-second timeout covers a cold media-service boot on hosted runners;
 /// subsequent playback starts in the same run are fast.
+@MainActor
 fileprivate func waitForPlaying(_ backend: AVQueuePlayerBackend, timeout: Duration = .seconds(60)) async -> Bool {
     let deadline = ContinuousClock.now + timeout
     while ContinuousClock.now < deadline {

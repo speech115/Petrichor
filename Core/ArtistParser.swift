@@ -277,8 +277,9 @@ enum ArtistParser {
 
         normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        caches.withLock { $0.normalize[name] = normalized }
-        return normalized
+        let result = normalized
+        caches.withLock { $0.normalize[name] = result }
+        return result
     }
 
     // MARK: - Parsing

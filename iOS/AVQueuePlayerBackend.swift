@@ -530,7 +530,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// `AudioPlayerError` the rest of the app understands. A pure function of
     /// its input, so it is covered directly by a unit test without needing a
     /// real failing `AVPlayerItem`.
-    static func mapPlaybackError(_ error: Error?) -> AudioPlayerError {
+    nonisolated static func mapPlaybackError(_ error: Error?) -> AudioPlayerError {
         guard let error else {
             return .engineError(NSError(
                 domain: "AVQueuePlayerBackend",
@@ -545,7 +545,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         return .engineError(error)
     }
 
-    private static func isFileNotFoundError(_ error: NSError) -> Bool {
+    nonisolated private static func isFileNotFoundError(_ error: NSError) -> Bool {
         switch (error.domain, error.code) {
         case (NSCocoaErrorDomain, NSFileReadNoSuchFileError),
              (NSURLErrorDomain, NSURLErrorFileDoesNotExist):
@@ -559,7 +559,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         return false
     }
 
-    private static func isUnsupportedFormatError(_ error: NSError) -> Bool {
+    nonisolated private static func isUnsupportedFormatError(_ error: NSError) -> Bool {
         if error.domain == AVFoundationErrorDomain {
             switch error.code {
             case AVError.Code.fileFormatNotRecognized.rawValue,
