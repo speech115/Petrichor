@@ -206,7 +206,7 @@ jobs:
             | xcbeautify --renderer github-actions
 
       # PetrichoriOS builds with SWIFT_STRICT_CONCURRENCY=complete (project.pbxproj) -
-      # this target must compile clean. Two `warning:` substrings in the raw log are
+      # this target must compile clean. One `warning:` substring in the raw log is
       # not compiler warnings and stay allowlisted here:
       #   - appintentsmetadataprocessor's info line: Automation left the iOS target in
       #     task 03, so there is no AppIntents.framework dependency to extract
