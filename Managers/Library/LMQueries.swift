@@ -26,7 +26,7 @@ extension LibraryManager {
         return tracks
     }
 
-    func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
+    nonisolated func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
         var tracks: [Track]
         if filterType.usesMultiArtistParsing && value != filterType.unknownPlaceholder {
             tracks = databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
@@ -37,7 +37,7 @@ extension LibraryManager {
         return tracks
     }
 
-    func getAllTracks() -> [Track] {
+    nonisolated func getAllTracks() -> [Track] {
         var tracks = databaseManager.getAllTracks(populateArtwork: false)
         databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
         return tracks

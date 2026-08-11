@@ -18,7 +18,19 @@ struct TrackListView: View {
     var body: some View {
         TrackListScreen(
             identity: AnyHashable(filterItem.map { "\($0.id)" } ?? "all-tracks"),
-            load: load,
+            load: { [libraryManager, filterItem] in
+                if let filterItem, !filterItem.isAllItem {
+                    return libraryManager.getTracksBy(
+                        filterType: filterItem.filterType,
+                        value: filterItem.name,
+                        albumId: filterItem.albumId
+                    )
+                    .sorted {
+                        $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                    }
+                }
+                return libraryManager.getAllTracks()
+            },
             sectioner: { IndexedListSectionFactory.sections(
                 from: $0,
                 key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
@@ -52,20 +64,4 @@ struct TrackListView: View {
         playlistManager.play(track, source: .library(context: context))
     }
 
-    private func load() async -> [Track] {
-        let libraryManager = libraryManager
-        let filterItem = filterItem
-
-        if let filterItem, !filterItem.isAllItem {
-            return libraryManager.getTracksBy(
-                filterType: filterItem.filterType,
-                value: filterItem.name,
-                albumId: filterItem.albumId
-            )
-            .sorted {
-                $0.title.localizedStandardCompare($1.title) == .orderedAscending
-            }
-        }
-        return libraryManager.getAllTracks()
-    }
 }

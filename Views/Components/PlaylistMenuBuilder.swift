@@ -4,6 +4,7 @@ import SwiftUI
 /// sidebar and the Home sidebar (for pinned playlists) present the exact same menu. Editing
 /// (including renaming) happens through the editor sheet, so there's no inline-rename action.
 enum PlaylistMenuBuilder {
+    @MainActor
     static func items(
         for playlist: Playlist,
         playlistManager: PlaylistManager,

@@ -15,7 +15,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
     /// Identity for the loader: `load` re-runs when it changes.
     let identity: AnyHashable
     /// Loads the rows for the current identity, off the main thread.
-    let load: () async -> [Track]
+    let load: @Sendable () async -> [Track]
     /// Groups loaded rows into list sections (index letters, discs, one blob).
     let sectioner: ([Track]) -> [IndexedSection<Track>]
     /// Whether the alphabet index bar is shown (multi-section lists only).
@@ -133,8 +133,9 @@ struct TrackListScreen<Header: View, Row: View>: View {
         isLoading = true
         scheduleSpinner()
 
+        let loader = load
         let loaded = await Task.detached(priority: .userInitiated) {
-            await load()
+            await loader()
         }.value
 
         spinnerTask?.cancel()

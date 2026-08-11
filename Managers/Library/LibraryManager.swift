@@ -203,6 +203,15 @@ class LibraryManager: ObservableObject {
     }
 
     deinit {
+        // Stop accessing all security scoped resources. `deinit` is never
+        // actor-isolated, so this reads `bookmarkedFolderURLs` (a plain
+        // stored property) rather than the isolated `folders` getter. Read
+        // before the `assumeIsolated` block below: once that runs, the
+        // checker treats the rest of `deinit` as working off a copy of
+        // `self` and stops allowing even plain nonisolated property access.
+        for url in bookmarkedFolderURLs {
+            url.stopAccessingSecurityScopedResource()
+        }
         // `fileWatcherTimer` is MainActor-isolated storage (an implicit
         // consequence of the class-level `@MainActor`), but `deinit` itself
         // is never actor-isolated. There is exactly one reference left by
@@ -211,12 +220,6 @@ class LibraryManager: ObservableObject {
         // a real invariant here, not an assumption.
         MainActor.assumeIsolated {
             fileWatcherTimer?.invalidate()
-        }
-        // Stop accessing all security scoped resources. `deinit` is never
-        // actor-isolated, so this reads `bookmarkedFolderURLs` (a plain
-        // stored property) rather than the isolated `folders` getter.
-        for url in bookmarkedFolderURLs {
-            url.stopAccessingSecurityScopedResource()
         }
     }
     

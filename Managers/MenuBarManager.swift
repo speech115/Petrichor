@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 class MenuBarManager: NSObject {
     private var statusItem: NSStatusItem?
     private let playbackManager: PlaybackManager
