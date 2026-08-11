@@ -9,11 +9,32 @@
 
 import MediaPlayer
 import UIKit
+import ImageIO
+
+struct PreparedNowPlayingArtwork: Sendable {
+    let image: CGImage
+}
 
 @MainActor
 enum NowPlayingPublisher {
-    static func artwork(from data: Data?) -> MPMediaItemArtwork? {
-        guard let data, let image = UIImage(data: data) else { return nil }
+    /// Decodes and downsamples artwork without blocking MainActor. `CGImage` is
+    /// an immutable, Sendable bitmap; constructing the UIKit wrapper later is
+    /// consequently a short publication-only hop.
+    nonisolated static func prepareArtwork(from data: Data?) -> PreparedNowPlayingArtwork? {
+        guard let data,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceThumbnailMaxPixelSize: 1024,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { return nil }
+        return PreparedNowPlayingArtwork(image: image)
+    }
+
+    static func artwork(from prepared: PreparedNowPlayingArtwork?) -> MPMediaItemArtwork? {
+        guard let prepared else { return nil }
+        let image = UIImage(cgImage: prepared.image)
         return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
 

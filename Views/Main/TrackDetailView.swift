@@ -112,7 +112,16 @@ struct TrackDetailView: View {
             gradientColors = []
             return
         }
-        gradientColors = track.backgroundGradientColors(isDark: colorScheme == .dark)
+        let trackID = track.id
+        let isDark = colorScheme == .dark
+        Task { @MainActor in
+            let resolved = await track.backgroundGradientColors(isDark: isDark)
+            guard !Task.isCancelled,
+                  track.id == trackID,
+                  useArtworkColors,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
+        }
     }
 
     // MARK: - Load Full Track

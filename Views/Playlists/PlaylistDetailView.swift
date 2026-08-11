@@ -372,11 +372,20 @@ struct PlaylistDetailView: View {
             gradientColors = []
             return
         }
-        gradientColors = ImageUtils.cachedBackgroundGradientColors(
-            id: playlist.id.uuidString,
-            imageData: artworkData,
-            isDark: colorScheme == .dark
-        )
+        let playlistID = playlist.id
+        let isDark = colorScheme == .dark
+        Task { @MainActor in
+            let resolved = await ImageUtils.cachedBackgroundGradientColors(
+                id: playlistID.uuidString,
+                imageData: artworkData,
+                isDark: isDark
+            )
+            guard !Task.isCancelled,
+                  self.playlist?.id == playlistID,
+                  useArtworkColors,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
+        }
     }
 
     private var playlistArtworkTaskID: String {

@@ -201,7 +201,7 @@ struct PlaylistDetailScreen: View {
             return
         }
         let cacheID = playlistID.uuidString
-        let dominant = ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
+        let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
         guard !Task.isCancelled else { return }
         headerDominantColor = dominant
     }

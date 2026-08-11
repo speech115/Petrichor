@@ -9,6 +9,11 @@ import AppKit
 #endif
 
 enum ImageUtils {
+    private struct DominantColorSample: Sendable {
+        let hue: Double
+        let saturation: Double
+        let brightness: Double
+    }
     /// Compress image data to HEIC format, downscaling to fit within maxDimension while preserving aspect ratio.
     /// Never upscales images smaller than maxDimension.
     /// - Parameters:
@@ -182,10 +187,30 @@ enum ImageUtils {
     ///   - imageData: Image data in any supported format
     ///   - colorCount: Number of dominant colors to return (default: 6)
     /// - Returns: Array of platform colors with maximum color diversity, or empty array if extraction fails
+    @MainActor
     static func extractDominantColors(
         from imageData: Data,
         colorCount: Int = 6
-    ) -> [PlatformColor] {
+    ) async -> [PlatformColor] {
+        let samples = await Task.detached(priority: .userInitiated) {
+            extractDominantColorSamples(from: imageData, colorCount: colorCount)
+        }.value
+        return samples.map {
+            PlatformColor(
+                hue: CGFloat($0.hue),
+                saturation: CGFloat($0.saturation),
+                brightness: CGFloat($0.brightness),
+                alpha: 1
+            )
+        }
+    }
+
+    /// Performs image decode, Core Image sampling and diversity selection away
+    /// from the UI actor. Only plain numeric samples cross back to MainActor.
+    nonisolated private static func extractDominantColorSamples(
+        from imageData: Data,
+        colorCount: Int
+    ) -> [DominantColorSample] {
         guard let ciImage = CIImage(data: imageData) else { return [] }
 
         let extent = ciImage.extent
@@ -195,7 +220,7 @@ enum ImageUtils {
         let ctx = CIContext(options: [.workingColorSpace: NSNull()])
 
         // Sample each grid cell to build candidate colors
-        var candidates: [(h: CGFloat, s: CGFloat, b: CGFloat)] = []
+        var candidates: [DominantColorSample] = []
         var pixel = [UInt8](repeating: 0, count: 4)
 
         for row in 0..<gridSize {
@@ -233,27 +258,27 @@ enum ImageUtils {
                 let cG = min(max(g, 0.05), 0.9)
                 let cB = min(max(b, 0.05), 0.9)
 
-                var h: CGFloat = 0, s: CGFloat = 0, br: CGFloat = 0
-                PlatformColor(red: cR, green: cG, blue: cB, alpha: 1).getHue(&h, saturation: &s, brightness: &br, alpha: nil)
-                candidates.append((h, s, br))
+                candidates.append(hsv(red: Double(cR), green: Double(cG), blue: Double(cB)))
             }
         }
 
         guard !candidates.isEmpty else { return [] }
 
         // Greedy farthest-point selection for maximum diversity
-        guard let mostSaturated = candidates.max(by: { $0.s < $1.s }) else { return [] }
+        guard let mostSaturated = candidates.max(by: { $0.saturation < $1.saturation }) else { return [] }
         var selected = [mostSaturated]
 
         while selected.count < min(colorCount, candidates.count) {
             var bestIdx = 0
-            var bestDist: CGFloat = -1
+            var bestDist: Double = -1
 
             for (i, c) in candidates.enumerated() {
                 let minDist = selected
-                    .map { s -> CGFloat in
-                        let hd = min(abs(c.h - s.h), 1 - abs(c.h - s.h))
-                        return hd * hd * 4 + (c.s - s.s) * (c.s - s.s) + (c.b - s.b) * (c.b - s.b)
+                    .map { s -> Double in
+                        let hd = min(abs(c.hue - s.hue), 1 - abs(c.hue - s.hue))
+                        return hd * hd * 4
+                            + (c.saturation - s.saturation) * (c.saturation - s.saturation)
+                            + (c.brightness - s.brightness) * (c.brightness - s.brightness)
                     }
                     .min() ?? 0
 
@@ -266,7 +291,29 @@ enum ImageUtils {
             selected.append(candidates[bestIdx])
         }
 
-        return selected.map { PlatformColor(hue: $0.h, saturation: $0.s, brightness: $0.b, alpha: 1) }
+        return selected
+    }
+
+    nonisolated private static func hsv(red: Double, green: Double, blue: Double) -> DominantColorSample {
+        let maximum = max(red, green, blue)
+        let minimum = min(red, green, blue)
+        let delta = maximum - minimum
+        let saturation = maximum == 0 ? 0 : delta / maximum
+        let hue: Double
+        if delta == 0 {
+            hue = 0
+        } else if maximum == red {
+            hue = ((green - blue) / delta).truncatingRemainder(dividingBy: 6) / 6
+        } else if maximum == green {
+            hue = (((blue - red) / delta) + 2) / 6
+        } else {
+            hue = (((red - green) / delta) + 4) / 6
+        }
+        return DominantColorSample(
+            hue: hue < 0 ? hue + 1 : hue,
+            saturation: saturation,
+            brightness: maximum
+        )
     }
 
     /// Adjust dominant colors for use as background gradients based on color scheme.
@@ -324,15 +371,25 @@ enum ImageUtils {
     static func cachedDominantColors(
         id: String,
         imageData: Data
-    ) -> [PlatformColor] {
+    ) async -> [PlatformColor] {
         let cacheKey = "\(id)-dominantColors" as NSString
         if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors
         }
 
-        let colors = extractDominantColors(from: imageData)
+        let colors = await extractDominantColors(from: imageData)
+        if let cached = colorCache.object(forKey: cacheKey) {
+            return cached.colors
+        }
         colorCache.setObject(CachedPlatformColors(colors: colors), forKey: cacheKey)
         return colors
+    }
+
+    /// Cache-only lookup for synchronous SwiftUI styling helpers. Cache misses
+    /// never decode on MainActor; their owning view schedules the async loader.
+    @MainActor
+    static func cachedDominantColorsIfAvailable(id: String) -> [PlatformColor] {
+        colorCache.object(forKey: "\(id)-dominantColors" as NSString)?.colors ?? []
     }
 
     /// Returns cached background gradient colors for the given ID and color scheme.
@@ -341,14 +398,14 @@ enum ImageUtils {
         id: String,
         imageData: Data,
         isDark: Bool
-    ) -> [Color] {
+    ) async -> [Color] {
         let suffix = isDark ? "dark" : "light"
         let cacheKey = "\(id)-gradient-\(suffix)" as NSString
         if let cached = colorCache.object(forKey: cacheKey) {
             return cached.colors.map { Color(platformColor: $0) }
         }
 
-        let dominant = cachedDominantColors(id: id, imageData: imageData)
+        let dominant = await cachedDominantColors(id: id, imageData: imageData)
         let adjusted = backgroundGradientColors(from: dominant, isDark: isDark)
         let platformColors = adjusted.map { platformColor(from: $0) }
         colorCache.setObject(CachedPlatformColors(colors: platformColors), forKey: cacheKey)

@@ -619,13 +619,20 @@ struct PlayerView: View {
 
     private func updateGradientColors() {
         guard useArtworkColors,
-              let track = playbackManager.currentTrack,
-              !track.dominantColors.isEmpty else {
+              let track = playbackManager.currentTrack else {
             gradientColors = []
             return
         }
-
-        gradientColors = track.backgroundGradientColors(isDark: colorScheme == .dark)
+        let trackID = track.id
+        let isDark = colorScheme == .dark
+        Task { @MainActor in
+            let resolved = await track.backgroundGradientColors(isDark: isDark)
+            guard !Task.isCancelled,
+                  playbackManager.currentTrack?.id == trackID,
+                  useArtworkColors,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
+        }
     }
 
     private func toggleMute() {

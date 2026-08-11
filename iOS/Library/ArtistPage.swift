@@ -115,7 +115,7 @@ struct ArtistPage: View {
             return
         }
         let cacheID = artistName
-        let dominant = ImageUtils.cachedDominantColors(id: cacheID, imageData: photoData).first
+        let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: photoData).first
         guard !Task.isCancelled else { return }
         headerDominantColor = dominant
     }

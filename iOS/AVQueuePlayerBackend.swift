@@ -31,6 +31,41 @@
 import AVFoundation
 import Foundation
 import MediaPlayer
+import os
+
+private enum ObservedTimeControlStatus: Sendable {
+    case playing
+    case paused
+    case waiting
+    case unknown
+}
+
+private enum AVFoundationEvent: Sendable {
+    case currentItemChanged(ObjectIdentifier?)
+    case itemEnded(ObjectIdentifier)
+    case itemFailed(ObjectIdentifier)
+    case timeControlChanged(ObservedTimeControlStatus, currentItemKey: ObjectIdentifier?)
+    case seekCompleted
+}
+
+private struct SequencedAVFoundationEvent: Sendable {
+    let sequence: UInt64
+    let event: AVFoundationEvent
+}
+
+/// AVFoundation invokes KVO, notification and completion callbacks on queues
+/// of its choosing. Assigning the sequence at the callback boundary prevents
+/// the MainActor hops used for delivery from reordering those events.
+private final class AVFoundationEventSequencer: Sendable {
+    private let nextSequence = OSAllocatedUnfairLock(initialState: UInt64.zero)
+
+    func sequence(_ event: AVFoundationEvent) -> SequencedAVFoundationEvent {
+        nextSequence.withLock { next in
+            defer { next += 1 }
+            return SequencedAVFoundationEvent(sequence: next, event: event)
+        }
+    }
+}
 
 @MainActor
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
@@ -42,6 +77,9 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var currentItemObservation: NSKeyValueObservation?
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
+    nonisolated private let eventSequencer = AVFoundationEventSequencer()
+    private var nextAVFoundationEventSequence: UInt64 = 0
+    private var pendingAVFoundationEvents: [UInt64: AVFoundationEvent] = [:]
     /// The last metadata handed to `setNowPlayingMetadata`, so the backend can
     /// re-publish it on its own play/pause/seek events (the lock screen
     /// extrapolates elapsed time from the published rate+elapsed anchor, and
@@ -311,9 +349,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             // Never mutate the tracking dictionaries re-entrantly from inside
             // their KVO registration/removal. A failed item can report status
             // while `makePlayerItem` is still installing its observation.
-            Task { @MainActor [weak self] in
-                self?.handleItemFailure(key: key)
-            }
+            self?.enqueueAVFoundationEvent(.itemFailed(key))
         }
         return item
     }
@@ -345,17 +381,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// (см. `handleItemEnded`), который приходит до перехода и не путается с
     /// нашим собственным сбросом очереди.
     private func observeTrackChanges() {
-        currentItemObservation = player.observe(\.currentItem, options: [.old, .new]) { [weak self] _, _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.handleCurrentItemChange(new: self.player.currentItem)
-            }
+        currentItemObservation = player.observe(\.currentItem, options: [.old, .new]) { [weak self] _, change in
+            let key = change.newValue.flatMap { $0 }.map(ObjectIdentifier.init)
+            self?.enqueueAVFoundationEvent(.currentItemChanged(key))
         }
     }
 
-    private func handleCurrentItemChange(new: AVPlayerItem?) {
-        guard new != nil, entries.indices.contains(currentIndex) else { return }
-        let started = entries[currentIndex].entryId
+    private func handleCurrentItemChange(key: ObjectIdentifier?) {
+        guard let key,
+              let entryId = itemEntryMap[key],
+              let index = queueIndex(of: entryId) else { return }
+        currentIndex = index
+        let started = entries[index].entryId
         backendDelegate?.backendDidStartPlaying(with: started)
         backendDelegate?.backendDidFinishBuffering(with: started)
     }
@@ -378,32 +415,28 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     @objc nonisolated private func handleItemPlayedToEnd(_ notification: Notification) {
         guard let item = notification.object as? AVPlayerItem else { return }
-        let key = ObjectIdentifier(item)
-        Task { @MainActor [weak self] in
-            self?.handleItemEnded(key: key)
-        }
+        enqueueAVFoundationEvent(.itemEnded(ObjectIdentifier(item)))
     }
 
     private func handleItemEnded(key: ObjectIdentifier) {
-        guard let item = itemObjectMap[key], itemEntryMap[key] != nil else { return }
-        removeTracking(for: item)
-
-        let finishedIndex = currentIndex
+        guard let item = itemObjectMap[key],
+              let finishedEntryId = itemEntryMap[key],
+              let finishedIndex = queueIndex(of: finishedEntryId),
+              player.currentItem === item else { return }
         let finishedSeconds = item.duration.seconds
         let finishedDuration = finishedSeconds.isFinite ? finishedSeconds : 0
 
-        if entries.indices.contains(finishedIndex) {
-            backendDelegate?.backendDidFinishPlaying(
-                entryId: entries[finishedIndex].entryId,
-                stopReason: .eof,
-                progress: 1.0,
-                duration: finishedDuration
-            )
-            lastFinishedEntryId = entries[finishedIndex].entryId
-        }
+        backendDelegate?.backendDidFinishPlaying(
+            entryId: finishedEntryId,
+            stopReason: .eof,
+            progress: 1.0,
+            duration: finishedDuration
+        )
+        lastFinishedEntryId = finishedEntryId
 
         let nextIndex = finishedIndex + 1
         guard nextIndex < entries.count else {
+            removeTracking(for: item)
             currentIndex = min(finishedIndex, max(0, entries.count - 1))
             notifyStateIfChanged()
             return
@@ -415,6 +448,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             // insert it right behind the finished item so the handoff finds it.
             player.insert(makePlayerItem(for: entries[nextIndex]), after: item)
         }
+        removeTracking(for: item)
         player.advanceToNextItem()
         player.play()
         refillUpcomingItems()
@@ -424,20 +458,72 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// transitions on `AVQueuePlayer` - there is no "did start/stop" delegate
     /// callback to hook into, unlike `AVAudioPlayerDelegate`.
     private func observeStateChanges() {
-        timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.notifyStateIfChanged()
-                // Pause/resume change the playback rate: re-publish the Now
-                // Playing anchor so the lock screen does not extrapolate from
-                // the old one (elapsed keeps advancing while paused).
-                self.publishNowPlaying()
-            }
+        timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, change in
+            guard let status = change.newValue else { return }
+            self?.enqueueAVFoundationEvent(.timeControlChanged(
+                Self.observedStatus(status),
+                currentItemKey: player.currentItem.map(ObjectIdentifier.init)
+            ))
+        }
+    }
+
+    nonisolated private static func observedStatus(_ status: AVPlayer.TimeControlStatus) -> ObservedTimeControlStatus {
+        switch status {
+        case .playing: .playing
+        case .paused: .paused
+        case .waitingToPlayAtSpecifiedRate: .waiting
+        @unknown default: .unknown
+        }
+    }
+
+    nonisolated private func enqueueAVFoundationEvent(_ event: AVFoundationEvent) {
+        let sequenced = eventSequencer.sequence(event)
+        Task { @MainActor [weak self] in
+            self?.receiveAVFoundationEvent(sequenced)
+        }
+    }
+
+    private func receiveAVFoundationEvent(_ sequenced: SequencedAVFoundationEvent) {
+        pendingAVFoundationEvents[sequenced.sequence] = sequenced.event
+        while let event = pendingAVFoundationEvents.removeValue(forKey: nextAVFoundationEventSequence) {
+            nextAVFoundationEventSequence += 1
+            handleAVFoundationEvent(event)
+        }
+    }
+
+    private func handleAVFoundationEvent(_ event: AVFoundationEvent) {
+        switch event {
+        case .currentItemChanged(let key):
+            handleCurrentItemChange(key: key)
+        case .itemEnded(let key):
+            handleItemEnded(key: key)
+        case .itemFailed(let key):
+            handleItemFailure(key: key)
+        case .timeControlChanged(let status, let eventItemKey):
+            guard eventItemKey == player.currentItem.map(ObjectIdentifier.init) else { return }
+            notifyStateIfChanged(observedStatus: status)
+            publishNowPlaying()
+        case .seekCompleted:
+            publishNowPlaying()
         }
     }
 
     private func notifyStateIfChanged() {
         let newState = mapState(player.timeControlStatus)
+        guard newState != previousState else { return }
+        let previous = previousState
+        previousState = newState
+        backendDelegate?.backendStateChanged(with: newState, previous: previous)
+    }
+
+    private func notifyStateIfChanged(observedStatus: ObservedTimeControlStatus) {
+        let newState: AudioPlayerState
+        switch observedStatus {
+        case .playing:
+            newState = .playing
+        case .paused, .waiting, .unknown:
+            newState = entries.isEmpty ? .stopped : .paused
+        }
         guard newState != previousState else { return }
         let previous = previousState
         previousState = newState
@@ -476,10 +562,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     @objc nonisolated private func handleFailedToPlayToEndTime(_ notification: Notification) {
         guard let item = notification.object as? AVPlayerItem else { return }
-        let key = ObjectIdentifier(item)
-        Task { @MainActor [weak self] in
-            self?.handleItemFailure(key: key)
-        }
+        enqueueAVFoundationEvent(.itemFailed(ObjectIdentifier(item)))
     }
 
     /// Reports a queue entry that could not play - a missing file, a
@@ -586,12 +669,14 @@ extension AVQueuePlayerBackend {
     func pause() {
         player.pause()
         notifyStateIfChanged()
+        publishNowPlaying()
     }
 
     func resume() {
         activateSessionIfNeeded()
         player.play()
         notifyStateIfChanged()
+        publishNowPlaying()
     }
 
     func stop() {
@@ -607,6 +692,7 @@ extension AVQueuePlayerBackend {
             player.play()
         }
         notifyStateIfChanged()
+        publishNowPlaying()
     }
 
     @discardableResult
@@ -616,7 +702,7 @@ extension AVQueuePlayerBackend {
             // Re-publish once the seek actually lands: publishing before the
             // completion would hand the lock screen the *old* elapsed time as
             // the anchor, and it would keep extrapolating from it.
-            Task { @MainActor [weak self] in self?.publishNowPlaying() }
+            self?.enqueueAVFoundationEvent(.seekCompleted)
         }
         return true
     }
@@ -654,10 +740,12 @@ extension AVQueuePlayerBackend {
 
         guard let artworkData = metadata?.artworkData else { return }
         nowPlayingArtworkTask = Task { @MainActor [weak self] in
-            let artwork = NowPlayingPublisher.artwork(from: artworkData)
+            let prepared = await Task.detached(priority: .utility) {
+                NowPlayingPublisher.prepareArtwork(from: artworkData)
+            }.value
             guard !Task.isCancelled else { return }
             guard let self, self.nowPlayingArtworkRevision == revision else { return }
-            self.nowPlayingArtwork = artwork
+            self.nowPlayingArtwork = NowPlayingPublisher.artwork(from: prepared)
             self.publishNowPlaying()
         }
     }

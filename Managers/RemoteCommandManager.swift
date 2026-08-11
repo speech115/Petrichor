@@ -43,48 +43,51 @@ class RemoteCommandManager {
         // Add handler for play command
         commandCenter.playCommand.addTarget { [weak audioPlayer] _ in
             guard let audioPlayer = audioPlayer else { return .commandFailed }
-            return MainActor.assumeIsolated {
-                guard !audioPlayer.isPlaying else { return .commandFailed }
+            Task { @MainActor [weak audioPlayer] in
+                guard let audioPlayer, !audioPlayer.isPlaying else { return }
                 audioPlayer.togglePlayPause()
-                return .success
             }
+            return .success
         }
 
         // Add handler for pause command
         commandCenter.pauseCommand.addTarget { [weak audioPlayer] _ in
             guard let audioPlayer = audioPlayer else { return .commandFailed }
-            return MainActor.assumeIsolated {
-                guard audioPlayer.isPlaying else { return .commandFailed }
+            Task { @MainActor [weak audioPlayer] in
+                guard let audioPlayer, audioPlayer.isPlaying else { return }
                 audioPlayer.togglePlayPause()
-                return .success
             }
+            return .success
         }
 
         // Add handler for toggle play/pause command
         commandCenter.togglePlayPauseCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer else { return .commandFailed }
-            return MainActor.assumeIsolated {
+            guard audioPlayer != nil else { return .commandFailed }
+            Task { @MainActor [weak audioPlayer] in
+                guard let audioPlayer else { return }
                 audioPlayer.togglePlayPause()
-                return .success
             }
+            return .success
         }
 
         // Add handler for next track command
         commandCenter.nextTrackCommand.addTarget { [weak playlistManager] _ in
-            guard let playlistManager = playlistManager else { return .commandFailed }
-            return MainActor.assumeIsolated {
+            guard playlistManager != nil else { return .commandFailed }
+            Task { @MainActor [weak playlistManager] in
+                guard let playlistManager else { return }
                 playlistManager.playNextTrack()
-                return .success
             }
+            return .success
         }
 
         // Add handler for previous track command
         commandCenter.previousTrackCommand.addTarget { [weak playlistManager] _ in
-            guard let playlistManager = playlistManager else { return .commandFailed }
-            return MainActor.assumeIsolated {
+            guard playlistManager != nil else { return .commandFailed }
+            Task { @MainActor [weak playlistManager] in
+                guard let playlistManager else { return }
                 playlistManager.playPreviousTrack()
-                return .success
             }
+            return .success
         }
 
         // Add handler for seeking
@@ -97,10 +100,11 @@ class RemoteCommandManager {
             // the isolated closure - passing `positionEvent` itself in gets flagged as
             // sending task-isolated state across the hop.
             let position = positionEvent.positionTime
-            return MainActor.assumeIsolated {
+            Task { @MainActor [weak audioPlayer] in
+                guard let audioPlayer else { return }
                 audioPlayer.seekTo(time: position)
-                return .success
             }
+            return .success
         }
     }
 }

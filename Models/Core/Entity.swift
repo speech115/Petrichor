@@ -64,14 +64,14 @@ extension Entity {
 extension Entity {
     @MainActor
     var dominantColors: [PlatformColor] {
-        guard let original = artworkData else { return [] }
-        return ImageUtils.cachedDominantColors(id: id.uuidString, imageData: original)
+        guard artworkData != nil else { return [] }
+        return ImageUtils.cachedDominantColorsIfAvailable(id: id.uuidString)
     }
 
     @MainActor
-    func backgroundGradientColors(isDark: Bool) -> [Color] {
+    func backgroundGradientColors(isDark: Bool) async -> [Color] {
         guard let original = artworkData else { return [] }
-        return ImageUtils.cachedBackgroundGradientColors(id: id.uuidString, imageData: original, isDark: isDark)
+        return await ImageUtils.cachedBackgroundGradientColors(id: id.uuidString, imageData: original, isDark: isDark)
     }
 }
 

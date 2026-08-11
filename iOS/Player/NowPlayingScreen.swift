@@ -57,7 +57,7 @@ struct NowPlayingScreen: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
-    @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
+    @State private var palette = PlayerPalette.neutral
     @State private var hasAppliedPalette = false
     @State private var paletteTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
@@ -170,11 +170,7 @@ struct NowPlayingScreen: View {
         let shouldUseArtwork = useArtworkColors
 
         paletteTask = Task { @MainActor in
-            // `PlayerPalette.make` reads through `ImageUtils`' color cache, which is
-            // `@MainActor` (every real caller is view code), so this no longer
-            // detaches - the cache hit path is cheap, and a cache miss's decode
-            // still runs once per track, not on every access.
-            let resolved = PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
+            let resolved = await PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
             guard !Task.isCancelled,
                   track?.id == sourceTrackID,
                   useArtworkColors == shouldUseArtwork else { return }

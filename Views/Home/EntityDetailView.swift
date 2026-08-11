@@ -485,11 +485,22 @@ extension EntityDetailView {
             return
         }
 
-        if let overrideData = overrideArtworkData {
-            let colors = ImageUtils.extractDominantColors(from: overrideData)
-            gradientColors = ImageUtils.backgroundGradientColors(from: colors, isDark: colorScheme == .dark)
-        } else {
-            gradientColors = entity.backgroundGradientColors(isDark: colorScheme == .dark)
+        let overrideData = overrideArtworkData
+        let entity = entity
+        let isDark = colorScheme == .dark
+        Task { @MainActor in
+            let resolved: [Color]
+            if let overrideData {
+                let colors = await ImageUtils.extractDominantColors(from: overrideData)
+                resolved = ImageUtils.backgroundGradientColors(from: colors, isDark: isDark)
+            } else {
+                resolved = await entity.backgroundGradientColors(isDark: isDark)
+            }
+            guard !Task.isCancelled,
+                  self.entity.id == entity.id,
+                  useArtworkColors,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
         }
     }
 

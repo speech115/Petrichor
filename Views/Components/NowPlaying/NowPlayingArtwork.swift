@@ -110,6 +110,6 @@ enum NowPlayingArtwork {
         guard enabled, let track, !track.dominantColors.isEmpty else {
             return []
         }
-        return track.backgroundGradientColors(isDark: isDark)
+        return ImageUtils.backgroundGradientColors(from: track.dominantColors, isDark: isDark)
     }
 }
