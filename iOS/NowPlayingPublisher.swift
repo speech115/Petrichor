@@ -10,6 +10,7 @@
 import MediaPlayer
 import UIKit
 
+@MainActor
 enum NowPlayingPublisher {
     static func artwork(from data: Data?) -> MPMediaItemArtwork? {
         guard let data, let image = UIImage(data: data) else { return nil }
