@@ -17,17 +17,7 @@ class LibraryManager: ObservableObject {
     /// comparisons per reload). Mutate only at the tracks-reset sites in
     /// `LMLibrary` and `resetAllData` below.
     @Published var libraryRevision: Int = 0
-    @Published var folders: [Folder] = [] {
-        didSet {
-            // Plain stored property, not `@Published`: `deinit` can read a
-            // genuinely stored property (it has exclusive access by
-            // construction) but not `folders` itself, whose synthesized
-            // getter is main-actor-isolated like every other member of this
-            // class. Kept in sync here for the one thing `deinit` needs -
-            // releasing security-scoped bookmark access.
-            bookmarkedFolderURLs = folders.compactMap { $0.bookmarkData != nil ? $0.url : nil }
-        }
-    }
+    @Published var folders: [Folder] = []
     @Published var isScanning: Bool = false
     @Published var isInitialOnboardingScan: Bool = false
     @Published var hasReachedInitialScanThreshold: Bool = false
@@ -72,9 +62,6 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: - Private/Internal Properties
-    /// Plain-stored mirror of `folders`' bookmarked URLs, kept for `deinit`
-    /// - see the `didSet` on `folders` above.
-    private var bookmarkedFolderURLs: [URL] = []
     private var fileWatcherTimer: Timer?
     private var hasPerformedInitialScan = false
     /// Tracks the auto-scan interval across `autoScanIntervalDidChange` calls,
@@ -202,24 +189,11 @@ class LibraryManager: ObservableObject {
         )
     }
 
-    deinit {
-        // Stop accessing all security scoped resources. `deinit` is never
-        // actor-isolated, so this reads `bookmarkedFolderURLs` (a plain
-        // stored property) rather than the isolated `folders` getter. Read
-        // before the `assumeIsolated` block below: once that runs, the
-        // checker treats the rest of `deinit` as working off a copy of
-        // `self` and stops allowing even plain nonisolated property access.
-        for url in bookmarkedFolderURLs {
-            url.stopAccessingSecurityScopedResource()
-        }
-        // `fileWatcherTimer` is MainActor-isolated storage (an implicit
-        // consequence of the class-level `@MainActor`), but `deinit` itself
-        // is never actor-isolated. There is exactly one reference left by
-        // construction - deinit only runs once nothing else can be reading
-        // or writing this instance's storage - so `assumeIsolated` reflects
-        // a real invariant here, not an assumption.
-        MainActor.assumeIsolated {
-            fileWatcherTimer?.invalidate()
+    isolated deinit {
+        fileWatcherTimer?.invalidate()
+        // Stop accessing all security scoped resources.
+        for folder in folders where folder.bookmarkData != nil {
+            folder.url.stopAccessingSecurityScopedResource()
         }
     }
     
