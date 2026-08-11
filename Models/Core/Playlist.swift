@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 import GRDB
 import ImageIO
-import Synchronization
+import os
 
 enum PlaylistType: String, Codable {
     case regular
@@ -82,14 +82,14 @@ struct SmartPlaylistCriteria: Codable, Equatable {
 // `Playlist` is a plain struct passed around freely (view code, playlist
 // managers, background import/merge paths), so this cache can't assume a
 // single isolation domain the way a UI-only cache can - it needs to be
-// genuinely safe under concurrent access, not just MainActor-only. `Mutex`
+// genuinely safe under concurrent access, not just MainActor-only. A checked lock
 // (not `@unchecked Sendable`) is the checked way to do that for a plain
 // `Dictionary`, which - unlike `NSCache` - has no thread safety of its own.
 private final class PlaylistArtworkCache: Sendable {
     static let shared = PlaylistArtworkCache()
     // Keyed on the cover-feeding tracks' stable database IDs (order-independent), so the
     // cache survives reloads (which mint new per-instance `Track.id`s) and reorders.
-    private let cache = Mutex<[UUID: (artwork: Data, trackIDs: [Int64])]>([:])
+    private let cache = OSAllocatedUnfairLock<[UUID: (artwork: Data, trackIDs: [Int64])]>(initialState: [:])
 
     func getCachedArtwork(for playlistID: UUID, currentTrackIDs: [Int64]) -> Data? {
         cache.withLock { cache in

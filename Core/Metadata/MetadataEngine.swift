@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 
 // MARK: - Track Metadata
 
@@ -126,9 +126,9 @@ enum MetadataEngine {
     /// and intermittently fails `AVAsset.load(.metadata)` under parallel test
     /// load, which made the folder-scan seam tests flaky.
     ///
-    /// `Mutex`-backed: tests set this once before the scan pipeline runs, and
+    /// Lock-backed: tests set this once before the scan pipeline runs, and
     /// `reader()` reads it from whatever thread the scan runs on.
-    private static let readerOverrideBox = Mutex<MetadataReader?>(nil)
+    private static let readerOverrideBox = OSAllocatedUnfairLock<MetadataReader?>(initialState: nil)
     static var readerOverride: MetadataReader? {
         get { readerOverrideBox.withLock { $0 } }
         set { readerOverrideBox.withLock { $0 = newValue } }

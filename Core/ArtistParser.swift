@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 
 enum ArtistParser {
     // High-confidence separators - always split, never part of an artist name
@@ -40,17 +40,17 @@ enum ArtistParser {
 
     // MARK: - Caching
 
-    /// Parse/normalize caches, behind a `Mutex` rather than raw `static var`s: the
+    /// Parse/normalize caches, behind a checked lock rather than raw `static var`s: the
     /// checker treats any `static var` as global mutable state regardless of how
     /// it's synchronized, so the previous concurrent-queue-plus-barrier scheme
-    /// (real and correct at runtime) couldn't be verified. `Mutex` is the checked
+    /// (real and correct at runtime) couldn't be verified. The lock is the checked
     /// equivalent - same "one writer, many readers serialized" shape, just legible
     /// to the compiler.
     private struct Caches {
         var parse: [String: [String]] = [:]
         var normalize: [String: String] = [:]
     }
-    private static let caches = Mutex(Caches())
+    private static let caches = OSAllocatedUnfairLock(initialState: Caches())
 
     // Pre-compiled regex for better performance
     private static let initialsRegex: NSRegularExpression? = {
@@ -64,7 +64,7 @@ enum ArtistParser {
     // MARK: - Known Artists
 
     /// Load/unload/lookup all share one lock (was one `.concurrent` queue with
-    /// `.barrier` writes - see `Caches` above for why this moved to `Mutex`).
+    /// `.barrier` writes - see `Caches` above for why this moved to a checked lock).
     /// `knownArtists`, `libraryArtists`, and `lookupGeneration` are bumped
     /// together in `Lookup`-producing reads, so keeping them in a single
     /// locked struct is also what the old barrier-`.sync` calls already
@@ -86,7 +86,7 @@ enum ArtistParser {
         /// replaced data become unreachable.
         var lookupGeneration = 0
     }
-    private static let knownArtistsState = Mutex(KnownArtistsState())
+    private static let knownArtistsState = OSAllocatedUnfairLock(initialState: KnownArtistsState())
 
     /// Load known artists from the bundled text file into memory.
     ///

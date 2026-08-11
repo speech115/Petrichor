@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 import os.log
 
 // MARK: - Log Level
@@ -99,7 +99,7 @@ struct LogEntry {
 /// project-wide logging entry point - hundreds of call sites, most of them
 /// not `async`). `fileManager`/`logQueue`/`osLog` are `let`s of their own
 /// `Sendable` types; the one real piece of mutable state, `minimumLogLevel`,
-/// sits behind a `Mutex` instead of a raw `var` so the checker can see the
+/// sits behind a checked lock instead of a raw `var` so the checker can see the
 /// same safety the file-writing side already had via `logQueue`'s serial
 /// confinement.
 final class Logger: Sendable {
@@ -110,7 +110,7 @@ final class Logger: Sendable {
     private let osLog: OSLog
 
     // Configuration
-    private let minimumLogLevelBox = Mutex(LogLevel.info)
+    private let minimumLogLevelBox = OSAllocatedUnfairLock(initialState: LogLevel.info)
     private var minimumLogLevel: LogLevel {
         get { minimumLogLevelBox.withLock { $0 } }
         set { minimumLogLevelBox.withLock { $0 = newValue } }
