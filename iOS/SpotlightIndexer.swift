@@ -88,7 +88,9 @@ final actor SpotlightIndexer {
 
     // MARK: - Change Notifications
 
-    private nonisolated(unsafe) static var isObservingLibraryChanges = false
+    /// Guards the one-time observer registration below. Actor state, so
+    /// `observeLibraryChanges()` needs no unsafe static bookkeeping.
+    private var isObservingLibraryChanges = false
 
     /// Real database deletions - folder removal (`DMFolders.removeFolder`
     /// cascades to its tracks) and entity merges (`DMMerge.mergeAlbums` /
@@ -103,6 +105,17 @@ final actor SpotlightIndexer {
     ///
     /// Called once from `PetrichorApp.init()`. Idempotent.
     nonisolated static func observeLibraryChanges() {
+        Task {
+            await SpotlightIndexer.shared.registerLibraryChangeObservers()
+        }
+    }
+
+    /// Registers the `.libraryDataDidChange` / `.libraryDataDidReset`
+    /// observers exactly once. The observer blocks are `@Sendable`, so the
+    /// main-actor `AppCoordinator.shared` lookup happens inside a
+    /// `Task { @MainActor }` hop; the extracted `databaseManager` is
+    /// nonisolated and crosses into the fire-and-forget sync as a value.
+    private func registerLibraryChangeObservers() {
         guard !isObservingLibraryChanges else { return }
         isObservingLibraryChanges = true
         NotificationCenter.default.addObserver(
@@ -110,16 +123,20 @@ final actor SpotlightIndexer {
             object: nil,
             queue: nil
         ) { _ in
-            guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
-            scheduleSync(with: databaseManager)
+            Task { @MainActor in
+                guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
+                Self.scheduleSync(with: databaseManager)
+            }
         }
         NotificationCenter.default.addObserver(
             forName: .libraryDataDidReset,
             object: nil,
             queue: nil
         ) { _ in
-            guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
-            scheduleReset(with: databaseManager)
+            Task { @MainActor in
+                guard let databaseManager = AppCoordinator.shared?.libraryManager.databaseManager else { return }
+                Self.scheduleReset(with: databaseManager)
+            }
         }
     }
 
