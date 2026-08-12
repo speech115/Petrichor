@@ -5,6 +5,12 @@
 // remote) to Petrichor's playback and queue managers. The Now Playing info tile
 // is published by the engine - see `PlaybackEngine.setNowPlayingMetadata`.
 //
+// Concurrency: MPRemoteCommandCenter invokes target handlers on the main
+// thread by contract, and the returned status drives the enabled state of the
+// Control Center buttons, so a no-op command (already playing, already
+// paused) must return `.commandFailed` synchronously. `MainActor.assumeIsolated`
+// turns the documented main-thread guarantee into a checked one.
+//
 
 import Foundation
 import MediaPlayer
@@ -43,21 +49,21 @@ class RemoteCommandManager {
         // Add handler for play command
         commandCenter.playCommand.addTarget { [weak audioPlayer] _ in
             guard let audioPlayer = audioPlayer else { return .commandFailed }
-            Task { @MainActor [weak audioPlayer] in
-                guard let audioPlayer, !audioPlayer.isPlaying else { return }
+            return MainActor.assumeIsolated {
+                guard !audioPlayer.isPlaying else { return .commandFailed }
                 audioPlayer.togglePlayPause()
+                return .success
             }
-            return .success
         }
 
         // Add handler for pause command
         commandCenter.pauseCommand.addTarget { [weak audioPlayer] _ in
             guard let audioPlayer = audioPlayer else { return .commandFailed }
-            Task { @MainActor [weak audioPlayer] in
-                guard let audioPlayer, audioPlayer.isPlaying else { return }
+            return MainActor.assumeIsolated {
+                guard audioPlayer.isPlaying else { return .commandFailed }
                 audioPlayer.togglePlayPause()
+                return .success
             }
-            return .success
         }
 
         // Add handler for toggle play/pause command
