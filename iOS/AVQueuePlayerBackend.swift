@@ -43,7 +43,7 @@ private enum ObservedTimeControlStatus: Sendable {
 private enum AVFoundationEvent: Sendable {
     case currentItemChanged(ObjectIdentifier?)
     case itemEnded(ObjectIdentifier)
-    case itemFailed(ObjectIdentifier)
+    case itemFailed(ObjectIdentifier, error: NSError?)
     case timeControlChanged(ObservedTimeControlStatus, currentItemKey: ObjectIdentifier?)
     case seekCompleted
 }
@@ -349,7 +349,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             // Never mutate the tracking dictionaries re-entrantly from inside
             // their KVO registration/removal. A failed item can report status
             // while `makePlayerItem` is still installing its observation.
-            self?.enqueueAVFoundationEvent(.itemFailed(key))
+            self?.enqueueAVFoundationEvent(.itemFailed(key, error: nil))
         }
         return item
     }
@@ -497,8 +497,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             handleCurrentItemChange(key: key)
         case .itemEnded(let key):
             handleItemEnded(key: key)
-        case .itemFailed(let key):
-            handleItemFailure(key: key)
+        case .itemFailed(let key, let error):
+            handleItemFailure(key: key, notificationError: error)
         case .timeControlChanged(let status, let eventItemKey):
             guard eventItemKey == player.currentItem.map(ObjectIdentifier.init) else { return }
             notifyStateIfChanged(observedStatus: status)
@@ -562,7 +562,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     @objc nonisolated private func handleFailedToPlayToEndTime(_ notification: Notification) {
         guard let item = notification.object as? AVPlayerItem else { return }
-        enqueueAVFoundationEvent(.itemFailed(ObjectIdentifier(item)))
+        let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? NSError
+        enqueueAVFoundationEvent(.itemFailed(ObjectIdentifier(item), error: error))
     }
 
     /// Reports a queue entry that could not play - a missing file, a
@@ -572,14 +573,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// same two delegate calls `CrescendoPlaybackBackend` uses for this on
     /// macOS: `backendUnexpectedError` for the error itself, then
     /// `backendDidSkipQueueEntry` for the entry that got dropped.
-    private func handleItemFailure(key: ObjectIdentifier) {
+    private func handleItemFailure(key: ObjectIdentifier, notificationError: NSError? = nil) {
         guard let item = itemObjectMap[key] else { return }
         guard !failedItemKeys.contains(key) else { return }
         failedItemKeys.insert(key)
 
         guard let entryId = itemEntryMap[key] else { return }
 
-        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(item.error))
+        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(notificationError ?? item.error))
 
         guard let index = queueIndex(of: entryId) else {
             removeTracking(for: item)
