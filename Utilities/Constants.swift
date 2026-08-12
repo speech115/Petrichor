@@ -290,6 +290,15 @@ extension Notification.Name {
     static let showFolderImporter = Notification.Name("showFolderImporter")
 
     static let libraryDataDidChange = Notification.Name("LibraryDataDidChange")
+    /// The database was wiped and re-migrated (`DatabaseManager.resetDatabase()`
+    /// via `LibraryManager.resetAllData()`): row ids restart from 1, so a
+    /// listener that tracks state keyed by id (`iOS/SpotlightIndexer.swift`)
+    /// must drop that state outright rather than diff it - a reused id could
+    /// otherwise be misread as "unchanged" against stale data from before
+    /// the reset. Distinct from `.libraryDataDidChange`, which means "diff
+    /// the live database against what you know", not "what you know no
+    /// longer means anything".
+    static let libraryDataDidReset = Notification.Name("LibraryDataDidReset")
     static let goToLibraryFilter = Notification.Name("GoToLibraryFilter")
     static let showTrackInfo = Notification.Name("ShowTrackInfo")
 
