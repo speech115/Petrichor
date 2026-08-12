@@ -169,8 +169,12 @@ jobs:
           until [ "$n" -ge 3 ]; do
             sudo xcodebuild -downloadPlatform iOS && break
             n=$((n+1))
-            echo "downloadPlatform failed, retry $n/3"
-            sleep 20
+            if [ "$n" -lt 3 ]; then
+              echo "downloadPlatform failed, retry $n/2"
+              sleep 20
+            else
+              echo "downloadPlatform failed after 3 attempts"
+            fi
           done
           xcrun simctl list devices available | grep -q "iPhone 17 Pro Max" || {
             echo "::error::iPhone 17 Pro Max simulator not available after platform download"
