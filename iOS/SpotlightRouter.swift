@@ -14,6 +14,7 @@
 
 import Foundation
 
+@MainActor
 enum SpotlightRouter {
     static func destination(for identifier: String, libraryManager: LibraryManager) -> LibraryDestination? {
         guard let (domain, value) = split(identifier) else { return nil }
