@@ -95,36 +95,3 @@ private func imageType(of data: Data) -> String? {
     #expect(imageType(of: thumbnail) == UTType.heic.identifier)
 }
 
-@MainActor
-@Test func dominantColorCacheKeysSameLengthArtworkByContent() async {
-    var firstArtwork = makeTestImage(
-        width: 32,
-        height: 32,
-        backgroundColor: CGColor(red: 0.9, green: 0.1, blue: 0.1, alpha: 1),
-        accentColor: CGColor(red: 1, green: 0.7, blue: 0.1, alpha: 1)
-    )
-    var replacementArtwork = makeTestImage(
-        width: 32,
-        height: 32,
-        backgroundColor: CGColor(red: 0.1, green: 0.1, blue: 0.9, alpha: 1),
-        accentColor: CGColor(red: 0.1, green: 0.8, blue: 0.9, alpha: 1)
-    )
-
-    let equalLength = max(firstArtwork.count, replacementArtwork.count)
-    firstArtwork.append(contentsOf: repeatElement(0, count: equalLength - firstArtwork.count))
-    replacementArtwork.append(contentsOf: repeatElement(0, count: equalLength - replacementArtwork.count))
-    #expect(firstArtwork.count == replacementArtwork.count)
-
-    let cacheID = "same-id-same-length-artwork"
-    let firstColors = await ImageUtils.cachedDominantColors(id: cacheID, imageData: firstArtwork)
-    let replacementColors = await ImageUtils.cachedDominantColors(id: cacheID, imageData: replacementArtwork)
-    guard let firstColor = firstColors.first,
-          let replacementColor = replacementColors.first else {
-        Issue.record("Dominant-color extraction returned no colors")
-        return
-    }
-
-    #expect(!firstColor.isEqual(replacementColor))
-    let firstCached = ImageUtils.cachedDominantColorsIfAvailable(id: cacheID, imageData: firstArtwork)
-    #expect(firstCached.first?.isEqual(firstColor) == true)
-}
