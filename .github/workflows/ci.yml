@@ -154,6 +154,24 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
 
+      # The macos-26 image ships Xcode without iOS simulator runtimes (runner-images
+      # disk-space policy), so the platform is downloaded on demand. `xcrun simctl
+      # list` first wakes CoreSimulator so downloadPlatform can connect.
+      - name: Download iOS simulator runtime
+        run: |
+          xcrun simctl list > /dev/null
+          n=0
+          until [ "$n" -ge 3 ]; do
+            sudo xcodebuild -downloadPlatform iOS && break
+            n=$((n+1))
+            echo "downloadPlatform failed, retry $n/3"
+            sleep 20
+          done
+          xcrun simctl list devices available | grep -q "iPhone 17 Pro Max" || {
+            echo "::error::iPhone 17 Pro Max simulator not available after platform download"
+            exit 1
+          }
+
       - name: Cache SwiftPM
         uses: actions/cache@v5
         with:
