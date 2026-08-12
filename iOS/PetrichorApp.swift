@@ -39,6 +39,11 @@ struct PetrichorApp: App {
         // album and artist BLOB in the shared entity cache costs hundreds of
         // megabytes on a real library and makes launch contend with the UI.
         _appCoordinator = StateObject(wrappedValue: AppCoordinator(cacheEntityArtwork: false))
+
+        // Catches the search-index deletions reconciliation never causes on
+        // its own: folder removal and entity merges, both of which post
+        // `.libraryDataDidChange`. See `SpotlightIndexer.observeLibraryChanges()`.
+        SpotlightIndexer.observeLibraryChanges()
     }
 
     var body: some Scene {

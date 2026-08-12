@@ -48,6 +48,11 @@ extension LibraryManager {
 
             await importLibraryPlaylistsIfNeeded()
             await MainActor.run { isReconcilingLibrary = false }
+            // Keep the system search index in step with the database. Runs
+            // only after reconciliation fully ends, at `.utility` priority,
+            // so a cold start is never held up by indexing. The snapshot
+            // diff inside makes a no-change launch a cheap no-op.
+            SpotlightIndexer.scheduleSync(with: databaseManager)
         } catch {
             await MainActor.run { isReconcilingLibrary = false }
             throw error
@@ -78,6 +83,10 @@ extension LibraryManager {
         await MainActor.run {
             self.scheduleLibraryReload()
         }
+        // The Settings "Rescan Library" button calls `scanLibraryRoot()`
+        // directly (bypassing `reconcileLibrary()`), so the index sync hook
+        // lives here too. `SpotlightIndexer` deduplicates when both fire.
+        SpotlightIndexer.scheduleSync(with: databaseManager)
     }
 
     // MARK: - M3U Playlist Auto-Import
