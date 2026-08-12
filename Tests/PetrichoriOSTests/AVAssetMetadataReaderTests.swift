@@ -45,7 +45,7 @@ struct AVAssetMetadataReaderTests {
         )
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await withTimeout(seconds: 15) {
+        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
             await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
         }
 
@@ -73,7 +73,7 @@ struct AVAssetMetadataReaderTests {
         let url = try makeSilentMP3() // no artist/title/album -> no ID3 header written at all
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await withTimeout(seconds: 15) {
+        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
             await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
         }
 
@@ -110,7 +110,7 @@ struct AVAssetMetadataReaderTests {
         let url = try makeCorruptMP3()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await withTimeout(seconds: 15) {
+        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
             await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
         }
 
@@ -126,7 +126,9 @@ struct AVAssetMetadataReaderTests {
         #expect(metadata.artworkData == nil)
         #expect(metadata.duration == 0)
         // Filename fallback still runs: the random UUID filename has no
-        // " - " separator, so title falls back to the bare filename.
+        // " - " separator, so title falls back to the bare filename and
+        // artist stays nil (same fallback shape as the no-tags test above).
+        #expect(metadata.artist == nil)
         #expect(metadata.title == url.deletingPathExtension().lastPathComponent)
     }
 
@@ -146,7 +148,7 @@ struct AVAssetMetadataReaderTests {
         )
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await withTimeout(seconds: 15) {
+        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
             await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
         }
 
@@ -163,24 +165,28 @@ struct AVAssetMetadataReaderTests {
 /// hang or fail under parallel test load (`TestFixtures.swift`). A hang
 /// should show up as a clear timeout failure, not as the whole test run
 /// stalling until the outer CI timeout kills it with no diagnostic.
-struct SeamTimeoutError: Error, CustomStringConvertible {
-    let seconds: Double
-    var description: String { "Timed out after \(seconds)s waiting on AVAssetMetadataReader" }
-}
+/// Namespaced in an enum so the generic-sounding names don't sit in the test
+/// target's global scope where they could collide with another file's helper.
+enum SeamTimeout {
+    struct Error: Swift.Error, CustomStringConvertible {
+        let seconds: Double
+        var description: String { "Timed out after \(seconds)s waiting on AVAssetMetadataReader" }
+    }
 
-func withTimeout<T: Sendable>(
-    seconds: Double,
-    operation: @escaping @Sendable () async -> T
-) async throws -> T {
-    try await withThrowingTaskGroup(of: T.self) { group in
-        group.addTask { await operation() }
-        group.addTask {
-            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            throw SeamTimeoutError(seconds: seconds)
+    static func withTimeout<T: Sendable>(
+        seconds: Double,
+        operation: @escaping @Sendable () async -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { await operation() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw Error(seconds: seconds)
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
-        let result = try await group.next()!
-        group.cancelAll()
-        return result
     }
 }
 

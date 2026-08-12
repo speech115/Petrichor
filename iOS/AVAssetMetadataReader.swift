@@ -225,9 +225,9 @@ struct AVAssetMetadataReader: MetadataReader {
         if let artworkItem = items.first(where: { $0.commonKey == .commonKeyArtwork }) {
             // `??` is an autoclosure without an async overload (see the note
             // above), so the fallback attempt has to be its own step.
-            var data = await Self.loggedLoad(tag: "artwork", url: url) { try await artworkItem.load(.dataValue) }
+            var data = await Self.loggedLoad(tag: "artwork.data", url: url) { try await artworkItem.load(.dataValue) }
             if data == nil {
-                data = await Self.loggedLoad(tag: "artwork", url: url) { try await artworkItem.load(.value) } as? Data
+                data = await Self.loggedLoad(tag: "artwork.value", url: url) { try await artworkItem.load(.value) } as? Data
             }
             if let data {
                 metadata.artworkData = await MetadataMapping.compressedArtwork(
