@@ -5,15 +5,12 @@
 // events to the `PlaybackEngine` facade. This is the only playback file that
 // imports Crescendo.
 //
-// Concurrency: `CrescendoPlayer` and `CrescendoPlayerDelegate` are `@MainActor`,
-// but `PlaybackBackend` is a synchronous, non-isolated protocol. To avoid pushing
-// `@MainActor` through the whole manager graph, the backend stays non-isolated and:
-//   - routes every call into the player through `onMain`, and
-//   - receives delegate callbacks via a separate `@MainActor` bridge (the same
-//     shape), which forwards to the backend's nonisolated `handle*` methods.
-// All backend calls already happen on the main thread (UI, delegate hops, the
-// .main progress timer), so `onMain` is direct in practice; the off-main branch
-// is only a safety net (e.g. a teardown from `deinit`).
+// Concurrency: `PlaybackBackend` is `@MainActor`, and so is this backend by
+// conformance; `CrescendoPlayer` and `CrescendoPlayerDelegate` are `@MainActor`
+// too, so the isolation now matches directly. The `onMain` wrapper and the
+// separate delegate bridge survive from the earlier non-isolated design: every
+// call already runs on the main actor, and `onMain`'s off-main branch stays
+// only as a safety net.
 //
 
 import Crescendo
@@ -323,9 +320,8 @@ final class CrescendoPlaybackBackend: PlaybackBackend {
 
 // MARK: - Delegate Bridge
 
-/// Bridges `CrescendoPlayer`'s `@MainActor` delegate callbacks to the non-isolated
-/// backend. Kept separate so conforming to the `@MainActor` delegate protocol does
-/// not force `@MainActor` onto the whole backend.
+/// Forwards `CrescendoPlayer`'s `@MainActor` delegate callbacks to the backend's
+/// `handle*` methods, keeping the delegate protocol's surface out of the backend.
 @MainActor
 private final class CrescendoDelegateBridge: CrescendoPlayerDelegate {
     weak var owner: CrescendoPlaybackBackend?
@@ -375,8 +371,9 @@ private final class CrescendoDelegateBridge: CrescendoPlayerDelegate {
 }
 
 // Runs a main-actor operation synchronously. Direct when already on the main
-// thread; otherwise hops via the main queue. Lets the non-isolated backend drive
-// the @MainActor CrescendoPlayer without making the whole graph @MainActor.
+// thread; otherwise hops via the main queue. With the whole graph `@MainActor`
+// the direct branch is what runs in practice; the hop is a safety net kept
+// from the earlier non-isolated design.
 @inline(__always)
 private func onMainStatic<T>(_ body: @MainActor () -> T) -> T {
     if Thread.isMainThread {
