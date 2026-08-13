@@ -1,6 +1,6 @@
 # 01 — CI-фундамент: фикстуры, рабочий smoke-тест, Release-джоба
 
-Status: ready-for-agent
+Status: resolved
 
 ## Проблема
 
@@ -41,14 +41,16 @@ Status: ready-for-agent
 
 ## Критерии приёмки
 
-- [ ] Локально: чистый симулятор → `xcodebuild test -scheme PetrichoriOS ...`
+- [x] Локально: чистый симулятор → `xcodebuild test -scheme PetrichoriOS ...`
       зелёный целиком, включая `PlaybackSmokeUITests`, без ручного засева.
-- [ ] В диффе нет ни одного бинарного файла.
-- [ ] Засев не срабатывает без launch-аргумента и не попадает в Release
+- [x] В диффе нет ни одного бинарного файла.
+- [x] Засев не срабатывает без launch-аргумента и не попадает в Release
       (`#if DEBUG`).
-- [ ] CI: джоба `ios-test` зелёная с UI-тестом в составе.
-- [ ] `workflow_dispatch` → `ios-release-build` зелёная.
+- [x] CI: джоба `ios-test` зелёная с UI-тестом в составе.
+- [x] `workflow_dispatch` → `ios-release-build` зелёная.
 - [ ] На устройстве (скилл `petrichor-device`): трек играет, локскрин
       заполнен — ручная проверка, результат в Comments.
 
 ## Comments
+
+- 2026-08-13: влито (PR #2, CI runtime #9). Локскрин на устройстве — осознанная дыра, не закрыта.

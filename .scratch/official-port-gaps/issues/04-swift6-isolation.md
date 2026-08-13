@@ -1,6 +1,6 @@
 # 04 — Изоляция акторов и включение strict concurrency
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03
 
 ## Проблема
@@ -63,15 +63,17 @@ scanStatusMessage`, `private var lastStatusUpdateTime` — изменяемое 
 
 ## Критерии приёмки
 
-- [ ] `xcodebuild -scheme PetrichoriOS ... build 2>&1 | grep -c warning:` = 0
+- [x] `xcodebuild -scheme PetrichoriOS ... build 2>&1 | grep -c warning:` = 0
       при включённом в проекте strict concurrency.
-- [ ] `grep -rn '@unchecked Sendable\|nonisolated(unsafe)' --include='*.swift' Managers Core iOS Utilities Models Application`
+- [x] `grep -rn '@unchecked Sendable\|nonisolated(unsafe)' --include='*.swift' Managers Core iOS Utilities Models Application`
       — пусто (существующие вхождения, если найдутся, — предмет отдельного
       разговора, новых нет).
-- [ ] Обе схемы собираются; `xcodebuild test -scheme PetrichoriOS` зелёный
+- [x] Обе схемы собираются; `xcodebuild test -scheme PetrichoriOS` зелёный
       целиком (66+ тестов).
-- [ ] CI-гейт на предупреждения стоит в `ios-test` и проходит.
-- [ ] Смоук на симуляторе: запуск, воспроизведение, открытие Now Playing,
+- [x] CI-гейт на предупреждения стоит в `ios-test` и проходит.
+- [x] Смоук на симуляторе: запуск, воспроизведение, открытие Now Playing,
       фон/возврат — без новых runtime-warning'ов о потоках в логе.
 
 ## Comments
+
+- 2026-08-13: влито (PR #7). CI зелёный.

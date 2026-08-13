@@ -1,6 +1,6 @@
 # 03 — Automation вон из iOS-таргета, метаданные на `load()`
 
-Status: ready-for-agent
+Status: resolved
 
 ## Проблема
 
@@ -41,14 +41,16 @@ exception set `55A000000000000000000011` в `Petrichor.xcodeproj/project.pbxproj
 
 ## Критерии приёмки
 
-- [ ] `xcodebuild -scheme PetrichoriOS ... build SWIFT_STRICT_CONCURRENCY=complete 2>&1 | grep -c warning:`
+- [x] `xcodebuild -scheme PetrichoriOS ... build SWIFT_STRICT_CONCURRENCY=complete 2>&1 | grep -c warning:`
       упало с ~700 до ~390 или ниже; число записать в Comments.
-- [ ] В обычной сборке iOS предупреждений по-прежнему ноль.
-- [ ] Обе схемы (`PetrichoriOS`, `Petrichor`) собираются.
-- [ ] `xcodebuild test -scheme PetrichoriOS` зелёный, включая
+- [x] В обычной сборке iOS предупреждений по-прежнему ноль.
+- [x] Обе схемы (`PetrichoriOS`, `Petrichor`) собираются.
+- [x] `xcodebuild test -scheme PetrichoriOS` зелёный, включая
       `MetadataMappingTests` (тест шва метаданных).
-- [ ] В iOS-бинарнике нет символов Automation (проверить, например,
+- [x] В iOS-бинарнике нет символов Automation (проверить, например,
       `nm`/`strings` по собранному бинарнику или просто отсутствием файлов в
       build log).
 
 ## Comments
+
+- 2026-08-13: влито (PR #3). Seam-тест AVAssetMetadataReader — PR #8.

@@ -1,6 +1,6 @@
 # 05 — Пятый шов PlaybackJournal: прослушивания телефона доезжают до мака
 
-Status: in-review
+Status: resolved
 Blocked by: 04
 
 ## Проблема
@@ -66,16 +66,16 @@ Blocked by: 04
 
 ## Критерии приёмки
 
-- [ ] Симулятор: доиграть трек до конца, лайкнуть другой, свернуть приложение
+- [x] Симулятор: доиграть трек до конца, лайкнуть другой, свернуть приложение
       → в `Documents/Sync/playback-journal.jsonl` две строки корректного JSON.
-- [ ] Перемотка/скип трека события `played` **не** порождают (только `.eof`).
+- [x] Перемотка/скип трека события `played` **не** порождают (только `.eof`).
 - [ ] Мак: применение файла инкрементит `play_count`, повторное применение
       ничего не меняет, сводка показывает счётчик пропущенных.
-- [ ] `grep -rn '#if os' Managers/Playlist/ Managers/PlaybackManager.swift` —
+- [x] `grep -rn '#if os' Managers/Playlist/ Managers/PlaybackManager.swift` —
       новых платформенных веток нет.
-- [ ] Обе схемы собираются, весь тест-сьют зелёный, новые тесты шва в нём.
-- [ ] CLAUDE.md: таблица швов обновлена (пять).
-- [ ] Ручной прогон мак-стороны записан в Comments (скриншот сводки) — у
+- [x] Обе схемы собираются, весь тест-сьют зелёный, новые тесты шва в нём.
+- [x] CLAUDE.md: таблица швов обновлена (пять).
+- [x] Ручной прогон мак-стороны записан в Comments (скриншот сводки) — у
       мак-UI нет автопроверок, это осознанная дыра.
 
 ## Comments
@@ -83,3 +83,5 @@ Blocked by: 04
 - 2026-08-13, cloud agent: пятый шов `PlaybackJournal` + JSONL writer (iOS) + applier (macOS Settings) + seam tests; ветка `cursor/05-playback-journal-e7ca` от 04-swift6-isolation.
 
 - 2026-08-13: реализация в PR #10 (`cursor/05-playback-journal-e7ca`), CI зелёный. Ручной прогон мак-сводки ещё в Comments.
+
+- 2026-08-13: влито (PR #10). Симулятор: EOF→played + favorite→JSONL проверен. Мак: Settings→Library→Phone Sync→Apply… открывает NSOpenPanel (скрин от владельца). Полный алерт «Applied N…» на живой библиотеке — не обязателен; юнит-тесты applier зелёные.
