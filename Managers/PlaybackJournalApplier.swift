@@ -10,10 +10,7 @@ import Foundation
 import GRDB
 
 enum PlaybackJournalApplier {
-    struct Summary: Equatable, Sendable {
-        var applied: Int
-        var skipped: Int
-    }
+    typealias Summary = PlaybackJournalApplyResult
 
     /// Applies journal events from `fileURL` against `databaseManager`.
     /// Cursor state lives in `defaults` so tests can inject an isolated suite.
@@ -48,14 +45,15 @@ enum PlaybackJournalApplier {
         try databaseManager.dbQueue.write { db in
             for index in states.indices where states[index] != rows[index].state {
                 let state = states[index]
-                try db.execute(
-                    sql: """
-                    UPDATE tracks
-                    SET play_count = ?, is_favorite = ?, last_played_date = ?
-                    WHERE id = ?
-                    """,
-                    arguments: [state.playCount, state.isFavorite, state.lastPlayedDate, rows[index].id]
-                )
+                let id = rows[index].id
+                try Track
+                    .filter(Track.Columns.trackId == id)
+                    .updateAll(
+                        db,
+                        Track.Columns.playCount.set(to: state.playCount),
+                        Track.Columns.isFavorite.set(to: state.isFavorite),
+                        Track.Columns.lastPlayedDate.set(to: state.lastPlayedDate)
+                    )
             }
         }
 
@@ -63,6 +61,6 @@ enum PlaybackJournalApplier {
             PlaybackJournalCursorStore.save(newCursor, to: defaults)
         }
 
-        return Summary(applied: result.applied, skipped: result.skipped)
+        return result
     }
 }

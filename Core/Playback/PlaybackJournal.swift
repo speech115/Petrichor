@@ -10,7 +10,7 @@ import Foundation
 
 /// Records listen and favorite mutations for later sync. Writing happens only
 /// on iOS; macOS leaves the coordinator property nil and applies a transferred
-/// journal file through `PlaybackJournalApply`.
+/// journal file through `PlaybackJournalApply` / `LibraryManager`.
 @MainActor
 protocol PlaybackJournal: AnyObject {
     func trackPlayed(relativePath: String, at date: Date)
@@ -19,17 +19,23 @@ protocol PlaybackJournal: AnyObject {
 }
 
 /// One JSONL line in `Documents/Sync/playback-journal.jsonl`.
-struct PlaybackJournalEvent: Equatable, Sendable {
-    enum Kind: String, Equatable, Sendable {
-        case played
-        case favorite
+enum PlaybackJournalEvent: Equatable, Sendable {
+    case played(path: String, at: Date)
+    case favorite(path: String, value: Bool, at: Date)
+
+    var path: String {
+        switch self {
+        case .played(let path, _), .favorite(let path, _, _):
+            path
+        }
     }
 
-    var timestamp: Date
-    var kind: Kind
-    var path: String
-    /// Favorite events only; ignored for `played`.
-    var value: Bool?
+    var timestamp: Date {
+        switch self {
+        case .played(_, let at), .favorite(_, _, let at):
+            at
+        }
+    }
 }
 
 enum PlaybackJournalCodec {
@@ -67,12 +73,13 @@ enum PlaybackJournalCodec {
     }
 
     static func encodeLine(_ event: PlaybackJournalEvent) throws -> String {
-        let dto = LineDTO(
-            ts: makeISOFormatter().string(from: event.timestamp),
-            type: event.kind.rawValue,
-            path: event.path,
-            value: event.kind == .favorite ? (event.value ?? false) : nil
-        )
+        let dto: LineDTO
+        switch event {
+        case .played(let path, let at):
+            dto = LineDTO(ts: makeISOFormatter().string(from: at), type: "played", path: path, value: nil)
+        case .favorite(let path, let value, let at):
+            dto = LineDTO(ts: makeISOFormatter().string(from: at), type: "favorite", path: path, value: value)
+        }
         let data = try encoder.encode(dto)
         guard let line = String(data: data, encoding: .utf8) else {
             throw CodecError.utf8
@@ -93,18 +100,20 @@ enum PlaybackJournalCodec {
         }
 
         guard let timestamp = makeISOFormatter().date(from: dto.ts),
-              let kind = PlaybackJournalEvent.Kind(rawValue: dto.type),
               !dto.path.isEmpty
         else {
             throw CodecError.malformed(trimmed)
         }
 
-        if kind == .favorite {
+        switch dto.type {
+        case "played":
+            return .played(path: dto.path, at: timestamp)
+        case "favorite":
             guard let value = dto.value else { throw CodecError.malformed(trimmed) }
-            return PlaybackJournalEvent(timestamp: timestamp, kind: kind, path: dto.path, value: value)
+            return .favorite(path: dto.path, value: value, at: timestamp)
+        default:
+            throw CodecError.malformed(trimmed)
         }
-
-        return PlaybackJournalEvent(timestamp: timestamp, kind: kind, path: dto.path, value: nil)
     }
 
     static func decodeLines(_ text: String) throws -> [PlaybackJournalEvent] {
@@ -139,22 +148,13 @@ struct PlaybackJournalApplyResult: Equatable, Sendable {
     var cursor: Date?
 }
 
-enum PlaybackJournalMatcher {
+enum PlaybackJournalApply {
     /// Event `path` is relative to the library root. A stored absolute path
     /// matches when it ends with `"/" + path`, or equals `path` exactly.
     static func matches(storedPath: String, eventPath: String) -> Bool {
         storedPath == eventPath || storedPath.hasSuffix("/" + eventPath)
     }
 
-    static func matchingIndices(
-        in tracks: [PlaybackJournalTrackState],
-        eventPath: String
-    ) -> [Int] {
-        tracks.indices.filter { matches(storedPath: tracks[$0].path, eventPath: eventPath) }
-    }
-}
-
-enum PlaybackJournalApply {
     /// Applies events whose timestamp is strictly after `cursor`. Zero or
     /// more than one path match increments `skipped`. The returned cursor is
     /// the timestamp of the last successfully applied event (or the input
@@ -176,22 +176,24 @@ enum PlaybackJournalApply {
         var newCursor = cursor
 
         for event in pending {
-            let indices = PlaybackJournalMatcher.matchingIndices(in: tracks, eventPath: event.path)
+            let indices = tracks.indices.filter {
+                matches(storedPath: tracks[$0].path, eventPath: event.path)
+            }
             guard indices.count == 1, let index = indices.first else {
                 skipped += 1
                 continue
             }
 
-            switch event.kind {
-            case .played:
+            switch event {
+            case .played(_, let at):
                 tracks[index].playCount += 1
                 if let existing = tracks[index].lastPlayedDate {
-                    tracks[index].lastPlayedDate = max(existing, event.timestamp)
+                    tracks[index].lastPlayedDate = max(existing, at)
                 } else {
-                    tracks[index].lastPlayedDate = event.timestamp
+                    tracks[index].lastPlayedDate = at
                 }
-            case .favorite:
-                tracks[index].isFavorite = event.value ?? false
+            case .favorite(_, let value, _):
+                tracks[index].isFavorite = value
             }
 
             applied += 1

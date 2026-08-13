@@ -3,17 +3,14 @@ import Testing
 @testable import Petrichor
 
 @Test func playbackJournalEventRoundTripsThroughJSONL() throws {
-    let played = PlaybackJournalEvent(
-        timestamp: ISO8601DateFormatter().date(from: "2026-08-09T14:32:11Z")!,
-        kind: .played,
+    let played = PlaybackJournalEvent.played(
         path: "Моя музыка/Spotify/0239 - Jeune Ras.mp3",
-        value: nil
+        at: ISO8601DateFormatter().date(from: "2026-08-09T14:32:11Z")!
     )
-    let favorite = PlaybackJournalEvent(
-        timestamp: ISO8601DateFormatter().date(from: "2026-08-09T14:40:00Z")!,
-        kind: .favorite,
+    let favorite = PlaybackJournalEvent.favorite(
         path: "Моя музыка/Spotify/other.mp3",
-        value: true
+        value: true,
+        at: ISO8601DateFormatter().date(from: "2026-08-09T14:40:00Z")!
     )
 
     let playedLine = try PlaybackJournalCodec.encodeLine(played)
@@ -34,26 +31,26 @@ import Testing
 
 @Test func playbackJournalSuffixMatchingIsExactOrTrailing() {
     #expect(
-        PlaybackJournalMatcher.matches(
+        PlaybackJournalApply.matches(
             storedPath: "/Users/me/Music/Моя музыка/track.mp3",
             eventPath: "Моя музыка/track.mp3"
         )
     )
     #expect(
-        PlaybackJournalMatcher.matches(
+        PlaybackJournalApply.matches(
             storedPath: "Моя музыка/track.mp3",
             eventPath: "Моя музыка/track.mp3"
         )
     )
     #expect(
-        !PlaybackJournalMatcher.matches(
+        !PlaybackJournalApply.matches(
             storedPath: "/Users/me/Music/other/track.mp3",
             eventPath: "Моя музыка/track.mp3"
         )
     )
     // Suffix without a path separator boundary must not match.
     #expect(
-        !PlaybackJournalMatcher.matches(
+        !PlaybackJournalApply.matches(
             storedPath: "/Users/me/Music/prefixМоя музыка/track.mp3",
             eventPath: "Моя музыка/track.mp3"
         )
@@ -79,8 +76,8 @@ import Testing
     let t1 = ISO8601DateFormatter().date(from: "2026-08-09T14:32:11Z")!
     let t2 = ISO8601DateFormatter().date(from: "2026-08-09T14:40:00Z")!
     let events = [
-        PlaybackJournalEvent(timestamp: t1, kind: .played, path: "Моя музыка/a.mp3", value: nil),
-        PlaybackJournalEvent(timestamp: t2, kind: .favorite, path: "Моя музыка/b.mp3", value: true)
+        PlaybackJournalEvent.played(path: "Моя музыка/a.mp3", at: t1),
+        PlaybackJournalEvent.favorite(path: "Моя музыка/b.mp3", value: true, at: t2)
     ]
 
     let first = PlaybackJournalApply.apply(events: events, to: &tracks, cursor: nil)
@@ -117,8 +114,8 @@ import Testing
 
     let ts = ISO8601DateFormatter().date(from: "2026-08-09T15:00:00Z")!
     let events = [
-        PlaybackJournalEvent(timestamp: ts, kind: .played, path: "shared/track.mp3", value: nil),
-        PlaybackJournalEvent(timestamp: ts, kind: .played, path: "missing/track.mp3", value: nil)
+        PlaybackJournalEvent.played(path: "shared/track.mp3", at: ts),
+        PlaybackJournalEvent.played(path: "missing/track.mp3", at: ts)
     ]
 
     let result = PlaybackJournalApply.apply(events: events, to: &tracks, cursor: nil)
@@ -140,8 +137,8 @@ import Testing
     let t1 = ISO8601DateFormatter().date(from: "2026-08-09T15:00:00Z")!
     let t2 = ISO8601DateFormatter().date(from: "2026-08-09T16:00:00Z")!
     let events = [
-        PlaybackJournalEvent(timestamp: t1, kind: .favorite, path: "a.mp3", value: true),
-        PlaybackJournalEvent(timestamp: t2, kind: .favorite, path: "a.mp3", value: false)
+        PlaybackJournalEvent.favorite(path: "a.mp3", value: true, at: t1),
+        PlaybackJournalEvent.favorite(path: "a.mp3", value: false, at: t2)
     ]
 
     let result = PlaybackJournalApply.apply(events: events, to: &tracks, cursor: nil)
@@ -161,7 +158,7 @@ import Testing
         )
     ]
     let events = [
-        PlaybackJournalEvent(timestamp: earlier, kind: .played, path: "a.mp3", value: nil)
+        PlaybackJournalEvent.played(path: "a.mp3", at: earlier)
     ]
 
     _ = PlaybackJournalApply.apply(events: events, to: &tracks, cursor: nil)
@@ -199,7 +196,7 @@ import Testing
 
     let t1 = ISO8601DateFormatter().date(from: "2026-08-09T14:32:11Z")!
     let line = try PlaybackJournalCodec.encodeLine(
-        PlaybackJournalEvent(timestamp: t1, kind: .played, path: relativePath, value: nil)
+        .played(path: relativePath, at: t1)
     )
     let journalURL = directory.appendingPathComponent("playback-journal.jsonl")
     try (line + "\n").write(to: journalURL, atomically: true, encoding: .utf8)

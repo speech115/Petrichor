@@ -328,32 +328,23 @@ struct LibraryTabView: View {
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        Task {
-            do {
-                let summary = try PlaybackJournalApplier.apply(
-                    fileURL: url,
-                    databaseManager: libraryManager.databaseManager
-                )
-                await MainActor.run {
-                    let message = String(
-                        localized: "Applied \(summary.applied) events, \(summary.skipped) tracks not found"
-                    )
-                    let alert = NSAlert()
-                    alert.messageText = String(localized: "Playback Journal")
-                    alert.informativeText = message
-                    alert.alertStyle = .informational
-                    alert.addButton(withTitle: String(localized: "OK"))
-                    alert.runModal()
-                }
-            } catch {
-                Logger.error("Failed to apply playback journal: \(error)")
-                await MainActor.run {
-                    NotificationManager.shared.addMessage(
-                        .error,
-                        String(localized: "Failed to apply playback journal")
-                    )
-                }
-            }
+        do {
+            let summary = try libraryManager.applyPlaybackJournal(from: url)
+            let message = String(
+                localized: "Applied \(summary.applied) events, \(summary.skipped) tracks not found"
+            )
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Playback Journal")
+            alert.informativeText = message
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: String(localized: "OK"))
+            alert.runModal()
+        } catch {
+            Logger.error("Failed to apply playback journal: \(error)")
+            NotificationManager.shared.addMessage(
+                .error,
+                String(localized: "Failed to apply playback journal")
+            )
         }
     }
     #endif

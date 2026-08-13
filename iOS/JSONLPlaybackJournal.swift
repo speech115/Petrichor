@@ -26,16 +26,12 @@ final class JSONLPlaybackJournal: PlaybackJournal {
 
     func trackPlayed(relativePath: String, at date: Date) {
         guard !relativePath.isEmpty else { return }
-        pending.append(
-            PlaybackJournalEvent(timestamp: date, kind: .played, path: relativePath, value: nil)
-        )
+        pending.append(.played(path: relativePath, at: date))
     }
 
     func favoriteChanged(relativePath: String, value: Bool, at date: Date) {
         guard !relativePath.isEmpty else { return }
-        pending.append(
-            PlaybackJournalEvent(timestamp: date, kind: .favorite, path: relativePath, value: value)
-        )
+        pending.append(.favorite(path: relativePath, value: value, at: date))
     }
 
     func flush() {

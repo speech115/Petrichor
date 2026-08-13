@@ -151,6 +151,22 @@ extension LibraryManager {
         }
     }
 
+    /// Import a phone-side `playback-journal.jsonl`, then refresh smart playlists
+    /// so Top 25 / Favorites reflect the new counts without a full library reload.
+    @discardableResult
+    func applyPlaybackJournal(
+        from fileURL: URL,
+        defaults: UserDefaults = .standard
+    ) throws -> PlaybackJournalApplyResult {
+        let summary = try PlaybackJournalApplier.apply(
+            fileURL: fileURL,
+            databaseManager: databaseManager,
+            defaults: defaults
+        )
+        AppCoordinator.shared?.playlistManager.updateSmartPlaylists()
+        return summary
+    }
+
     func optimizeDatabase(notifyUser: Bool = false) {
         let sizeBefore = DatabaseFactory.databaseFileSize() ?? 0
         var foldersToRemove: [Folder] = []
