@@ -23,6 +23,7 @@ extension TrackSortField {
         case .filename:       return String(localized: "Filename")
         case .duration:       return String(localized: "Duration")
         case .dateAdded:      return String(localized: "Date added")
+        case .dateFavorited:  return String(localized: "Date favorited")
         case .playCount:      return String(localized: "Play count")
         case .lastPlayedDate: return String(localized: "Last played")
         case .custom:         return String(localized: "Custom")
@@ -43,6 +44,7 @@ extension TrackSortField {
             .filename: KeyPathComparator(\Track.filename, order: ascending ? .forward : .reverse),
             .duration: KeyPathComparator(\Track.duration, order: ascending ? .forward : .reverse),
             .dateAdded: KeyPathComparator(\Track.dateAdded, order: ascending ? .forward : .reverse),
+            .dateFavorited: KeyPathComparator(\Track.sortableDateFavorited, order: ascending ? .forward : .reverse),
             .playCount: KeyPathComparator(\Track.playCount, order: ascending ? .forward : .reverse),
             .lastPlayedDate: KeyPathComparator(\Track.sortableLastPlayedDate, order: ascending ? .forward : .reverse),
             .custom: KeyPathComparator(\Track.sortableDateAdded, order: .forward)
@@ -57,7 +59,7 @@ extension TrackSortField {
     static var sortFields: [TrackSortField] {
         [
             .trackNumber, .discNumber, .favorite, .title, .artist, .album, .genre,
-            .year, .composer, .filename, .duration, .dateAdded
+            .year, .composer, .filename, .duration, .dateAdded, .dateFavorited
         ]
     }
 
@@ -71,6 +73,8 @@ extension TrackSortField {
         ("sortableDateAdded", .dateAdded),
         ("sortableLastPlayedDate", .lastPlayedDate),
         ("dateAdded", .dateAdded),
+        ("sortableDateFavorited", .dateFavorited),
+        ("dateFavorited", .dateFavorited),
         ("playCount", .playCount),
         ("lastPlayedDate", .lastPlayedDate),
         ("title", .title),

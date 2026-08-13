@@ -29,7 +29,7 @@ struct TrackListView: View {
                         $0.title.localizedStandardCompare($1.title) == .orderedAscending
                     }
                 }
-                return libraryManager.getAllTracks()
+                return libraryManager.getSongsTracks()
             },
             sectioner: { IndexedListSectionFactory.sections(
                 from: $0,

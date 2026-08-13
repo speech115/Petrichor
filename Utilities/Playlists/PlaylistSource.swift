@@ -1,10 +1,11 @@
 //
-// PlaylistSource (iOS)
+// PlaylistSource
 //
 // Where an imported playlist came from. The library is built from M3U exports
 // whose names carry the service they came from ("01 ВКонтакте",
-// "05 Spotify - Shazam"), and the Playlists tab groups by that: one section
-// per service, the service's mark in the section header.
+// "05 Spotify - Shazam"). iOS groups the Playlists tab by that — one section
+// per service, the service's mark in the section header. macOS uses the same
+// pinned entries for cover and display-name lookup.
 //
 // Two things decide a section's contents. A `pinned` list names the playlists
 // that belong to a source explicitly, in the order they should appear, and may
@@ -21,7 +22,6 @@
 
 import SwiftUI
 
-@MainActor
 enum PlaylistSource: CaseIterable {
     case spotify
     case vk
@@ -55,14 +55,17 @@ enum PlaylistSource: CaseIterable {
         case .spotify:
             return [
                 PinnedPlaylist("Spotify - Liked Songs", title: "Liked Songs", cover: .likedSongs),
-                PinnedPlaylist("Spotify - Любимые песни", title: "Любимые песни (любимого) человека"),
+                PinnedPlaylist(
+                    "Spotify - Любимые песни",
+                    title: "Любимые песни (любимого) человека"
+                ),
                 PinnedPlaylist("Spotify - Топ 2020", title: "Топ 2020", cover: .top2020),
                 PinnedPlaylist("Spotify - Shazam", title: "Shazam", cover: .shazam)
             ]
         case .vk:
             return [
                 PinnedPlaylist("ВКонтакте", cover: .vkMusic),
-                PinnedPlaylist("Любимые треки"),
+                PinnedPlaylist("Любимые треки", cover: .vkLikes),
                 PinnedPlaylist(
                     "ВКонтакте - Tyler instrumental",
                     title: "Tyler Instrumental",
@@ -140,7 +143,6 @@ struct PinnedPlaylist {
 
 // MARK: - Display Name
 
-@MainActor
 enum PlaylistDisplay {
     /// The name to show: the pinned entry's title when it renames the
     /// playlist, otherwise its own stored name.
@@ -154,12 +156,10 @@ enum PlaylistDisplay {
     /// what pinned entries match on — never the renamed title.
     static func storedName(for playlist: Playlist) -> String {
         let stored = DefaultPlaylists.displayName(for: playlist)
-        guard let match = stored.firstMatch(of: prefix) else { return stored }
+        guard let match = stored.firstMatch(of: /^\d{1,3}[ ._-]+/) else { return stored }
         let stripped = stored[match.range.upperBound...]
         return stripped.isEmpty ? stored : String(stripped)
     }
-
-    private static let prefix = /^\d{1,3}[ ._-]+/
 }
 
 // MARK: - Logo

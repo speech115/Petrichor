@@ -417,6 +417,11 @@ extension DatabaseManager {
                 : query.order((Track.Columns.lastPlayedDate ?? nilDate).desc)
         case "dateAdded":
             return ascending ? query.order(Track.Columns.dateAdded) : query.order(Track.Columns.dateAdded.desc)
+        case "dateFavorited":
+            // Nulls sort as oldest so newest-favorited stays on top when descending.
+            return ascending
+                ? query.order(Track.Columns.dateFavorited ?? Date.distantPast)
+                : query.order((Track.Columns.dateFavorited ?? Date.distantPast).desc)
         case "duration":
             return ascending ? query.order(Track.Columns.duration) : query.order(Track.Columns.duration.desc)
         case "year":

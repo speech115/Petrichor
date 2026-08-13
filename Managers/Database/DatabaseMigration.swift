@@ -248,8 +248,39 @@ enum DatabaseMigrator {
             Logger.info("v14_playback_journal_cursor: created singleton cursor table")
         }
 
+        migrator.registerMigration("v15_date_favorited") { db in
+            try db.addColumnIfNotExists(table: "tracks", column: "date_favorited", type: .datetime)
+            // Existing favorites had no favorited timestamp; use library date_added
+            // so they keep a stable order while new favorites stamp Date() on toggle.
+            try db.execute(
+                sql: """
+                    UPDATE tracks
+                    SET date_favorited = date_added
+                    WHERE is_favorite = 1 AND date_favorited IS NULL
+                    """
+            )
+
+            let favorites = try Playlist
+                .filter(Playlist.Columns.name == DefaultPlaylists.favorites)
+                .filter(Playlist.Columns.type == PlaylistType.smart.rawValue)
+                .fetchAll(db)
+            for var playlist in favorites {
+                guard let criteria = playlist.smartCriteria else { continue }
+                playlist.smartCriteria = SmartPlaylistCriteria(
+                    matchType: criteria.matchType,
+                    rules: criteria.rules,
+                    limit: criteria.limit,
+                    sortBy: "dateFavorited",
+                    sortAscending: false,
+                    autoUpdate: criteria.autoUpdate
+                )
+                try playlist.update(db)
+            }
+            Logger.info("v15_date_favorited: column, backfill, Favorites sort newest-first")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v15_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v16_description") { db in ... }
 
         return migrator
     }

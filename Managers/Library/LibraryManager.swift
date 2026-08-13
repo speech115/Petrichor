@@ -34,6 +34,10 @@ class LibraryManager: ObservableObject {
     @Published internal var cachedArtistEntities: [ArtistEntity] = []
     @Published internal var cachedAlbumEntities: [AlbumEntity] = []
     @Published private(set) var totalTrackCount: Int = 0
+    /// Count shown next to Songs / All Tracks. Prefer «Все треки» when present.
+    @Published private(set) var songsDisplayCount: Int = 0
+    /// Playlist id for Songs / All Tracks when «Все треки» exists; else nil (full library).
+    @Published private(set) var songsPlaylistID: UUID?
     @Published private(set) var artistCount: Int = 0
     @Published private(set) var albumCount: Int = 0
     @Published private(set) var countsLoaded = false
@@ -199,6 +203,7 @@ class LibraryManager: ObservableObject {
     
     internal func updateTotalCounts(notify: Bool = true) {
         totalTrackCount = databaseManager.getTotalTrackCount()
+        refreshSongsPlaylistSource()
         artistCount = databaseManager.getArtistCount()
         albumCount = databaseManager.getAlbumCount()
         countsLoaded = true
@@ -210,9 +215,21 @@ class LibraryManager: ObservableObject {
 
     internal func applyTotalCounts(tracks: Int, artists: Int, albums: Int) {
         totalTrackCount = tracks
+        refreshSongsPlaylistSource(fallbackTrackCount: tracks)
         artistCount = artists
         albumCount = albums
         countsLoaded = true
+    }
+
+    /// Songs / All Tracks list and badge share this source.
+    private func refreshSongsPlaylistSource(fallbackTrackCount: Int? = nil) {
+        if let exported = databaseManager.getExportedAllTracksPlaylist() {
+            songsPlaylistID = exported.id
+            songsDisplayCount = exported.count
+        } else {
+            songsPlaylistID = nil
+            songsDisplayCount = fallbackTrackCount ?? totalTrackCount
+        }
     }
     
     /// Debounced library reload to coalesce rapid completion events

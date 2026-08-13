@@ -78,6 +78,7 @@ struct MiniPlayerView: View {
     @State private var isHovering = false
     @State private var cachedArtwork: NSImage?
     @State private var currentTrackId: String?
+    @State private var cachedArtworkByteCount: Int?
     @State private var miniWindow: NSWindow?
     @State private var gradientColors: [Color] = []
     @State private var showingClearConfirmation = false
@@ -193,6 +194,10 @@ struct MiniPlayerView: View {
             applyWindowLevel()
         }
         .onChange(of: playbackManager.currentTrack?.id) {
+            refreshArtwork()
+            updateGradientColors()
+        }
+        .onChange(of: NowPlayingArtwork.artworkByteCount(for: playbackManager.currentTrack)) {
             refreshArtwork()
             updateGradientColors()
         }
@@ -477,9 +482,11 @@ struct MiniPlayerView: View {
 
     private func refreshArtwork() {
         let track = playbackManager.currentTrack
-        guard track?.id != currentTrackId || cachedArtwork == nil else { return }
+        let artCount = NowPlayingArtwork.artworkByteCount(for: track)
+        guard track?.id != currentTrackId || artCount != cachedArtworkByteCount else { return }
 
         currentTrackId = track?.id
+        cachedArtworkByteCount = artCount
         cachedArtwork = NowPlayingArtwork.image(for: track)
     }
 

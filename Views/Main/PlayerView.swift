@@ -808,7 +808,7 @@ struct TrackArtworkInfo: Equatable {
     let artworkData: Data?
 
     static func == (lhs: TrackArtworkInfo, rhs: TrackArtworkInfo) -> Bool {
-        lhs.id == rhs.id
+        lhs.id == rhs.id && lhs.artworkData?.count == rhs.artworkData?.count
     }
 }
 

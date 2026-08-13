@@ -498,17 +498,19 @@ struct TrackTableView: View {
         
         guard let index = sortedTracks.firstIndex(where: { $0.trackId == trackId }) else { return }
         
-        // Check if we're sorted by favorites
-        let isSortedByFavorites = TrackSortField.detect(from: sortOrder) == .favorite
+        let sortField = TrackSortField.detect(from: sortOrder)
+        let needsResort = sortField == .favorite || sortField == .dateFavorited
         
-        if isSortedByFavorites {
+        if needsResort {
             // Create new array to ensure SwiftUI Table updates as
             // in-place mutation + sort doesn't trigger proper view refresh on macOS 14/15
             var updatedTracks = sortedTracks
             updatedTracks[index].isFavorite = updatedTrack.isFavorite
+            updatedTracks[index].dateFavorited = updatedTrack.dateFavorited
             sortedTracks = updatedTracks.sorted(using: sortOrder)
         } else {
             sortedTracks[index].isFavorite = updatedTrack.isFavorite
+            sortedTracks[index].dateFavorited = updatedTrack.dateFavorited
         }
     }
 }
@@ -541,7 +543,7 @@ private final class TrackArtworkCache: @unchecked Sendable {
         cache.object(forKey: cacheKey(for: track))
     }
 
-    func loadImage(for track: Track) async -> PlatformImage? {
+    func loadImage(for track: Track, artworkLoader: (() -> Data?)? = nil) async -> PlatformImage? {
         let key = cacheKey(for: track)
 
         if let cached = cache.object(forKey: key) {
@@ -555,8 +557,10 @@ private final class TrackArtworkCache: @unchecked Sendable {
             }
 
             // Decode and resize via CGContext to avoid CGImageSource errors
-            // under concurrent load from rapid scrolling
-            guard let data = track.albumArtworkData,
+            // under concurrent load from rapid scrolling. Playlist list rows
+            // arrive without display-size BLOBs; use the thumbnail when present,
+            // otherwise fetch the album/track artwork on demand.
+            guard let data = track.displayArtwork ?? artworkLoader?(),
                   let platformImage = PlatformImage(data: data),
                   let cgImage = platformImage.cgImage else {
                 return nil
@@ -596,6 +600,7 @@ private struct TrackTitleCell: View {
     let handlePlayTrack: (Track) -> Void
     let handleTogglePlayPause: () -> Void
 
+    @EnvironmentObject private var libraryManager: LibraryManager
     @State private var artworkImage: PlatformImage?
 
     var body: some View {
@@ -676,7 +681,12 @@ private struct TrackTitleCell: View {
             return
         }
 
-        let image = await TrackArtworkCache.shared.loadImage(for: track)
+        let albumId = track.albumId
+        let trackId = track.trackId
+        let database = libraryManager.databaseManager
+        let image = await TrackArtworkCache.shared.loadImage(for: track) {
+            database.getArtworkData(albumId: albumId, trackId: trackId)
+        }
 
         if !Task.isCancelled {
             artworkImage = image
@@ -733,6 +743,10 @@ extension Track {
     
     var sortableDateAdded: Date {
         dateAdded ?? Date.distantPast
+    }
+
+    var sortableDateFavorited: Date {
+        dateFavorited ?? Date.distantPast
     }
     
     var sortableIsFavorite: Int {

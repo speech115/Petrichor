@@ -30,6 +30,7 @@ struct HomeView: View {
     @State private var selectedAlbumEntity: AlbumEntity?
     @State private var isShowingEntityDetail = false
     @State private var trackTableSortOrder = [KeyPathComparator(\Track.title)]
+    @State private var songsTracks: [Track] = []
     @Binding var isShowingEntities: Bool
     
     var body: some View {
@@ -214,7 +215,7 @@ struct HomeView: View {
             Divider()
             
             // Show loading or tracks
-            if libraryManager.tracks.isEmpty {
+            if libraryManager.tracks.isEmpty && libraryManager.songsPlaylistID == nil {
                 VStack {
                     Spacer()
                     ProgressView()
@@ -230,13 +231,13 @@ struct HomeView: View {
                 }
             } else {
                 TrackView(
-                    tracks: libraryManager.tracks,
+                    tracks: songsTracks,
                     selectedTrackID: $selectedTrackID,
-                    playlistID: nil,
+                    playlistID: libraryManager.songsPlaylistID,
                     entityID: nil,
                     sortOrder: $trackTableSortOrder,
                     onPlayTrack: { track in
-                        playlistManager.playTrack(track, fromTracks: libraryManager.tracks)
+                        playlistManager.playTrack(track, fromTracks: songsTracks)
                         playlistManager.currentQueueSource = .library
                     },
                     contextMenuItems: { track, _ in
@@ -247,7 +248,22 @@ struct HomeView: View {
                         )
                     }
                 )
+                .task(id: libraryManager.songsPlaylistID) {
+                    await refreshSongsTracks()
+                }
             }
+        }
+    }
+
+    private func refreshSongsTracks() async {
+        let libraryManager = libraryManager
+        let loaded = await Task.detached {
+            libraryManager.getSongsTracks()
+        }.value
+        songsTracks = loaded
+        if songsTracks.isEmpty, libraryManager.songsPlaylistID == nil, libraryManager.tracks.isEmpty {
+            await libraryManager.loadAllTracks()
+            songsTracks = libraryManager.tracks
         }
     }
     

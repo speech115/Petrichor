@@ -40,6 +40,8 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     var isFavorite: Bool = false
     var playCount: Int = 0
     var lastPlayedDate: Date?
+    /// When the track was last marked favorite; nil when not favorited.
+    var dateFavorited: Date?
     
     // Sorting fields
     var trackNumber: Int?
@@ -152,6 +154,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
         static let channels = Column("channels")
         static let dateAdded = Column("date_added")
         static let isFavorite = Column("is_favorite")
+        static let dateFavorited = Column("date_favorited")
         static let playCount = Column("play_count")
         static let lastPlayedDate = Column("last_played_date")
         static let albumArtist = Column("album_artist")
@@ -187,6 +190,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
         channels = row[Columns.channels]
         dateAdded = row[Columns.dateAdded]
         isFavorite = row[Columns.isFavorite]
+        dateFavorited = row[Columns.dateFavorited]
         playCount = row[Columns.playCount]
         lastPlayedDate = row[Columns.lastPlayedDate]
         
@@ -222,6 +226,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
         container[Columns.lossless] = lossless
         container[Columns.dateAdded] = dateAdded ?? Date()
         container[Columns.isFavorite] = isFavorite
+        container[Columns.dateFavorited] = dateFavorited
         container[Columns.playCount] = playCount
         container[Columns.lastPlayedDate] = lastPlayedDate
         container[Columns.albumArtist] = albumArtist
@@ -278,6 +283,7 @@ extension Track {
     func withFavoriteStatus(_ isFavorite: Bool) -> Track {
         var copy = self
         copy.isFavorite = isFavorite
+        copy.dateFavorited = isFavorite ? Date() : nil
         return copy
     }
 }
@@ -306,6 +312,7 @@ extension Track {
             Columns.channels,
             Columns.dateAdded,
             Columns.isFavorite,
+            Columns.dateFavorited,
             Columns.playCount,
             Columns.lastPlayedDate,
             Columns.albumArtist,

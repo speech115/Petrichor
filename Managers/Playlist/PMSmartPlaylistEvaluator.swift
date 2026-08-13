@@ -199,6 +199,10 @@ extension PlaylistManager {
                 let date1 = track1.dateAdded ?? Date.distantPast
                 let date2 = track2.dateAdded ?? Date.distantPast
                 return date1 < date2
+            case "dateFavorited":
+                let date1 = track1.dateFavorited ?? Date.distantPast
+                let date2 = track2.dateFavorited ?? Date.distantPast
+                return date1 < date2
             case "duration":
                 return track1.duration < track2.duration
             default:

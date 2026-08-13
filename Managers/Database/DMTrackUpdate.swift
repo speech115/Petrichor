@@ -14,7 +14,11 @@ extension DatabaseManager {
         _ = try await dbQueue.write { db in
             try Track
                 .filter(Track.Columns.trackId == trackId)
-                .updateAll(db, Track.Columns.isFavorite.set(to: isFavorite))
+                .updateAll(
+                    db,
+                    Track.Columns.isFavorite.set(to: isFavorite),
+                    Track.Columns.dateFavorited.set(to: isFavorite ? Date() : nil)
+                )
         }
     }
 

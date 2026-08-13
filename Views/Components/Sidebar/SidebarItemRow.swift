@@ -68,22 +68,49 @@ struct SidebarItemRow<Item: SidebarItem>: View {
             onHover(hovering)
         }
     }
-    
+
     // MARK: - Icon View
     
     @ViewBuilder private var iconView: some View {
-        if showIcon, let icon = item.icon {
-            Group {
-                if icon.hasPrefix("custom.") {
-                    Image(icon)
-                } else {
-                    Image(systemName: icon)
-                }
+        if showIcon {
+            if let artwork = item.artwork {
+                artworkView(artwork)
+            } else if let icon = item.icon {
+                symbolView(icon)
             }
-            .foregroundColor(isSelected ? .white : iconColor)
-            .font(.system(size: 16))
-            .frame(width: 16, height: 16)
         }
+    }
+
+    private func artworkView(_ artwork: SidebarItemArtwork) -> some View {
+        Group {
+            switch artwork {
+            case .data(let data):
+                if let platformImage = PlatformImage(data: data) {
+                    Image(platformImage: platformImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    symbolView(item.icon ?? Icons.musicNoteList)
+                }
+            case .playlistCover(let cover):
+                PlaylistCoverView(cover: cover, cornerRadius: 3)
+            }
+        }
+        .frame(width: 20, height: 20)
+        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+    }
+
+    private func symbolView(_ icon: String) -> some View {
+        Group {
+            if icon.hasPrefix("custom.") {
+                Image(icon)
+            } else {
+                Image(systemName: icon)
+            }
+        }
+        .foregroundColor(isSelected ? .white : iconColor)
+        .font(.system(size: 16))
+        .frame(width: 16, height: 16)
     }
     
     // MARK: - Content View

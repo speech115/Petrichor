@@ -19,6 +19,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
     var isFavorite: Bool = false
     var playCount: Int = 0
     var lastPlayedDate: Date?
+    var dateFavorited: Date?
     
     // File properties
     let format: String
@@ -110,6 +111,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
         static let trackArtworkData = Column("track_artwork_data")
         static let dateAdded = Column("date_added")
         static let isFavorite = Column("is_favorite")
+        static let dateFavorited = Column("date_favorited")
         static let playCount = Column("play_count")
         static let lastPlayedDate = Column("last_played_date")
         static let albumArtist = Column("album_artist")
@@ -164,6 +166,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
         trackArtworkData = row[Columns.trackArtworkData]
         dateAdded = row[Columns.dateAdded]
         isFavorite = row[Columns.isFavorite]
+        dateFavorited = row[Columns.dateFavorited]
         playCount = row[Columns.playCount]
         lastPlayedDate = row[Columns.lastPlayedDate]
         
@@ -225,6 +228,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
         container[Columns.dateAdded] = dateAdded ?? Date()
         container[Columns.trackArtworkData] = trackArtworkData
         container[Columns.isFavorite] = isFavorite
+        container[Columns.dateFavorited] = dateFavorited
         container[Columns.playCount] = playCount
         container[Columns.lastPlayedDate] = lastPlayedDate
         container[Columns.albumArtist] = albumArtist

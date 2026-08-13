@@ -24,6 +24,7 @@ enum TrackSortField: String, CaseIterable {
     case filename
     case duration
     case dateAdded
+    case dateFavorited
     case playCount
     case lastPlayedDate
     case custom

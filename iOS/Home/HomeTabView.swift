@@ -104,7 +104,7 @@ struct HomeTabView: View {
             VStack(spacing: 0) {
                 libraryRow(
                     title: String(localized: "Songs"),
-                    count: libraryManager.countsLoaded ? libraryManager.totalTrackCount : nil,
+                    count: libraryManager.countsLoaded ? libraryManager.songsDisplayCount : nil,
                     value: LibraryDestination.allTracks
                 )
                 if let favorites = smartPlaylist(DefaultPlaylists.favorites) {

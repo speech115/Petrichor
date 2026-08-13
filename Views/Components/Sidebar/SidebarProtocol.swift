@@ -7,7 +7,19 @@ protocol SidebarItem: Identifiable, Equatable {
     var title: String { get }
     var subtitle: String? { get }
     var icon: String? { get }
+    /// Square artwork shown instead of `icon` when present (playlist covers).
+    var artwork: SidebarItemArtwork? { get }
     var count: Int? { get }
+}
+
+extension SidebarItem {
+    var artwork: SidebarItemArtwork? { nil }
+}
+
+/// Leading artwork for a sidebar row. Prefer this over `icon` when set.
+enum SidebarItemArtwork: Equatable {
+    case data(Data)
+    case playlistCover(PlaylistCover)
 }
 
 // MARK: - Home Sidebar Item
@@ -17,6 +29,7 @@ struct HomeSidebarItem: SidebarItem {
     let title: String
     let subtitle: String?
     let icon: String?
+    let artwork: SidebarItemArtwork?
     var count: Int?
     let type: HomeItemType?
     
@@ -79,6 +92,7 @@ struct HomeSidebarItem: SidebarItem {
         self.source = .fixed(type)
         self.title = type.title
         self.icon = type.icon
+        self.artwork = nil
 
         // Set subtitle based on type
         switch type {
@@ -90,15 +104,27 @@ struct HomeSidebarItem: SidebarItem {
             self.subtitle = String(localized: "\(albumCount ?? 0) albums")
         }
     }
-    
+
     // Init for pinned items
-    init(pinnedItem: PinnedItem, trackCount: Int = 0, playlist: Playlist? = nil) {
+    init(
+        pinnedItem: PinnedItem,
+        trackCount: Int = 0,
+        playlist: Playlist? = nil,
+        artworkOverride: SidebarItemArtwork? = nil
+    ) {
         self.id = UUID(uuidString: "pinned-\(pinnedItem.id ?? 0)") ?? UUID()
         self.type = nil
         self.source = .pinned(pinnedItem)
         self.title = playlist.map(DefaultPlaylists.displayName) ?? pinnedItem.displayName
         self.subtitle = String(localized: "\(trackCount) songs")
         self.icon = HomeSidebarItem.deriveIcon(for: pinnedItem, playlist: playlist)
+        if let artworkOverride {
+            self.artwork = artworkOverride
+        } else {
+            self.artwork = pinnedItem.itemType == .playlist
+                ? playlist.flatMap(PlaylistSidebarArtwork.resolve(for:))
+                : nil
+        }
     }
 
     private static func deriveIcon(for pinnedItem: PinnedItem, playlist: Playlist?) -> String {
@@ -180,13 +206,15 @@ struct PlaylistSidebarItem: SidebarItem {
     let title: String
     let subtitle: String?
     let icon: String?
+    let artwork: SidebarItemArtwork?
     let count: Int?
     let playlist: Playlist
 
-    init(playlist: Playlist) {
+    init(playlist: Playlist, artworkOverride: SidebarItemArtwork? = nil) {
         self.id = playlist.id
         self.title = DefaultPlaylists.displayName(for: playlist)
         self.icon = Icons.defaultPlaylistIcon(for: playlist)
+        self.artwork = artworkOverride ?? PlaylistSidebarArtwork.resolve(for: playlist)
         self.playlist = playlist
 
         // Set subtitle and count based on playlist type
@@ -202,6 +230,43 @@ struct PlaylistSidebarItem: SidebarItem {
             self.subtitle = String(localized: "\(playlist.trackCount) songs")
             self.count = nil
         }
+    }
+}
+
+/// Shared cover/collage resolution for playlist rows in the Home and Playlists sidebars.
+enum PlaylistSidebarArtwork {
+    static func resolve(for playlist: Playlist) -> SidebarItemArtwork? {
+        if let data = playlist.artworkData {
+            return .data(data)
+        }
+        if let cover = PlaylistCover.of(playlist) {
+            return .playlistCover(cover)
+        }
+        return nil
+    }
+
+    /// When there is no pinned cover or cached collage, build a 4-tile collage
+    /// from preview tracks (same idea as iOS `PlaylistsTabView`).
+    static func resolveOrWarmCollage(
+        for playlist: Playlist,
+        database: DatabaseManager
+    ) async -> SidebarItemArtwork? {
+        if let resolved = resolve(for: playlist) {
+            return resolved
+        }
+
+        var playlist = playlist
+        var previews = database.getPlaylistPreviewTracks(playlist, limit: 4)
+        for index in previews.indices where previews[index].albumArtworkData == nil {
+            previews[index].albumArtworkData = database.getArtworkData(
+                albumId: previews[index].albumId,
+                trackId: previews[index].trackId
+            )
+        }
+        guard previews.contains(where: { $0.albumArtworkData != nil }) else { return nil }
+        playlist.tracks = previews
+        guard let data = await playlist.warmArtworkCacheIfNeeded() else { return nil }
+        return .data(data)
     }
 }
 
