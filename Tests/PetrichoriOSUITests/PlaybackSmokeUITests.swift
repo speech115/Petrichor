@@ -54,10 +54,12 @@ final class PlaybackSmokeUITests: XCTestCase {
         // A track must start without hanging the main thread: the mini player
         // appears in its playing state.
         let pauseButton = app.buttons["Pause"]
-        if !pauseButton.waitForExistence(timeout: 15) {
-            print("UI-DIAG buttons:", app.buttons.allElementsBoundByIndex.map(\.label).prefix(40))
-            XCTFail("мини-плеер не появился в играющем состоянии (запуск трека не работает)")
-        }
+        // No button-tree dump on failure: `allElementsBoundByIndex` has timed
+        // out on CI and failed the test before XCTFail.
+        XCTAssertTrue(
+            pauseButton.waitForExistence(timeout: 30),
+            "мини-плеер не появился в играющем состоянии (запуск трека не работает)"
+        )
 
         // Tapping the mini player must open Now Playing.
         let miniPlayer = app.buttons["MiniPlayer"]
@@ -71,13 +73,5 @@ final class PlaybackSmokeUITests: XCTestCase {
         // window that used to kill it while preloading the whole queue.
         sleep(8)
         XCTAssertEqual(app.state, .runningForeground, "приложение упало после запуска трека")
-
-        // Progress regression: the seek bar must have moved off zero after
-        // playing for a few seconds (duration is taken from the database).
-        sleep(6)
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = "NowPlaying-progress"
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 }

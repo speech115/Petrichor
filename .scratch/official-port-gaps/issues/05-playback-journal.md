@@ -1,6 +1,6 @@
 # 05 — Пятый шов PlaybackJournal: прослушивания телефона доезжают до мака
 
-Status: ready-for-agent
+Status: in-review
 Blocked by: 04
 
 ## Проблема
@@ -79,3 +79,7 @@ Blocked by: 04
       мак-UI нет автопроверок, это осознанная дыра.
 
 ## Comments
+
+- 2026-08-13, cloud agent: пятый шов `PlaybackJournal` + JSONL writer (iOS) + applier (macOS Settings) + seam tests; ветка `cursor/05-playback-journal-e7ca` от 04-swift6-isolation.
+
+- 2026-08-13: реализация в PR #10 (`cursor/05-playback-journal-e7ca`), CI зелёный. Ручной прогон мак-сводки ещё в Comments.
