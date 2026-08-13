@@ -40,7 +40,7 @@ struct TrackRow: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TrackRowPressStyle())
         // One VoiceOver element per row: "title, artist" in a single phrase.
         // The custom actions below stay on that same element, so the row
         // remains operable after combining.
@@ -239,5 +239,18 @@ private struct TrackPlaybackStatus: View {
                     .frame(width: 18)
             }
         }
+    }
+}
+
+/// Grey press flash like Apple Music rows. Background only — scale would
+/// jitter neighbouring list rows.
+private struct TrackRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.primary.opacity(0.06) : .clear)
+            .animation(
+                .easeOut(duration: AnimationDuration.quickDuration),
+                value: configuration.isPressed
+            )
     }
 }

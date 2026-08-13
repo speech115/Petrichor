@@ -349,6 +349,10 @@ struct NowPlayingScreen: View {
             // narrower column, and matching the cover's 40pt there overshoots.
             .id(displayedTrack?.id)
             .transition(titleTransition)
+            .titleSwipeNavigation(
+                onPrevious: { playlistManager.playPreviousTrack() },
+                onNext: { playlistManager.playNextTrack() }
+            )
 
             if let track {
                 chipButton(

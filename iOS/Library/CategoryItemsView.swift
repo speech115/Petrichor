@@ -71,6 +71,7 @@ struct CategoryItemsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .detailZoomSource(albumZoomID(for: item))
                 }
             }
             .padding(.horizontal, 16)
@@ -107,6 +108,11 @@ struct CategoryItemsView: View {
             return albumEntitiesByID[albumId]
         }
         return libraryManager.albumEntities.first { $0.name == item.name }
+    }
+
+    private func albumZoomID(for item: LibraryFilterItem) -> DetailZoomID {
+        let entity = albumEntity(for: item) ?? AlbumEntity(name: item.name, trackCount: item.count)
+        return .album(entity.id)
     }
 
     // MARK: - Rows

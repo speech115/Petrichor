@@ -30,9 +30,11 @@ struct AlbumPage: View {
                     .frame(maxWidth: .infinity)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             },
             row: { track, context in trackRow(track, context: context) }
         )
+        .detailPageWash(headerTint)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: album.albumId) {
             if let existing = album.artworkData {
@@ -71,7 +73,7 @@ struct AlbumPage: View {
             title: album.displayName,
             subtitle: subtitle,
             tint: headerTint,
-            artwork: { artwork.frame(width: 240, height: 240) }
+            artwork: { artwork.frame(width: 280, height: 280) }
         )
     }
 

@@ -19,6 +19,7 @@ struct SettingsToolbarItem: ToolbarContent {
                 Image(systemName: Icons.settings)
             }
             .accessibilityLabel(String(localized: "Settings"))
+            .settingsZoomSource()
         }
     }
 }

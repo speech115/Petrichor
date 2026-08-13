@@ -49,9 +49,11 @@ struct PlaylistDetailScreen: View {
                             .frame(maxWidth: .infinity)
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     },
                     row: { track, _ in playlistTrackRow(track, playlist: playlist) }
                 )
+                .detailPageWash(headerTint)
             } else {
                 ContentUnavailableView(
                     String(localized: "Playlist Not Found"),
@@ -160,16 +162,16 @@ struct PlaylistDetailScreen: View {
                 Group {
                     if playlist.coverArtworkData != nil {
                         ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 12, iconSize: 56)
-                            .frame(width: 240, height: 240)
+                            .frame(width: 280, height: 280)
                     } else if let cover = PlaylistCover.of(playlist) {
                         PlaylistCoverView(cover: cover, cornerRadius: 12)
-                            .frame(width: 240, height: 240)
+                            .frame(width: 280, height: 280)
                     // No service-mark fallback here: the row for this playlist
                     // shows the mosaic, and the page it opens has to show the
                     // same cover it grew out of.
                     } else {
                         ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: tracks))
-                            .frame(width: 240, height: 240)
+                            .frame(width: 280, height: 280)
                     }
                 }
                 // The title and subtitle under the cover name the playlist;
