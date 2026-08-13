@@ -113,10 +113,9 @@ struct ArtworkTile: View {
         // data hash.
         .id(currentKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        // Collapse first when decorative: `accessibilityHidden` alone leaves
-        // the decoded Image in the accessibility tree.
-        .accessibilityElement(children: isDecorative ? .ignore : .contain)
-        .accessibilityHidden(isDecorative)
+        // Decorative tiles drop out of VoiceOver / the AX audit entirely;
+        // non-decorative keep the default tree so a caller can label them.
+        .modifier(DecorativeArtworkAccessibility(isDecorative: isDecorative))
     }
 
     /// The decoded image cross-fades over the placeholder it replaces. Only on
@@ -197,6 +196,20 @@ struct ArtworkTile: View {
             Image(systemName: placeholderIcon)
                 .font(.system(size: min(iconSize, 36)))
                 .foregroundColor(.secondary)
+        }
+    }
+}
+
+/// Replaces decorative artwork with an empty accessibility representation so
+/// neither the Image nor an unlabeled wrapper reaches VoiceOver / the audit.
+private struct DecorativeArtworkAccessibility: ViewModifier {
+    let isDecorative: Bool
+
+    func body(content: Content) -> some View {
+        if isDecorative {
+            content.accessibilityRepresentation { EmptyView() }
+        } else {
+            content
         }
     }
 }

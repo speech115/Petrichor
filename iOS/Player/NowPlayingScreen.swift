@@ -400,10 +400,13 @@ struct NowPlayingScreen: View {
 
     private var volumeRow: some View {
         HStack(spacing: 10) {
+            // Glyphs frame the system slider; the slider itself is the control.
             Image(systemName: "speaker.fill")
+                .accessibilityHidden(true)
             SystemVolumeSlider(tint: UIColor.white.withAlphaComponent(0.85))
                 .frame(height: 24)
             Image(systemName: "speaker.wave.3.fill")
+                .accessibilityHidden(true)
         }
         .font(.system(size: min(volumeIconSize, 16)))
         .foregroundColor(palette.secondary)
@@ -577,9 +580,8 @@ struct NowPlayingScreen: View {
 /// It reflects the hardware buttons' volume and moves with them, which no
 /// custom control can do.
 ///
-/// The knob is replaced with an empty image so only the bar shows, the way
-/// Apple Music's volume slider looks — the default round thumb sits proud of
-/// the track and reads as a much heavier control than the scrubber above it.
+/// The knob is a clear 1×1 image so only the bar shows (Apple Music style).
+/// An empty `UIImage()` leaves an unlabeled AX element; a clear pixel does not.
 struct SystemVolumeSlider: UIViewRepresentable {
     let tint: UIColor
 
@@ -590,13 +592,21 @@ struct SystemVolumeSlider: UIViewRepresentable {
         // `AVRoutePickerView` (see `AirPlayButton` below, which is that picker).
         view.showsVolumeSlider = true
         view.tintColor = tint
-        view.setVolumeThumbImage(UIImage(), for: .normal)
-        view.setVolumeThumbImage(UIImage(), for: .highlighted)
+        let thumb = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { renderer in
+            UIColor.clear.setFill()
+            renderer.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        view.setVolumeThumbImage(thumb, for: .normal)
+        view.setVolumeThumbImage(thumb, for: .highlighted)
+        view.isAccessibilityElement = true
+        view.accessibilityLabel = String(localized: "Volume")
+        view.accessibilityTraits.insert(.adjustable)
         return view
     }
 
     func updateUIView(_ view: MPVolumeView, context: Context) {
         view.tintColor = tint
+        view.accessibilityLabel = String(localized: "Volume")
     }
 }
 
@@ -611,11 +621,15 @@ struct AirPlayButton: UIViewRepresentable {
         let view = AVRoutePickerView(frame: .zero)
         view.tintColor = tint
         view.activeTintColor = tint
+        view.isAccessibilityElement = true
+        view.accessibilityLabel = String(localized: "AirPlay")
+        view.accessibilityTraits.insert(.button)
         return view
     }
 
     func updateUIView(_ view: AVRoutePickerView, context: Context) {
         view.tintColor = tint
         view.activeTintColor = tint
+        view.accessibilityLabel = String(localized: "AirPlay")
     }
 }

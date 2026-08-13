@@ -53,13 +53,6 @@ final class AccessibilityAuditUITests: XCTestCase {
         }
     }
 
-    private func attachScreenshot(of app: XCUIApplication, named name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
-    }
-
     // MARK: - Audits
 
     func testHomeScreenPassesAccessibilityAudit() async throws {
@@ -67,7 +60,7 @@ final class AccessibilityAuditUITests: XCTestCase {
 
         try app.performAccessibilityAudit()
 
-        attachScreenshot(of: app, named: "AX-Home")
+        attachBestEffortScreenshot(of: app, named: "AX-Home")
     }
 
     func testTrackListPassesAccessibilityAudit() async throws {
@@ -119,7 +112,7 @@ final class AccessibilityAuditUITests: XCTestCase {
 
         try app.performAccessibilityAudit(for: .all.subtracting(.contrast))
 
-        attachScreenshot(of: app, named: "AX-TrackList")
+        attachBestEffortScreenshot(of: app, named: "AX-TrackList")
     }
 
     func testNowPlayingPassesAccessibilityAudit() async throws {
@@ -160,7 +153,7 @@ final class AccessibilityAuditUITests: XCTestCase {
             return !isTitleOrArtist
         }
 
-        attachScreenshot(of: app, named: "AX-NowPlaying")
+        attachBestEffortScreenshot(of: app, named: "AX-NowPlaying")
     }
 
     func testSettingsPassesAccessibilityAudit() async throws {
@@ -175,6 +168,6 @@ final class AccessibilityAuditUITests: XCTestCase {
 
         try app.performAccessibilityAudit()
 
-        attachScreenshot(of: app, named: "AX-Settings")
+        attachBestEffortScreenshot(of: app, named: "AX-Settings")
     }
 }
