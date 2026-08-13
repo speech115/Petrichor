@@ -183,7 +183,7 @@ import Testing
         let folder = Folder(url: LibraryPathStore.libraryRoot)
         try folder.insert(db)
         guard let folderId = try Int64.fetchOne(db, sql: "SELECT id FROM folders ORDER BY id LIMIT 1") else {
-            throw TestSeedError.missingFolderID
+            throw PlaybackJournalTestError.missingFolderID
         }
 
         let url = LibraryPathStore.libraryRoot.appendingPathComponent(relativePath)
@@ -229,4 +229,8 @@ import Testing
     #expect(second.skipped == 0)
     let afterSecond = try pool.read { db in try Track.fetchOne(db) }
     #expect(afterSecond?.playCount == 2)
+}
+
+private enum PlaybackJournalTestError: Error {
+    case missingFolderID
 }
