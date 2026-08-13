@@ -39,7 +39,6 @@ class RemoteCommandManager {
     // MARK: - Remote Command Center
 
     private func setupRemoteCommandCenter() {
-        // Remove any existing handlers
         for command in managedCommands {
             command.removeTarget(nil)
         }
@@ -48,9 +47,8 @@ class RemoteCommandManager {
     func connectRemoteCommandCenter(audioPlayer: PlaybackManager, playlistManager: PlaylistManager) {
         let commandCenter = MPRemoteCommandCenter.shared()
 
-        // Add handler for play command
         commandCenter.playCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer else { return .commandFailed }
+            guard let audioPlayer else { return .commandFailed }
             return MainActor.assumeIsolated {
                 guard !audioPlayer.isPlaying else { return .commandFailed }
                 audioPlayer.togglePlayPause()
@@ -58,9 +56,8 @@ class RemoteCommandManager {
             }
         }
 
-        // Add handler for pause command
         commandCenter.pauseCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer else { return .commandFailed }
+            guard let audioPlayer else { return .commandFailed }
             return MainActor.assumeIsolated {
                 guard audioPlayer.isPlaying else { return .commandFailed }
                 audioPlayer.togglePlayPause()
@@ -68,51 +65,40 @@ class RemoteCommandManager {
             }
         }
 
-        // Add handler for toggle play/pause command
         commandCenter.togglePlayPauseCommand.addTarget { [weak audioPlayer] _ in
-            guard audioPlayer != nil else { return .commandFailed }
-            Task { @MainActor [weak audioPlayer] in
-                guard let audioPlayer else { return }
+            guard let audioPlayer else { return .commandFailed }
+            return MainActor.assumeIsolated {
                 audioPlayer.togglePlayPause()
+                return .success
             }
-            return .success
         }
 
-        // Add handler for next track command
         commandCenter.nextTrackCommand.addTarget { [weak playlistManager] _ in
-            guard playlistManager != nil else { return .commandFailed }
-            Task { @MainActor [weak playlistManager] in
-                guard let playlistManager else { return }
+            guard let playlistManager else { return .commandFailed }
+            return MainActor.assumeIsolated {
                 playlistManager.playNextTrack()
+                return .success
             }
-            return .success
         }
 
-        // Add handler for previous track command
         commandCenter.previousTrackCommand.addTarget { [weak playlistManager] _ in
-            guard playlistManager != nil else { return .commandFailed }
-            Task { @MainActor [weak playlistManager] in
-                guard let playlistManager else { return }
+            guard let playlistManager else { return .commandFailed }
+            return MainActor.assumeIsolated {
                 playlistManager.playPreviousTrack()
+                return .success
             }
-            return .success
         }
 
-        // Add handler for seeking
         commandCenter.changePlaybackPositionCommand.addTarget { [weak audioPlayer] event in
-            guard let audioPlayer = audioPlayer,
+            guard let audioPlayer,
                   let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
                 return .commandFailed
             }
-            // Read the position out of the (non-Sendable) event before crossing into
-            // the isolated closure - passing `positionEvent` itself in gets flagged as
-            // sending task-isolated state across the hop.
             let position = positionEvent.positionTime
-            Task { @MainActor [weak audioPlayer] in
-                guard let audioPlayer else { return }
+            return MainActor.assumeIsolated {
                 audioPlayer.seekTo(time: position)
+                return .success
             }
-            return .success
         }
     }
 }

@@ -10,8 +10,8 @@
 //
 // Concurrency: playback state and delegate delivery are `@MainActor` isolated.
 // AVFoundation KVO/notification callbacks may arrive on any thread, so those
-// entry points carry only a Sendable item identity across an explicit
-// `Task { @MainActor in }` hop before touching backend state.
+// entry points carry only a Sendable item identity across a main-queue
+// FIFO hop before touching backend state.
 //
 // Background playback and the lock-screen tile are this backend's
 // responsibility too, wired up in `activateSessionIfNeeded()` on the first
@@ -48,25 +48,6 @@ private enum AVFoundationEvent: Sendable {
     case seekCompleted
 }
 
-private struct SequencedAVFoundationEvent: Sendable {
-    let sequence: UInt64
-    let event: AVFoundationEvent
-}
-
-/// AVFoundation invokes KVO, notification and completion callbacks on queues
-/// of its choosing. Assigning the sequence at the callback boundary prevents
-/// the MainActor hops used for delivery from reordering those events.
-private final class AVFoundationEventSequencer: Sendable {
-    private let nextSequence = OSAllocatedUnfairLock(initialState: UInt64.zero)
-
-    func sequence(_ event: AVFoundationEvent) -> SequencedAVFoundationEvent {
-        nextSequence.withLock { next in
-            defer { next += 1 }
-            return SequencedAVFoundationEvent(sequence: next, event: event)
-        }
-    }
-}
-
 @MainActor
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
@@ -77,9 +58,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var currentItemObservation: NSKeyValueObservation?
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
-    nonisolated private let eventSequencer = AVFoundationEventSequencer()
-    private var nextAVFoundationEventSequence: UInt64 = 0
-    private var pendingAVFoundationEvents: [UInt64: AVFoundationEvent] = [:]
     /// The last metadata handed to `setNowPlayingMetadata`, so the backend can
     /// re-publish it on its own play/pause/seek events (the lock screen
     /// extrapolates elapsed time from the published rate+elapsed anchor, and
@@ -476,18 +454,13 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
     }
 
+    /// AVFoundation callbacks arrive on arbitrary queues. Main-queue FIFO
+    /// preserves order without a custom sequencer (Task hops do not).
     nonisolated private func enqueueAVFoundationEvent(_ event: AVFoundationEvent) {
-        let sequenced = eventSequencer.sequence(event)
-        Task { @MainActor [weak self] in
-            self?.receiveAVFoundationEvent(sequenced)
-        }
-    }
-
-    private func receiveAVFoundationEvent(_ sequenced: SequencedAVFoundationEvent) {
-        pendingAVFoundationEvents[sequenced.sequence] = sequenced.event
-        while let event = pendingAVFoundationEvents.removeValue(forKey: nextAVFoundationEventSequence) {
-            nextAVFoundationEventSequence += 1
-            handleAVFoundationEvent(event)
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                self?.handleAVFoundationEvent(event)
+            }
         }
     }
 

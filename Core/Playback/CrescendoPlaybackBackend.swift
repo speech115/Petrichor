@@ -13,7 +13,7 @@
 import Crescendo
 import Foundation
 
-final class CrescendoPlaybackBackend: PlaybackBackend {
+final class CrescendoPlaybackBackend: PlaybackBackend, CrescendoPlayerDelegate {
     // MARK: - Backend Surface
 
     weak var backendDelegate: PlaybackBackendDelegate?
@@ -53,7 +53,6 @@ final class CrescendoPlaybackBackend: PlaybackBackend {
     // MARK: - Private Properties
 
     private let player: CrescendoPlayer
-    private var delegateBridge: CrescendoDelegateBridge?
 
     // Effects state. Crescendo applies all effects as property sets, so there is
     // no graph to build; we keep the user-facing state here and push it down.
@@ -68,9 +67,7 @@ final class CrescendoPlaybackBackend: PlaybackBackend {
 
     init() {
         player = CrescendoPlayer()
-        let bridge = CrescendoDelegateBridge(owner: self)
-        self.delegateBridge = bridge
-        player.delegate = bridge
+        player.delegate = self
         // The engine owns the info tile: it anchors elapsed/duration/rate off the
         // real playback clock, which the app can only approximate.
         player.nowPlayingInfoEnabled = true
@@ -236,17 +233,27 @@ final class CrescendoPlaybackBackend: PlaybackBackend {
         player.logLevel = AppInfo.isDebugBuild ? .info : .warning
     }
 
-    // MARK: - Delegate event handling (called by the @MainActor bridge)
+    // MARK: - CrescendoPlayerDelegate
 
-    func handleStartPlaying(entryId: CrescendoEntryId) {
+    func playerDidStartPlaying(_ player: CrescendoPlayer, entryId: CrescendoEntryId) {
         backendDelegate?.backendDidStartPlaying(with: AudioEntryId(id: entryId.id))
     }
 
-    func handleStateChange(from oldState: CrescendoPlayerState, to newState: CrescendoPlayerState) {
+    func playerDidChangeState(
+        _ player: CrescendoPlayer,
+        from oldState: CrescendoPlayerState,
+        to newState: CrescendoPlayerState
+    ) {
         backendDelegate?.backendStateChanged(with: Self.mapState(newState), previous: Self.mapState(oldState))
     }
 
-    func handleFinish(entryId: CrescendoEntryId, reason: CrescendoStopReason, progress: Double, duration: Double) {
+    func playerDidFinishPlaying(
+        _ player: CrescendoPlayer,
+        entryId: CrescendoEntryId,
+        reason: CrescendoStopReason,
+        progress: TimeInterval,
+        duration: TimeInterval
+    ) {
         backendDelegate?.backendDidFinishPlaying(
             entryId: AudioEntryId(id: entryId.id),
             stopReason: Self.mapStopReason(reason),
@@ -255,15 +262,20 @@ final class CrescendoPlaybackBackend: PlaybackBackend {
         )
     }
 
-    func handleError(_ error: CrescendoError) {
+    func playerDidEncounterError(_ player: CrescendoPlayer, error: CrescendoError, entryId: CrescendoEntryId?) {
         backendDelegate?.backendUnexpectedError(error: Self.mapError(error))
     }
 
-    func handleFinishBuffering(entryId: CrescendoEntryId) {
+    func playerDidFinishBuffering(_ player: CrescendoPlayer, entryId: CrescendoEntryId) {
         backendDelegate?.backendDidFinishBuffering(with: AudioEntryId(id: entryId.id))
     }
 
-    func handleSkippedEntry(entryId: CrescendoEntryId, url: URL, reason: CrescendoError) {
+    func playerDidSkipQueueEntry(
+        _ player: CrescendoPlayer,
+        entryId: CrescendoEntryId,
+        url: URL,
+        reason: CrescendoError
+    ) {
         Logger.warning("Crescendo skipped \(url.lastPathComponent): \(reason.localizedDescription)")
         backendDelegate?.backendDidSkipQueueEntry(entryId: AudioEntryId(id: entryId.id))
     }
@@ -301,57 +313,5 @@ final class CrescendoPlaybackBackend: PlaybackBackend {
         case .decoderError, .rendererError, .streamingError, .notImplemented: return .engineError(error)
         @unknown default: return .engineError(error)
         }
-    }
-}
-
-// MARK: - Delegate Bridge
-
-/// Forwards `CrescendoPlayer`'s `@MainActor` delegate callbacks to the backend's
-/// `handle*` methods, keeping the delegate protocol's surface out of the backend.
-@MainActor
-private final class CrescendoDelegateBridge: CrescendoPlayerDelegate {
-    weak var owner: CrescendoPlaybackBackend?
-
-    init(owner: CrescendoPlaybackBackend) {
-        self.owner = owner
-    }
-
-    func playerDidStartPlaying(_ player: CrescendoPlayer, entryId: CrescendoEntryId) {
-        owner?.handleStartPlaying(entryId: entryId)
-    }
-
-    func playerDidChangeState(
-        _ player: CrescendoPlayer,
-        from oldState: CrescendoPlayerState,
-        to newState: CrescendoPlayerState
-    ) {
-        owner?.handleStateChange(from: oldState, to: newState)
-    }
-
-    func playerDidFinishPlaying(
-        _ player: CrescendoPlayer,
-        entryId: CrescendoEntryId,
-        reason: CrescendoStopReason,
-        progress: TimeInterval,
-        duration: TimeInterval
-    ) {
-        owner?.handleFinish(entryId: entryId, reason: reason, progress: progress, duration: duration)
-    }
-
-    func playerDidEncounterError(_ player: CrescendoPlayer, error: CrescendoError, entryId: CrescendoEntryId?) {
-        owner?.handleError(error)
-    }
-
-    func playerDidFinishBuffering(_ player: CrescendoPlayer, entryId: CrescendoEntryId) {
-        owner?.handleFinishBuffering(entryId: entryId)
-    }
-
-    func playerDidSkipQueueEntry(
-        _ player: CrescendoPlayer,
-        entryId: CrescendoEntryId,
-        url: URL,
-        reason: CrescendoError
-    ) {
-        owner?.handleSkippedEntry(entryId: entryId, url: url, reason: reason)
     }
 }
