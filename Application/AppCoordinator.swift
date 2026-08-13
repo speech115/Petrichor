@@ -263,10 +263,11 @@ class AppCoordinator: ObservableObject {
     }
     
     private func performStateRestoration(_ state: PlaybackState) {
-        // Load only the tracks we need for restoration
+        // Load only the tracks we need for restoration — no artwork payloads.
+        // Now Playing enrichment and FullTrack load fill art for the current
+        // entry; the queue itself stays payload-light.
         let trackIdsNeeded = Set(state.queueTrackIds + [state.currentTrackId].compactMap { $0 })
-        var relevantTracks = libraryManager.databaseManager.getTracks(byIds: Array(trackIdsNeeded))
-        libraryManager.databaseManager.populateAlbumArtworkForTracks(&relevantTracks)
+        let relevantTracks = libraryManager.databaseManager.getTracks(byIds: Array(trackIdsNeeded))
 
         // Create a track ID to track map for efficient lookup
         let trackIdMap: [Int64: Track] = Dictionary(
@@ -317,10 +318,10 @@ class AppCoordinator: ObservableObject {
         playlistManager.repeatMode = state.repeatModeEnum
         playbackManager.setVolume(state.isMuted ? 0 : state.volume)
         
-        // Set the queue — restored tracks may carry artwork from DB lookups;
-        // the live queue must stay payload-light like beginPlayback.
-        playlistManager.currentQueue = restoredQueue.map { $0.withoutArtwork() }
-        playlistManager.currentQueueIndex = min(state.currentQueueIndex, restoredQueue.count - 1)
+        playlistManager.replaceCurrentQueue(
+            restoredQueue,
+            index: min(state.currentQueueIndex, restoredQueue.count - 1)
+        )
         playlistManager.currentQueueSource = state.queueSourceEnum
         
         // Try to restore the source context

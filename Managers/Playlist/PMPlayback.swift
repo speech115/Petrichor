@@ -94,25 +94,19 @@ extension PlaylistManager {
     /// the list the user is looking at; with shuffle on the chosen track leads and the
     /// rest follow in random order.
     private func beginPlayback(of track: Track, in contextTracks: [Track]) {
-        let lightTrack = track.withoutArtwork()
-        let lightContext = contextTracks.map { $0.withoutArtwork() }
-
-        guard let index = lightContext.firstIndex(where: { $0.id == lightTrack.id }) else {
-            currentQueue = [lightTrack]
-            currentQueueIndex = 0
+        guard let index = contextTracks.firstIndex(where: { $0.id == track.id }) else {
+            replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
 
         if isShuffleEnabled {
-            var rest = lightContext
+            var rest = contextTracks
             rest.remove(at: index)
             rest.shuffle()
-            currentQueue = [lightTrack] + rest
-            currentQueueIndex = 0
+            replaceCurrentQueue([track] + rest, index: 0)
         } else {
-            currentQueue = lightContext
-            currentQueueIndex = index
+            replaceCurrentQueue(contextTracks, index: index)
         }
 
         audioPlayer?.startQueue(at: currentQueueIndex)

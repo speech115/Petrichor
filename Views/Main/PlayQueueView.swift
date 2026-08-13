@@ -356,7 +356,7 @@ struct QueueDropDelegate: DropDelegate {
                 track.duration = 180.0 + Double(i * 30)
                 return track
             }
-            playlistManager.currentQueue = sampleTracks
+            playlistManager.replaceCurrentQueue(sampleTracks)
             return playlistManager
         }())
         .frame(width: 350, height: 600)

@@ -23,7 +23,7 @@ extension LibraryManager {
     
     // MARK: - Methods
     
-    func loadDiscoverTracks(populateArtwork: Bool = false) {
+    func loadDiscoverTracks(populateArtwork: Bool = true) {
         var tracks: [Track]
         
         if shouldRefreshDiscover() {
@@ -59,7 +59,8 @@ extension LibraryManager {
             }
         }
 
-        // Header mosaic needs at most four covers; visible rows fetch the rest.
+        // iOS mosaic: seed up to four covers from anywhere in the rotation.
+        // macOS Discover passes populateArtwork: true and skips this path.
         if !populateArtwork {
             databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)
         }
@@ -68,8 +69,9 @@ extension LibraryManager {
         Logger.info("Discover tracks loaded")
     }
     
-    /// Force refresh discover tracks (called when settings change)
-    func refreshDiscoverTracks() {
+    /// Force refresh discover tracks (called when settings change).
+    /// Default keeps macOS Discover table artwork; iOS passes `false`.
+    func refreshDiscoverTracks(populateArtwork: Bool = true) {
         Logger.info("Force refreshing discover tracks")
         
         // Clear the last updated date to force refresh
@@ -78,8 +80,7 @@ extension LibraryManager {
         // Clear current tracks to force UI update
         self.discoverTracks = []
         
-        // Reload tracks immediately — thumbnails only, same as tab open.
-        loadDiscoverTracks(populateArtwork: false)
+        loadDiscoverTracks(populateArtwork: populateArtwork)
         
         // Force UI update by triggering objectWillChange
         DispatchQueue.main.async { [weak self] in

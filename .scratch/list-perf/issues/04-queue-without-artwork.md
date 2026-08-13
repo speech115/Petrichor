@@ -26,3 +26,8 @@ Blocked by: 02
 
 - 2026-08-13: `Track.withoutArtwork()` used in beginPlayback, createLibraryQueue,
   playNext, addToQueue, and AppCoordinator queue restore.
+
+- 2026-08-13 thermos: `replaceCurrentQueue` / `replaceCurrentQueueEntry` /
+  insert/append helpers are the sole queue writers; PMTrackUpdate, shuffle,
+  restore, and PlayQueue preview go through them. Restore no longer bulk-loads
+  artwork for the whole queue.

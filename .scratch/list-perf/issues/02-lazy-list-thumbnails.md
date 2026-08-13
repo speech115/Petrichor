@@ -31,3 +31,7 @@ Blocked by: —
   Top Result load via ArtworkTile. Folders (macOS) still get full artwork from
   `getTracksForFolder`. `getAlbumArtworkThumbnail` no longer falls back to the
   display-size BLOB.
+
+- 2026-08-13 thermos: shared `ArtworkDataLoader.trackListArtwork` (thumbnail
+  then album/track `getArtworkData` fallback). Stale DMQueries / displayArtwork
+  comments aligned with 0 / mosaic-limit / Folders-full policy.

@@ -25,3 +25,7 @@ Blocked by: —
 
 - 2026-08-13: Default `populateArtwork` is `false`; refresh uses the same path;
   thumbnail pass capped at `limit: 4` for the mosaic.
+
+- 2026-08-13 thermos: restored macOS default `populateArtwork: true`; iOS
+  refresh/load pass `false`. Mosaic `limit` now scans for covers (headroom),
+  not hard `prefix(4)`.

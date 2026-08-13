@@ -9,7 +9,7 @@ import Foundation
 extension PlaylistManager {
     func createLibraryQueue() {
         guard let library = libraryManager else { return }
-        currentQueue = library.tracks.map { $0.withoutArtwork() }
+        replaceCurrentQueue(library.tracks)
         currentPlaylist = nil
         currentQueueSource = .library
         Logger.info("Created playback queue from library")
@@ -30,15 +30,13 @@ extension PlaylistManager {
     }
 
     func playNext(_ track: Track) {
-        let lightTrack = track.withoutArtwork()
         if currentQueue.isEmpty || currentQueueIndex < 0 {
-            currentQueue = [lightTrack]
-            currentQueueIndex = 0
+            replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
 
-        if let existingIndex = currentQueue.firstIndex(where: { $0.id == lightTrack.id }) {
+        if let existingIndex = currentQueue.firstIndex(where: { $0.id == track.id }) {
             // The playing track is already "next" in the only sense that matters, and
             // removing the engine's current entry would make it advance or stop.
             guard existingIndex != currentQueueIndex else { return }
@@ -54,22 +52,22 @@ extension PlaylistManager {
 
         // Read after the dedupe removal, which can shift the cursor down by one.
         let position = min(currentQueueIndex + 1, currentQueue.count)
-        currentQueue.insert(lightTrack, at: position)
+        let lightTrack = track.withoutArtwork()
+        insertCurrentQueueEntry(track, at: position)
         audioPlayer?.queueDidInsert(lightTrack, at: position)
         Logger.info("Added track to playback queue to play up next")
     }
 
     func addToQueue(_ track: Track) {
-        let lightTrack = track.withoutArtwork()
         if currentQueue.isEmpty {
-            currentQueue = [lightTrack]
-            currentQueueIndex = 0
+            replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
 
-        if !currentQueue.contains(where: { $0.id == lightTrack.id }) {
-            currentQueue.append(lightTrack)
+        if !currentQueue.contains(where: { $0.id == track.id }) {
+            let lightTrack = track.withoutArtwork()
+            appendCurrentQueueEntry(track)
             audioPlayer?.queueDidAppend(lightTrack)
             Logger.info("Added track to playback queue")
         }
@@ -145,10 +143,7 @@ extension PlaylistManager {
         }
 
         guard let reordered = audioPlayer.shuffleUpcomingQueueEntries() else { return }
-        currentQueue = reordered
-        if let position = audioPlayer.mirroredQueuePosition {
-            currentQueueIndex = position
-        }
+        replaceCurrentQueue(reordered, index: audioPlayer.mirroredQueuePosition)
         Logger.info("Shuffled the upcoming playback queue")
     }
 }

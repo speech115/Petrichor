@@ -259,9 +259,9 @@ extension Track {
         albumArtworkData
     }
 
-    /// The artwork a list row should render: the album thumbnail when the
-    /// list query populated it, the full-size artwork otherwise (detail
-    /// contexts carry full artwork only).
+    /// The artwork a list row should render when already attached to the
+    /// track. Scroll lists usually arrive without either field and load via
+    /// `ArtworkTile`; mosaic headers may preload a few thumbnails.
     var displayArtwork: Data? {
         albumArtworkThumbnail ?? albumArtworkData
     }
