@@ -53,8 +53,17 @@ struct SettingsScreen: View {
 
     // MARK: - Library
 
+    /// The system section-header gray sits at ~3.3:1 against the grouped
+    /// background in light mode, below the 4.5:1 the accessibility gate
+    /// demands, so every header here uses the shared accessible secondary
+    /// color instead of the default.
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .foregroundColor(.secondaryText)
+    }
+
     private var librarySection: some View {
-        Section(String(localized: "Library")) {
+        Section {
             Button {
                 rescanLibrary()
             } label: {
@@ -65,6 +74,8 @@ struct SettingsScreen: View {
             if libraryManager.isScanning, let progress = notificationManager.activityProgress {
                 rescanProgress(progress)
             }
+        } header: {
+            sectionHeader(String(localized: "Library"))
         }
     }
 
@@ -78,7 +89,7 @@ struct SettingsScreen: View {
         if let detail = progress.detail {
             Text(detail)
                 .font(.footnote)
-                .foregroundColor(.secondary)
+                .foregroundColor(.secondaryText)
         }
     }
 
@@ -97,7 +108,12 @@ struct SettingsScreen: View {
     // MARK: - Music
 
     private var musicSection: some View {
-        Section(String(localized: "Music")) {
+        Section {
+            Toggle(String(localized: "Hide duplicate songs"), isOn: $hideDuplicateTracks)
+                .onChange(of: hideDuplicateTracks) { _, _ in
+                    libraryManager.reloadForDuplicateVisibilityChange()
+                }
+
             Toggle(String(localized: "Fetch lyrics from the internet"), isOn: $onlineLyricsEnabled)
 
             Toggle(String(localized: "Fetch artist photos and bios from the internet"), isOn: $artistInfoFetchEnabled)
@@ -106,18 +122,15 @@ struct SettingsScreen: View {
                         ArtistBioManager.shared.fetchMissingArtistImages(using: libraryManager)
                     }
                 }
-
-            Toggle(String(localized: "Hide duplicate songs"), isOn: $hideDuplicateTracks)
-                .onChange(of: hideDuplicateTracks) { _, _ in
-                    libraryManager.reloadForDuplicateVisibilityChange()
-                }
+        } header: {
+            sectionHeader(String(localized: "Music"))
         }
     }
 
     // MARK: - Appearance
 
     private var appearanceSection: some View {
-        Section(String(localized: "Appearance")) {
+        Section {
             Picker(String(localized: "Color Scheme"), selection: $colorMode) {
                 ForEach(ColorMode.allCases, id: \.self) { mode in
                     Label(mode.displayName, systemImage: mode.icon)
@@ -126,18 +139,22 @@ struct SettingsScreen: View {
             }
 
             Toggle(String(localized: "Tint interface with album artwork colors"), isOn: $useArtworkColors)
+        } header: {
+            sectionHeader(String(localized: "Appearance"))
         }
     }
 
     // MARK: - About
 
     private var aboutSection: some View {
-        Section(String(localized: "About")) {
+        Section {
             HStack(spacing: 12) {
                 Image(systemName: Icons.musicNote)
-                    .font(.system(size: 32, weight: .light))
+                    // Settings follow Dynamic Type without a ceiling: the
+                    // icon is a large-title glyph and the tile grows with it.
+                    .font(.largeTitle.weight(.light))
                     .foregroundColor(.secondary)
-                    .frame(width: 60, height: 60)
+                    .frame(minWidth: 60, minHeight: 60)
                     .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -145,7 +162,7 @@ struct SettingsScreen: View {
                         .font(.headline)
                     Text(AppInfo.versionWithBuild)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.secondaryText)
                 }
             }
             .padding(.vertical, 4)
@@ -154,7 +171,7 @@ struct SettingsScreen: View {
                 Text(String(localized: "Petrichor for iPhone — a port of the macOS music player."))
                 Text(String(localized: "A fork of kushalpandya/Petrichor, MIT License © Kushal Pandya."))
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.secondaryText)
             }
             .padding(.vertical, 4)
 
@@ -163,6 +180,8 @@ struct SettingsScreen: View {
                     Label(String(localized: "Source Repository"), systemImage: Icons.globe)
                 }
             }
+        } header: {
+            sectionHeader(String(localized: "About"))
         }
     }
 }

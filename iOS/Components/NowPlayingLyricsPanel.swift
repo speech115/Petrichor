@@ -93,10 +93,14 @@ struct NowPlayingLyricsPanel: View {
 
     // MARK: - Empty Lyrics View
 
+    /// The empty-state glyph follows Dynamic Type; the cap keeps it from
+    /// dwarfing the message under it at the largest accessibility sizes.
+    @ScaledMetric(relativeTo: .largeTitle) private var emptyStateIconSize: CGFloat = 48
+
     private var emptyLyricsView: some View {
         VStack(spacing: 16) {
             Image(systemName: Icons.customLyrics)
-                .font(.system(size: 48))
+                .font(.system(size: min(emptyStateIconSize, 72)))
                 .foregroundColor(.secondary)
 
             Text(String(localized: "No Lyrics Available"))
@@ -129,7 +133,9 @@ struct NowPlayingLyricsPanel: View {
                         let isActive = hasTimedLyrics && currentLineIndex == index
 
                         Text(line.text.isEmpty ? " " : line.text)
-                            .font(.system(size: 15, weight: .semibold))
+                            // Content text in a scrolling panel: a real text
+                            // style, free to grow with Dynamic Type.
+                            .font(.subheadline.weight(.semibold))
                             .opacity(isActive ? 1 : 0.45)
                             .scaleEffect(isActive ? 1.06 : 1.0)
                             .multilineTextAlignment(.center)

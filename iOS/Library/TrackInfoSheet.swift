@@ -93,7 +93,8 @@ struct TrackInfoSheet: View {
                 cacheKey: fullTrack.trackId.map { "track-info-\($0)" },
                 cornerRadius: 10,
                 iconSize: 48,
-                maxPixelSize: 600
+                maxPixelSize: 600,
+                // The names under the cover say what this is.
             )
             .frame(width: 180, height: 180)
             .shadow(color: .black.opacity(0.18), radius: 10, y: 5)

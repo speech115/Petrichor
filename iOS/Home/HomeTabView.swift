@@ -62,11 +62,15 @@ struct HomeTabView: View {
             }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
-                    ContentUnavailableView(
-                        String(localized: "No Music"),
-                        systemImage: Icons.musicNote,
-                        description: Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
-                    )
+                    ContentUnavailableView {
+                        Label(String(localized: "No Music"), systemImage: Icons.musicNote)
+                    } description: {
+                        // System description uses `.secondary` (~3.4:1); the
+                        // shared color clears the WCAG AA bar the Home audit
+                        // enforces.
+                        Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
+                            .foregroundStyle(Color.secondaryText)
+                    }
                 }
             }
             .onAppear(perform: scheduleLoad)
@@ -138,12 +142,14 @@ struct HomeTabView: View {
                 if let count {
                     Text("\(count)")
                         .font(.body)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.secondaryText)
                         .monospacedDigit()
                 }
             }
             .padding(.horizontal, 16)
-            .frame(height: 44)
+            // Min, not fixed: the row grows with Dynamic Type instead of
+            // clipping the title at the largest accessibility sizes.
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

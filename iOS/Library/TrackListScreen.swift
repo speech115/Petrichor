@@ -41,6 +41,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
     @ViewBuilder var row: (Track, [Track]) -> Row
 
     @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var tracks: [Track] = []
     @State private var sections: [IndexedSection<Track>] = []
@@ -58,7 +59,10 @@ struct TrackListScreen<Header: View, Row: View>: View {
     var body: some View {
         Group {
             if isIndexed {
-                IndexedList(sections: sections) { item in
+                IndexedList(
+                    sections: sections,
+                    bottomClearance: IndexedListSectionFactory.floatingTabBarClearance(for: dynamicTypeSize)
+                ) { item in
                     row(item, tracks)
                 }
             } else {
@@ -115,7 +119,10 @@ struct TrackListScreen<Header: View, Row: View>: View {
                     }
                 } header: {
                     if !section.key.isEmpty {
+                        // The system header gray sits at ~3.3:1 in light
+                        // mode; the shared secondary text color clears 4.5:1.
                         Text(section.key)
+                            .foregroundColor(.secondaryText)
                     }
                 }
             }

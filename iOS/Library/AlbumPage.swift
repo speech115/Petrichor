@@ -81,7 +81,8 @@ struct AlbumPage: View {
             cacheKey: album.albumId.map { "album-detail-\($0)" },
             cornerRadius: 12,
             iconSize: 60,
-            maxPixelSize: 720
+            maxPixelSize: 720,
+            // The header names the album under the cover; decoration only.
         )
         .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
     }

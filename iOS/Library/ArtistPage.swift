@@ -134,13 +134,20 @@ struct ArtistPage: View {
                     Circle()
                         .fill(Color.secondary.opacity(0.15))
                     Text(artistName.artistInitials)
-                        .font(.system(size: 56, weight: .medium, design: .rounded))
+                        // Inside the fixed 180 pt photo circle, so the
+                        // initials scale with Dynamic Type but stay capped.
+                        .font(.system(size: min(initialsSize, 120), weight: .medium, design: .rounded))
                         .foregroundColor(.secondary)
                 }
             }
         }
         .clipShape(Circle())
+        // The artist name sits in the header right below; the photo is
+        // decoration for VoiceOver.
+        .accessibilityHidden(true)
     }
+
+    @ScaledMetric(relativeTo: .largeTitle) private var initialsSize: CGFloat = 56
 
     // MARK: - Album Row
 

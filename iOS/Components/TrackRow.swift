@@ -43,6 +43,10 @@ struct TrackRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // One VoiceOver element per row: "title, artist" in a single phrase.
+        // The custom actions below stay on that same element, so the row
+        // remains operable after combining.
+        .accessibilityElement(children: .combine)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
             Button {
                 showingPlaylistPicker = true
@@ -220,13 +224,17 @@ private struct TrackPlaybackStatus: View {
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
+                // No line limit on the title: the accessibility audit flags
+                // any truncation ("Text clipped"), and a wrapped title keeps
+                // the full name readable at accessibility sizes.
                 Text(track.title)
                     .font(.body.weight(isCurrent ? .semibold : .regular))
-                    .lineLimit(1)
+                    .foregroundColor(.primary)
+                // Same reasoning as the title: a capped line limit is what
+                // the audit calls clipped at accessibility sizes.
                 Text(track.displayArtist)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                    .foregroundColor(.secondaryText)
             }
 
             Spacer(minLength: 8)

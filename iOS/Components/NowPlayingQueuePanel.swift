@@ -144,11 +144,15 @@ struct NowPlayingQueuePanel: View {
         .accessibilityValue(isCurrentTrack ? Text(String(localized: "Now Playing")) : Text(""))
     }
 
+    /// The play-state glyph sits in a fixed 24 pt column next to the track
+    /// text, so it scales with Dynamic Type but stays capped to that column.
+    @ScaledMetric(relativeTo: .caption) private var stateIconSize: CGFloat = 12
+
     private func positionIndicator(isCurrentTrack: Bool, position: Int) -> some View {
         Group {
             if isCurrentTrack {
                 Image(systemName: playbackPresentation.isPlaying ? Icons.playFill : Icons.pauseFill)
-                    .font(.system(size: 12))
+                    .font(.system(size: min(stateIconSize, 16)))
                     .foregroundColor(accentColor)
             } else {
                 Text("\(position + 1)")

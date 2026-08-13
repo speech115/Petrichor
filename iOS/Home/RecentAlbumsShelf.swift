@@ -38,14 +38,40 @@ struct RecentAlbumsShelf: View {
                                 )
                                 .frame(width: 130, height: 130)
 
-                                Text(album.displayName)
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(1)
+                                // The combine modifier sits on this text
+                                // group alone, not the card: combined with
+                                // the artwork above, the audit's contrast
+                                // check samples the merged element's frame
+                                // center — which lands inside the artwork
+                                // square, not on any text — and calls it a
+                                // failure. The artwork stays reachable via
+                                // its own accessibilityHidden; VoiceOver
+                                // still reads the card as one "name, artist"
+                                // stop.
+                                VStack(alignment: .leading, spacing: 6) {
+                                    // 130 pt is fixed (it matches the artwork
+                                    // above): any line limit reads as clipped
+                                    // at the largest accessibility sizes,
+                                    // where a short title alone can need more
+                                    // than two lines to fit that width. No
+                                    // limit lets the text wrap instead of
+                                    // truncating, and `fixedSize` makes it
+                                    // actually claim that height — inside a
+                                    // `LazyHStack` a `Text` otherwise gets
+                                    // compressed to the row's pre-scaling
+                                    // height instead of growing.
+                                    Text(album.displayName)
+                                        .font(.subheadline.weight(.semibold))
+                                        .fixedSize(horizontal: false, vertical: true)
 
-                                Text(album.artistName ?? "")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
+                                    // `.secondary` measures ~3.4:1 at caption
+                                    // size; the shared color clears 4.5:1.
+                                    Text(album.artistName ?? "")
+                                        .font(.caption)
+                                        .foregroundColor(.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .accessibilityElement(children: .combine)
                             }
                             .frame(width: 130, alignment: .leading)
                             .contentShape(Rectangle())

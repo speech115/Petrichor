@@ -18,9 +18,11 @@ struct SectionHeaderLink<Value: Hashable>: View {
             HStack(spacing: 4) {
                 Text(title)
                     .font(.title2.weight(.bold))
+                // Decoration: the link's label is the section title alone.
                 Image(systemName: "chevron.right")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }

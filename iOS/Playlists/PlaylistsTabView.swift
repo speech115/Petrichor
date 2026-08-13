@@ -102,11 +102,12 @@ struct PlaylistsTabView: View {
             }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
-                    ContentUnavailableView(
-                        String(localized: "No Music"),
-                        systemImage: Icons.musicNoteList,
-                        description: Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
-                    )
+                    ContentUnavailableView {
+                        Label(String(localized: "No Music"), systemImage: Icons.musicNoteList)
+                    } description: {
+                        Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
+                            .foregroundStyle(Color.secondaryText)
+                    }
                 }
             }
             .onAppear(perform: scheduleLoad)
@@ -255,12 +256,16 @@ private struct PlaylistRowView: View {
     /// from is the section header's job, not the row's.
     @ViewBuilder
     private var artwork: some View {
-        if playlist.coverArtworkData != nil {
-            ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 8, iconSize: 20)
-        } else if let cover = PlaylistCover.of(playlist) {
-            PlaylistCoverView(cover: cover)
-        } else {
-            ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: previewTracks))
+        Group {
+            if playlist.coverArtworkData != nil {
+                ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 8, iconSize: 20)
+            } else if let cover = PlaylistCover.of(playlist) {
+                PlaylistCoverView(cover: cover)
+            } else {
+                ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: previewTracks))
+            }
         }
+        // The row's name and count read it; the cover is decoration.
+        .accessibilityHidden(true)
     }
 }

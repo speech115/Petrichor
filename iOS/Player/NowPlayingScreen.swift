@@ -57,7 +57,17 @@ struct NowPlayingScreen: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
-    @State private var palette = PlayerPalette.neutral
+    /// The cover's share of the screen backs off at accessibility text sizes:
+    /// title and artist use a real, uncapped text style (`.title2`), and at
+    /// the largest categories that block alone can need well over 150pt more
+    /// than it does at the default size. A fixed 44% for the artwork left no
+    /// room to absorb that, and the controls below ran off the bottom of the
+    /// screen — this is what the "may be clipped at larger Dynamic Type
+    /// sizes" audit finding was catching.
+    @Environment(\.dynamicTypeSize)
+    private var dynamicTypeSize
+
+    @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
     @State private var hasAppliedPalette = false
     @State private var paletteTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
@@ -74,6 +84,14 @@ struct NowPlayingScreen: View {
     /// the side the new one arrives from.
     @State private var slidesForward = true
     @State private var lastQueueIndex: Int?
+
+    // The player is a fixed composition: title, scrubber, transport, volume
+    // and accessory share the space the artwork leaves. Glyphs scale with
+    // Dynamic Type but stay capped, so at the largest accessibility size
+    // nothing grows past its slot or crowds its neighbour.
+    @ScaledMetric(relativeTo: .subheadline) private var chipIconSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .caption) private var volumeIconSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .body) private var accessoryIconSize: CGFloat = 20
 
     init(
         isPresented: Binding<Bool>,
@@ -193,8 +211,13 @@ struct NowPlayingScreen: View {
 
     private func content(in size: CGSize) -> some View {
         // The cover takes what the controls leave, capped so it never becomes
-        // a letterbox on a short screen or a wall on a tall one.
-        let artworkSide = min(size.width - 56, size.height * 0.44)
+        // a letterbox on a short screen or a wall on a tall one. At
+        // accessibility text sizes the title/artist block below needs
+        // significantly more height (a real, uncapped text style), so the
+        // cover gives back some of its share to keep the controls on screen.
+        let artworkRatio: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.30 : 0.44
+        let artworkSide = min(size.width - 56, size.height * artworkRatio)
+        let controlSpacing: CGFloat = dynamicTypeSize.isAccessibilitySize ? 14 : 22
 
         return VStack(spacing: 0) {
             grabber
@@ -208,7 +231,7 @@ struct NowPlayingScreen: View {
 
             Spacer(minLength: 12)
 
-            VStack(spacing: 22) {
+            VStack(spacing: controlSpacing) {
                 titleRow
                 PlayerScrubber(
                     palette: palette,
@@ -291,7 +314,9 @@ struct NowPlayingScreen: View {
             cornerRadius: 12,
             iconSize: 72,
             maxPixelSize: 960,
-            fallbackMaxPixelSize: 180
+            fallbackMaxPixelSize: 180,
+            // The title and artist right below name the content; the cover
+            // itself adds nothing VoiceOver cannot already say.
         )
         .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }
@@ -301,14 +326,24 @@ struct NowPlayingScreen: View {
     private var titleRow: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
+                // A real text style, not a raw size: the audit's Dynamic Type
+                // check only accepts fonts that scale fully with a text
+                // style — capping the type size (via `.dynamicTypeSize`) is
+                // itself flagged as "partially unsupported". No line limit
+                // either: the audit flags any clipping risk, and letting the
+                // title/artist wrap at the largest accessibility sizes is
+                // the only way to keep the style uncapped without clipping.
                 Text(displayedTrack?.title ?? "")
-                    .font(.system(size: 21, weight: .bold))
+                    .font(.title2.weight(.bold))
                     .foregroundColor(palette.foreground)
+                    // The Dynamic Type audit is scoped to these two elements:
+                    // they must stay uncapped, real text styles.
+                    .accessibilityIdentifier("NowPlayingTitle")
                 Text(displayedTrack?.displayArtist ?? "")
-                    .font(.system(size: 21))
+                    .font(.title2)
                     .foregroundColor(palette.secondary)
+                    .accessibilityIdentifier("NowPlayingArtist")
             }
-            .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             // Travels with the cover but half as far — the names sit in a
             // narrower column, and matching the cover's 40pt there overshoots.
@@ -350,11 +385,13 @@ struct NowPlayingScreen: View {
 
     private func chipLabel(icon: String, isActive: Bool) -> some View {
         Image(systemName: icon)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: min(chipIconSize, 20), weight: .semibold))
             .foregroundColor(isActive ? palette.foreground : palette.secondary)
             .contentTransition(.symbolEffect(.replace.offUp))
-            .frame(width: 30, height: 30)
-            .background(Circle().fill(palette.chip))
+            // The label is a 44pt hit target around the 30pt chip circle, so
+            // the visual stays put while the touch area clears the HIG floor.
+            .frame(width: 44, height: 44)
+            .background(Circle().fill(palette.chip).frame(width: 30, height: 30))
             .contentShape(Circle())
     }
 
@@ -362,12 +399,15 @@ struct NowPlayingScreen: View {
 
     private var volumeRow: some View {
         HStack(spacing: 10) {
+            // Glyphs frame the system slider; the slider itself is the control.
             Image(systemName: "speaker.fill")
+                .accessibilityHidden(true)
             SystemVolumeSlider(tint: UIColor.white.withAlphaComponent(0.85))
                 .frame(height: 24)
             Image(systemName: "speaker.wave.3.fill")
+                .accessibilityHidden(true)
         }
-        .font(.system(size: 12))
+        .font(.system(size: min(volumeIconSize, 16)))
         .foregroundColor(palette.secondary)
     }
 
@@ -380,7 +420,7 @@ struct NowPlayingScreen: View {
                 presentPanel(.lyrics)
             } label: {
                 SymbolImage(Icons.customLyrics)
-                    .font(.system(size: 20))
+                    .font(.system(size: min(accessoryIconSize, 24)))
                     .foregroundColor(palette.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -399,7 +439,7 @@ struct NowPlayingScreen: View {
                 presentPanel(.queue)
             } label: {
                 Image(systemName: Icons.queueList)
-                    .font(.system(size: 20))
+                    .font(.system(size: min(accessoryIconSize, 24)))
                     .foregroundColor(palette.secondary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -539,9 +579,8 @@ struct NowPlayingScreen: View {
 /// It reflects the hardware buttons' volume and moves with them, which no
 /// custom control can do.
 ///
-/// The knob is replaced with an empty image so only the bar shows, the way
-/// Apple Music's volume slider looks — the default round thumb sits proud of
-/// the track and reads as a much heavier control than the scrubber above it.
+/// The knob is a clear 1×1 image so only the bar shows (Apple Music style).
+/// An empty `UIImage()` leaves an unlabeled AX element; a clear pixel does not.
 struct SystemVolumeSlider: UIViewRepresentable {
     let tint: UIColor
 
@@ -552,13 +591,21 @@ struct SystemVolumeSlider: UIViewRepresentable {
         // `AVRoutePickerView` (see `AirPlayButton` below, which is that picker).
         view.showsVolumeSlider = true
         view.tintColor = tint
-        view.setVolumeThumbImage(UIImage(), for: .normal)
-        view.setVolumeThumbImage(UIImage(), for: .highlighted)
+        let thumb = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { renderer in
+            UIColor.clear.setFill()
+            renderer.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
+        }
+        view.setVolumeThumbImage(thumb, for: .normal)
+        view.setVolumeThumbImage(thumb, for: .highlighted)
+        view.isAccessibilityElement = true
+        view.accessibilityLabel = String(localized: "Volume")
+        view.accessibilityTraits.insert(.adjustable)
         return view
     }
 
     func updateUIView(_ view: MPVolumeView, context: Context) {
         view.tintColor = tint
+        view.accessibilityLabel = String(localized: "Volume")
     }
 }
 
@@ -573,11 +620,15 @@ struct AirPlayButton: UIViewRepresentable {
         let view = AVRoutePickerView(frame: .zero)
         view.tintColor = tint
         view.activeTintColor = tint
+        view.isAccessibilityElement = true
+        view.accessibilityLabel = String(localized: "AirPlay")
+        view.accessibilityTraits.insert(.button)
         return view
     }
 
     func updateUIView(_ view: AVRoutePickerView, context: Context) {
         view.tintColor = tint
         view.activeTintColor = tint
+        view.accessibilityLabel = String(localized: "AirPlay")
     }
 }

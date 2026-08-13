@@ -525,7 +525,9 @@ private struct MiniPlayerAccessory: View {
             // pauses in the mini player and opens the player right after.
             Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
                 .contentTransition(.symbolEffect(.replace.offUp))
-                .font(.system(size: 22))
+                // The mini player is a fixed 44 pt row: the glyph scales with
+                // Dynamic Type but stays inside its button.
+                .font(.system(size: min(playPauseIconSize, 30)))
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }
@@ -538,10 +540,14 @@ private struct MiniPlayerAccessory: View {
             data: playbackPresentation.currentTrack?.displayArtwork,
             cacheKey: playbackPresentation.currentTrack.map { "now-playing-\($0.id)" },
             cornerRadius: size * 0.15,
-            maxPixelSize: 180
+            maxPixelSize: 180,
+            // The title and artist texts in the same row name the track; the
+            // cover is decoration for VoiceOver.
         )
         .frame(width: size, height: size)
     }
+
+    @ScaledMetric(relativeTo: .title2) private var playPauseIconSize: CGFloat = 22
 }
 
 private struct MiniPlayerProgressLine: View {
