@@ -198,8 +198,7 @@ struct SearchView: View {
             data: track.displayArtwork,
             cacheKey: track.albumId.map(String.init),
             cornerRadius: 8,
-            iconSize: 20,
-            isDecorative: true
+            iconSize: 20
         )
             .frame(width: 56, height: 56)
     }
@@ -245,8 +244,7 @@ struct SearchView: View {
                 data: artworkData,
                 cacheKey: cacheKey,
                 placeholderIcon: icon,
-                loader: loader,
-                isDecorative: true
+                loader: loader
             )
                 .frame(width: 44, height: 44)
 

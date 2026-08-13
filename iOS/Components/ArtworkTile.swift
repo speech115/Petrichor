@@ -55,10 +55,6 @@ struct ArtworkTile: View {
     /// Fetches the artwork for rows that arrive without any, called at most
     /// once per appearance and never on the main thread.
     var loader: ArtworkDataLoader? = nil
-    /// Tiles that sit next to text naming the content (rows, cards, headers)
-    /// are decoration for VoiceOver and are skipped; standalone tiles keep
-    /// their default element so a caller can attach a label.
-    var isDecorative: Bool = false
 
     @State private var decodedImage: UIImage?
     @State private var decodedImageKey: String?
@@ -113,9 +109,9 @@ struct ArtworkTile: View {
         // data hash.
         .id(currentKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        // Decorative tiles drop out of VoiceOver / the AX audit entirely;
-        // non-decorative keep the default tree so a caller can label them.
-        .modifier(DecorativeArtworkAccessibility(isDecorative: isDecorative))
+        // Covers sit next to (or above) text that already names the content;
+        // VoiceOver / the AX audit skip the tile entirely.
+        .accessibilityRepresentation { EmptyView() }
     }
 
     /// The decoded image cross-fades over the placeholder it replaces. Only on
@@ -196,20 +192,6 @@ struct ArtworkTile: View {
             Image(systemName: placeholderIcon)
                 .font(.system(size: min(iconSize, 36)))
                 .foregroundColor(.secondary)
-        }
-    }
-}
-
-/// Replaces decorative artwork with an empty accessibility representation so
-/// neither the Image nor an unlabeled wrapper reaches VoiceOver / the audit.
-private struct DecorativeArtworkAccessibility: ViewModifier {
-    let isDecorative: Bool
-
-    func body(content: Content) -> some View {
-        if isDecorative {
-            content.accessibilityRepresentation { EmptyView() }
-        } else {
-            content
         }
     }
 }

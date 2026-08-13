@@ -11,6 +11,7 @@ import SwiftUI
 
 struct CategoryItemsView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let filterType: LibraryFilterType
 
@@ -22,7 +23,10 @@ struct CategoryItemsView: View {
             if filterType == .albums {
                 albumsGrid
             } else {
-                IndexedList(sections: sections) { item in
+                IndexedList(
+                    sections: sections,
+                    bottomClearance: IndexedListSectionFactory.floatingTabBarClearance(for: dynamicTypeSize)
+                ) { item in
                     NavigationLink(value: destination(for: item)) {
                         row(for: item)
                     }
@@ -116,8 +120,7 @@ struct CategoryItemsView: View {
                     data: nil,
                     cacheKey: "artist-\(item.name)",
                     cornerRadius: 22,
-                    loader: artistArtworkLoader(for: item.name),
-                    isDecorative: true
+                    loader: artistArtworkLoader(for: item.name)
                 )
                     .frame(width: 44, height: 44)
                 textRow(item)
@@ -191,7 +194,6 @@ private struct AlbumGridCard: View {
                 maxPixelSize: 600,
                 loader: artworkLoader,
                 // The card's name and count sit right below the cover.
-                isDecorative: true
             )
                 .aspectRatio(1, contentMode: .fit)
 

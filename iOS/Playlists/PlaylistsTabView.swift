@@ -257,7 +257,7 @@ private struct PlaylistRowView: View {
     private var artwork: some View {
         Group {
             if playlist.coverArtworkData != nil {
-                ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 8, iconSize: 20, isDecorative: true)
+                ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 8, iconSize: 20)
             } else if let cover = PlaylistCover.of(playlist) {
                 PlaylistCoverView(cover: cover)
             } else {

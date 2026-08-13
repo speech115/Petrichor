@@ -155,8 +155,7 @@ struct TrackRow: View {
             data: track.displayArtwork,
             cacheKey: artworkCacheKey,
             maxPixelSize: 144,
-            loader: trackArtworkLoader,
-            isDecorative: true
+            loader: trackArtworkLoader
         )
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6))

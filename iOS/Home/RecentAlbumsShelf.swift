@@ -34,8 +34,7 @@ struct RecentAlbumsShelf: View {
                                     data: album.displayArtwork,
                                     cacheKey: album.albumId.map(String.init),
                                     cornerRadius: 10,
-                                    iconSize: 28,
-                                    isDecorative: true
+                                    iconSize: 28
                                 )
                                 .frame(width: 130, height: 130)
 

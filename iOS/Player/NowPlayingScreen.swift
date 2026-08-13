@@ -317,7 +317,6 @@ struct NowPlayingScreen: View {
             fallbackMaxPixelSize: 180,
             // The title and artist right below name the content; the cover
             // itself adds nothing VoiceOver cannot already say.
-            isDecorative: true
         )
         .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }

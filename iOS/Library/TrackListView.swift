@@ -48,8 +48,6 @@ struct TrackListView: View {
                 )
             }
         )
-        // Tab-bar clearance for the indexed Songs list lives on IndexedList
-        // (padding the ScrollViewReader; parent margins never reach that List).
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.large)
     }

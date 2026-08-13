@@ -543,7 +543,6 @@ private struct MiniPlayerAccessory: View {
             maxPixelSize: 180,
             // The title and artist texts in the same row name the track; the
             // cover is decoration for VoiceOver.
-            isDecorative: true
         )
         .frame(width: size, height: size)
     }

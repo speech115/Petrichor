@@ -83,7 +83,6 @@ struct AlbumPage: View {
             iconSize: 60,
             maxPixelSize: 720,
             // The header names the album under the cover; decoration only.
-            isDecorative: true
         )
         .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
     }

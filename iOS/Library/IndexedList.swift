@@ -16,6 +16,11 @@ struct IndexedSection<Item: Identifiable>: Identifiable {
 }
 
 enum IndexedListSectionFactory {
+    /// Clearance so the last row sits above ContentView's floating tab bar.
+    /// Owned by the host chrome, not IndexedList itself.
+    static func floatingTabBarClearance(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 100 : 80
+    }
     /// Groups `items` into sections by `key`, preserving each item's relative
     /// order within a section. Sections are sorted ascending by key; callers
     /// needing another order re-sort the result.
@@ -55,14 +60,9 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     /// coordinate space; as the list scrolls, the topmost visible section is
     /// the one whose top has just crossed the list's top edge.
     @State private var sectionTops: [String: CGFloat] = [:]
-    /// Shrinks the list's layout bottom so rows cannot draw under the floating
-    /// tab bar. Trailing spacers inside the List only help after you scroll to
-    /// the end; at AX5 three fixtures already fill the first screen, so the
-    /// container itself must sit above the chrome. The bar's AX frame is ~80pt
-    /// even at accessibility sizes; leave a little air above it.
-    private var tabBarScrollClearance: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? 100 : 80
-    }
+    /// Host-owned inset so rows clear floating chrome (tab bar). Zero by
+    /// default — IndexedList does not know about ContentView's tab bar.
+    var bottomClearance: CGFloat = 0
     /// The bar is a fixed 24pt-wide column pinned to the trailing edge, with
     /// no room to its right to grow into. A real text style is required —
     /// the audit flags a capped/raw size as "Dynamic Type font sizes are
@@ -76,9 +76,11 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
 
     init(
         sections: [IndexedSection<Item>],
+        bottomClearance: CGFloat = 0,
         @ViewBuilder row: @escaping (Item) -> Row
     ) {
         self.sections = sections
+        self.bottomClearance = bottomClearance
         self.row = row
     }
 
@@ -141,7 +143,7 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
         // Pad the ScrollViewReader, not a List footer: a footer only clears
         // the bar after scrolling to the end, while AX5 short libraries keep
         // the last row on the first screen under the floating chrome.
-        .padding(.bottom, tabBarScrollClearance)
+        .padding(.bottom, bottomClearance)
     }
 
     /// VoiceOver-only index control for accessibility Dynamic Type sizes.

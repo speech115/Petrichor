@@ -127,8 +127,7 @@ struct ArtistPage: View {
                     data: photoData,
                     cacheKey: "artist-detail-\(artistName)",
                     cornerRadius: 90,
-                    maxPixelSize: 720,
-                    isDecorative: true
+                    maxPixelSize: 720
                 )
             } else {
                 ZStack {
@@ -172,8 +171,7 @@ struct ArtistPage: View {
         ArtworkTile(
             data: album.displayArtwork,
             cacheKey: album.albumId.map { "album-\($0)" },
-            loader: albumArtworkLoader(for: album.albumId),
-            isDecorative: true
+            loader: albumArtworkLoader(for: album.albumId)
         )
             .frame(width: 44, height: 44)
     }

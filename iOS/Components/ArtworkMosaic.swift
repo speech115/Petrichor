@@ -28,7 +28,7 @@ struct ArtworkMosaic: View {
             } else if let cover = covers.first {
                 tile(cover)
             } else {
-                ArtworkTile(data: nil, cornerRadius: 10, iconSize: 28, isDecorative: true)
+                ArtworkTile(data: nil, cornerRadius: 10, iconSize: 28)
             }
         }
         // Square first, then clip: `clipShape` cuts to the view's own bounds,
@@ -42,7 +42,7 @@ struct ArtworkMosaic: View {
     /// to bound the grid's row height, so a non-square cover makes the grid
     /// grow past the frame it was given and spill over its neighbours.
     private func tile(_ data: Data) -> some View {
-        ArtworkTile(data: data, cornerRadius: 8, isDecorative: true)
+        ArtworkTile(data: data, cornerRadius: 8)
             .aspectRatio(1, contentMode: .fit)
     }
 }
