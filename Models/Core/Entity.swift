@@ -62,8 +62,10 @@ extension Entity {
 // MARK: - Shared Color Defaults
 
 extension Entity {
+    /// Cached dominant colors only. `nil` = not computed yet; empty = no usable
+    /// colors. Views that need a fill schedule `backgroundGradientColors`.
     @MainActor
-    var dominantColors: [PlatformColor] {
+    var cachedDominantColors: [PlatformColor]? {
         guard let artworkData else { return [] }
         return ImageUtils.cachedDominantColorsIfAvailable(id: id.uuidString, imageData: artworkData)
     }

@@ -109,7 +109,7 @@ struct MiniPlayerView: View {
     /// Artwork's primary dominant color, used to tint the play/pause button,
     /// progress bar, and the queue's current-track highlight. Falls back to the
     /// accent color when artwork colors are unavailable or disabled.
-    /// `dominantColors` is cached per track, so this is cheap.
+    /// `cachedDominantColors` is cache-only per track, so this is cheap.
     private var controlsUseArtworkTint: Bool {
         useArtworkColors && tintPlaybackControls
     }
@@ -146,7 +146,7 @@ struct MiniPlayerView: View {
     /// rather than the controls toggle.
     private var controlScrimColor: Color {
         let fallback: Color = colorScheme == .dark ? .black : .white
-        guard backgroundUsesArtwork, let dominant = playbackManager.currentTrack?.dominantColors.first else {
+        guard backgroundUsesArtwork, let dominant = playbackManager.currentTrack?.cachedDominantColors?.first else {
             return fallback
         }
         return ImageUtils.backgroundGradientColors(from: [dominant], isDark: colorScheme == .dark).first ?? fallback

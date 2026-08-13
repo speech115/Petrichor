@@ -385,14 +385,14 @@ enum ImageUtils {
         return colors
     }
 
-    /// Cache-only lookup for synchronous SwiftUI styling helpers. Cache misses
-    /// never decode on MainActor; their owning view schedules the async loader.
-    /// The exact input bytes are part of the cache key, so a same-ID replacement
-    /// can never address colors produced for the previous artwork.
+    /// Cache-only lookup for synchronous SwiftUI styling helpers. `nil` means
+    /// the cache has not computed this artwork yet (owning view should schedule
+    /// the async loader). An empty array means extraction finished with no
+    /// usable colors — never confuse the two.
     @MainActor
-    static func cachedDominantColorsIfAvailable(id: String, imageData: Data) -> [PlatformColor] {
+    static func cachedDominantColorsIfAvailable(id: String, imageData: Data) -> [PlatformColor]? {
         let cacheKey = ArtworkColorCacheKey(id: id, variant: .dominant, imageData: imageData)
-        guard let cached = colorCache.object(forKey: cacheKey) else { return [] }
+        guard let cached = colorCache.object(forKey: cacheKey) else { return nil }
         return cached.colors
     }
 
@@ -652,22 +652,26 @@ private final class ArtworkColorCacheKey: NSObject {
 
     let id: String
     let variant: Variant
-    let imageData: Data
+    /// Fingerprint of the artwork bytes — keeps same-ID revisions distinct
+    /// without retaining the full JPEG/HEIC in the cache key.
+    let byteCount: Int
+    let contentHash: Int
 
     init(id: String, variant: Variant, imageData: Data) {
         self.id = id
         self.variant = variant
-        self.imageData = imageData
+        self.byteCount = imageData.count
+        var hasher = Hasher()
+        hasher.combine(imageData)
+        self.contentHash = hasher.finalize()
     }
 
-    /// Keep ordinary cache hits cheap. Equal hashes are only a bucket lookup:
-    /// `isEqual` below compares the exact bytes, so same-ID, same-length artwork
-    /// revisions remain distinct without hashing a large image on MainActor.
     override var hash: Int {
         var hasher = Hasher()
         hasher.combine(id)
         hasher.combine(variant.rawValue)
-        hasher.combine(imageData.count)
+        hasher.combine(byteCount)
+        hasher.combine(contentHash)
         return hasher.finalize()
     }
 
@@ -675,7 +679,8 @@ private final class ArtworkColorCacheKey: NSObject {
         guard let other = object as? ArtworkColorCacheKey else { return false }
         return id == other.id
             && variant == other.variant
-            && imageData == other.imageData
+            && byteCount == other.byteCount
+            && contentHash == other.contentHash
     }
 }
 

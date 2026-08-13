@@ -85,8 +85,10 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
             .joined(separator: ", ")
     }
 
+    /// Cached dominant colors only. `nil` = not computed yet; empty = no usable
+    /// colors. Use `loadDominantColors()` to populate the cache.
     @MainActor
-    var dominantColors: [PlatformColor] {
+    var cachedDominantColors: [PlatformColor]? {
         guard let original = albumArtworkData else { return [] }
         let artworkIdentity = albumId.map { "album-\($0)" } ?? "track-\(id)"
         return ImageUtils.cachedDominantColorsIfAvailable(id: artworkIdentity, imageData: original)
