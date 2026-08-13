@@ -55,6 +55,14 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     /// coordinate space; as the list scrolls, the topmost visible section is
     /// the one whose top has just crossed the list's top edge.
     @State private var sectionTops: [String: CGFloat] = [:]
+    /// Shrinks the list's layout bottom so rows cannot draw under the floating
+    /// tab bar. Trailing spacers inside the List only help after you scroll to
+    /// the end; at AX5 three fixtures already fill the first screen, so the
+    /// container itself must sit above the chrome. The bar's AX frame is ~80pt
+    /// even at accessibility sizes; leave a little air above it.
+    private var tabBarScrollClearance: CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 100 : 80
+    }
     /// The bar is a fixed 24pt-wide column pinned to the trailing edge, with
     /// no room to its right to grow into. A real text style is required —
     /// the audit flags a capped/raw size as "Dynamic Type font sizes are
@@ -130,6 +138,10 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                 }
             }
         }
+        // Pad the ScrollViewReader, not a List footer: a footer only clears
+        // the bar after scrolling to the end, while AX5 short libraries keep
+        // the last row on the first screen under the floating chrome.
+        .padding(.bottom, tabBarScrollClearance)
     }
 
     /// VoiceOver-only index control for accessibility Dynamic Type sizes.

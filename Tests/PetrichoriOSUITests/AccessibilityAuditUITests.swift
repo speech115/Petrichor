@@ -84,19 +84,39 @@ final class AccessibilityAuditUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(alphaRow.waitForExistence(timeout: 30), "список треков не загрузился")
 
-        // The list scrolls clear of the floating tab bar via a ScaledMetric
-        // contentMargins (80pt at the default size, growing with Dynamic Type),
-        // so no row ever renders under the bar's translucent material, which
-        // the screenshot-based contrast check would flag as ghosted text.
+        // IndexedList pads its ScrollViewReader above the floating tab bar
+        // (~80–100pt) so the last row of a short library cannot ghost through
+        // the chrome on the first screen. safeAreaInset on List is ignored
+        // here; padding the container is what shortens the viewport.
+        // Assert before any swipe: `.tabBarMinimizeBehavior(.onScrollDown)`
+        // shrinks the bar after scrolling and would weaken the check.
         //
         // Contrast stays excluded for this screen, but for a new reason: the
         // screenshot-based contrast pass over the whole app did not finish
         // within the audit's internal timeout on the CI runner (Code=-56,
         // "Audit failed to complete in time") even though it passes locally,
         // and the audit API has no element-scoped variant to shrink the pass.
-        // The original ghosting defect is fixed by the contentMargins above,
+        // The original ghosting defect is fixed by the padding above,
         // so the exclusion no longer hides a real problem - it works around
         // CI capacity.
+        let tabChrome = app.tabBars.firstMatch
+        XCTAssertTrue(tabChrome.waitForExistence(timeout: 5), "таббар не найден")
+        // Fixture labels combine as "Title, Artist" (e.g. "Gamma, Three").
+        let bottommostTrack = ["Gamma", "Beta Two", "Alpha One"]
+            .map { name in
+                app.buttons.matching(
+                    NSPredicate(format: "label CONTAINS[c] %@", name)
+                ).firstMatch
+            }
+            .filter(\.exists)
+            .max { $0.frame.maxY < $1.frame.maxY }
+        XCTAssertNotNil(bottommostTrack, "ни одной строки трека нет на экране")
+        XCTAssertLessThanOrEqual(
+            bottommostTrack!.frame.maxY,
+            tabChrome.frame.minY + 1,
+            "строка Songs пересекает floating tab bar на первом экране"
+        )
+
         try app.performAccessibilityAudit(for: .all.subtracting(.contrast))
 
         attachScreenshot(of: app, named: "AX-TrackList")

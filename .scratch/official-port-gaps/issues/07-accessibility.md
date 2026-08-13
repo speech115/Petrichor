@@ -100,11 +100,16 @@ Blocked by: 01
   - Shuffle/repeat hit-target 44×44.
   - IndexedList на AX-размерах: буквенный столбец скрыт (как Contacts/Music), но
     VoiceOver Index (label/value/adjustable) остаётся — jump-by-letter на AX5 жив.
-  - TrackListView `contentMargins` — `@ScaledMetric` от 80pt, иначе на AX5
-    последняя строка снова заезжала под таббар.
+  - Клиренс floating tab bar: `padding(.bottom)` на `ScrollViewReader` в
+    IndexedList (80pt / 100pt на AX). `safeAreaInset` и footer-spacer внутри
+    List не поднимают первую экранную порцию короткой библиотеки. UITest
+    `testTrackListPassesAccessibilityAudit` гейтит
+    `bottommostTrack.maxY ≤ tabBar.minY` до любого swipe (иначе
+    `tabBarMinimizeBehavior` сжимает бар и проверка слабеет).
   - AX5-скриншоты (симулятор, `accessibility-extra-extra-extra-large`):
     `.scratch/official-port-gaps/ax5-screenshots/{ax5-home,ax5-tracks,ax5-settings}.png`.
-    Три аудита зелёные при этом размере. Обрезки нет; на Home «Top 25 Most Played»
-    переносится на две строки — ожидаемо при AX5.
-  - VoiceOver на устройстве (`petrichor-device`) — ещё вручную: строка трека одной
-    фразой, транспорт и скрубер.
+    Аудиты зелёные при этом размере; на Home «Top 25 Most Played» на две строки —
+    ожидаемо при AX5.
+  - VoiceOver на устройстве (`petrichor-device`): DDI/Xcode 26.6 ↔ iOS 27 не даёт
+    UI-тест на телефон; проход строка/транспорт/скрубер остаётся ручным на
+    деплое из скилла — не закрыт автоматически.
