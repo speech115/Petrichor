@@ -136,6 +136,7 @@ struct AlbumPage: View {
                 libraryManager: libraryManager,
                 playbackManager: playbackManager
             )
+            .equatable()
         }
     }
 

@@ -317,8 +317,9 @@ class AppCoordinator: ObservableObject {
         playlistManager.repeatMode = state.repeatModeEnum
         playbackManager.setVolume(state.isMuted ? 0 : state.volume)
         
-        // Set the queue
-        playlistManager.currentQueue = restoredQueue
+        // Set the queue — restored tracks may carry artwork from DB lookups;
+        // the live queue must stay payload-light like beginPlayback.
+        playlistManager.currentQueue = restoredQueue.map { $0.withoutArtwork() }
         playlistManager.currentQueueIndex = min(state.currentQueueIndex, restoredQueue.count - 1)
         playlistManager.currentQueueSource = state.queueSourceEnum
         

@@ -123,6 +123,7 @@ struct SearchView: View {
                             libraryManager: libraryManager,
                             playbackManager: playbackManager
                         )
+                        .equatable()
                     }
                 }
             }
@@ -196,11 +197,25 @@ struct SearchView: View {
     private func topResultArtwork(_ track: Track) -> some View {
         ArtworkTile(
             data: track.displayArtwork,
-            cacheKey: track.albumId.map(String.init),
+            cacheKey: track.albumId.map { "album-\($0)" } ?? track.trackId.map { "track-\($0)" },
             cornerRadius: 8,
-            iconSize: 20
+            iconSize: 20,
+            loader: topResultArtworkLoader(for: track)
         )
             .frame(width: 56, height: 56)
+    }
+
+    private func topResultArtworkLoader(for track: Track) -> ArtworkDataLoader? {
+        guard track.displayArtwork == nil, let trackId = track.trackId else { return nil }
+        let database = libraryManager.databaseManager
+        let albumId = track.albumId
+        return ArtworkDataLoader {
+            if let albumId,
+               let thumbnail = database.getAlbumArtworkThumbnail(albumId: albumId) {
+                return thumbnail
+            }
+            return database.getArtworkData(albumId: nil, trackId: trackId)
+        }
     }
 
     private func artistRow(_ artist: ArtistEntity) -> some View {

@@ -46,6 +46,7 @@ struct TrackListView: View {
                     libraryManager: libraryManager,
                     playbackManager: playbackManager
                 )
+                .equatable()
             }
         )
         .navigationTitle(navigationTitle)

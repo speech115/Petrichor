@@ -9,7 +9,7 @@ import Foundation
 extension PlaylistManager {
     func createLibraryQueue() {
         guard let library = libraryManager else { return }
-        currentQueue = library.tracks
+        currentQueue = library.tracks.map { $0.withoutArtwork() }
         currentPlaylist = nil
         currentQueueSource = .library
         Logger.info("Created playback queue from library")
@@ -30,14 +30,15 @@ extension PlaylistManager {
     }
 
     func playNext(_ track: Track) {
+        let lightTrack = track.withoutArtwork()
         if currentQueue.isEmpty || currentQueueIndex < 0 {
-            currentQueue = [track]
+            currentQueue = [lightTrack]
             currentQueueIndex = 0
             audioPlayer?.startQueue(at: 0)
             return
         }
 
-        if let existingIndex = currentQueue.firstIndex(where: { $0.id == track.id }) {
+        if let existingIndex = currentQueue.firstIndex(where: { $0.id == lightTrack.id }) {
             // The playing track is already "next" in the only sense that matters, and
             // removing the engine's current entry would make it advance or stop.
             guard existingIndex != currentQueueIndex else { return }
@@ -53,22 +54,23 @@ extension PlaylistManager {
 
         // Read after the dedupe removal, which can shift the cursor down by one.
         let position = min(currentQueueIndex + 1, currentQueue.count)
-        currentQueue.insert(track, at: position)
-        audioPlayer?.queueDidInsert(track, at: position)
+        currentQueue.insert(lightTrack, at: position)
+        audioPlayer?.queueDidInsert(lightTrack, at: position)
         Logger.info("Added track to playback queue to play up next")
     }
 
     func addToQueue(_ track: Track) {
+        let lightTrack = track.withoutArtwork()
         if currentQueue.isEmpty {
-            currentQueue = [track]
+            currentQueue = [lightTrack]
             currentQueueIndex = 0
             audioPlayer?.startQueue(at: 0)
             return
         }
 
-        if !currentQueue.contains(where: { $0.id == track.id }) {
-            currentQueue.append(track)
-            audioPlayer?.queueDidAppend(track)
+        if !currentQueue.contains(where: { $0.id == lightTrack.id }) {
+            currentQueue.append(lightTrack)
+            audioPlayer?.queueDidAppend(lightTrack)
             Logger.info("Added track to playback queue")
         }
     }

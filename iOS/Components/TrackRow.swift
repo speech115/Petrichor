@@ -9,12 +9,10 @@
 // confirmation haptic at gesture completion), long-press for the full
 // context menu. VoiceOver exposes the same two actions as custom actions.
 //
-// Artwork is normally carried by the track: every list wrapper in
-// LibraryManager fills `albumArtworkThumbnail` before rows are handed to the
-// screen. The one case it cannot cover is a cover that hangs off the track
-// instead of an album — 404 of them in a 2919-track library, full size, so
-// loading them with every list would cost ~29 MB of blobs no list shows at
-// once. Those rows fetch their own, one row at a time, as they appear.
+// Artwork is not preloaded into list track arrays: a Songs-sized library
+// would carry megabytes of thumbnails before the first row paints. Visible
+// rows fetch album thumbnails (and the rare track-only cover) through
+// `ArtworkTile`'s loader as they appear.
 //
 
 import SwiftUI
@@ -135,8 +133,9 @@ struct TrackRow: View {
         return track.trackId.map { "track-\($0)" }
     }
 
-    /// Only for rows the album could not supply: everything else already has
-    /// its thumbnail and must not touch the database.
+    /// Visible rows without an in-memory thumbnail fetch it here. Album
+    /// thumbnails first; track-only covers (no album art) fall back to the
+    /// track artwork blob one row at a time.
     private var trackArtworkLoader: ArtworkDataLoader? {
         guard track.displayArtwork == nil, let trackId = track.trackId else { return nil }
         let database = libraryManager.databaseManager

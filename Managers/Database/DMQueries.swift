@@ -89,17 +89,17 @@ extension DatabaseManager {
         }
     }
 
-    /// One album image for a visible card. Prefer the thumbnail and touch the
-    /// full BLOB only while the background thumbnail migration is incomplete.
+    /// One album image for a visible card. Lists read the thumbnail column
+    /// only — falling back to the display-size BLOB would reintroduce the
+    /// cost lazy rows were meant to avoid.
     func getAlbumArtworkThumbnail(albumId: Int64) -> Data? {
         do {
             return try dbQueue.read { db in
-                let row = try Row.fetchOne(
+                try Row.fetchOne(
                     db,
-                    sql: "SELECT artwork_thumbnail, artwork_data FROM albums WHERE id = ?",
+                    sql: "SELECT artwork_thumbnail FROM albums WHERE id = ?",
                     arguments: [albumId]
-                )
-                return (row?["artwork_thumbnail"] as Data?) ?? (row?["artwork_data"] as Data?)
+                )?["artwork_thumbnail"] as Data?
             }
         } catch {
             Logger.error("Failed to fetch album thumbnail: \(error)")
@@ -763,9 +763,10 @@ extension DatabaseManager {
                     .order(Track.Columns.title)
                     .fetchAll(db)
             }
-            
+
+            // macOS Folders table reads `albumArtworkData`; iOS has no Folders tab.
             populateAlbumArtworkForTracks(&tracks)
-            
+
             return tracks
         } catch {
             Logger.error("Failed to fetch tracks for folder: \(error)")

@@ -44,6 +44,7 @@ struct DiscoverTabView: View {
                         libraryManager: libraryManager,
                         playbackManager: playbackManager
                     )
+                    .equatable()
                 }
             )
             .rootTitle(String(localized: "Discover"))

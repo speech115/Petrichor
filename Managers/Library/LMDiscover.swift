@@ -23,7 +23,7 @@ extension LibraryManager {
     
     // MARK: - Methods
     
-    func loadDiscoverTracks(populateArtwork: Bool = true) {
+    func loadDiscoverTracks(populateArtwork: Bool = false) {
         var tracks: [Track]
         
         if shouldRefreshDiscover() {
@@ -59,10 +59,9 @@ extension LibraryManager {
             }
         }
 
-        // Home carousel rows read thumbnails only: fill them here, in the
-        // manager, when the full-size pass was skipped.
+        // Header mosaic needs at most four covers; visible rows fetch the rest.
         if !populateArtwork {
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)
         }
         
         self.discoverTracks = tracks
@@ -79,8 +78,8 @@ extension LibraryManager {
         // Clear current tracks to force UI update
         self.discoverTracks = []
         
-        // Reload tracks immediately
-        loadDiscoverTracks()
+        // Reload tracks immediately — thumbnails only, same as tab open.
+        loadDiscoverTracks(populateArtwork: false)
         
         // Force UI update by triggering objectWillChange
         DispatchQueue.main.async { [weak self] in
