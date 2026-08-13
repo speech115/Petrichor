@@ -21,6 +21,7 @@ enum IndexedListSectionFactory {
     static func floatingTabBarClearance(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
         dynamicTypeSize.isAccessibilitySize ? 100 : 80
     }
+
     /// Groups `items` into sections by `key`, preserving each item's relative
     /// order within a section. Sections are sorted ascending by key; callers
     /// needing another order re-sort the result.
@@ -51,27 +52,15 @@ enum IndexedListSectionFactory {
 struct IndexedList<Item: Identifiable, Row: View>: View {
     let sections: [IndexedSection<Item>]
     let row: (Item) -> Row
-    /// The section the index bar is currently on, for VoiceOver's value and
-    /// adjustable action. Touch updates it as the finger drags; the adjustable
-    /// action moves it one section at a time; plain scrolling syncs it with
-    /// the section actually at the top of the list.
-    @State private var indexSelection: String?
-    /// Each mounted section header reports its top edge in the list's own
-    /// coordinate space; as the list scrolls, the topmost visible section is
-    /// the one whose top has just crossed the list's top edge.
-    @State private var sectionTops: [String: CGFloat] = [:]
-    /// Host-owned inset so rows clear floating chrome (tab bar). Zero by
-    /// default — IndexedList does not know about ContentView's tab bar.
+    /// Host-owned inset so rows clear floating chrome (tab bar).
     var bottomClearance: CGFloat = 0
-    /// The bar is a fixed 24pt-wide column pinned to the trailing edge, with
-    /// no room to its right to grow into. A real text style is required —
-    /// the audit flags a capped/raw size as "Dynamic Type font sizes are
-    /// unsupported" even though the letters aren't individual VoiceOver
-    /// elements — but at the largest accessibility sizes that same style
-    /// renders wide enough to push letters off the screen's trailing edge.
-    /// Apple's own apps resolve this by dropping the index at accessibility
-    /// sizes (Contacts, Music); VoiceOver users still reach every section by
-    /// swiping through the list, just in more steps.
+
+    /// Current section for VoiceOver's value / adjustable action. Updated by
+    /// drag and adjustable steps — not by mirroring plain scroll position.
+    @State private var indexSelection: String?
+    /// Visual letters stay below accessibility Dynamic Type: a fixed 24pt
+    /// column cannot absorb `.body` growth (Contacts/Music drop theirs too).
+    /// VoiceOver still gets Index (label/value/adjustable) at AX sizes.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(
@@ -93,81 +82,30 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                             row(item)
                         }
                     } header: {
-                        // The system header gray sits at ~3.3:1 in light
-                        // mode; the shared secondary text color clears 4.5:1.
                         Text(section.key)
                             .foregroundColor(.secondaryText)
-                            .background {
-                                GeometryReader { geometry in
-                                    Color.clear.preference(
-                                        key: SectionTopPreferenceKey.self,
-                                        value: [
-                                            section.key: geometry.frame(
-                                                in: .named(Self.scrollCoordinateSpace)
-                                            ).minY
-                                        ]
-                                    )
-                                }
-                            }
                     }
                     .id(section.key)
                 }
             }
             .listStyle(.plain)
-            .coordinateSpace(name: Self.scrollCoordinateSpace)
-            .onPreferenceChange(SectionTopPreferenceKey.self) { tops in
-                sectionTops = tops
-                syncIndexSelection()
-            }
-            .onScrollGeometryChange(for: CGFloat.self) { geometry in
-                geometry.contentOffset.y
-            } action: { _, _ in
-                syncIndexSelection()
-            }
             .overlay(alignment: .trailing) {
-                // Visual alphabet letters stay below accessibility Dynamic Type
-                // sizes: a fixed 24pt column cannot absorb `.body` growth, and
-                // Contacts/Music drop their own letter column the same way.
-                // At accessibility sizes VoiceOver still gets the Index
-                // adjustable (label + value + swipe up/down) so jump-by-letter
-                // survives AX5 without overflowing the trailing edge.
                 if sections.count > 1 {
-                    if dynamicTypeSize.isAccessibilitySize {
-                        voiceOverIndex(proxy: proxy)
-                    } else {
-                        indexBar(proxy: proxy)
-                    }
+                    indexControl(proxy: proxy)
                 }
             }
         }
-        // Pad the ScrollViewReader, not a List footer: a footer only clears
-        // the bar after scrolling to the end, while AX5 short libraries keep
-        // the last row on the first screen under the floating chrome.
         .padding(.bottom, bottomClearance)
     }
 
-    /// VoiceOver-only index control for accessibility Dynamic Type sizes.
-    private func voiceOverIndex(proxy: ScrollViewProxy) -> some View {
+    /// One control: AX traits always; letter glyphs only when they fit.
+    private func indexControl(proxy: ScrollViewProxy) -> some View {
         let keys = sections.map(\.key)
-        return Color.clear
-            .frame(width: 44)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(String(localized: "Index"))
-            .accessibilityValue(indexSelection ?? keys.first ?? "")
-            .accessibilityAdjustableAction { direction in
-                adjustIndex(direction: direction, keys: keys, proxy: proxy)
-            }
-            .padding(.trailing, 2)
-    }
+        let showLetters = !dynamicTypeSize.isAccessibilitySize
+        let width: CGFloat = showLetters ? 24 : 44
 
-    private func indexBar(proxy: ScrollViewProxy) -> some View {
-        let keys = sections.map(\.key)
         return GeometryReader { geometry in
             ZStack {
-                // Full-height drag surface: any touch on the bar selects the
-                // section under the finger. `minimumDistance: 0` makes the
-                // same gesture cover plain taps, so the letters themselves
-                // need no tap target.
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(
@@ -178,32 +116,27 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                                         * CGFloat(keys.count)
                                 )
                                 guard keys.indices.contains(index) else { return }
-                                let key = keys[index]
-                                indexSelection = key
-                                proxy.scrollTo(key, anchor: .top)
+                                selectSection(keys[index], proxy: proxy)
                             }
                     )
-                // The letters sit at their slot centers at their natural
-                // size. They must not be stretched into their slots: the
-                // accessibility audit samples an element's text pixels at
-                // its frame center, and a slot-sized letter element reads as
-                // empty space (ratio 1:1, "Contrast failed").
-                ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
-                    Text(key)
-                        .font(.body)
-                        .foregroundColor(.secondaryText)
-                        .frame(width: 24)
-                        .position(
-                            x: geometry.size.width / 2,
-                            y: geometry.size.height * (CGFloat(index) + 0.5)
-                                / CGFloat(keys.count)
-                        )
+
+                if showLetters {
+                    // Letters at slot centers, natural size — stretching them
+                    // into the slot makes the contrast audit sample empty space.
+                    ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
+                        Text(key)
+                            .font(.body)
+                            .foregroundColor(.secondaryText)
+                            .frame(width: 24)
+                            .position(
+                                x: geometry.size.width / 2,
+                                y: geometry.size.height * (CGFloat(index) + 0.5)
+                                    / CGFloat(keys.count)
+                            )
+                    }
                 }
             }
-            .frame(width: 24)
-            // One element: the letters are touch targets, not separate
-            // VoiceOver elements. Value carries the current section; the
-            // adjustable action moves through sections the way the drag does.
+            .frame(width: width)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(String(localized: "Index"))
             .accessibilityValue(indexSelection ?? keys.first ?? "")
@@ -211,7 +144,7 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                 adjustIndex(direction: direction, keys: keys, proxy: proxy)
             }
         }
-        .frame(width: 24)
+        .frame(width: width)
         .padding(.trailing, 2)
     }
 
@@ -225,46 +158,19 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
         switch direction {
         case .increment:
             if currentIndex + 1 < keys.count {
-                selectSection(keys[currentIndex + 1], in: keys, proxy: proxy)
+                selectSection(keys[currentIndex + 1], proxy: proxy)
             }
         case .decrement:
             if currentIndex > 0 {
-                selectSection(keys[currentIndex - 1], in: keys, proxy: proxy)
+                selectSection(keys[currentIndex - 1], proxy: proxy)
             }
         @unknown default:
             break
         }
     }
 
-    /// Moves the list to `key`'s section and records it as the current one.
-    private func selectSection(_ key: String, in keys: [String], proxy: ScrollViewProxy) {
+    private func selectSection(_ key: String, proxy: ScrollViewProxy) {
         indexSelection = key
         proxy.scrollTo(key, anchor: .top)
-    }
-
-    /// Mirrors the section actually at the top of the list into the index
-    /// bar's value, so VoiceOver announces the current letter after a plain
-    /// scroll, not only after an index-bar drag or an adjustable step.
-    private func syncIndexSelection() {
-        // Topmost visible = the header with the largest top edge that has
-        // already crossed the list's top edge. No header crossed it yet (the
-        // list sits at the very top, or no header is mounted): first section.
-        let topmost = sectionTops
-            .filter { $0.value <= 0 }
-            .max { $0.value < $1.value }?
-            .key
-        indexSelection = topmost ?? sections.first?.key
-    }
-
-    private static var scrollCoordinateSpace: String { "indexedList" }
-}
-
-/// Tops of mounted section headers in the list's coordinate space, keyed by
-/// section key. Lazy sections join and leave the dictionary as they mount.
-private struct SectionTopPreferenceKey: PreferenceKey {
-    static var defaultValue: [String: CGFloat] = [:]
-
-    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
