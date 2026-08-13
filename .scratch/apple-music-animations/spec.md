@@ -47,7 +47,7 @@ design»; Apple Newsroom 2025-06; MacRumors Liquid Glass guide.
 | Mini-player над tab bar | `tabViewBottomAccessory` | Да |
 | Accessory уезжает inline при minimize tab bar; controls сжимаются | Системная анимация `UITabBarController` / SwiftUI | Частично: placement читаем (`tabViewBottomAccessoryPlacement`), layout мини-плеера уже адаптируется |
 | Glass на chrome (tab bar, accessory, controls) | Системный материал; опционально `.glassEffect()` / `GlassEffectContainer` | Почти бесплатно от SDK; кастомный glass на контенте не обязателен |
-| Zoom-морф sheet/cover из источника | `matchedTransitionSource` + `.navigationTransition(.zoom)` | **Нет для Now Playing** — сознательно свой overlay (см. §3) |
+| Zoom-морф sheet/cover / navigation push из источника | `matchedTransitionSource` + `.navigationTransition(.zoom)` | **Нет** ни для плейлистов, ни для Now Playing (плейлисты — обычный push; NP — свой overlay, см. §4) |
 | Меню / alerts / popovers «вырастают» из glass-кнопки | Система, если source — bar button / glass control | Бесплатно при системных контролах |
 
 ### 1.2 Lock Screen / Now Playing вне приложения
