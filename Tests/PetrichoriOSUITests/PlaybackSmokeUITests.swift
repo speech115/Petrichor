@@ -73,10 +73,5 @@ final class PlaybackSmokeUITests: XCTestCase {
         // window that used to kill it while preloading the whole queue.
         sleep(8)
         XCTAssertEqual(app.state, .runningForeground, "приложение упало после запуска трека")
-
-        // Progress regression: the seek bar must have moved off zero after
-        // playing for a few seconds (duration is taken from the database).
-        sleep(6)
-        attachBestEffortScreenshot(of: app, named: "NowPlaying-progress")
     }
 }

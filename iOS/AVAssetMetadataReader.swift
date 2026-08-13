@@ -226,7 +226,7 @@ struct AVAssetMetadataReader: MetadataReader {
             // Representation fallbacks: `.dataValue` often throws on files that
             // still carry artwork under `.value`. Intermediate misses stay
             // silent; only the last attempt logs a real decode failure.
-            var data = await Self.tryLoad { try await artworkItem.load(.dataValue) }
+            var data = try? await artworkItem.load(.dataValue)
             if data == nil {
                 data = await Self.loggedLoad(tag: "artwork", url: url) {
                     try await artworkItem.load(.value)
@@ -262,27 +262,14 @@ struct AVAssetMetadataReader: MetadataReader {
         }
     }
 
-    /// Like `loggedLoad`, but silent on throw — for intermediate representation
-    /// attempts in a fallback chain where a throw usually means "wrong shape,
-    /// try the next one", not a corrupt tag.
-    private static func tryLoad<Value>(
-        _ load: () async throws -> Value?
-    ) async -> Value? {
-        do {
-            return try await load()
-        } catch {
-            return nil
-        }
-    }
-
     private static func trackNumberInfo(from item: AVMetadataItem, url: URL) async -> (number: Int?, total: Int?) {
-        if let data = await tryLoad({ try await item.load(.dataValue) }),
+        if let data = try? await item.load(.dataValue),
            data.count >= 2 {
             let number = Int(data[0])
             let total = data.count >= 3 ? Int(data[2]) : nil
             return (number > 0 ? number : nil, total)
         }
-        if let number = await tryLoad({ try await item.load(.numberValue) }) {
+        if let number = try? await item.load(.numberValue) {
             return (number.intValue, nil)
         }
         if let string = await loggedLoad(tag: "trackNumber", url: url, { try await item.load(.stringValue) }) {

@@ -199,7 +199,7 @@ func makeTestJPEGData() -> Data? {
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: colorSpace,
-        bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
     ) else { return nil }
 
     context.setFillColor(red: 0.4, green: 0.2, blue: 0.8, alpha: 1)
