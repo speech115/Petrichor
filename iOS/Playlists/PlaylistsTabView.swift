@@ -32,6 +32,7 @@ struct PlaylistsTabView: View {
 
     @State private var playlistPreviews: [UUID: [Track]] = [:]
     @State private var loadTask: Task<Void, Never>?
+    @Namespace private var zoomNamespace
 
     init(
         playlistManager: PlaylistManager,
@@ -76,7 +77,9 @@ struct PlaylistsTabView: View {
                     playbackManager: playbackManager,
                     playlistCatalog: playlistCatalog
                 )
+                .detailZoomDestination(.playlist(playlistID))
             }
+            .environment(\.zoomNamespace, zoomNamespace)
             // The top-left is the title's, as it is in every other tab, so
             // creating and importing share one menu on the right beside the
             // gear rather than each claiming a corner.
@@ -188,6 +191,7 @@ struct PlaylistsTabView: View {
                     previewTracks: playlistPreviews[playlist.id] ?? []
                 )
             }
+            .detailZoomSource(.playlist(playlist.id))
             // Vertical insets are not decoration: at zero the covers of
             // consecutive rows touch, and a column of identical service marks
             // reads as one tall block instead of three rows.

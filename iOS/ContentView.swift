@@ -48,6 +48,7 @@ struct ContentView: View {
     /// Incremented every time the Search tab is tapped while Search is already
     /// open. SearchView watches it and raises the keyboard.
     @State private var searchFocusRequest = 0
+    @Namespace private var settingsZoomNamespace
 
     init(playlistManager: PlaylistManager, playbackManager: PlaybackManager) {
         self.playlistManager = playlistManager
@@ -58,10 +59,13 @@ struct ContentView: View {
 
     var body: some View {
         mainInterface
+        .environment(\.settingsZoomNamespace, settingsZoomNamespace)
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
                 SettingsScreen()
             }
+            .settingsZoomDestination()
+            .environment(\.settingsZoomNamespace, settingsZoomNamespace)
         }
         // The create-playlist sheet lives here, not in a tab: TrackRow's
         // "New Playlist..." and the Playlists tab's menu both open it.
@@ -204,6 +208,7 @@ struct ContentView: View {
             // accessory and the artwork and title snapped in at unmount.
             MiniPlayerAccessory(
                 playbackManager: playbackManager,
+                playlistManager: playlistManager,
                 showingNowPlaying: $showingNowPlaying
             )
         }
@@ -441,12 +446,18 @@ private struct MiniPlayerAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement)
     private var placement
     let playbackManager: PlaybackManager
+    let playlistManager: PlaylistManager
     @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
     private let playbackProgressState: PlaybackProgressState
     @Binding var showingNowPlaying: Bool
 
-    init(playbackManager: PlaybackManager, showingNowPlaying: Binding<Bool>) {
+    init(
+        playbackManager: PlaybackManager,
+        playlistManager: PlaylistManager,
+        showingNowPlaying: Binding<Bool>
+    ) {
         self.playbackManager = playbackManager
+        self.playlistManager = playlistManager
         playbackPresentation = playbackManager.presentationObservation
         playbackProgressState = playbackManager.playbackProgressState
         _showingNowPlaying = showingNowPlaying
@@ -491,6 +502,22 @@ private struct MiniPlayerAccessory: View {
                 }
                 .accessibilityIdentifier("MiniPlayer")
                 .buttonStyle(.plain)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 24)
+                        .onEnded { value in
+                            let dx = value.translation.width
+                            let dy = value.translation.height
+                            if abs(dy) > abs(dx), dy < -36 {
+                                showingNowPlaying = true
+                            } else if abs(dx) > abs(dy) * 1.2, abs(dx) > 28 {
+                                if dx < 0 {
+                                    playlistManager.playNextTrack()
+                                } else {
+                                    playlistManager.playPreviousTrack()
+                                }
+                            }
+                        }
+                )
 
                 playPauseButton
             }

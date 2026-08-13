@@ -26,6 +26,7 @@ struct HomeTabView: View {
 
     @State private var recentAlbums: [AlbumEntity] = []
     @State private var loadTask: Task<Void, Never>?
+    @Namespace private var zoomNamespace
 
     /// Tracks fetched per refresh; the grouping caps the shelf itself.
     private static let recentTracksFetchLimit = 100
@@ -59,7 +60,9 @@ struct HomeTabView: View {
                     playbackManager: playbackManager,
                     playlistCatalog: playlistManager.catalogObservation
                 )
+                .detailZoomDestination(.playlist(playlistID))
             }
+            .environment(\.zoomNamespace, zoomNamespace)
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
                     ContentUnavailableView {
@@ -114,6 +117,7 @@ struct HomeTabView: View {
                         count: favorites.trackCount,
                         value: favorites.id
                     )
+                    .detailZoomSource(.playlist(favorites.id))
                 }
                 if let mostPlayed = smartPlaylist(DefaultPlaylists.mostPlayed) {
                     rowDivider
@@ -122,6 +126,7 @@ struct HomeTabView: View {
                         count: mostPlayed.trackCount,
                         value: mostPlayed.id
                     )
+                    .detailZoomSource(.playlist(mostPlayed.id))
                 }
             }
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
@@ -178,6 +183,7 @@ struct HomeTabView: View {
             ArtistPage(artistName: name)
         case .album(let album):
             AlbumPage(album: album)
+                .detailZoomDestination(.album(album.id))
         }
     }
 

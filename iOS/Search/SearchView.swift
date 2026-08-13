@@ -28,6 +28,7 @@ struct SearchView: View {
 
     @State private var query = ""
     @FocusState private var isSearchFieldFocused: Bool
+    @Namespace private var zoomNamespace
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -92,10 +93,12 @@ struct SearchView: View {
                         ArtistPage(artistName: name)
                     case .album(let album):
                         AlbumPage(album: album)
+                            .detailZoomDestination(.album(album.id))
                     case .category, .tracks, .allTracks:
                         EmptyView()
                     }
                 }
+                .environment(\.zoomNamespace, zoomNamespace)
                 .onChange(of: focusRequest) { _, _ in
                     isSearchFieldFocused = true
                 }
@@ -238,6 +241,7 @@ struct SearchView: View {
             )
         }
         .buttonStyle(.plain)
+        .detailZoomSource(.album(album.id))
     }
 
     private func entityRow(

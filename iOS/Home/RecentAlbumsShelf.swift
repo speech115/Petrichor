@@ -21,6 +21,7 @@ struct RecentAlbumsShelf: View {
         VStack(alignment: .leading, spacing: 12) {
             if let headerValue {
                 SectionHeaderLink(title: String(localized: "Recently Played"), value: headerValue)
+                    .detailZoomSource(.playlist(headerValue))
             } else {
                 SectionTitle(title: String(localized: "Recently Played"))
             }
@@ -77,6 +78,7 @@ struct RecentAlbumsShelf: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .detailZoomSource(.album(album.id))
                     }
                 }
                 .padding(.horizontal, 16)

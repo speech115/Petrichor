@@ -42,6 +42,7 @@ struct ArtistPage: View {
                         NavigationLink(value: LibraryDestination.album(album)) {
                             albumRow(album)
                         }
+                        .detailZoomSource(.album(album.id))
                     }
                 }
             }
