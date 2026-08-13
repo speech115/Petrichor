@@ -203,19 +203,3 @@ enum PlaybackJournalApply {
         return PlaybackJournalApplyResult(applied: applied, skipped: skipped, cursor: newCursor)
     }
 }
-
-enum PlaybackJournalCursorStore {
-    static let defaultsKey = "PlaybackJournalCursor"
-
-    static func load(from defaults: UserDefaults = .standard) -> Date? {
-        defaults.object(forKey: defaultsKey) as? Date
-    }
-
-    static func save(_ date: Date?, to defaults: UserDefaults = .standard) {
-        if let date {
-            defaults.set(date, forKey: defaultsKey)
-        } else {
-            defaults.removeObject(forKey: defaultsKey)
-        }
-    }
-}

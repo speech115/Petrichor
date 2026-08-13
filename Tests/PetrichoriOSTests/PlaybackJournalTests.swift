@@ -201,14 +201,9 @@ import Testing
     let journalURL = directory.appendingPathComponent("playback-journal.jsonl")
     try (line + "\n").write(to: journalURL, atomically: true, encoding: .utf8)
 
-    let suiteName = "pj-test-\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
-
     let first = try PlaybackJournalApplier.apply(
         fileURL: journalURL,
-        databaseManager: dbManager,
-        defaults: defaults
+        databaseManager: dbManager
     )
     #expect(first.applied == 1)
     #expect(first.skipped == 0)
@@ -219,8 +214,7 @@ import Testing
 
     let second = try PlaybackJournalApplier.apply(
         fileURL: journalURL,
-        databaseManager: dbManager,
-        defaults: defaults
+        databaseManager: dbManager
     )
     #expect(second.applied == 0)
     #expect(second.skipped == 0)

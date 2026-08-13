@@ -237,8 +237,19 @@ enum DatabaseMigrator {
             Logger.info("v13_add_artwork_thumbnail: added artwork_thumbnail columns and flagged background backfill")
         }
 
+        migrator.registerMigration("v14_playback_journal_cursor") { db in
+            // Singleton row: applied_through advances in the same write that
+            // mutates tracks, so a crash cannot leave play counts applied and
+            // the cursor still old (which would double-count on re-import).
+            try db.create(table: "playback_journal_cursor") { t in
+                t.primaryKey("singleton", .integer)
+                t.column("applied_through", .datetime)
+            }
+            Logger.info("v14_playback_journal_cursor: created singleton cursor table")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v14_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v15_description") { db in ... }
 
         return migrator
     }
