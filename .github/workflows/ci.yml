@@ -154,6 +154,33 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
 
+      # The macos-26 image can ship Xcode without iOS simulator runtimes (runner-images
+      # disk-space policy); when the destination device is missing, download the platform
+      # on demand. `xcrun simctl list` first wakes CoreSimulator so downloadPlatform can
+      # connect. No-op when the image already carries the runtime.
+      - name: Download iOS simulator runtime
+        run: |
+          xcrun simctl list > /dev/null
+          if xcrun simctl list devices available | grep -q "iPhone 17 Pro Max"; then
+            echo "Simulator runtime present, nothing to download"
+            exit 0
+          fi
+          n=0
+          until [ "$n" -ge 3 ]; do
+            sudo xcodebuild -downloadPlatform iOS && break
+            n=$((n+1))
+            if [ "$n" -lt 3 ]; then
+              echo "downloadPlatform failed, retry $n of 2 remaining"
+              sleep 20
+            else
+              echo "downloadPlatform failed after 3 attempts"
+            fi
+          done
+          xcrun simctl list devices available | grep -q "iPhone 17 Pro Max" || {
+            echo "::error::iPhone 17 Pro Max simulator not available after platform download"
+            exit 1
+          }
+
       - name: Cache SwiftPM
         uses: actions/cache@v5
         with:
@@ -229,6 +256,30 @@ jobs:
 
       - name: Select Xcode
         run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+
+      # Same insurance as ios-test: macos-26 may omit simulator runtimes.
+      - name: Download iOS simulator runtime
+        run: |
+          xcrun simctl list > /dev/null
+          if xcrun simctl list devices available | grep -q "iPhone 17 Pro Max"; then
+            echo "Simulator runtime present, nothing to download"
+            exit 0
+          fi
+          n=0
+          until [ "$n" -ge 3 ]; do
+            sudo xcodebuild -downloadPlatform iOS && break
+            n=$((n+1))
+            if [ "$n" -lt 3 ]; then
+              echo "downloadPlatform failed, retry $n of 2 remaining"
+              sleep 20
+            else
+              echo "downloadPlatform failed after 3 attempts"
+            fi
+          done
+          xcrun simctl list devices available | grep -q "iPhone 17 Pro Max" || {
+            echo "::error::iPhone 17 Pro Max simulator not available after platform download"
+            exit 1
+          }
 
       - name: Cache SwiftPM
         uses: actions/cache@v5
