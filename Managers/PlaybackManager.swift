@@ -54,10 +54,6 @@ class PlaybackManager: NSObject, ObservableObject {
         AppCoordinator.shared?.scrobbleManager
     }
 
-    var playbackJournal: (any PlaybackJournal)? {
-        AppCoordinator.shared?.playbackJournal
-    }
-
     // MARK: - Published Properties
 
     @Published var currentTrack: Track?
