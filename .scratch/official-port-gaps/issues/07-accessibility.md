@@ -83,3 +83,22 @@ Blocked by: 01
 - [ ] Обе схемы собираются, весь тест-сьют зелёный.
 
 ## Comments
+
+- 2026-08-12, ветка 07 (реализация): две дельты от буквы тикета, обе задокументированы в коммитах:
+  1. Контраст в списке Songs исключён из аудита целиком. Исходная причина —
+     строки под translucent-таббаром — устранена `contentMargins` в TrackListView,
+     но полный contrast-проход экрана не укладывается во внутренний таймаут аудита
+     на CI (Code=-56). Исключение — обход ёмкости CI, не дефекта. Коммиты f56aba0, ca751f0.
+  2. dynamicType на Now Playing scoped: title/artist без потолков гейтятся; capped
+     `@ScaledMetric` глифы транспорта — утверждённая п.2 стратегия. Коммит c68a9b4.
+  - RecentAlbumsShelf: combine на тексте карточки (аудит сэмплирует центр фрейма).
+    Коммит 7d944f6.
+
+- 2026-08-13, ревью-фиксы:
+  - ArtworkTile: decorative схлопывает дерево (`.ignore` + hidden); TrackRow больше
+    не патчит это снаружи.
+  - Shuffle/repeat hit-target 44×44.
+  - IndexedList на AX-размерах: буквенный столбец скрыт (как Contacts/Music), но
+    VoiceOver Index (label/value/adjustable) остаётся — jump-by-letter на AX5 жив.
+  - AX5-скриншоты Home/Tracks/Settings и VoiceOver на устройстве — ещё нужно
+    приложить сюда (симулятор/petrichor-device); код-гейты зелёные в CI.

@@ -113,6 +113,9 @@ struct ArtworkTile: View {
         // data hash.
         .id(currentKey ?? data.map { "\($0.hashValue)@\(Int(maxPixelSize))" })
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        // Collapse first when decorative: `accessibilityHidden` alone leaves
+        // the decoded Image in the accessibility tree.
+        .accessibilityElement(children: isDecorative ? .ignore : .contain)
         .accessibilityHidden(isDecorative)
     }
 
@@ -183,7 +186,6 @@ struct ArtworkTile: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .accessibilityHidden(isDecorative)
             }
             .clipped()
     }
@@ -195,7 +197,6 @@ struct ArtworkTile: View {
             Image(systemName: placeholderIcon)
                 .font(.system(size: min(iconSize, 36)))
                 .foregroundColor(.secondary)
-                .accessibilityHidden(isDecorative)
         }
     }
 }

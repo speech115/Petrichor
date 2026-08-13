@@ -115,17 +115,35 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                 syncIndexSelection()
             }
             .overlay(alignment: .trailing) {
-                // Hidden at accessibility Dynamic Type sizes: the bar is a
-                // fixed 24pt column with no room to grow into, and a real
-                // text style there would push letters off the screen's
-                // trailing edge. Matches Contacts/Music, which drop their
-                // own alphabet index at the same sizes; the list itself
-                // stays fully reachable by scrolling or VoiceOver swipes.
-                if sections.count > 1, !dynamicTypeSize.isAccessibilitySize {
-                    indexBar(proxy: proxy)
+                // Visual alphabet letters stay below accessibility Dynamic Type
+                // sizes: a fixed 24pt column cannot absorb `.body` growth, and
+                // Contacts/Music drop their own letter column the same way.
+                // At accessibility sizes VoiceOver still gets the Index
+                // adjustable (label + value + swipe up/down) so jump-by-letter
+                // survives AX5 without overflowing the trailing edge.
+                if sections.count > 1 {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        voiceOverIndex(proxy: proxy)
+                    } else {
+                        indexBar(proxy: proxy)
+                    }
                 }
             }
         }
+    }
+
+    /// VoiceOver-only index control for accessibility Dynamic Type sizes.
+    private func voiceOverIndex(proxy: ScrollViewProxy) -> some View {
+        let keys = sections.map(\.key)
+        return Color.clear
+            .frame(width: 44)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(String(localized: "Index"))
+            .accessibilityValue(indexSelection ?? keys.first ?? "")
+            .accessibilityAdjustableAction { direction in
+                adjustIndex(direction: direction, keys: keys, proxy: proxy)
+            }
+            .padding(.trailing, 2)
     }
 
     private func indexBar(proxy: ScrollViewProxy) -> some View {
@@ -155,10 +173,7 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                 // size. They must not be stretched into their slots: the
                 // accessibility audit samples an element's text pixels at
                 // its frame center, and a slot-sized letter element reads as
-                // empty space (ratio 1:1, "Contrast failed"). A real text
-                // style, not a capped one — this view only renders below
-                // accessibility Dynamic Type sizes (see the overlay above),
-                // so it never needs to absorb their growth.
+                // empty space (ratio 1:1, "Contrast failed").
                 ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
                     Text(key)
                         .font(.body)
@@ -178,26 +193,33 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(String(localized: "Index"))
             .accessibilityValue(indexSelection ?? keys.first ?? "")
-            // `.accessibilityAdjustableAction` itself adds the adjustable trait.
             .accessibilityAdjustableAction { direction in
-                guard let current = indexSelection ?? keys.first,
-                      let currentIndex = keys.firstIndex(of: current) else { return }
-                switch direction {
-                case .increment:
-                    if currentIndex + 1 < keys.count {
-                        selectSection(keys[currentIndex + 1], in: keys, proxy: proxy)
-                    }
-                case .decrement:
-                    if currentIndex > 0 {
-                        selectSection(keys[currentIndex - 1], in: keys, proxy: proxy)
-                    }
-                @unknown default:
-                    break
-                }
+                adjustIndex(direction: direction, keys: keys, proxy: proxy)
             }
         }
         .frame(width: 24)
         .padding(.trailing, 2)
+    }
+
+    private func adjustIndex(
+        direction: AccessibilityAdjustmentDirection,
+        keys: [String],
+        proxy: ScrollViewProxy
+    ) {
+        guard let current = indexSelection ?? keys.first,
+              let currentIndex = keys.firstIndex(of: current) else { return }
+        switch direction {
+        case .increment:
+            if currentIndex + 1 < keys.count {
+                selectSection(keys[currentIndex + 1], in: keys, proxy: proxy)
+            }
+        case .decrement:
+            if currentIndex > 0 {
+                selectSection(keys[currentIndex - 1], in: keys, proxy: proxy)
+            }
+        @unknown default:
+            break
+        }
     }
 
     /// Moves the list to `key`'s section and records it as the current one.

@@ -160,10 +160,6 @@ struct TrackRow: View {
         )
             .frame(width: 44, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            // accessibilityHidden alone leaves the decoded image in the tree;
-            // collapsing the tile to one element first actually hides it.
-            .accessibilityElement(children: .ignore)
-            .accessibilityHidden(true)
     }
 }
 

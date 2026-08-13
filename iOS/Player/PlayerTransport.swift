@@ -145,7 +145,7 @@ struct PlayerTransport: View {
                 .font(.system(size: min(flankIconSize, 24), weight: .medium))
                 .foregroundColor(isActive ? palette.foreground : palette.secondary)
                 .contentTransition(.symbolEffect(.replace.offUp))
-                .frame(width: 44, height: 34)
+                .frame(width: 44, height: 44)
                 .background {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(palette.chip)
