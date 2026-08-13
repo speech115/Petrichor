@@ -23,6 +23,12 @@ extension PlaylistManager {
                 try await dbManager.updateTrackFavoriteStatus(trackId: trackId, isFavorite: isFavorite)
 
                 Logger.info("Updated favorite status for track: \(track.title) to \(isFavorite)")
+
+                AppCoordinator.shared?.playbackJournal?.favoriteChanged(
+                    relativePath: LibraryPathStore.storedPath(for: track.url),
+                    value: isFavorite,
+                    at: Date()
+                )
                 
                 await handleTrackPropertyUpdate(updatedTrack)
                 

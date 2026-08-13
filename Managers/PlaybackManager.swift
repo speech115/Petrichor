@@ -54,6 +54,10 @@ class PlaybackManager: NSObject, ObservableObject {
         AppCoordinator.shared?.scrobbleManager
     }
 
+    var playbackJournal: (any PlaybackJournal)? {
+        AppCoordinator.shared?.playbackJournal
+    }
+
     // MARK: - Published Properties
 
     @Published var currentTrack: Track?
@@ -713,6 +717,10 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
         if stopReason == .eof, let finishedTrack {
             self.playlistManager.incrementPlayCount(for: finishedTrack)
             self.scrobbleManager?.trackFinished(finishedTrack)
+            self.playbackJournal?.trackPlayed(
+                relativePath: LibraryPathStore.storedPath(for: finishedTrack.url),
+                at: Date()
+            )
 
             Logger.info("Track completed naturally, updating play count, last played date, and scrobbling it if configured")
         }

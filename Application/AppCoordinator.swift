@@ -17,6 +17,9 @@ class AppCoordinator: ObservableObject {
     let menuBarManager: MenuBarManager
     #endif
     let scrobbleManager: ScrobbleManager
+    /// Fifth seam: phone→Mac listen/favorite journal. Created only on iOS;
+    /// macOS leaves this nil and applies a transferred JSONL file manually.
+    let playbackJournal: (any PlaybackJournal)?
     
     private var hadFoldersAtStartup: Bool = false
     private let playbackStateKey = "SavedPlaybackState"
@@ -50,6 +53,12 @@ class AppCoordinator: ObservableObject {
         
         // Setup Scrobbling
         scrobbleManager = ScrobbleManager()
+
+        #if os(iOS)
+        playbackJournal = JSONLPlaybackJournal()
+        #else
+        playbackJournal = nil
+        #endif
 
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
 
@@ -105,6 +114,11 @@ class AppCoordinator: ObservableObject {
     }
     
     func savePlaybackState() {
+        // Flush listen/favorite events with the same backgrounding beat as
+        // playback state — not on every mutation (gapless advances coincide
+        // with track finishes).
+        playbackJournal?.flush()
+
         // Only save if we have a current track
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()
