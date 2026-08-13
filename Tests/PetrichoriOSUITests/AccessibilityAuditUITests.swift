@@ -81,8 +81,9 @@ final class AccessibilityAuditUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(alphaRow.waitForExistence(timeout: 30), "список треков не загрузился")
 
-        // The list scrolls 80pt short of the screen bottom (contentMargins),
-        // so no row ever renders under the floating tab bar's translucent
+        // The list scrolls 80pt short of the screen bottom (contentMargins,
+        // the zone the floating tab bar occupies - measured bar top at 79pt
+        // from the bottom), so no row ever renders under the bar's translucent
         // material, which the screenshot-based contrast check would flag as
         // ghosted text.
         try app.performAccessibilityAudit()

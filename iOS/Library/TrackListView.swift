@@ -50,8 +50,9 @@ struct TrackListView: View {
         )
         // The floating tab bar overlays the list's last rows (its translucent
         // material ghosts the text behind it and fails the contrast audit), so
-        // scroll content stops 80pt short of the screen bottom — the bar's
-        // height — and the last rows scroll clear of it.
+        // scroll content stops 80pt short of the screen bottom — the zone the
+        // bar occupies (measured: bar top at 79pt from the bottom) — and the
+        // last rows scroll clear of it.
         .contentMargins(.bottom, 80, for: .scrollContent)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.large)
