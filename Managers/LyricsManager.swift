@@ -8,7 +8,11 @@
 
 import Foundation
 
-class LyricsManager {
+/// Genuinely `Sendable`: no stored mutable state, only `static let` constants
+/// and a computed `UserDefaults` read - nothing to race on. `final` because a
+/// non-final class cannot conform to `Sendable` (a subclass could add
+/// mutable state the checker never re-verifies).
+final class LyricsManager: Sendable {
     // MARK: - Singleton
     
     static let shared = LyricsManager()

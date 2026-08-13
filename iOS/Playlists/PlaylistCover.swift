@@ -20,6 +20,7 @@
 
 import SwiftUI
 
+@MainActor
 enum PlaylistCover {
     case appleFavorites
     case frankieShow

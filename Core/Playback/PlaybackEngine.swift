@@ -61,10 +61,13 @@ public struct AudioEntryId: Hashable {
 
     // Entry ids only have to be unique within a session, so a counter is enough -
     // and a whole library queued at once mints one per track.
+    @MainActor
     private static var nextValue: UInt64 = 0
 
     /// A new identity, distinct from every other in this session. Main-thread only,
-    /// which every queue mutation already is.
+    /// which every queue mutation already is - `@MainActor` makes that a checked
+    /// requirement instead of just this comment.
+    @MainActor
     public static func fresh() -> AudioEntryId {
         nextValue &+= 1
         return AudioEntryId(id: "e\(nextValue)")
@@ -119,36 +122,40 @@ public struct NowPlayingMetadata {
 
 /// Delegate protocol for receiving playback events from the active engine.
 /// Events are always published by the `PlaybackEngine` facade, never by a concrete backend.
+///
+/// The event API carries only the payload the delegate uses. The single engine
+/// is already owned by `PlaybackManager`, so passing it back on every event added
+/// an unnecessary reference transfer across the backend callback boundary.
+@MainActor
 public protocol AudioPlayerDelegate: AnyObject {
-    func audioPlayerDidStartPlaying(player: PlaybackEngine, with entryId: AudioEntryId)
-    func audioPlayerStateChanged(player: PlaybackEngine, with newState: AudioPlayerState, previous: AudioPlayerState)
+    func audioPlayerDidStartPlaying(with entryId: AudioEntryId)
+    func audioPlayerStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState)
     func audioPlayerDidFinishPlaying(
-        player: PlaybackEngine,
         entryId: AudioEntryId,
         stopReason: AudioPlayerStopReason,
         progress: Double,
         duration: Double
     )
-    func audioPlayerUnexpectedError(player: PlaybackEngine, error: AudioPlayerError)
+    func audioPlayerUnexpectedError(error: AudioPlayerError)
 
     // Optional methods with default implementations
-    func audioPlayerDidFinishBuffering(player: PlaybackEngine, with entryId: AudioEntryId)
-    func audioPlayerDidSkipQueueEntry(player: PlaybackEngine, entryId: AudioEntryId)
+    func audioPlayerDidFinishBuffering(with entryId: AudioEntryId)
+    func audioPlayerDidSkipQueueEntry(entryId: AudioEntryId)
 }
 
 // MARK: - Default Implementations
 
 public extension AudioPlayerDelegate {
-    func audioPlayerDidFinishBuffering(player: PlaybackEngine, with entryId: AudioEntryId) {}
-    func audioPlayerDidSkipQueueEntry(player: PlaybackEngine, entryId: AudioEntryId) {}
+    func audioPlayerDidFinishBuffering(with entryId: AudioEntryId) {}
+    func audioPlayerDidSkipQueueEntry(entryId: AudioEntryId) {}
 }
 
 // MARK: - Backend Abstraction
 
 /// Internal abstraction over a concrete playback engine. Not part of the app-facing
-/// surface; only `PlaybackEngine` talks to it. This lets every delegate signature
-/// stay the concrete `PlaybackEngine` type, so the rest of the app never refers to
-/// a backend directly.
+/// surface; only `PlaybackEngine` talks to it, so the rest of the app never refers
+/// to a backend directly.
+@MainActor
 protocol PlaybackBackend: AnyObject {
     var backendDelegate: PlaybackBackendDelegate? { get set }
 
@@ -227,7 +234,8 @@ enum EqualizerHeadroomCompensation {
 }
 
 /// Events a `PlaybackBackend` reports up to the `PlaybackEngine` facade. The facade
-/// re-publishes these to its `AudioPlayerDelegate` with itself as the `player`.
+/// re-publishes these to its `AudioPlayerDelegate`.
+@MainActor
 protocol PlaybackBackendDelegate: AnyObject {
     func backendDidStartPlaying(with entryId: AudioEntryId)
     func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState)
@@ -244,6 +252,7 @@ protocol PlaybackBackendDelegate: AnyObject {
 
 // MARK: - PlaybackEngine Facade
 
+@MainActor
 public class PlaybackEngine: NSObject {
     // MARK: - Public Properties
 
@@ -421,11 +430,11 @@ public class PlaybackEngine: NSObject {
 
 extension PlaybackEngine: PlaybackBackendDelegate {
     func backendDidStartPlaying(with entryId: AudioEntryId) {
-        delegate?.audioPlayerDidStartPlaying(player: self, with: entryId)
+        delegate?.audioPlayerDidStartPlaying(with: entryId)
     }
 
     func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) {
-        delegate?.audioPlayerStateChanged(player: self, with: newState, previous: previous)
+        delegate?.audioPlayerStateChanged(with: newState, previous: previous)
     }
 
     func backendDidFinishPlaying(
@@ -435,7 +444,6 @@ extension PlaybackEngine: PlaybackBackendDelegate {
         duration: Double
     ) {
         delegate?.audioPlayerDidFinishPlaying(
-            player: self,
             entryId: entryId,
             stopReason: stopReason,
             progress: progress,
@@ -444,14 +452,18 @@ extension PlaybackEngine: PlaybackBackendDelegate {
     }
 
     func backendUnexpectedError(error: AudioPlayerError) {
-        delegate?.audioPlayerUnexpectedError(player: self, error: error)
+        delegate?.audioPlayerUnexpectedError(error: error)
     }
 
     func backendDidFinishBuffering(with entryId: AudioEntryId) {
-        delegate?.audioPlayerDidFinishBuffering(player: self, with: entryId)
+        delegate?.audioPlayerDidFinishBuffering(with: entryId)
     }
 
     func backendDidSkipQueueEntry(entryId: AudioEntryId) {
-        delegate?.audioPlayerDidSkipQueueEntry(player: self, entryId: entryId)
+        delegate?.audioPlayerDidSkipQueueEntry(entryId: entryId)
     }
+
+    /// Playback ownership is main-actor isolated end to end: both backend and app
+    /// delegate protocols require the same actor, so event order stays synchronous
+    /// and the compiler verifies every hop.
 }

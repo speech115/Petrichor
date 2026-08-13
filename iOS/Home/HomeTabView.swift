@@ -192,11 +192,15 @@ struct HomeTabView: View {
         let libraryManager = libraryManager
         let fetchLimit = Self.recentTracksFetchLimit
         let albumLimit = Self.albumShelfLimit
+        // Read on the main actor before detaching: `albumEntities` mirrors real
+        // `@Published` state, unlike the query wrappers below (which are `nonisolated`
+        // because they touch only the `Sendable` `databaseManager`).
+        let albumEntities = libraryManager.albumEntities
 
         let loaded = await Task.detached(priority: .userInitiated) {
             let recentTracks = libraryManager.getRecentlyPlayedTracks(limit: fetchLimit)
             let albumCounts = Dictionary(
-                libraryManager.albumEntities.compactMap { entity in
+                albumEntities.compactMap { entity in
                     entity.albumId.map { ($0, entity.trackCount) }
                 },
                 uniquingKeysWith: { first, _ in first }

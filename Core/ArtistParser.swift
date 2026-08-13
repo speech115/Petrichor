@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 enum ArtistParser {
     // High-confidence separators - always split, never part of an artist name
@@ -38,9 +39,18 @@ enum ArtistParser {
     }
 
     // MARK: - Caching
-    private static let cacheQueue = DispatchQueue(label: "org.Petrichor.artistparser.cache", attributes: .concurrent)
-    private static var parseCache = [String: [String]]()
-    private static var normalizeCache = [String: String]()
+
+    /// Parse/normalize caches, behind a checked lock rather than raw `static var`s: the
+    /// checker treats any `static var` as global mutable state regardless of how
+    /// it's synchronized, so the previous concurrent-queue-plus-barrier scheme
+    /// (real and correct at runtime) couldn't be verified. The lock is the checked
+    /// equivalent - same "one writer, many readers serialized" shape, just legible
+    /// to the compiler.
+    private struct Caches {
+        var parse: [String: [String]] = [:]
+        var normalize: [String: String] = [:]
+    }
+    private static let caches = OSAllocatedUnfairLock(initialState: Caches())
 
     // Pre-compiled regex for better performance
     private static let initialsRegex: NSRegularExpression? = {
@@ -53,35 +63,40 @@ enum ArtistParser {
 
     // MARK: - Known Artists
 
-    // Concurrent so that reads (`hasKnownArtists`, `isKnownArtist`) run in parallel during
-    // a scan; load/unload mutate state behind a `.barrier` for exclusive access.
-    private static let knownArtistsQueue = DispatchQueue(label: "org.Petrichor.artistparser.knownArtists", attributes: .concurrent)
+    /// Load/unload/lookup all share one lock (was one `.concurrent` queue with
+    /// `.barrier` writes - see `Caches` above for why this moved to a checked lock).
+    /// `knownArtists`, `libraryArtists`, and `lookupGeneration` are bumped
+    /// together in `Lookup`-producing reads, so keeping them in a single
+    /// locked struct is also what the old barrier-`.sync` calls already
+    /// guaranteed: no lookup can observe one field mid-swap against another.
+    private struct KnownArtistsState {
+        /// In-memory set of known artist names, loaded on-demand from bundled text file.
+        var knownArtists = Set<String>()
+        var knownArtistsRetainCount = 0
 
-    /// In-memory set of known artist names, loaded on-demand from bundled text file.
-    private static var knownArtists = Set<String>()
-    private static var knownArtistsRetainCount = 0
+        /// Per-role map of normalized name (including merge aliases) to canonical artist name,
+        /// standing in for the bundled file once it's unloaded so runtime parsing matches the scan.
+        ///
+        /// Keyed by role because the roles disagree: an unparsed album-artist tag can leave a
+        /// combined `artists` row no `track_artists` relationship uses, which would be a
+        /// destination with no tracks. Only names a role can navigate to belong in its map.
+        var libraryArtists: [String: [String: String]] = [:]
 
-    /// Per-role map of normalized name (including merge aliases) to canonical artist name, standing
-    /// in for the bundled file once it's unloaded so runtime parsing matches the scan.
-    ///
-    /// Keyed by role because the roles disagree: an unparsed album-artist tag can leave a combined
-    /// `artists` row no `track_artists` relationship uses, which would be a destination with no
-    /// tracks. Only names a role can navigate to belong in its map.
-    private static var libraryArtists: [String: [String: String]] = [:]
-
-    /// Bumped on every lookup change; part of the cache key, so results computed against replaced
-    /// data become unreachable.
-    private static var lookupGeneration = 0
+        /// Bumped on every lookup change; part of the cache key, so results computed against
+        /// replaced data become unreachable.
+        var lookupGeneration = 0
+    }
+    private static let knownArtistsState = OSAllocatedUnfairLock(initialState: KnownArtistsState())
 
     /// Load known artists from the bundled text file into memory.
     ///
     /// Reference-counted: each call must be balanced by exactly one `unloadKnownArtists()`.
     /// Prefer pairing the two with `defer` so a throwing scan can't leak the retain count.
     static func loadKnownArtists() {
-        let result = knownArtistsQueue.sync(flags: .barrier) { () -> (loadedCount: Int, fileName: String?, warning: String?) in
-            knownArtistsRetainCount += 1
+        let result = knownArtistsState.withLock { state -> (loadedCount: Int, fileName: String?, warning: String?) in
+            state.knownArtistsRetainCount += 1
 
-            guard knownArtists.isEmpty else { return (0, nil, nil) }
+            guard state.knownArtists.isEmpty else { return (0, nil, nil) }
 
             guard let url = findKnownArtistsFile() else {
                 return (0, nil, "No known artists data file found in bundle")
@@ -91,13 +106,13 @@ enum ArtistParser {
                 return (0, nil, "Failed to read known artists file: \(url.lastPathComponent)")
             }
 
-            knownArtists = Set(
+            state.knownArtists = Set(
                 content.components(separatedBy: .newlines).lazy
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty && !$0.hasPrefix("#") }
             )
-            lookupGeneration += 1
-            return (knownArtists.count, url.lastPathComponent, nil)
+            state.lookupGeneration += 1
+            return (state.knownArtists.count, url.lastPathComponent, nil)
         }
 
         if result.loadedCount > 0 {
@@ -110,13 +125,13 @@ enum ArtistParser {
 
     /// Release known artists from memory after scanning completes.
     static func unloadKnownArtists() {
-        let unloadedCount = knownArtistsQueue.sync(flags: .barrier) { () -> Int in
-            knownArtistsRetainCount = max(knownArtistsRetainCount - 1, 0)
-            guard knownArtistsRetainCount == 0, !knownArtists.isEmpty else { return 0 }
+        let unloadedCount = knownArtistsState.withLock { state -> Int in
+            state.knownArtistsRetainCount = max(state.knownArtistsRetainCount - 1, 0)
+            guard state.knownArtistsRetainCount == 0, !state.knownArtists.isEmpty else { return 0 }
 
-            let count = knownArtists.count
-            knownArtists.removeAll()
-            lookupGeneration += 1
+            let count = state.knownArtists.count
+            state.knownArtists.removeAll()
+            state.lookupGeneration += 1
             return count
         }
 
@@ -130,10 +145,10 @@ enum ArtistParser {
     static func setLibraryArtists(_ namesByRole: [String: [String: String]]) {
         // Swap and bump together, or a parse could pair the new data with the old generation and
         // read a cached result the old data produced.
-        let changed = knownArtistsQueue.sync(flags: .barrier) { () -> Bool in
-            guard libraryArtists != namesByRole else { return false }
-            libraryArtists = namesByRole
-            lookupGeneration += 1
+        let changed = knownArtistsState.withLock { state -> Bool in
+            guard state.libraryArtists != namesByRole else { return false }
+            state.libraryArtists = namesByRole
+            state.lookupGeneration += 1
             return true
         }
 
@@ -177,16 +192,18 @@ enum ArtistParser {
     /// Best available name data for a role. The bundled file adds recognition breadth while loaded;
     /// the role's names ride along to canonicalize. With neither, `.none` rather than empty.
     private static func currentLookup(for role: String?) -> Lookup {
-        knownArtistsQueue.sync {
-            let names = role.flatMap { libraryArtists[$0] } ?? [:]
+        knownArtistsState.withLock { state in
+            let names = role.flatMap { state.libraryArtists[$0] } ?? [:]
 
-            if !knownArtists.isEmpty {
-                return Lookup(source: .bundled, generation: lookupGeneration, bundled: knownArtists, library: names)
+            if !state.knownArtists.isEmpty {
+                return Lookup(
+                    source: .bundled, generation: state.lookupGeneration, bundled: state.knownArtists, library: names
+                )
             }
             if !names.isEmpty {
-                return Lookup(source: .library, generation: lookupGeneration, library: names)
+                return Lookup(source: .library, generation: state.lookupGeneration, library: names)
             }
-            return Lookup(source: .none, generation: lookupGeneration)
+            return Lookup(source: .none, generation: state.lookupGeneration)
         }
     }
 
@@ -195,16 +212,14 @@ enum ArtistParser {
         let normalized = normalizeArtistName(name)
         guard !normalized.isEmpty else { return false }
 
-        return knownArtistsQueue.sync {
-            knownArtists.contains(normalized) || libraryArtists.values.contains { $0[normalized] != nil }
+        return knownArtistsState.withLock { state in
+            state.knownArtists.contains(normalized) || state.libraryArtists.values.contains { $0[normalized] != nil }
         }
     }
 
     /// Reclaims entries stranded by a generation bump; correctness comes from the generation.
     private static func clearParseCache() {
-        cacheQueue.sync(flags: .barrier) {
-            parseCache.removeAll()
-        }
+        caches.withLock { $0.parse.removeAll() }
     }
 
     /// Find the known artists data file in the bundle (known_artists_YYYYMMDD.txt).
@@ -226,7 +241,7 @@ enum ArtistParser {
     // MARK: - Normalization
 
     static func normalizeArtistName(_ name: String) -> String {
-        if let cached = cacheQueue.sync(execute: { normalizeCache[name] }) {
+        if let cached = caches.withLock({ $0.normalize[name] }) {
             return cached
         }
 
@@ -262,8 +277,9 @@ enum ArtistParser {
 
         normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        cacheQueue.async(flags: .barrier) { normalizeCache[name] = normalized }
-        return normalized
+        let result = normalized
+        caches.withLock { $0.normalize[name] = result }
+        return result
     }
 
     // MARK: - Parsing
@@ -285,7 +301,7 @@ enum ArtistParser {
         let lookup = currentLookup(for: role)
         let cacheKey = "\(artistString)|\(unknownPlaceholder)|\(lookup.source.rawValue)|\(role ?? "")|\(lookup.generation)"
 
-        if let cached = cacheQueue.sync(execute: { parseCache[cacheKey] }) {
+        if let cached = caches.withLock({ $0.parse[cacheKey] }) {
             return cached
         }
 
@@ -465,7 +481,7 @@ enum ArtistParser {
 
     /// Caches a parse result and returns it
     private static func cacheAndReturn(_ result: [String], forKey key: String) -> [String] {
-        cacheQueue.async(flags: .barrier) { parseCache[key] = result }
+        caches.withLock { $0.parse[key] = result }
         return result
     }
 

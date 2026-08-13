@@ -13,6 +13,7 @@ import Testing
 /// drives the whole chain — scan, resolver, ambiguity policy — against a
 /// throwaway temp pool.
 
+@MainActor
 @Test func m3uParsingKeepsOrderAndNumericPrefixes() {
     let content = """
     #EXTM3U
@@ -55,6 +56,7 @@ import Testing
     #expect(!stored.hasPrefix("/"))
 }
 
+@MainActor
 @Test func m3uParsingIgnoresEmptyFileAndComments() {
     let manager = PlaylistManager()
 
@@ -89,6 +91,7 @@ import Testing
 /// ambiguous keys are refused. Impossible before `DatabaseManager(pool:)` and
 /// the resolver module: the old tests drove `M3UFilenameMatcher.resolveAll`
 /// against a hand-built candidate list instead of the real pipeline.
+@MainActor
 @Test func fullM3UImportMatchesInOrderWithRenamesAndRefusesAmbiguity() async throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("petrichor-m3u-\(UUID().uuidString)", isDirectory: true)

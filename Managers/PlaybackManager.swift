@@ -10,6 +10,7 @@ import AVFoundation
 import Combine
 import Foundation
 
+@MainActor
 final class PlaybackAvailabilityObservation: ObservableObject {
     @Published private(set) var hasCurrentTrack: Bool
     private var subscription: AnyCancellable?
@@ -25,6 +26,7 @@ final class PlaybackAvailabilityObservation: ObservableObject {
 
 /// Narrow publisher for player surfaces that render track identity and the
 /// play/pause state without observing volume, restoration, or manager commands.
+@MainActor
 final class PlaybackPresentationObservation: ObservableObject {
     @Published private(set) var currentTrack: Track?
     @Published private(set) var isPlaying: Bool
@@ -44,6 +46,7 @@ final class PlaybackPresentationObservation: ObservableObject {
     }
 }
 
+@MainActor
 class PlaybackManager: NSObject, ObservableObject {
     let playbackProgressState = PlaybackProgressState()
     
@@ -162,10 +165,10 @@ class PlaybackManager: NSObject, ObservableObject {
         observeRepeatModeForLookahead()
     }
 
-    deinit {
+    isolated deinit {
         artworkEnrichmentTask?.cancel()
-        stop()
-        stopProgressUpdateTimer()
+        audioPlayer.stop()
+        progressUpdateTimer?.cancel()
     }
     
     // MARK: - Player State Management
@@ -232,13 +235,6 @@ class PlaybackManager: NSObject, ObservableObject {
     // MARK: - Playback Controls
     
     func togglePlayPause() {
-        guard Thread.isMainThread else {
-            DispatchQueue.main.async { [weak self] in
-                self?.togglePlayPause()
-            }
-            return
-        }
-        
         if isPlaying {
             // Pausing while a restored track is still loading cancels the latched play.
             pendingPlayOnRestore = false
@@ -624,153 +620,147 @@ private extension PlaybackManager {
 
 // MARK: - AudioPlayerDelegate
 
-extension PlaybackManager: AudioPlayerDelegate {
-    func audioPlayerDidStartPlaying(player: PlaybackEngine, with entryId: AudioEntryId) {
-        DispatchQueue.main.async {
-            if let injected = self.injectedNext, injected.entryId == entryId {
-                // A repeat lookahead started; fold it into the mirror, then treat it
-                // like any other engine-driven advance.
-                self.absorbInjectedEntry(injected)
-                self.handleEngineAdvance(to: entryId, track: injected.track)
-            } else if entryId != self.currentEntryId, let track = self.track(forEntry: entryId) {
-                // The engine walked to the next queue entry on its own.
-                self.handleEngineAdvance(to: entryId, track: track)
-            } else if let started = self.track(forEntry: entryId) {
-                self.isPlaying = true
-                // Adopted now, so the tile's timeline is this track's. Resolved by
-                // id so a superseded load can't publish the wrong track.
-                self.publishNowPlayingMetadata(for: started)
-            } else {
-                self.isPlaying = true
-                Logger.warning("Started an entry the mirror cannot name: \(entryId.id)")
-            }
-            self.currentTime = self.audioPlayer.currentPlaybackProgress
-            Logger.info("Track started playing: \(entryId.id)")
+extension PlaybackManager: @MainActor AudioPlayerDelegate {
+    func audioPlayerDidStartPlaying(with entryId: AudioEntryId) {
+        if let injected = self.injectedNext, injected.entryId == entryId {
+            // A repeat lookahead started; fold it into the mirror, then treat it
+            // like any other engine-driven advance.
+            self.absorbInjectedEntry(injected)
+            self.handleEngineAdvance(to: entryId, track: injected.track)
+        } else if entryId != self.currentEntryId, let track = self.track(forEntry: entryId) {
+            // The engine walked to the next queue entry on its own.
+            self.handleEngineAdvance(to: entryId, track: track)
+        } else if let started = self.track(forEntry: entryId) {
+            self.isPlaying = true
+            // Adopted now, so the tile's timeline is this track's. Resolved by
+            // id so a superseded load can't publish the wrong track.
+            self.publishNowPlayingMetadata(for: started)
+        } else {
+            self.isPlaying = true
+            Logger.warning("Started an entry the mirror cannot name: \(entryId.id)")
         }
+        self.currentTime = self.audioPlayer.currentPlaybackProgress
+        Logger.info("Track started playing: \(entryId.id)")
+        
     }
     
-    func audioPlayerStateChanged(player: PlaybackEngine, with newState: AudioPlayerState, previous: AudioPlayerState) {
-        DispatchQueue.main.async {
-            switch newState {
-            case .playing:
-                self.isPlaying = true
-            case .paused:
-                self.isPlaying = false
-            case .stopped:
-                self.isPlaying = false
-            case .ready:
-                break
-            }
-
-            // Finish a deferred restore-resume: the startPaused load has now
-            // settled in `.paused`, so the asset is open and the seek+resume is
-            // safe. Guarded by entry identity so an unrelated pause never trips it.
-            if newState == .paused,
-               let pending = self.pendingRestoreResume,
-               pending.entryId == self.currentEntryId {
-                self.pendingRestoreResume = nil
-                // startPaused adopts without a start callback, so restored tiles
-                // publish here.
-                if let track = self.currentTrack {
-                    self.publishNowPlayingMetadata(for: track)
-                }
-                if self.audioPlayer.seek(to: pending.position) {
-                    self.currentTime = pending.position
-                    self.audioPlayer.resume()
-                    Logger.info("Resumed restored playback from \(pending.position)s")
-                } else if let engineIndex = self.audioPlayer.queueIndex(of: pending.entryId) {
-                    Logger.warning("Restore seek failed, starting from beginning")
-                    self.currentTime = 0
-                    self.audioPlayer.playQueueEntry(at: engineIndex)
-                }
-            }
-
-            // Re-derive the repeat lookahead once the engine is actually playing.
-            // This fires for every start path - fresh play, restored resume (which
-            // goes startPaused -> seek -> resume), and resume-from-pause.
-            if newState == .playing {
-                self.primeRepeatLookahead()
-            }
-
-            Logger.info("Player state changed: \(previous) → \(newState)")
+    func audioPlayerStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) {
+        switch newState {
+        case .playing:
+            self.isPlaying = true
+        case .paused:
+            self.isPlaying = false
+        case .stopped:
+            self.isPlaying = false
+        case .ready:
+            break
         }
+
+        // Finish a deferred restore-resume: the startPaused load has now
+        // settled in `.paused`, so the asset is open and the seek+resume is
+        // safe. Guarded by entry identity so an unrelated pause never trips it.
+        if newState == .paused,
+           let pending = self.pendingRestoreResume,
+           pending.entryId == self.currentEntryId {
+            self.pendingRestoreResume = nil
+            // startPaused adopts without a start callback, so restored tiles
+            // publish here.
+            if let track = self.currentTrack {
+                self.publishNowPlayingMetadata(for: track)
+            }
+            if self.audioPlayer.seek(to: pending.position) {
+                self.currentTime = pending.position
+                self.audioPlayer.resume()
+        Logger.info("Resumed restored playback from \(pending.position)s")
+            } else if let engineIndex = self.audioPlayer.queueIndex(of: pending.entryId) {
+        Logger.warning("Restore seek failed, starting from beginning")
+                self.currentTime = 0
+                self.audioPlayer.playQueueEntry(at: engineIndex)
+            }
+        }
+
+        // Re-derive the repeat lookahead once the engine is actually playing.
+        // This fires for every start path - fresh play, restored resume (which
+        // goes startPaused -> seek -> resume), and resume-from-pause.
+        if newState == .playing {
+            self.primeRepeatLookahead()
+        }
+
+        Logger.info("Player state changed: \(previous) → \(newState)")
+        
     }
     
     func audioPlayerDidFinishPlaying(
-        player: PlaybackEngine,
         entryId: AudioEntryId,
         stopReason: AudioPlayerStopReason,
         progress: Double,
         duration: Double
     ) {
-        DispatchQueue.main.async {
-            // Credit the track that actually finished, resolved by entry id: on a
-            // gapless advance currentTrack may already be the next track.
-            // Resolve before forgetting, and only forget entries the mirror does not
-            // own - a queue member outlives its finish and can be played again.
-            let finishedTrack = self.track(forEntry: entryId)
-            self.unmirroredTracks.removeValue(forKey: entryId.id)
+        // Credit the track that actually finished, resolved by entry id: on a
+        // gapless advance currentTrack may already be the next track.
+        // Resolve before forgetting, and only forget entries the mirror does not
+        // own - a queue member outlives its finish and can be played again.
+        let finishedTrack = self.track(forEntry: entryId)
+        self.unmirroredTracks.removeValue(forKey: entryId.id)
 
-            guard self.currentTrack != nil else {
-                Logger.info("Ignoring finish - no current track")
-                return
-            }
+        guard self.currentTrack != nil else {
+            Logger.info("Ignoring finish - no current track")
+            return
+        }
 
-            Logger.info("Track finished (reason: \(stopReason))")
+        Logger.info("Track finished (reason: \(stopReason))")
 
-            if stopReason == .eof, let finishedTrack {
-                self.playlistManager.incrementPlayCount(for: finishedTrack)
-                self.scrobbleManager?.trackFinished(finishedTrack)
+        if stopReason == .eof, let finishedTrack {
+            self.playlistManager.incrementPlayCount(for: finishedTrack)
+            self.scrobbleManager?.trackFinished(finishedTrack)
 
-                Logger.info("Track completed naturally, updating play count, last played date, and scrobbling it if configured")
-            }
+            Logger.info("Track completed naturally, updating play count, last played date, and scrobbling it if configured")
+        }
 
-            // Only tear down current playback when the finished entry is still
-            // current; a stale finish that raced ahead of a gapless advance must not
-            // flip isPlaying false under the now-playing track (which freezes its bar).
-            let finishedEntryIsCurrent = entryId == self.currentEntryId
+        // Only tear down current playback when the finished entry is still
+        // current; a stale finish that raced ahead of a gapless advance must not
+        // flip isPlaying false under the now-playing track (which freezes its bar).
+        let finishedEntryIsCurrent = entryId == self.currentEntryId
 
-            switch stopReason {
-            case .eof:
-                self.restoredPosition = 0
-                // The engine walks to the next entry itself, so a finish only ends
-                // playback when it has stopped and nothing is queued after the current
-                // entry. A gapless advance keeps it .playing and delivers the finish
-                // before the start, so the state check is what tells them apart.
-                if self.audioPlayer.state != .playing, !self.engineHasSuccessor, finishedEntryIsCurrent {
-                    self.currentTime = 0
-                    self.isPlaying = false
-                }
-
-            case .userAction:
-                self.currentTime = 0
-
-            case .error:
+        switch stopReason {
+        case .eof:
+            self.restoredPosition = 0
+            // The engine walks to the next entry itself, so a finish only ends
+            // playback when it has stopped and nothing is queued after the current
+            // entry. A gapless advance keeps it .playing and delivers the finish
+            // before the start, so the state check is what tells them apart.
+            if self.audioPlayer.state != .playing, !self.engineHasSuccessor, finishedEntryIsCurrent {
                 self.currentTime = 0
                 self.isPlaying = false
-                Logger.error("Playback finished with error")
-                NotificationManager.shared.addMessage(.error, String(localized: "Playback error occurred"))
             }
+
+        case .userAction:
+            self.currentTime = 0
+
+        case .error:
+            self.currentTime = 0
+            self.isPlaying = false
+            Logger.error("Playback finished with error")
+            NotificationManager.shared.addMessage(.error, String(localized: "Playback error occurred"))
         }
+        
     }
     
-    func audioPlayerUnexpectedError(player: PlaybackEngine, error: AudioPlayerError) {
-        DispatchQueue.main.async {
-            Logger.error("Audio player error: \(error.localizedDescription)")
-            NotificationManager.shared.addMessage(.error, String(localized: "Playback error: \(error.localizedDescription)"))
-        }
+    func audioPlayerUnexpectedError(error: AudioPlayerError) {
+        Logger.error("Audio player error: \(error.localizedDescription)")
+        NotificationManager.shared.addMessage(.error, String(localized: "Playback error: \(error.localizedDescription)"))
+        
     }
 
-    func audioPlayerDidSkipQueueEntry(player: PlaybackEngine, entryId: AudioEntryId) {
-        DispatchQueue.main.async {
-            // The engine drops an entry it cannot decode and primes the one after it,
-            // so the boundary stays gapless. Drop it from the app queue too: leaving
-            // the row would make the two queues differ in membership, which every
-            // later edit and the shuffle read-back both assume cannot happen.
-            self.dropSkippedEntry(entryId)
-            Logger.warning("Engine skipped an undecodable queue entry: \(entryId.id)")
-            self.primeRepeatLookahead()
-        }
+    func audioPlayerDidSkipQueueEntry(entryId: AudioEntryId) {
+        // The engine drops an entry it cannot decode and primes the one after it,
+        // so the boundary stays gapless. Drop it from the app queue too: leaving
+        // the row would make the two queues differ in membership, which every
+        // later edit and the shuffle read-back both assume cannot happen.
+        self.dropSkippedEntry(entryId)
+        Logger.warning("Engine skipped an undecodable queue entry: \(entryId.id)")
+        self.primeRepeatLookahead()
+        
     }
 
     /// Whether the engine still has an entry queued after the current one - either a

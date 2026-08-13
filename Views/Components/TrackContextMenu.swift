@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 enum TrackContextMenu {
     static func createMenuItems(
         for track: Track,

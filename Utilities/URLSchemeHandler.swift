@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum URLSchemeHandler {
     static func handle(_ url: URL) {
         Logger.info("URLSchemeHandler: Received URL - \(url.absoluteString)")

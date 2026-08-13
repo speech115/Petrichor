@@ -23,7 +23,7 @@ struct AlbumPage: View {
     var body: some View {
         TrackListScreen(
             identity: AnyHashable(album.id),
-            load: { libraryManager.getTracksForAlbum(album) },
+            load: { [libraryManager, album] in libraryManager.getTracksForAlbum(album) },
             sectioner: Self.discSections,
             header: { tracks in
                 header(tracks: tracks)
@@ -116,9 +116,7 @@ struct AlbumPage: View {
             return
         }
         let cacheID = album.id.uuidString
-        let dominant = await Task.detached(priority: .utility) {
-            ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
-        }.value
+        let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
         guard !Task.isCancelled else { return }
         headerDominantColor = dominant
     }

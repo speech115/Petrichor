@@ -103,10 +103,15 @@ extension PlaylistManager {
                 
                 updateSmartPlaylistCounts()
                 
-                // Refresh smart playlists affected by play count/last played changes
-                Task.detached(priority: .background) { [weak self] in
+                // Refresh smart playlists affected by play count/last played changes.
+                // Plain `Task`, not `.detached`: `playlists` and
+                // `loadSmartPlaylistTracks` are both main-actor-isolated, and
+                // a non-detached task still inherits that isolation from
+                // this context while keeping the lowered `.background`
+                // priority so the refresh does not compete with playback.
+                Task(priority: .background) { [weak self] in
                     guard let self = self else { return }
-                    
+
                     for playlist in self.playlists where playlist.type == .smart && !playlist.isUserEditable {
                         if playlist.name == DefaultPlaylists.mostPlayed ||
                            playlist.name == DefaultPlaylists.recentlyPlayed {

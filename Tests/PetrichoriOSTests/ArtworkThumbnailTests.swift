@@ -6,7 +6,12 @@ import UniformTypeIdentifiers
 
 // MARK: - Helpers
 
-private func makeTestImage(width: Int, height: Int) -> Data {
+private func makeTestImage(
+    width: Int,
+    height: Int,
+    backgroundColor: CGColor = CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1),
+    accentColor: CGColor = CGColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1)
+) -> Data {
     let context = CGContext(
         data: nil,
         width: width,
@@ -16,9 +21,9 @@ private func makeTestImage(width: Int, height: Int) -> Data {
         space: CGColorSpaceCreateDeviceRGB(),
         bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
     )!
-    context.setFillColor(CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1))
+    context.setFillColor(backgroundColor)
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-    context.setFillColor(CGColor(red: 0.9, green: 0.2, blue: 0.2, alpha: 1))
+    context.setFillColor(accentColor)
     context.fill(CGRect(x: 0, y: 0, width: width / 2, height: height / 2))
 
     let image = context.makeImage()!
@@ -89,3 +94,4 @@ private func imageType(of data: Data) -> String? {
     }
     #expect(imageType(of: thumbnail) == UTType.heic.identifier)
 }
+

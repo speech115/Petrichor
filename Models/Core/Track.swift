@@ -85,16 +85,27 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
             .joined(separator: ", ")
     }
 
-    var dominantColors: [PlatformColor] {
+    /// Cached dominant colors only. `nil` = not computed yet; empty = no usable
+    /// colors. Use `loadDominantColors()` to populate the cache.
+    @MainActor
+    var cachedDominantColors: [PlatformColor]? {
         guard let original = albumArtworkData else { return [] }
-        let artworkIdentity = albumId.map { "album-\($0)-\(original.count)" } ?? "track-\(id)-\(original.count)"
-        return ImageUtils.cachedDominantColors(id: artworkIdentity, imageData: original)
+        let artworkIdentity = albumId.map { "album-\($0)" } ?? "track-\(id)"
+        return ImageUtils.cachedDominantColorsIfAvailable(id: artworkIdentity, imageData: original)
     }
 
-    func backgroundGradientColors(isDark: Bool) -> [Color] {
+    @MainActor
+    func loadDominantColors() async -> [PlatformColor] {
         guard let original = albumArtworkData else { return [] }
-        let artworkIdentity = albumId.map { "album-\($0)-\(original.count)" } ?? "track-\(id)-\(original.count)"
-        return ImageUtils.cachedBackgroundGradientColors(
+        let artworkIdentity = albumId.map { "album-\($0)" } ?? "track-\(id)"
+        return await ImageUtils.cachedDominantColors(id: artworkIdentity, imageData: original)
+    }
+
+    @MainActor
+    func backgroundGradientColors(isDark: Bool) async -> [Color] {
+        guard let original = albumArtworkData else { return [] }
+        let artworkIdentity = albumId.map { "album-\($0)" } ?? "track-\(id)"
+        return await ImageUtils.cachedBackgroundGradientColors(
             id: artworkIdentity,
             imageData: original,
             isDark: isDark

@@ -17,6 +17,19 @@ class FolderNode: Identifiable, ObservableObject {
         children.count
     }
 
+    /// `FolderHierarchyBuilder` walks the filesystem off the main actor (a deep
+    /// tree is slow to enumerate) and only needs to touch this node's
+    /// `@Published` surface once, with the finished subtree. `@MainActor` here
+    /// - rather than wrapping the caller's `MainActor.run` around a capture of
+    /// `self` and `children` - keeps the crossing to exactly this one checked
+    /// call instead of requiring `FolderNode` to be `Sendable` end to end.
+    @MainActor
+    func apply(children: [FolderNode], immediateTrackCount: Int, displayTrackCount: Int) {
+        self.children = children.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        self.immediateTrackCount = immediateTrackCount
+        self.displayTrackCount = displayTrackCount
+    }
+
     // Cached database folder reference if this corresponds to a watched folder
     var databaseFolder: Folder?
 
@@ -26,7 +39,10 @@ class FolderNode: Identifiable, ObservableObject {
         self.isWatchFolder = isWatchFolder
     }
 
-    // Helper to get all tracks in this folder (immediate only)
+    // Helper to get all tracks in this folder (immediate only). Only called
+    // from `FoldersView` (macOS, main actor); `libraryManager` is
+    // `@MainActor`-isolated, so this needs to be too.
+    @MainActor
     func getImmediateTracks(using libraryManager: LibraryManager) -> [Track] {
         let allTracks: [Track]
         

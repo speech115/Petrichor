@@ -11,6 +11,7 @@ import Testing
 // dozens of items, and several at once overload the simulator's media
 // service, which starts dropping items.
 @Suite(.serialized)
+@MainActor
 struct QueueBackendTests {
     private func makeEntry(_ name: String, url: URL) -> QueueEntry {
         QueueEntry(entryId: AudioEntryId(id: name), url: url)

@@ -85,23 +85,66 @@
 		55A000000000000000000012 /* Exceptions for "Views" folder in "PetrichoriOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Components/ActivityAnimation.swift,
+				Components/ArtistImageSheet.swift,
+				Components/EntityGridView.swift,
+				Components/EntityView.swift,
+				Components/FloatingControlCluster.swift,
+				Components/FocusStableMaterial.swift,
+				Components/HoverEffect.swift,
+				Components/ListHeader.swift,
+				Components/NoMusicEmptyStateView.swift,
+				Components/NowPlaying/NowPlayingControlsView.swift,
+				Components/NowPlaying/NowPlayingProgressBar.swift,
 				Components/PersistentSplitView.swift,
+				Components/PlayPauseIcon.swift,
+				Components/PlaylistMenuBuilder.swift,
+				Components/Sidebar/SidebarItemRow.swift,
+				Components/Sidebar/SidebarListView.swift,
+				Components/Sidebar/SidebarProtocol.swift,
+				Components/SidebarView.swift,
+				Components/TrackView.swift,
+				Components/TrackViews/TrackTableOptionsDropdown.swift,
+				Components/TrackViews/TrackTableView.swift,
+				Components/ViewExtensions.swift,
+				Components/Widgets/IconOnlyDropdown.swift,
+				Components/Widgets/MarqueeText.swift,
+				Components/Widgets/NotificationTray.swift,
+				Components/Widgets/SearchInputField.swift,
+				Components/Widgets/TabbedButtons.swift,
+				Components/Widgets/VerticalSlider.swift,
+				Folders/FolderSidebarView.swift,
+				Folders/FoldersView.swift,
+				Home/EntityDetailView.swift,
+				Home/HomeSidebarView.swift,
 				Home/HomeView.swift,
 				Immersive/ImmersiveView.swift,
+				Library/LibrarySidebarView.swift,
+				Library/LibraryView.swift,
 				Main/ContentView.swift,
 				Main/PlayQueueView.swift,
+				Main/PlayerView.swift,
+				Main/TrackDetailView.swift,
 				Main/TrackLyricsView.swift,
 				MiniPlayer/MiniPlayerView.swift,
 				MiniPlayer/MiniPlayerWindowButtons.swift,
 				MiniPlayer/MiniPlayerWindowConfigurator.swift,
 				MiniPlayer/MiniPlayerWindowManager.swift,
 				Playlists/PlaylistDetailView.swift,
-				Playlists/PlaylistsView.swift,
 				Playlists/PlaylistSidebarView.swift,
+				Playlists/PlaylistsView.swift,
 				Playlists/Sheets/ExportPlaylistsSheet.swift,
 				Playlists/Sheets/PlaylistNameField.swift,
 				Playlists/Sheets/RegularPlaylistEditorSheet.swift,
 				Playlists/Sheets/SmartPlaylistEditorSheet.swift,
+				Settings/AboutTabView.swift,
+				Settings/AppearanceTabView.swift,
+				Settings/EqualizerView.swift,
+				Settings/GeneralTabView.swift,
+				Settings/IntegrationsTabView.swift,
+				Settings/LibraryTabView.swift,
+				Settings/SettingsView.swift,
+				Support/AcknowledgementsView.swift,
 				Support/ReportProblemView.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
@@ -858,6 +901,7 @@
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -889,6 +933,7 @@
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};

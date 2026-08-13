@@ -196,6 +196,7 @@ struct PlayerView: View {
     private var playerBarBackgroundStyle: PlayerBarBackgroundStyle = .fullWidth
 
     @State private var gradientColors: [Color] = []
+    @State private var gradientRevision: UInt64 = 0
     @State private var playButtonPressed = false
     @State private var isMuted = false
     @State private var previousVolume: Float = 0.7
@@ -618,14 +619,26 @@ struct PlayerView: View {
     }
 
     private func updateGradientColors() {
+        gradientRevision &+= 1
+        let revision = gradientRevision
         guard useArtworkColors,
-              let track = playbackManager.currentTrack,
-              !track.dominantColors.isEmpty else {
+              let track = playbackManager.currentTrack else {
             gradientColors = []
             return
         }
-
-        gradientColors = track.backgroundGradientColors(isDark: colorScheme == .dark)
+        let trackID = track.id
+        let artworkInput = track.albumArtworkData
+        let isDark = colorScheme == .dark
+        Task { @MainActor in
+            let resolved = await track.backgroundGradientColors(isDark: isDark)
+            guard !Task.isCancelled,
+                  gradientRevision == revision,
+                  playbackManager.currentTrack?.id == trackID,
+                  useArtworkColors,
+                  playbackManager.currentTrack?.albumArtworkData == artworkInput,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
+        }
     }
 
     private func toggleMute() {

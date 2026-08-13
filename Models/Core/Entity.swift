@@ -62,14 +62,18 @@ extension Entity {
 // MARK: - Shared Color Defaults
 
 extension Entity {
-    var dominantColors: [PlatformColor] {
-        guard let original = artworkData else { return [] }
-        return ImageUtils.cachedDominantColors(id: id.uuidString, imageData: original)
+    /// Cached dominant colors only. `nil` = not computed yet; empty = no usable
+    /// colors. Views that need a fill schedule `backgroundGradientColors`.
+    @MainActor
+    var cachedDominantColors: [PlatformColor]? {
+        guard let artworkData else { return [] }
+        return ImageUtils.cachedDominantColorsIfAvailable(id: id.uuidString, imageData: artworkData)
     }
 
-    func backgroundGradientColors(isDark: Bool) -> [Color] {
+    @MainActor
+    func backgroundGradientColors(isDark: Bool) async -> [Color] {
         guard let original = artworkData else { return [] }
-        return ImageUtils.cachedBackgroundGradientColors(id: id.uuidString, imageData: original, isDark: isDark)
+        return await ImageUtils.cachedBackgroundGradientColors(id: id.uuidString, imageData: original, isDark: isDark)
     }
 }
 
@@ -189,6 +193,7 @@ struct CategoryEntity: Entity {
         String(localized: "\(trackCount) songs")
     }
 
+    @MainActor
     init(name: String, trackCount: Int, filterType: LibraryFilterType) {
         self.id = UUID(name: "\(filterType.rawValue)-\(name)".lowercased(), namespace: EntityNamespaces.category)
         self.name = name
@@ -210,6 +215,7 @@ struct FolderEntity: Entity {
         String(localized: "\(trackCount) songs")
     }
 
+    @MainActor
     init(path: String, name: String, trackCount: Int) {
         self.id = UUID(name: "folder-\(path)".lowercased(), namespace: EntityNamespaces.category)
         self.name = name

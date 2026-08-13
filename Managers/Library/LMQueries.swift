@@ -26,7 +26,7 @@ extension LibraryManager {
         return tracks
     }
 
-    func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
+    nonisolated func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
         var tracks: [Track]
         if filterType.usesMultiArtistParsing && value != filterType.unknownPlaceholder {
             tracks = databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
@@ -37,25 +37,30 @@ extension LibraryManager {
         return tracks
     }
 
-    func getAllTracks() -> [Track] {
+    nonisolated func getAllTracks() -> [Track] {
         var tracks = databaseManager.getAllTracks(populateArtwork: false)
         databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
         return tracks
     }
 
-    func getTracksForArtist(_ name: String) -> [Track] {
+    /// `nonisolated`: touches only the `Sendable` `databaseManager`, so screens that
+    /// detach this off the main actor to avoid blocking on a large query don't need
+    /// to hop back just to make the call.
+    nonisolated func getTracksForArtist(_ name: String) -> [Track] {
         var tracks = databaseManager.getTracksForArtistEntity(name, populateArtwork: false)
         databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
         return tracks
     }
 
-    func getTracksForAlbum(_ album: AlbumEntity) -> [Track] {
+    /// `nonisolated`: see `getTracksForArtist` above.
+    nonisolated func getTracksForAlbum(_ album: AlbumEntity) -> [Track] {
         var tracks = databaseManager.getTracksForAlbumEntity(album, populateArtwork: false)
         databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
         return tracks
     }
 
-    func getArtistArtworkAndBio(for name: String) -> (artworkData: Data?, bio: String?) {
+    /// `nonisolated`: see `getTracksForArtist` above.
+    nonisolated func getArtistArtworkAndBio(for name: String) -> (artworkData: Data?, bio: String?) {
         databaseManager.getArtistArtworkAndBio(for: name)
     }
 
@@ -67,11 +72,13 @@ extension LibraryManager {
         databaseManager.getArtistId(for: name)
     }
 
-    func getRecentlyPlayedTracks(limit: Int = 10) -> [Track] {
+    /// `nonisolated`: see `getTracksForArtist` above.
+    nonisolated func getRecentlyPlayedTracks(limit: Int = 10) -> [Track] {
         databaseManager.getRecentlyPlayedTracks(limit: limit)
     }
 
-    func getPlaylistPreviewTracks(_ playlist: Playlist, limit: Int = 4) -> [Track] {
+    /// `nonisolated`: see `getTracksForArtist` above.
+    nonisolated func getPlaylistPreviewTracks(_ playlist: Playlist, limit: Int = 4) -> [Track] {
         databaseManager.getPlaylistPreviewTracks(playlist, limit: limit)
     }
 
@@ -162,7 +169,7 @@ extension LibraryManager {
             searchResults = []
         } else {
             // Use LibrarySearch which uses FTS from database
-            searchResults = LibrarySearch.searchTracks(tracks, with: globalSearchText)
+            searchResults = LibrarySearch.searchTracks(tracks, with: globalSearchText, databaseManager: databaseManager)
         }
     }
 
@@ -184,7 +191,7 @@ extension LibraryManager {
 
         let databaseManager = databaseManager
         let results = await Task.detached(priority: .userInitiated) {
-            var tracks = LibrarySearch.searchTracks([], with: trimmed, populateArtwork: false)
+            var tracks = LibrarySearch.searchTracks([], with: trimmed, populateArtwork: false, databaseManager: databaseManager)
             databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
             return tracks
         }.value

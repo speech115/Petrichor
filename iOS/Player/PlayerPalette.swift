@@ -30,16 +30,17 @@ struct PlayerPalette: Equatable {
     /// Backdrop of the round glyph buttons in the title row.
     var chip: Color { .white.opacity(0.16) }
 
-    private static let neutral = PlayerPalette(gradient: [
+    static let neutral = PlayerPalette(gradient: [
         Color(white: 0.20),
         Color(white: 0.12),
         Color(white: 0.06)
     ])
 
-    static func make(for track: Track?, useArtworkColors: Bool) -> PlayerPalette {
+    @MainActor
+    static func make(for track: Track?, useArtworkColors: Bool) async -> PlayerPalette {
         guard useArtworkColors, let track else { return neutral }
 
-        let dominant = Array(track.dominantColors.prefix(2))
+        let dominant = Array((await track.loadDominantColors()).prefix(2))
         guard let top = dominant.first else { return neutral }
 
         let second = dominant.count > 1 ? dominant[1] : top

@@ -5,6 +5,14 @@
 // remote) to Petrichor's playback and queue managers. The Now Playing info tile
 // is published by the engine - see `PlaybackEngine.setNowPlayingMetadata`.
 //
+// Concurrency: MPRemoteCommandCenter invokes target handlers on the main
+// thread (the canonical `MPRemoteCommand.addTarget(handler:)` sample reads
+// player state and calls play() directly in the handler), and the returned
+// status drives the enabled state of the Control Center buttons, so a no-op
+// command (already playing, already paused) must return `.commandFailed`
+// synchronously. `MainActor.assumeIsolated` turns that guarantee into a
+// checked one.
+//
 
 import Foundation
 import MediaPlayer
@@ -31,7 +39,6 @@ class RemoteCommandManager {
     // MARK: - Remote Command Center
 
     private func setupRemoteCommandCenter() {
-        // Remove any existing handlers
         for command in managedCommands {
             command.removeTarget(nil)
         }
@@ -40,60 +47,58 @@ class RemoteCommandManager {
     func connectRemoteCommandCenter(audioPlayer: PlaybackManager, playlistManager: PlaylistManager) {
         let commandCenter = MPRemoteCommandCenter.shared()
 
-        // Add handler for play command
         commandCenter.playCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer else { return .commandFailed }
-
-            if !audioPlayer.isPlaying {
+            guard let audioPlayer else { return .commandFailed }
+            return MainActor.assumeIsolated {
+                guard !audioPlayer.isPlaying else { return .commandFailed }
                 audioPlayer.togglePlayPause()
                 return .success
             }
-            return .commandFailed
         }
 
-        // Add handler for pause command
         commandCenter.pauseCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer, audioPlayer.isPlaying else {
-                return .commandFailed
+            guard let audioPlayer else { return .commandFailed }
+            return MainActor.assumeIsolated {
+                guard audioPlayer.isPlaying else { return .commandFailed }
+                audioPlayer.togglePlayPause()
+                return .success
             }
-
-            audioPlayer.togglePlayPause()
-            return .success
         }
 
-        // Add handler for toggle play/pause command
         commandCenter.togglePlayPauseCommand.addTarget { [weak audioPlayer] _ in
-            guard let audioPlayer = audioPlayer else { return .commandFailed }
-
-            audioPlayer.togglePlayPause()
-            return .success
+            guard let audioPlayer else { return .commandFailed }
+            return MainActor.assumeIsolated {
+                audioPlayer.togglePlayPause()
+                return .success
+            }
         }
 
-        // Add handler for next track command
         commandCenter.nextTrackCommand.addTarget { [weak playlistManager] _ in
-            guard let playlistManager = playlistManager else { return .commandFailed }
-
-            playlistManager.playNextTrack()
-            return .success
+            guard let playlistManager else { return .commandFailed }
+            return MainActor.assumeIsolated {
+                playlistManager.playNextTrack()
+                return .success
+            }
         }
 
-        // Add handler for previous track command
         commandCenter.previousTrackCommand.addTarget { [weak playlistManager] _ in
-            guard let playlistManager = playlistManager else { return .commandFailed }
-
-            playlistManager.playPreviousTrack()
-            return .success
+            guard let playlistManager else { return .commandFailed }
+            return MainActor.assumeIsolated {
+                playlistManager.playPreviousTrack()
+                return .success
+            }
         }
 
-        // Add handler for seeking
         commandCenter.changePlaybackPositionCommand.addTarget { [weak audioPlayer] event in
-            guard let audioPlayer = audioPlayer,
+            guard let audioPlayer,
                   let positionEvent = event as? MPChangePlaybackPositionCommandEvent else {
                 return .commandFailed
             }
-
-            audioPlayer.seekTo(time: positionEvent.positionTime)
-            return .success
+            let position = positionEvent.positionTime
+            return MainActor.assumeIsolated {
+                audioPlayer.seekTo(time: position)
+                return .success
+            }
         }
     }
 }

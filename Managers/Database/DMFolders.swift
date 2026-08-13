@@ -76,7 +76,11 @@ struct FolderEnumerationResult {
 }
 
 extension DatabaseManager {
-    func addFolders(_ urls: [URL], bookmarkDataMap: [URL: Data], completion: @escaping (Result<[Folder], Error>) -> Void) {
+    func addFolders(
+        _ urls: [URL],
+        bookmarkDataMap: [URL: Data],
+        completion: @escaping @MainActor @Sendable (Result<[Folder], Error>) -> Void
+    ) {
         Task(priority: .utility) {
             do {
                 let folders = try await addFoldersAsync(urls, bookmarkDataMap: bookmarkDataMap)
@@ -95,8 +99,8 @@ extension DatabaseManager {
 
     func addFoldersAsync(_ urls: [URL], bookmarkDataMap: [URL: Data]) async throws -> [Folder] {
         await MainActor.run {
-            self.isScanning = true
-            self.scanStatusMessage = String(localized: "Adding folders...")
+            self.scanActivity.isScanning = true
+            self.scanActivity.scanStatusMessage = String(localized: "Adding folders...")
         }
 
         let addedFolders = try await dbQueue.write { db -> [Folder] in
@@ -159,8 +163,7 @@ extension DatabaseManager {
         }
 
         await MainActor.run {
-            self.isScanning = false
-            self.scanStatusMessage = ""
+            self.scanActivity.finishScan()
             
             if isInitialScan {
                 NotificationCenter.default.post(name: .initialScanCompleted, object: nil)
@@ -196,13 +199,13 @@ extension DatabaseManager {
         hardRefresh: Bool = false,
         manageActivityIndicator: Bool = true,
         globalScanState: GlobalScanState? = nil,
-        _ completion: @escaping (Result<Void, Error>) -> Void
+        _ completion: @escaping @MainActor @Sendable (Result<Void, Error>) -> Void
     ) {
         Task {
             do {
                 await MainActor.run {
-                    self.isScanning = true
-                    self.scanStatusMessage = String(localized: "Refreshing \(folder.name)...")
+                    self.scanActivity.isScanning = true
+                    self.scanActivity.scanStatusMessage = String(localized: "Refreshing \(folder.name)...")
                     if manageActivityIndicator {
                         NotificationManager.shared.startActivity(String(localized: "Refreshing \(folder.name)..."))
                     }
@@ -243,8 +246,7 @@ extension DatabaseManager {
                 try await cleanupOrphanedData()
 
                 await MainActor.run {
-                    self.isScanning = false
-                    self.scanStatusMessage = ""
+                    self.scanActivity.finishScan()
                     if manageActivityIndicator {
                         NotificationManager.shared.stopActivity()
                     }
@@ -252,8 +254,7 @@ extension DatabaseManager {
                 }
             } catch {
                 await MainActor.run {
-                    self.isScanning = false
-                    self.scanStatusMessage = ""
+                    self.scanActivity.finishScan()
                     if manageActivityIndicator {
                         NotificationManager.shared.stopActivity()
                     }
@@ -265,7 +266,7 @@ extension DatabaseManager {
         }
     }
 
-    func removeFolder(_ folder: Folder, completion: @escaping (Result<Void, Error>) -> Void) {
+    func removeFolder(_ folder: Folder, completion: @escaping @MainActor @Sendable (Result<Void, Error>) -> Void) {
         Task {
             do {
                 _ = try await dbQueue.write { db in
@@ -509,9 +510,7 @@ extension DatabaseManager {
                 processedFolders += 1
             } catch {
                 Logger.error("Failed to scan folder \(folder.name): \(error)")
-                Task.detached { @MainActor in
-                    NotificationManager.shared.addMessage(.error, String(localized: "Failed to scan folder '\(folder.name)'"))
-                }
+                await NotificationManager.shared.addMessage(.error, String(localized: "Failed to scan folder '\(folder.name)'"))
             }
             
             if processedFolders.isMultiple(of: 2) {
@@ -528,7 +527,7 @@ extension DatabaseManager {
         try await cleanupOrphanedData()
 
         await MainActor.run {
-            self.scanStatusMessage = String(localized: "Scan complete")
+            self.scanActivity.scanStatusMessage = String(localized: "Scan complete")
             if showActivityInTray {
                 NotificationManager.shared.stopActivity()
             }

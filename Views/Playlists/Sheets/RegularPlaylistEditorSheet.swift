@@ -521,7 +521,9 @@ extension RegularPlaylistEditorSheet {
 
             // Same FTS5 path as the add search and library search; intersect with the staged
             // tracks at display time.
-            let results = LibrarySearch.searchTracks([], with: query)
+            let results = LibrarySearch.searchTracks(
+                [], with: query, databaseManager: AppCoordinator.shared?.libraryManager.databaseManager
+            )
             let ids = Set(results.compactMap { $0.trackId })
 
             await MainActor.run {
@@ -648,7 +650,9 @@ extension RegularPlaylistEditorSheet {
 
             // Keep every match; tracks already in the playlist are shown dimmed (not hidden)
             // so the results stay a full picture of the library.
-            let results = LibrarySearch.searchTracks([], with: trimmedQuery)
+            let results = LibrarySearch.searchTracks(
+                [], with: trimmedQuery, databaseManager: AppCoordinator.shared?.libraryManager.databaseManager
+            )
 
             await MainActor.run {
                 guard !Task.isCancelled else { return }

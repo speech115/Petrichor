@@ -8,13 +8,10 @@
 //
 // The equalizer is not supported on iOS: every EQ method is a no-op.
 //
-// Concurrency: AVFoundation KVO notifications are not guaranteed to land on
-// any particular thread. `CrescendoPlaybackBackend` (the macOS backend) always
-// calls `backendDelegate` from the main thread - its callbacks arrive via a
-// `@MainActor` bridge, so every `handle*` forward is already on-main by
-// construction. This backend has no such bridge, so it dispatches explicitly:
-// every `backendDelegate` call is routed through `runOnMain` to match that
-// convention.
+// Concurrency: playback state and delegate delivery are `@MainActor` isolated.
+// AVFoundation KVO/notification callbacks may arrive on any thread, so those
+// entry points carry only a Sendable item identity across a main-queue
+// FIFO hop before touching backend state.
 //
 // Background playback and the lock-screen tile are this backend's
 // responsibility too, wired up in `activateSessionIfNeeded()` on the first
@@ -34,7 +31,24 @@
 import AVFoundation
 import Foundation
 import MediaPlayer
+import os
 
+private enum ObservedTimeControlStatus: Sendable {
+    case playing
+    case paused
+    case waiting
+    case unknown
+}
+
+private enum AVFoundationEvent: Sendable {
+    case currentItemChanged(ObjectIdentifier?)
+    case itemEnded(ObjectIdentifier)
+    case itemFailed(ObjectIdentifier, error: NSError?)
+    case timeControlChanged(ObservedTimeControlStatus, currentItemKey: ObjectIdentifier?)
+    case seekCompleted
+}
+
+@MainActor
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
 
@@ -59,6 +73,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// from, so a failure reported against the item (which carries no entry
     /// id of its own) can be attributed back to an `AudioEntryId`.
     private var itemEntryMap: [ObjectIdentifier: AudioEntryId] = [:]
+    private var itemObjectMap: [ObjectIdentifier: AVPlayerItem] = [:]
     private var itemStatusObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]
     /// De-dupes a single item's failure being reported twice - `.status ==
     /// .failed` (KVO) and `failedToPlayToEndTimeNotification` can both fire
@@ -199,7 +214,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             currentIndex = min(currentIndex, max(0, entries.count - 1))
         }
         refillUpcomingItems()
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
     }
 
     func removeQueueEntry(id: AudioEntryId) {
@@ -212,7 +227,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         currentIndex = 0
         player.removeAllItems()
         clearItemTracking()
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
     }
 
     func playQueueEntry(at index: Int, startPaused: Bool) {
@@ -251,7 +266,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         clearItemTracking()
 
         guard !entries.isEmpty else {
-            runOnMain { self.notifyStateIfChanged() }
+            notifyStateIfChanged()
             return
         }
 
@@ -265,7 +280,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             activateSessionIfNeeded()
             player.play()
         }
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
     }
 
     /// Пересобирает только ещё не прозвучавший хвост (до `lookaheadItemCount`
@@ -306,15 +321,13 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         let item = AVPlayerItem(url: entry.url)
         let key = ObjectIdentifier(item)
         itemEntryMap[key] = entry.entryId
+        itemObjectMap[key] = item
         itemStatusObservations[key] = item.observe(\.status, options: [.new]) { [weak self] item, _ in
-            guard let self, item.status == .failed else { return }
+            guard item.status == .failed else { return }
             // Never mutate the tracking dictionaries re-entrantly from inside
             // their KVO registration/removal. A failed item can report status
             // while `makePlayerItem` is still installing its observation.
-            DispatchQueue.main.async { [weak self, weak item] in
-                guard let self, let item else { return }
-                self.handleItemFailure(item)
-            }
+            self?.enqueueAVFoundationEvent(.itemFailed(key, error: nil))
         }
         return item
     }
@@ -325,6 +338,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         let key = ObjectIdentifier(item)
         itemStatusObservations.removeValue(forKey: key)?.invalidate()
         itemEntryMap.removeValue(forKey: key)
+        itemObjectMap.removeValue(forKey: key)
         failedItemKeys.remove(key)
     }
 
@@ -332,6 +346,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         itemStatusObservations.values.forEach { $0.invalidate() }
         itemStatusObservations.removeAll()
         itemEntryMap.removeAll()
+        itemObjectMap.removeAll()
         failedItemKeys.removeAll()
     }
 
@@ -344,18 +359,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// (см. `handleItemEnded`), который приходит до перехода и не путается с
     /// нашим собственным сбросом очереди.
     private func observeTrackChanges() {
-        currentItemObservation = player.observe(\.currentItem, options: [.old, .new]) { [weak self] player, change in
-            guard let self else { return }
-            let new = player.currentItem
-            self.runOnMain {
-                self.handleCurrentItemChange(new: new)
-            }
+        currentItemObservation = player.observe(\.currentItem, options: [.old, .new]) { [weak self] _, change in
+            let key = change.newValue.flatMap { $0 }.map(ObjectIdentifier.init)
+            self?.enqueueAVFoundationEvent(.currentItemChanged(key))
         }
     }
 
-    private func handleCurrentItemChange(new: AVPlayerItem?) {
-        guard new != nil, entries.indices.contains(currentIndex) else { return }
-        let started = entries[currentIndex].entryId
+    private func handleCurrentItemChange(key: ObjectIdentifier?) {
+        guard let key,
+              let entryId = itemEntryMap[key],
+              let index = queueIndex(of: entryId) else { return }
+        currentIndex = index
+        let started = entries[index].entryId
         backendDelegate?.backendDidStartPlaying(with: started)
         backendDelegate?.backendDidFinishBuffering(with: started)
     }
@@ -376,33 +391,32 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         )
     }
 
-    @objc private func handleItemPlayedToEnd(_ notification: Notification) {
+    @objc nonisolated private func handleItemPlayedToEnd(_ notification: Notification) {
         guard let item = notification.object as? AVPlayerItem else { return }
-        runOnMain { self.handleItemEnded(item) }
+        enqueueAVFoundationEvent(.itemEnded(ObjectIdentifier(item)))
     }
 
-    private func handleItemEnded(_ item: AVPlayerItem) {
-        guard itemEntryMap[ObjectIdentifier(item)] != nil else { return }
-        removeTracking(for: item)
-
-        let finishedIndex = currentIndex
+    private func handleItemEnded(key: ObjectIdentifier) {
+        guard let item = itemObjectMap[key],
+              let finishedEntryId = itemEntryMap[key],
+              let finishedIndex = queueIndex(of: finishedEntryId),
+              player.currentItem === item else { return }
         let finishedSeconds = item.duration.seconds
         let finishedDuration = finishedSeconds.isFinite ? finishedSeconds : 0
 
-        if entries.indices.contains(finishedIndex) {
-            backendDelegate?.backendDidFinishPlaying(
-                entryId: entries[finishedIndex].entryId,
-                stopReason: .eof,
-                progress: 1.0,
-                duration: finishedDuration
-            )
-            lastFinishedEntryId = entries[finishedIndex].entryId
-        }
+        backendDelegate?.backendDidFinishPlaying(
+            entryId: finishedEntryId,
+            stopReason: .eof,
+            progress: 1.0,
+            duration: finishedDuration
+        )
+        lastFinishedEntryId = finishedEntryId
 
         let nextIndex = finishedIndex + 1
         guard nextIndex < entries.count else {
+            removeTracking(for: item)
             currentIndex = min(finishedIndex, max(0, entries.count - 1))
-            runOnMain { self.notifyStateIfChanged() }
+            notifyStateIfChanged()
             return
         }
 
@@ -412,6 +426,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             // insert it right behind the finished item so the handoff finds it.
             player.insert(makePlayerItem(for: entries[nextIndex]), after: item)
         }
+        removeTracking(for: item)
         player.advanceToNextItem()
         player.play()
         refillUpcomingItems()
@@ -421,20 +436,67 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// transitions on `AVQueuePlayer` - there is no "did start/stop" delegate
     /// callback to hook into, unlike `AVAudioPlayerDelegate`.
     private func observeStateChanges() {
-        timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
-            guard let self else { return }
-            self.runOnMain {
-                self.notifyStateIfChanged()
-                // Pause/resume change the playback rate: re-publish the Now
-                // Playing anchor so the lock screen does not extrapolate from
-                // the old one (elapsed keeps advancing while paused).
-                self.publishNowPlaying()
+        timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, change in
+            guard let status = change.newValue else { return }
+            self?.enqueueAVFoundationEvent(.timeControlChanged(
+                Self.observedStatus(status),
+                currentItemKey: player.currentItem.map(ObjectIdentifier.init)
+            ))
+        }
+    }
+
+    nonisolated private static func observedStatus(_ status: AVPlayer.TimeControlStatus) -> ObservedTimeControlStatus {
+        switch status {
+        case .playing: .playing
+        case .paused: .paused
+        case .waitingToPlayAtSpecifiedRate: .waiting
+        @unknown default: .unknown
+        }
+    }
+
+    /// AVFoundation callbacks arrive on arbitrary queues. Main-queue FIFO
+    /// preserves order without a custom sequencer (Task hops do not).
+    nonisolated private func enqueueAVFoundationEvent(_ event: AVFoundationEvent) {
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                self?.handleAVFoundationEvent(event)
             }
+        }
+    }
+
+    private func handleAVFoundationEvent(_ event: AVFoundationEvent) {
+        switch event {
+        case .currentItemChanged(let key):
+            handleCurrentItemChange(key: key)
+        case .itemEnded(let key):
+            handleItemEnded(key: key)
+        case .itemFailed(let key, let error):
+            handleItemFailure(key: key, notificationError: error)
+        case .timeControlChanged(let status, let eventItemKey):
+            guard eventItemKey == player.currentItem.map(ObjectIdentifier.init) else { return }
+            notifyStateIfChanged(observedStatus: status)
+            publishNowPlaying()
+        case .seekCompleted:
+            publishNowPlaying()
         }
     }
 
     private func notifyStateIfChanged() {
         let newState = mapState(player.timeControlStatus)
+        guard newState != previousState else { return }
+        let previous = previousState
+        previousState = newState
+        backendDelegate?.backendStateChanged(with: newState, previous: previous)
+    }
+
+    private func notifyStateIfChanged(observedStatus: ObservedTimeControlStatus) {
+        let newState: AudioPlayerState
+        switch observedStatus {
+        case .playing:
+            newState = .playing
+        case .paused, .waiting, .unknown:
+            newState = entries.isEmpty ? .stopped : .paused
+        }
         guard newState != previousState else { return }
         let previous = previousState
         previousState = newState
@@ -471,10 +533,10 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         )
     }
 
-    @objc private func handleFailedToPlayToEndTime(_ notification: Notification) {
+    @objc nonisolated private func handleFailedToPlayToEndTime(_ notification: Notification) {
         guard let item = notification.object as? AVPlayerItem else { return }
-        let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error
-        runOnMain { self.handleItemFailure(item, explicitError: error) }
+        let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? NSError
+        enqueueAVFoundationEvent(.itemFailed(ObjectIdentifier(item), error: error))
     }
 
     /// Reports a queue entry that could not play - a missing file, a
@@ -484,14 +546,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// same two delegate calls `CrescendoPlaybackBackend` uses for this on
     /// macOS: `backendUnexpectedError` for the error itself, then
     /// `backendDidSkipQueueEntry` for the entry that got dropped.
-    private func handleItemFailure(_ item: AVPlayerItem, explicitError: Error? = nil) {
-        let key = ObjectIdentifier(item)
+    private func handleItemFailure(key: ObjectIdentifier, notificationError: NSError?) {
+        guard let item = itemObjectMap[key] else { return }
         guard !failedItemKeys.contains(key) else { return }
         failedItemKeys.insert(key)
 
         guard let entryId = itemEntryMap[key] else { return }
 
-        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(explicitError ?? item.error))
+        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(notificationError ?? item.error))
 
         guard let index = queueIndex(of: entryId) else {
             removeTracking(for: item)
@@ -518,14 +580,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             refillAfterQueueEnded()
         }
 
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
     }
 
     /// Maps an AVFoundation load/playback failure to the shared
     /// `AudioPlayerError` the rest of the app understands. A pure function of
     /// its input, so it is covered directly by a unit test without needing a
     /// real failing `AVPlayerItem`.
-    static func mapPlaybackError(_ error: Error?) -> AudioPlayerError {
+    nonisolated static func mapPlaybackError(_ error: Error?) -> AudioPlayerError {
         guard let error else {
             return .engineError(NSError(
                 domain: "AVQueuePlayerBackend",
@@ -540,7 +602,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         return .engineError(error)
     }
 
-    private static func isFileNotFoundError(_ error: NSError) -> Bool {
+    nonisolated private static func isFileNotFoundError(_ error: NSError) -> Bool {
         switch (error.domain, error.code) {
         case (NSCocoaErrorDomain, NSFileReadNoSuchFileError),
              (NSURLErrorDomain, NSURLErrorFileDoesNotExist):
@@ -554,7 +616,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         return false
     }
 
-    private static func isUnsupportedFormatError(_ error: NSError) -> Bool {
+    nonisolated private static func isUnsupportedFormatError(_ error: NSError) -> Bool {
         if error.domain == AVFoundationErrorDomain {
             switch error.code {
             case AVError.Code.fileFormatNotRecognized.rawValue,
@@ -573,16 +635,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         return false
     }
 
-    /// Delegate calls arrive from AVFoundation's KVO machinery, which makes no
-    /// promise about which thread it fires on. Mirrors `CrescendoPlaybackBackend`'s
-    /// contract of always calling `backendDelegate` from the main thread.
-    private func runOnMain(_ body: @escaping () -> Void) {
-        if Thread.isMainThread {
-            body()
-        } else {
-            DispatchQueue.main.async(execute: body)
-        }
-    }
 }
 
 // MARK: - Transport, Now Playing, Effects
@@ -590,13 +642,15 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 extension AVQueuePlayerBackend {
     func pause() {
         player.pause()
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
+        publishNowPlaying()
     }
 
     func resume() {
         activateSessionIfNeeded()
         player.play()
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
+        publishNowPlaying()
     }
 
     func stop() {
@@ -611,7 +665,8 @@ extension AVQueuePlayerBackend {
             activateSessionIfNeeded()
             player.play()
         }
-        runOnMain { self.notifyStateIfChanged() }
+        notifyStateIfChanged()
+        publishNowPlaying()
     }
 
     @discardableResult
@@ -621,7 +676,7 @@ extension AVQueuePlayerBackend {
             // Re-publish once the seek actually lands: publishing before the
             // completion would hand the lock screen the *old* elapsed time as
             // the anchor, and it would keep extrapolating from it.
-            self?.runOnMain { self?.publishNowPlaying() }
+            self?.enqueueAVFoundationEvent(.seekCompleted)
         }
         return true
     }
@@ -658,14 +713,14 @@ extension AVQueuePlayerBackend {
         publishNowPlaying()
 
         guard let artworkData = metadata?.artworkData else { return }
-        nowPlayingArtworkTask = Task.detached(priority: .utility) { [weak self] in
-            let artwork = NowPlayingPublisher.artwork(from: artworkData)
+        nowPlayingArtworkTask = Task { @MainActor [weak self] in
+            let prepared = await Task.detached(priority: .utility) {
+                NowPlayingPublisher.prepareArtwork(from: artworkData)
+            }.value
             guard !Task.isCancelled else { return }
-            self?.runOnMain { [weak self] in
-                guard let self, self.nowPlayingArtworkRevision == revision else { return }
-                self.nowPlayingArtwork = artwork
-                self.publishNowPlaying()
-            }
+            guard let self, self.nowPlayingArtworkRevision == revision else { return }
+            self.nowPlayingArtwork = NowPlayingPublisher.artwork(from: prepared)
+            self.publishNowPlaying()
         }
     }
 

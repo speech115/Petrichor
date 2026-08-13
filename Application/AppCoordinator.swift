@@ -6,6 +6,7 @@
 
 import SwiftUI
 
+@MainActor
 class AppCoordinator: ObservableObject {
     // MARK: - Managers
     private(set) static var shared: AppCoordinator?
@@ -88,8 +89,7 @@ class AppCoordinator: ObservableObject {
         }
     }
     
-    deinit {
-        // Clean up any remaining observers
+    isolated deinit {
         if let observer = libraryObserver {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -187,7 +187,9 @@ class AppCoordinator: ObservableObject {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.libraryDidLoad()
+                Task { @MainActor [weak self] in
+                    self?.libraryDidLoad()
+                }
             }
             return
         }

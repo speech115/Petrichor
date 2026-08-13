@@ -59,7 +59,10 @@ extension LibraryManager {
     // MARK: - Candidates
 
     /// Same-type candidates, excluding the invoked entity and the Unknown placeholder.
-    func mergeCandidates(for request: MergeRequest, winnerAlbumId: Int64?) -> [MergeCandidate] {
+    /// `nonisolated`: touches only the `Sendable` `databaseManager` (see
+    /// `LibraryManager.databaseManager`), so `MergeEntitySheet` can call it from the
+    /// `Task.detached` it uses to keep the merge-candidate query off the main actor.
+    nonisolated func mergeCandidates(for request: MergeRequest, winnerAlbumId: Int64?) -> [MergeCandidate] {
         switch request.kind {
         case .album:
             return databaseManager.getAlbumMergeCandidates()
@@ -98,7 +101,8 @@ extension LibraryManager {
     }
 
     /// Resolve the winner album id: explicit from the Home grid, else the best title match.
-    func albumWinnerId(for request: MergeRequest) -> Int64? {
+    /// `nonisolated`: see `mergeCandidates` above.
+    nonisolated func albumWinnerId(for request: MergeRequest) -> Int64? {
         if let id = request.albumId { return id }
         return databaseManager.getAlbumMergeCandidates()
             .filter { $0.title == request.name }

@@ -9,6 +9,7 @@
 import Foundation
 
 
+@MainActor
 class LibraryManager: ObservableObject {
     @Published var tracks: [Track] = []
     /// Bumped on every reassignment of `tracks`. Screens subscribe to this
@@ -63,6 +64,12 @@ class LibraryManager: ObservableObject {
     // MARK: - Private/Internal Properties
     private var fileWatcherTimer: Timer?
     private var hasPerformedInitialScan = false
+    /// Tracks the auto-scan interval across `autoScanIntervalDidChange` calls,
+    /// distinguishing "never observed" from "observed and unchanged". An
+    /// instance property rather than a function-local static: a local `static
+    /// var` is still process-global storage to the concurrency checker, and
+    /// this one only needs to live as long as `LibraryManager` does anyway.
+    private var lastObservedAutoScanInterval: AutoScanInterval?
     private var lastThresholdCheckTime: Date = .distantPast
     private let thresholdCheckInterval: TimeInterval = 1.0
     internal var cachedLibraryCategories: [LibraryFilterType: [LibraryFilterItem]] = [:]
@@ -77,8 +84,12 @@ class LibraryManager: ObservableObject {
     /// gate every caller starts another full scan against the same root.
     internal var isReconcilingLibrary = false
 
-    // Database manager
-    let databaseManager: DatabaseManager
+    // Database manager. `nonisolated`: a pure `Sendable` `DatabasePool` wrapper
+    // (see `DatabaseManager`'s own doc comment), so the handful of read-only
+    // query wrappers below that touch nothing else can stay `nonisolated` too
+    // and run directly inside a caller's `Task.detached` instead of forcing
+    // a hop back to the main actor for what is, underneath, a GRDB read.
+    nonisolated let databaseManager: DatabaseManager
 
     // Keys for UserDefaults
     internal enum UserDefaultsKeys {
@@ -101,12 +112,13 @@ class LibraryManager: ObservableObject {
             fatalError("Failed to initialize database: \(error)")
         }
 
-        // Observe database manager scanning state
-        databaseManager.$isScanning
+        // Observe database manager scanning state (mirrored from its
+        // main-actor `ScanActivityObservation`).
+        databaseManager.scanActivity.$isScanning
             .receive(on: DispatchQueue.main)
             .assign(to: &$isScanning)
 
-        databaseManager.$scanStatusMessage
+        databaseManager.scanActivity.$scanStatusMessage
             .receive(on: DispatchQueue.main)
             .assign(to: &$scanStatusMessage)
 
@@ -177,9 +189,9 @@ class LibraryManager: ObservableObject {
         )
     }
 
-    deinit {
+    isolated deinit {
         fileWatcherTimer?.invalidate()
-        // Stop accessing all security scoped resources
+        // Stop accessing all security scoped resources.
         for folder in folders where folder.bookmarkData != nil {
             folder.url.stopAccessingSecurityScopedResource()
         }
@@ -303,8 +315,12 @@ class LibraryManager: ObservableObject {
         objectWillChange.send()
     }
 
-    /// Helper method to fetch items from database
-    internal func getLibraryFilterItemsFromDatabase(for filterType: LibraryFilterType) -> [LibraryFilterItem] {
+    /// Helper method to fetch items from database. `nonisolated`: it only
+    /// touches `databaseManager` (`Sendable`, GRDB pool-backed), which is
+    /// exactly why `loadLibraryCategories()` above fans this out across a
+    /// detached task group instead of doing all seven categories serially
+    /// on the main actor.
+    internal nonisolated func getLibraryFilterItemsFromDatabase(for filterType: LibraryFilterType) -> [LibraryFilterItem] {
         switch filterType {
         case .artists:
             return databaseManager.getArtistFilterItems()
@@ -373,12 +389,14 @@ class LibraryManager: ObservableObject {
         Logger.info("LibraryManager: Starting auto-scan timer with interval: \(interval) seconds (\(currentInterval.displayName))")
 
         fileWatcherTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
 
-            // Only refresh if we're not currently scanning
-            if !self.isScanning && !NotificationManager.shared.isActivityInProgress {
-                Logger.info("Starting periodic refresh...")
-                self.refreshLibrary()
+                // Only refresh if we're not currently scanning
+                if !self.isScanning && !NotificationManager.shared.isActivityInProgress {
+                    Logger.info("Starting periodic refresh...")
+                    self.refreshLibrary()
+                }
             }
         }
     }
@@ -418,20 +436,14 @@ class LibraryManager: ObservableObject {
     private func autoScanIntervalDidChange() {
         let newInterval = autoScanInterval
 
-        enum LastInterval {
-            static var value: AutoScanInterval?
-            static var initialized = false
-        }
-
-        if !LastInterval.initialized {
-            LastInterval.value = newInterval
-            LastInterval.initialized = true
+        guard let previousInterval = lastObservedAutoScanInterval else {
+            lastObservedAutoScanInterval = newInterval
             return
         }
 
         // Only proceed if the interval actually changed
-        guard LastInterval.value != newInterval else { return }
-        LastInterval.value = newInterval
+        guard previousInterval != newInterval else { return }
+        lastObservedAutoScanInterval = newInterval
 
         // Check if the auto-scan interval specifically changed
         DispatchQueue.main.async { [weak self] in

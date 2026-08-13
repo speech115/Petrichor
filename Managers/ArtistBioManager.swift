@@ -9,7 +9,15 @@
 import CryptoKit
 import Foundation
 
-class ArtistBioManager {
+/// An `actor`, not a `@MainActor` class: this is a background network worker
+/// (rate-limited MusicBrainz/Wikidata/TMDB/Last.fm fetches), and its only
+/// mutable state (`fetchTask`, the per-service rate-limit timestamps) is
+/// touched exclusively from its own async methods - exactly what an actor is
+/// for. `isArtistInfoFetchEnabled`/`tmdbReadAccessToken`/`lastfmApiKey` stay
+/// `nonisolated`: they read `UserDefaults`/`Bundle` (both thread-safe) and
+/// never touch actor-isolated storage, so callers on other threads (DM*
+/// background scan code) can keep reading them synchronously.
+actor ArtistBioManager {
     // MARK: - Singleton
 
     static let shared = ArtistBioManager()
@@ -52,15 +60,15 @@ class ArtistBioManager {
     private var lastTMDBRequest: Date?
     private var lastLastFMRequest: Date?
 
-    private var tmdbReadAccessToken: String? {
+    private nonisolated var tmdbReadAccessToken: String? {
         Bundle.main.object(forInfoDictionaryKey: "TMDB_READ_ACCESS_TOKEN") as? String
     }
 
-    private var lastfmApiKey: String? {
+    private nonisolated var lastfmApiKey: String? {
         Bundle.main.object(forInfoDictionaryKey: "LASTFM_API_KEY") as? String
     }
 
-    var isArtistInfoFetchEnabled: Bool {
+    nonisolated var isArtistInfoFetchEnabled: Bool {
         UserDefaults.standard.bool(forKey: UserDefaultsKeys.artistInfoFetchEnabled)
     }
 
@@ -78,7 +86,17 @@ class ArtistBioManager {
 
     // MARK: - Public Methods
 
-    func fetchMissingArtistImages(using libraryManager: LibraryManager) {
+    /// `nonisolated` so every existing call site (UI actions, `LibraryManager`
+    /// post-scan hooks) can keep firing this synchronously instead of awaiting
+    /// a background kickoff. The actual `fetchTask` bookkeeping is isolated
+    /// actor state, so it happens in `startFetchingMissingArtistImages` below.
+    nonisolated func fetchMissingArtistImages(using libraryManager: LibraryManager) {
+        Task {
+            await startFetchingMissingArtistImages(using: libraryManager)
+        }
+    }
+
+    private func startFetchingMissingArtistImages(using libraryManager: LibraryManager) {
         fetchTask?.cancel()
 
         let databaseManager = libraryManager.databaseManager
@@ -229,7 +247,7 @@ class ArtistBioManager {
     // MARK: - MusicBrainz / Wikidata Search
 
     private func searchMusicBrainzImages(name: String, limit: Int = 6) async -> [ImageResult] {
-        await waitForRateLimit(lastRequest: &lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
+        lastMusicBrainzRequest = await waitForRateLimit(lastRequest: lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
 
         guard var components = URLComponents(string: MusicBrainz.searchURL) else { return [] }
         components.queryItems = [
@@ -274,7 +292,7 @@ class ArtistBioManager {
 
     /// Fetch artist relationships from MusicBrainz to find Wikidata URL, then resolve image
     private func resolveImageViaMusicBrainz(mbid: String, artistName: String?, limit: Int) async -> ImageResult? {
-        await waitForRateLimit(lastRequest: &lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
+        lastMusicBrainzRequest = await waitForRateLimit(lastRequest: lastMusicBrainzRequest, delay: MusicBrainz.rateLimitDelay)
 
         let lookupURLString = "\(MusicBrainz.searchURL)\(mbid)?inc=url-rels&fmt=json"
         guard let lookupURL = URL(string: lookupURLString) else { return nil }
@@ -314,7 +332,7 @@ class ArtistBioManager {
         // Extract QID from URL like "https://www.wikidata.org/wiki/Q2831"
         guard let qid = wikidataUrl.split(separator: "/").last.map(String.init) else { return nil }
 
-        await waitForRateLimit(lastRequest: &lastWikimediaRequest, delay: Wikidata.rateLimitDelay)
+        lastWikimediaRequest = await waitForRateLimit(lastRequest: lastWikimediaRequest, delay: Wikidata.rateLimitDelay)
 
         guard var components = URLComponents(string: Wikidata.apiURL) else { return nil }
         components.queryItems = [
@@ -379,7 +397,7 @@ class ArtistBioManager {
         guard let token = tmdbReadAccessToken, !token.isEmpty else { return [] }
 
         if limit == 1 {
-            await waitForRateLimit(lastRequest: &lastTMDBRequest, delay: TMDB.rateLimitDelay)
+            lastTMDBRequest = await waitForRateLimit(lastRequest: lastTMDBRequest, delay: TMDB.rateLimitDelay)
         }
 
         guard var components = URLComponents(string: TMDB.searchURL) else { return [] }
@@ -427,7 +445,7 @@ class ArtistBioManager {
     private func fetchArtistBio(name: String) async -> String? {
         guard let apiKey = lastfmApiKey, !apiKey.isEmpty else { return nil }
 
-        await waitForRateLimit(lastRequest: &lastLastFMRequest, delay: LastFM.rateLimitDelay)
+        lastLastFMRequest = await waitForRateLimit(lastRequest: lastLastFMRequest, delay: LastFM.rateLimitDelay)
 
         guard var components = URLComponents(string: LastFM.apiBaseURL) else { return nil }
         components.queryItems = [
@@ -513,7 +531,12 @@ class ArtistBioManager {
 
     // MARK: - Rate Limiting
 
-    private func waitForRateLimit(lastRequest: inout Date?, delay: TimeInterval) async {
+    /// Takes the previous timestamp by value and returns the new one for the
+    /// caller to store, rather than `inout`: an actor-isolated stored property
+    /// can't be passed `inout` across the `await` inside here (exclusive
+    /// access can't span a suspension point), even though nothing else could
+    /// actually touch it meanwhile.
+    private func waitForRateLimit(lastRequest: Date?, delay: TimeInterval) async -> Date {
         if let last = lastRequest {
             let elapsed = Date().timeIntervalSince(last)
             let waitTime = delay - elapsed
@@ -521,6 +544,6 @@ class ArtistBioManager {
                 try? await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
             }
         }
-        lastRequest = Date()
+        return Date()
     }
 }

@@ -7,6 +7,8 @@ struct TrackDetailView: View {
     @State private var fullTrack: FullTrack?
     @State private var isLoading = true
     @State private var gradientColors: [Color] = []
+    @State private var gradientRevision: UInt64 = 0
+    @State private var gradientTask: Task<Void, Never>?
 
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
@@ -99,6 +101,12 @@ struct TrackDetailView: View {
                 updateGradientColors()
             }
         }
+        .onChange(of: track.albumArtworkData) {
+            // A Track value can be replaced without changing its ID. This
+            // advances the retained revision so work launched by the previous
+            // value cannot publish its artwork colors afterward.
+            updateGradientColors()
+        }
         .onChange(of: colorScheme) {
             updateGradientColors()
         }
@@ -108,11 +116,26 @@ struct TrackDetailView: View {
     }
 
     private func updateGradientColors() {
+        gradientTask?.cancel()
+        gradientRevision &+= 1
+        let revision = gradientRevision
         guard useArtworkColors else {
             gradientColors = []
             return
         }
-        gradientColors = track.backgroundGradientColors(isDark: colorScheme == .dark)
+        let trackID = track.id
+        let artworkInput = track.albumArtworkData
+        let isDark = colorScheme == .dark
+        gradientTask = Task { @MainActor in
+            let resolved = await track.backgroundGradientColors(isDark: isDark)
+            guard !Task.isCancelled,
+                  gradientRevision == revision,
+                  track.id == trackID,
+                  useArtworkColors,
+                  track.albumArtworkData == artworkInput,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
+        }
     }
 
     // MARK: - Load Full Track

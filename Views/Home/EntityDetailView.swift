@@ -17,6 +17,8 @@ struct EntityDetailView: View {
     @State private var artworkDeleted = false
     @State private var artistBio: String?
     @State private var gradientColors: [Color] = []
+    @State private var gradientRevision: UInt64 = 0
+    @State private var gradientTask: Task<Void, Never>?
 
     init(entity: any Entity, onBack: (() -> Void)? = nil, pinnedItem: PinnedItem? = nil) {
         self.entity = entity
@@ -76,6 +78,12 @@ struct EntityDetailView: View {
                 loadTracks()
                 updateGradientColors()
             }
+        }
+        .onChange(of: displayedArtworkData) {
+            // Same entity IDs can receive replacement artwork. Advancing the
+            // retained revision here invalidates extraction started by the old
+            // view value before it can publish into the shared @State slot.
+            updateGradientColors()
         }
         .onChange(of: colorScheme) {
             updateGradientColors()
@@ -254,7 +262,6 @@ struct EntityDetailView: View {
                     overrideArtworkData = nil
                     artworkDeleted = true
                 }
-                updateGradientColors()
             }
         }
     }
@@ -480,16 +487,32 @@ struct EntityDetailView: View {
 
 extension EntityDetailView {
     private func updateGradientColors() {
+        gradientTask?.cancel()
+        gradientRevision &+= 1
+        let revision = gradientRevision
         guard useArtworkColors else {
             gradientColors = []
             return
         }
 
-        if let overrideData = overrideArtworkData {
-            let colors = ImageUtils.extractDominantColors(from: overrideData)
-            gradientColors = ImageUtils.backgroundGradientColors(from: colors, isDark: colorScheme == .dark)
-        } else {
-            gradientColors = entity.backgroundGradientColors(isDark: colorScheme == .dark)
+        let entity = entity
+        let artworkInput = displayedArtworkData
+        let isDark = colorScheme == .dark
+        gradientTask = Task { @MainActor in
+            let resolved = if let artworkInput {
+                await ImageUtils.cachedBackgroundGradientColors(
+                    id: entity.id.uuidString,
+                    imageData: artworkInput,
+                    isDark: isDark
+                )
+            } else { [Color]() }
+            guard !Task.isCancelled,
+                  gradientRevision == revision,
+                  self.entity.id == entity.id,
+                  useArtworkColors,
+                  displayedArtworkData == artworkInput,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
         }
     }
 

@@ -57,7 +57,7 @@ struct NowPlayingScreen: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
-    @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
+    @State private var palette = PlayerPalette.neutral
     @State private var hasAppliedPalette = false
     @State private var paletteTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
@@ -170,9 +170,7 @@ struct NowPlayingScreen: View {
         let shouldUseArtwork = useArtworkColors
 
         paletteTask = Task { @MainActor in
-            let resolved = await Task.detached(priority: .userInitiated) {
-                PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
-            }.value
+            let resolved = await PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
             guard !Task.isCancelled,
                   track?.id == sourceTrackID,
                   useArtworkColors == shouldUseArtwork else { return }
@@ -549,7 +547,9 @@ struct SystemVolumeSlider: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MPVolumeView {
         let view = MPVolumeView(frame: .zero)
-        view.showsRouteButton = false
+        // `showsRouteButton` is deprecated (iOS 13) and a no-op since: `MPVolumeView`
+        // has not shown a route button on its own since AirPlay routing moved to
+        // `AVRoutePickerView` (see `AirPlayButton` below, which is that picker).
         view.showsVolumeSlider = true
         view.tintColor = tint
         view.setVolumeThumbImage(UIImage(), for: .normal)

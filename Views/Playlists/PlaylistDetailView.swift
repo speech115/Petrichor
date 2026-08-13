@@ -6,6 +6,7 @@ struct PlaylistDetailView: View {
     @EnvironmentObject var playlistManager: PlaylistManager
     @State private var selectedTrackID: String?
     @State private var gradientColors: [Color] = []
+    @State private var gradientRevision: UInt64 = 0
     @State private var artworkData: Data?
 
     @AppStorage("useArtworkColors")
@@ -366,17 +367,30 @@ struct PlaylistDetailView: View {
     }
 
     private func updateGradientColors() {
+        gradientRevision &+= 1
+        let revision = gradientRevision
         guard useArtworkColors,
               let playlist = playlist,
               let artworkData = artworkData else {
             gradientColors = []
             return
         }
-        gradientColors = ImageUtils.cachedBackgroundGradientColors(
-            id: playlist.id.uuidString,
-            imageData: artworkData,
-            isDark: colorScheme == .dark
-        )
+        let playlistID = playlist.id
+        let isDark = colorScheme == .dark
+        Task { @MainActor in
+            let resolved = await ImageUtils.cachedBackgroundGradientColors(
+                id: playlistID.uuidString,
+                imageData: artworkData,
+                isDark: isDark
+            )
+            guard !Task.isCancelled,
+                  gradientRevision == revision,
+                  self.playlist?.id == playlistID,
+                  useArtworkColors,
+                  self.artworkData == artworkData,
+                  (colorScheme == .dark) == isDark else { return }
+            gradientColors = resolved
+        }
     }
 
     private var playlistArtworkTaskID: String {

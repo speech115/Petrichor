@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum ContextMenuItem {
-    case button(title: String, icon: String? = nil, role: ButtonRole? = nil, action: () -> Void)
+    case button(title: String, icon: String? = nil, role: ButtonRole? = nil, action: @MainActor () -> Void)
     case menu(title: String, icon: String? = nil, items: [ContextMenuItem])
     case divider
 

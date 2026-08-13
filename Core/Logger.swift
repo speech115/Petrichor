@@ -1,4 +1,5 @@
 import Foundation
+import os
 import os.log
 
 // MARK: - Log Level
@@ -94,31 +95,42 @@ struct LogEntry {
 
 // MARK: - Logger
 
-final class Logger {
+/// Genuinely `Sendable`, callable synchronously from any thread (this is the
+/// project-wide logging entry point - hundreds of call sites, most of them
+/// not `async`). `fileManager`/`logQueue`/`osLog` are `let`s of their own
+/// `Sendable` types; the one real piece of mutable state, `minimumLogLevel`,
+/// sits behind a checked lock instead of a raw `var` so the checker can see the
+/// same safety the file-writing side already had via `logQueue`'s serial
+/// confinement.
+final class Logger: Sendable {
     static let shared = Logger()
-    
+
     private let fileManager = LogFileManager()
     private let logQueue: DispatchQueue
-    private var osLog: OSLog
-    
+    private let osLog: OSLog
+
     // Configuration
-    private(set) var minimumLogLevel: LogLevel = .info
+    private let minimumLogLevelBox = OSAllocatedUnfairLock(initialState: LogLevel.info)
+    private var minimumLogLevel: LogLevel {
+        get { minimumLogLevelBox.withLock { $0 } }
+        set { minimumLogLevelBox.withLock { $0 = newValue } }
+    }
     private let enableConsoleLogging = true
     private let enableFileLogging = true
-    
+
     private init() {
         let bundleIdentifier = Bundle.main.bundleIdentifier ?? About.bundleIdentifier
-        
+
         // Initialize properties that depend on bundle identifier
         self.osLog = OSLog(subsystem: bundleIdentifier, category: "music")
         self.logQueue = DispatchQueue(label: "\(bundleIdentifier).logger", qos: .utility)
-        
+
         // Ensure log directory exists
         fileManager.createLogDirectoryIfNeeded()
-        
+
         // Perform log rotation on init
-        logQueue.async { [weak self] in
-            self?.fileManager.performLogRotation()
+        logQueue.async { [fileManager] in
+            fileManager.performLogRotation()
         }
     }
     
@@ -324,7 +336,10 @@ final class Logger {
 
 // MARK: - Log File Manager
 
-private final class LogFileManager {
+/// Genuinely `Sendable`: no stored `var` at all - `logFileURL` recomputes the
+/// path on every call instead of caching it, and every write opens its own
+/// `FileHandle`. Safe to call from `Logger`'s serial `logQueue` from any thread.
+private final class LogFileManager: Sendable {
     private let maxLogAge: TimeInterval = 7 * 24 * 60 * 60 // 7 days
     private let logFileName: String = {
         let bundleID = Bundle.main.bundleIdentifier ?? About.bundleIdentifier
