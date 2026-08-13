@@ -1,17 +1,20 @@
 //
-// PlaylistCover (iOS)
+// PlaylistCover
 //
 // The cover a playlist wears in place of the preview mosaic, so an export that
 // arrived as a bare M3U still looks like the playlist it was in the service it
 // came from — and so Favorites, which is ours and has no export behind it,
 // still looks like something rather than four sampled records.
+// Shared by iOS list/detail and the macOS playlist sidebar/detail.
 //
 // `likedSongs` and `top2020` are Spotify's own artwork for those playlists,
 // pulled from their CDN; `shazam` is Shazam's current mark; `vkMusic` is the
-// VK Музыка app icon; `frankieShow` is the show's own order-of-merit mark from
-// Серебряный дождь; `yandexLikes` is Yandex Music's `favorit-playlist-cover`,
-// the moulded heart every "Мне нравится" wears, off their own avatars CDN;
-// `tylerInstrumental` is the artwork its owner picked for that playlist.
+// VK Музыка app icon; `vkLikes` is a heart on VK blue for the owner's likes
+// list (VK does not ship a public cover for that export); `frankieShow` is
+// the show's own order-of-merit mark from Серебряный дождь; `yandexLikes` is
+// Yandex Music's `favorit-playlist-cover`, the moulded heart every
+// "Мне нравится" wears, off their own avatars CDN; `tylerInstrumental` is
+// the artwork its owner picked for that playlist.
 //
 // `appleFavorites` is Apple Music's favorites star, redrawn as a vector so it
 // can carry a light and a dark version of itself — the asset catalog swaps
@@ -20,14 +23,14 @@
 
 import SwiftUI
 
-@MainActor
-enum PlaylistCover {
+enum PlaylistCover: Equatable {
     case appleFavorites
     case frankieShow
     case likedSongs
     case shazam
     case top2020
     case tylerInstrumental
+    case vkLikes
     case vkMusic
     case yandexLikes
 
@@ -67,6 +70,8 @@ struct PlaylistCoverView: View {
                 artwork("cover-tyler-instrumental")
             case .shazam:
                 shazam
+            case .vkLikes:
+                vkLikes
             case .vkMusic:
                 artwork("cover-vk-music")
             case .yandexLikes:
@@ -90,6 +95,24 @@ struct PlaylistCoverView: View {
                     .aspectRatio(contentMode: .fit)
                     .foregroundStyle(Color(red: 0.0, green: 0.53, blue: 1.0))
                     .frame(width: side * 0.86, height: side * 0.86)
+            }
+        }
+    }
+
+    // MARK: - VK Likes
+
+    /// VK has no public cover for the owner's likes list the way Spotify does
+    /// for Liked Songs, so this is the same idea drawn here: a heart on the
+    /// service blue.
+    private var vkLikes: some View {
+        square { side in
+            ZStack {
+                Color(red: 0.0, green: 0.467, blue: 1.0)
+                Image(systemName: "heart.fill")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.white)
+                    .frame(width: side * 0.46, height: side * 0.46)
             }
         }
     }

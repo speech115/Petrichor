@@ -67,7 +67,7 @@ struct NowPlayingScreen: View {
     @Environment(\.dynamicTypeSize)
     private var dynamicTypeSize
 
-    @State private var palette = PlayerPalette.make(for: nil, useArtworkColors: false)
+    @State private var palette = PlayerPalette.neutral
     @State private var hasAppliedPalette = false
     @State private var paletteTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?

@@ -28,7 +28,7 @@ extension LibraryManager {
                     var isStale = false
                     let resolvedURL = try URL(
                         resolvingBookmarkData: bookmarkData,
-                        options: [],
+                        options: LibraryPathStore.bookmarkResolutionOptions,
                         relativeTo: nil,
                         bookmarkDataIsStale: &isStale
                     )
@@ -67,7 +67,7 @@ extension LibraryManager {
                     folderAccessible = true
                     do {
                         let newBookmarkData = try folder.url.bookmarkData(
-                            options: [],
+                            options: LibraryPathStore.bookmarkCreationOptions,
                             includingResourceValuesForKeys: nil,
                             relativeTo: nil
                         )
@@ -107,7 +107,7 @@ extension LibraryManager {
                     // We have access! Create a new bookmark
                     do {
                         let newBookmarkData = try folder.url.bookmarkData(
-                            options: [],
+                            options: LibraryPathStore.bookmarkCreationOptions,
                             includingResourceValuesForKeys: nil,
                             relativeTo: nil
                         )

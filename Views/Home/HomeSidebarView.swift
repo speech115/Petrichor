@@ -8,6 +8,7 @@ struct HomeSidebarView: View {
     @State private var allItems: [HomeSidebarItem] = []
     @State private var hasLoadedInitialCounts = false
     @State private var pinnedItemTrackCounts: [Int64: Int] = [:]
+    @State private var pinnedCollageArtwork: [UUID: SidebarItemArtwork] = [:]
     @State private var playlistToDelete: Playlist?
     @State private var showingDeleteConfirmation = false
 
@@ -69,6 +70,7 @@ struct HomeSidebarView: View {
                 hasLoadedInitialCounts = true
                 Task {
                     await updatePinnedItemTrackCounts()
+                    await warmPinnedCollageArtwork()
                 }
             }
         }
@@ -122,7 +124,7 @@ struct HomeSidebarView: View {
 
         var items: [HomeSidebarItem] = [
             HomeSidebarItem(type: .discover, trackCount: libraryManager.discoverTracks.count),
-            HomeSidebarItem(type: .tracks, trackCount: libraryManager.totalTrackCount),
+            HomeSidebarItem(type: .tracks, trackCount: libraryManager.songsDisplayCount),
             HomeSidebarItem(type: .artists, artistCount: artistCount),
             HomeSidebarItem(type: .albums, albumCount: albumCount)
         ]
@@ -132,7 +134,13 @@ struct HomeSidebarView: View {
         let pinnedSidebarItems = libraryManager.pinnedItems.map { pinnedItem in
             let cachedCount = pinnedItemTrackCounts[pinnedItem.id ?? 0] ?? 0
             let playlist = pinnedItem.playlistId.flatMap { playlistsById[$0] }
-            return HomeSidebarItem(pinnedItem: pinnedItem, trackCount: cachedCount, playlist: playlist)
+            let collage = playlist.flatMap { pinnedCollageArtwork[$0.id] }
+            return HomeSidebarItem(
+                pinnedItem: pinnedItem,
+                trackCount: cachedCount,
+                playlist: playlist,
+                artworkOverride: collage
+            )
         }
         items.append(contentsOf: pinnedSidebarItems)
         
@@ -149,6 +157,66 @@ struct HomeSidebarView: View {
         // Update track counts asynchronously to avoid blocking UI
         Task {
             await updatePinnedItemTrackCounts()
+            await warmPinnedCollageArtwork()
+        }
+    }
+
+    private func warmPinnedCollageArtwork() async {
+        let database = libraryManager.databaseManager
+        let playlists = libraryManager.pinnedItems.compactMap { pinned -> Playlist? in
+            guard pinned.itemType == .playlist,
+                  let id = pinned.playlistId,
+                  let playlist = playlistManager.playlists.first(where: { $0.id == id }),
+                  PlaylistSidebarArtwork.resolve(for: playlist) == nil else { return nil }
+            return playlist
+        }
+        guard !playlists.isEmpty else { return }
+
+        var updates: [UUID: SidebarItemArtwork] = [:]
+        for playlist in playlists {
+            if let artwork = await PlaylistSidebarArtwork.resolveOrWarmCollage(
+                for: playlist,
+                database: database
+            ), case .data = artwork {
+                updates[playlist.id] = artwork
+            }
+        }
+        guard !updates.isEmpty else { return }
+        pinnedCollageArtwork.merge(updates) { _, new in new }
+        updateAllItemsWithoutWarming()
+    }
+
+    /// Rebuild sidebar rows after collage warm without scheduling another warm pass.
+    private func updateAllItemsWithoutWarming() {
+        let artistCount = libraryManager.artistCount
+        let albumCount = libraryManager.albumCount
+
+        var items: [HomeSidebarItem] = [
+            HomeSidebarItem(type: .discover, trackCount: libraryManager.discoverTracks.count),
+            HomeSidebarItem(type: .tracks, trackCount: libraryManager.songsDisplayCount),
+            HomeSidebarItem(type: .artists, artistCount: artistCount),
+            HomeSidebarItem(type: .albums, albumCount: albumCount)
+        ]
+
+        let playlistsById = Dictionary(playlistManager.playlists.map { ($0.id, $0) }) { first, _ in first }
+        let pinnedSidebarItems = libraryManager.pinnedItems.map { pinnedItem in
+            let cachedCount = pinnedItemTrackCounts[pinnedItem.id ?? 0] ?? 0
+            let playlist = pinnedItem.playlistId.flatMap { playlistsById[$0] }
+            let collage = playlist.flatMap { pinnedCollageArtwork[$0.id] }
+            return HomeSidebarItem(
+                pinnedItem: pinnedItem,
+                trackCount: cachedCount,
+                playlist: playlist,
+                artworkOverride: collage
+            )
+        }
+        items.append(contentsOf: pinnedSidebarItems)
+
+        let currentSelectionId = selectedItem?.id
+        allItems = items
+        if let currentId = currentSelectionId,
+           let matchingItem = allItems.first(where: { $0.id == currentId }) {
+            selectedItem = matchingItem
         }
     }
     
@@ -175,7 +243,12 @@ struct HomeSidebarView: View {
                         let playlist = pinnedItem.playlistId.flatMap { id in
                             playlistManager.playlists.first { $0.id == id }
                         }
-                        allItems[index] = HomeSidebarItem(pinnedItem: pinnedItem, trackCount: trackCount, playlist: playlist)
+                        allItems[index] = HomeSidebarItem(
+                            pinnedItem: pinnedItem,
+                            trackCount: trackCount,
+                            playlist: playlist,
+                            artworkOverride: playlist.flatMap { pinnedCollageArtwork[$0.id] }
+                        )
                     }
                 }
             }

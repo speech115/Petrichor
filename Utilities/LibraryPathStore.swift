@@ -6,6 +6,9 @@ import Foundation
 /// абсолютным. На iOS музыка всегда внутри контейнера приложения, а UUID
 /// контейнера не стабилен между установками — там хранится путь относительно
 /// `Documents`, а абсолютный собирается в рантайме.
+///
+/// Bookmark create/resolve options live here too: macOS needs security scope
+/// to reopen folders outside the sandbox; iOS music stays in the container.
 enum LibraryPathStore {
     /// Корень, относительно которого хранятся пути.
     static var libraryRoot: URL {
@@ -13,6 +16,24 @@ enum LibraryPathStore {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         #else
         URL(fileURLWithPath: "/")
+        #endif
+    }
+
+    /// Options for `URL.bookmarkData(options:…)` when persisting a library folder.
+    static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
+        #if os(macOS)
+        [.withSecurityScope]
+        #else
+        []
+        #endif
+    }
+
+    /// Options for `URL(resolvingBookmarkData:options:…)`.
+    static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
+        #if os(macOS)
+        [.withSecurityScope]
+        #else
+        []
         #endif
     }
 

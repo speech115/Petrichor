@@ -244,6 +244,36 @@ extension DatabaseManager {
             return 0
         }
     }
+
+    /// Track count of the owner's «Все треки» export, if that playlist exists.
+    /// Returns id + count so Songs / All Tracks can open the same playlist.
+    func getExportedAllTracksPlaylist() -> (id: UUID, count: Int)? {
+        do {
+            return try dbQueue.read { db in
+                let playlists = try Playlist
+                    .filter(Playlist.Columns.type == PlaylistType.regular.rawValue)
+                    .fetchAll(db)
+                guard let playlist = playlists.first(where: {
+                    PlaylistDisplay.storedName(for: $0)
+                        .caseInsensitiveCompare(LibraryPlaylists.allTracks) == .orderedSame
+                }) else {
+                    return nil
+                }
+                let count = try PlaylistTrack
+                    .filter(PlaylistTrack.Columns.playlistId == playlist.id.uuidString)
+                    .fetchCount(db)
+                return (playlist.id, count)
+            }
+        } catch {
+            Logger.error("Failed to get exported all-tracks playlist: \(error)")
+            return nil
+        }
+    }
+
+    /// Convenience for badge counts.
+    func getExportedAllTracksCount() -> Int? {
+        getExportedAllTracksPlaylist()?.count
+    }
     
     /// Get total duration of all tracks in the library
     func getTotalDuration() -> Double {

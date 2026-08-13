@@ -178,6 +178,7 @@ extension DatabaseManager {
             t.column("date_modified", .datetime)
             t.column("track_artwork_data", .blob)
             t.column("is_favorite", .boolean).notNull().defaults(to: false)
+            t.column("date_favorited", .datetime)
             t.column("play_count", .integer).notNull().defaults(to: 0)
             t.column("last_played_date", .datetime)
             

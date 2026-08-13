@@ -35,7 +35,7 @@ extension LibraryManager {
                 // Create security bookmark
                 do {
                     let bookmarkData = try url.bookmarkData(
-                        options: [.withSecurityScope],
+                        options: LibraryPathStore.bookmarkCreationOptions,
                         includingResourceValuesForKeys: nil,
                         relativeTo: nil
                     )
@@ -246,9 +246,8 @@ extension LibraryManager {
         }
 
         do {
-            // Create a fresh bookmark
             let newBookmarkData = try folder.url.bookmarkData(
-                options: [],
+                options: LibraryPathStore.bookmarkCreationOptions,
                 includingResourceValuesForKeys: nil,
                 relativeTo: nil
             )

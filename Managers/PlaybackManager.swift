@@ -316,7 +316,7 @@ class PlaybackManager: NSObject, ObservableObject {
     /// when the engine adopts a new entry; it keeps elapsed and rate current itself.
     func publishNowPlayingMetadata(for track: Track) {
         artworkEnrichmentTask?.cancel()
-        setNowPlayingMetadata(for: track, artworkData: track.displayArtwork)
+        setNowPlayingMetadata(for: track, artworkData: track.artworkData)
 
         guard track.artworkData == nil else { return }
         let database = libraryManager.databaseManager

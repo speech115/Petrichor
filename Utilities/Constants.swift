@@ -227,6 +227,13 @@ enum DefaultPlaylists {
     static let recentlyPlayed = "Top 25 Recently Played"
 }
 
+/// Regular playlists the owner keeps as library stand-ins.
+enum LibraryPlaylists {
+    /// M3U export of the library. Home/Library "Songs" / "All Tracks" show this
+    /// playlist's size when it exists, so the number matches the Playlists tab.
+    static let allTracks = "Все треки"
+}
+
 extension DefaultPlaylists {
     static func displayName(for playlist: Playlist) -> String {
         guard playlist.type == .smart && !playlist.isUserEditable else { return playlist.name }

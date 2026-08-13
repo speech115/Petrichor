@@ -447,7 +447,7 @@ struct Playlist: Identifiable, FetchableRecord, PersistableRecord {
 extension Playlist {
     static func createDefaultSmartPlaylists() -> [Playlist] {
         [
-            // Favorites playlist - sorted by date added
+            // Favorites — recently favorited first
             Playlist(
                 name: DefaultPlaylists.favorites,
                 criteria: SmartPlaylistCriteria(
@@ -458,8 +458,8 @@ extension Playlist {
                             value: "true"
                         )
                     ],
-                    sortBy: "dateAdded",
-                    sortAscending: true
+                    sortBy: "dateFavorited",
+                    sortAscending: false
                 ),
                 isUserEditable: false
             ),

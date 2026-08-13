@@ -126,6 +126,10 @@ struct PlaylistDetailView: View {
                     .frame(width: 120, height: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+            } else if let playlist, let cover = PlaylistCover.of(playlist) {
+                PlaylistCoverView(cover: cover, cornerRadius: 8)
+                    .frame(width: 120, height: 120)
+                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
             } else {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.secondary.opacity(0.2))
@@ -281,9 +285,14 @@ struct PlaylistDetailView: View {
     @ViewBuilder private var emptyPlaylistView: some View {
         if let playlist = playlist {
             VStack(spacing: 20) {
-                SymbolImage(playlistIcon)
-                    .font(.system(size: 60))
-                    .foregroundColor(.gray)
+                if let cover = PlaylistCover.of(playlist) {
+                    PlaylistCoverView(cover: cover, cornerRadius: 12)
+                        .frame(width: 80, height: 80)
+                } else {
+                    SymbolImage(playlistIcon)
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                }
 
                 Text(emptyStateTitle)
                     .font(.headline)
@@ -424,6 +433,7 @@ struct PlaylistDetailView: View {
            let sortBy = criteria.sortBy {
             let fieldMap: [String: TrackSortField] = [
                 "dateAdded": .dateAdded,
+                "dateFavorited": .dateFavorited,
                 "title": .title,
                 "artist": .artist,
                 "album": .album,

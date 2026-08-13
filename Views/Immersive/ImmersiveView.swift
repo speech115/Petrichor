@@ -63,6 +63,7 @@ struct ImmersiveView: View {
     private var panel: ImmersivePanel = .none
     @State private var cachedArtwork: NSImage?
     @State private var currentTrackId: String?
+    @State private var cachedArtworkByteCount: Int?
     @State private var gradientColors: [Color] = []
 
     // Cached alongside gradientColors so the ~10 text/border call sites read a
@@ -159,6 +160,10 @@ struct ImmersiveView: View {
             DispatchQueue.main.async { didAppear = true }
         }
         .onChange(of: playbackManager.currentTrack?.id) {
+            refreshArtwork()
+            updateGradientColors()
+        }
+        .onChange(of: NowPlayingArtwork.artworkByteCount(for: playbackManager.currentTrack)) {
             refreshArtwork()
             updateGradientColors()
         }
@@ -444,9 +449,11 @@ struct ImmersiveView: View {
 
     private func refreshArtwork() {
         let track = playbackManager.currentTrack
-        guard track?.id != currentTrackId || cachedArtwork == nil else { return }
+        let artCount = NowPlayingArtwork.artworkByteCount(for: track)
+        guard track?.id != currentTrackId || artCount != cachedArtworkByteCount else { return }
 
         currentTrackId = track?.id
+        cachedArtworkByteCount = artCount
         cachedArtwork = NowPlayingArtwork.image(for: track)
     }
 

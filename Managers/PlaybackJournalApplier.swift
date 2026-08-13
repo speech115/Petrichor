@@ -46,15 +46,23 @@ enum PlaybackJournalApplier {
 
             for index in states.indices where states[index] != rows[index].state {
                 let state = states[index]
+                let previous = rows[index].state
                 let id = rows[index].id
+                var assignments: [ColumnAssignment] = [
+                    Track.Columns.playCount.set(to: state.playCount),
+                    Track.Columns.isFavorite.set(to: state.isFavorite),
+                    Track.Columns.lastPlayedDate.set(to: state.lastPlayedDate),
+                ]
+                if state.isFavorite != previous.isFavorite {
+                    // Journal events have no favorited timestamp; stamp apply time
+                    // so newly favorited tracks sort above pre-migration backfills.
+                    assignments.append(
+                        Track.Columns.dateFavorited.set(to: state.isFavorite ? Date() : nil)
+                    )
+                }
                 try Track
                     .filter(Track.Columns.trackId == id)
-                    .updateAll(
-                        db,
-                        Track.Columns.playCount.set(to: state.playCount),
-                        Track.Columns.isFavorite.set(to: state.isFavorite),
-                        Track.Columns.lastPlayedDate.set(to: state.lastPlayedDate)
-                    )
+                    .updateAll(db, assignments)
             }
 
             if let newCursor = result.cursor {

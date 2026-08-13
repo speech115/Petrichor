@@ -103,6 +103,11 @@ enum NowPlayingArtwork {
         return PlatformImage(data: data)
     }
 
+    /// Identity for refreshing player artwork when enrichment fills full art.
+    static func artworkByteCount(for track: Track?) -> Int? {
+        track?.artworkData?.count
+    }
+
     /// Artwork-derived background gradient (cached per track), or empty when disabled
     /// or artwork colors are unavailable.
     @MainActor

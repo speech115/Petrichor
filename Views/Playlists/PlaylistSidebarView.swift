@@ -3,10 +3,12 @@ import UniformTypeIdentifiers
 
 struct PlaylistSidebarView: View {
     @EnvironmentObject var playlistManager: PlaylistManager
+    @EnvironmentObject var libraryManager: LibraryManager
     @Binding var selectedPlaylist: Playlist?
     @State private var selectedSidebarItem: PlaylistSidebarItem?
     @State private var playlistToDelete: Playlist?
     @State private var showingDeleteConfirmation = false
+    @State private var collageArtwork: [UUID: SidebarItemArtwork] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,6 +41,12 @@ struct PlaylistSidebarView: View {
         }
         .onChange(of: selectedPlaylist) {
             updateSelectedSidebarItem()
+        }
+        .onChange(of: displayedPlaylists.map(\.id)) {
+            Task { await warmCollageArtwork() }
+        }
+        .task {
+            await warmCollageArtwork()
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPlaylist)) { notification in
             if let playlistID = notification.userInfo?["playlistID"] as? UUID,
@@ -108,7 +116,7 @@ struct PlaylistSidebarView: View {
     // MARK: - Playlists List
 
     private var nonEditableCount: Int {
-        playlistManager.playlists.prefix { !$0.isUserEditable }.count
+        displayedPlaylists.prefix { !$0.isUserEditable }.count
     }
 
     private var playlistsList: some View {
@@ -161,15 +169,65 @@ struct PlaylistSidebarView: View {
         )
     }
 
+    /// Same rule as the iOS Playlists tab: only Favorites among the built-in
+    /// smart playlists. Top 25 Most/Recently Played stay on Home.
+    private var displayedPlaylists: [Playlist] {
+        playlistManager.playlists.filter { playlist in
+            guard playlist.type == .smart, !playlist.isUserEditable else { return true }
+            return playlist.name == DefaultPlaylists.favorites
+        }
+    }
+
     private var allPlaylistItems: [PlaylistSidebarItem] {
-        playlistManager.playlists.map { PlaylistSidebarItem(playlist: $0) }
+        displayedPlaylists.map {
+            PlaylistSidebarItem(playlist: $0, artworkOverride: collageArtwork[$0.id])
+        }
+    }
+
+    private func warmCollageArtwork() async {
+        let database = libraryManager.databaseManager
+        let playlists = displayedPlaylists.filter {
+            PlaylistSidebarArtwork.resolve(for: $0) == nil
+        }
+        guard !playlists.isEmpty else { return }
+
+        var updates: [UUID: SidebarItemArtwork] = [:]
+        for playlist in playlists {
+            if let artwork = await PlaylistSidebarArtwork.resolveOrWarmCollage(
+                for: playlist,
+                database: database
+            ), case .data = artwork {
+                updates[playlist.id] = artwork
+            }
+        }
+        guard !updates.isEmpty else { return }
+        collageArtwork.merge(updates) { _, new in new }
     }
 
     // MARK: - Reorder Playlists
 
     private func handlePlaylistReorder(_ reorderedItems: [PlaylistSidebarItem]) {
-        let reorderedPlaylists = reorderedItems.map { $0.playlist }
-        playlistManager.reorderPlaylists(reorderedPlaylists)
+        let visibleOrder = reorderedItems.map(\.playlist)
+        let visibleIDs = Set(visibleOrder.map(\.id))
+        let previous = playlistManager.playlists
+
+        // Keep hidden Top 25s in their prior slots; only reshuffle visible rows.
+        var visibleIterator = visibleOrder.makeIterator()
+        var merged: [Playlist] = []
+        merged.reserveCapacity(previous.count)
+        for playlist in previous {
+            if visibleIDs.contains(playlist.id) {
+                if let next = visibleIterator.next() {
+                    merged.append(next)
+                }
+            } else {
+                merged.append(playlist)
+            }
+        }
+        while let next = visibleIterator.next() {
+            merged.append(next)
+        }
+        playlistManager.reorderPlaylists(merged)
     }
 
     // MARK: - Menu Items

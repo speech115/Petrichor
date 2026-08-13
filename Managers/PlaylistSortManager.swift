@@ -59,6 +59,22 @@ class PlaylistSortManager: ObservableObject {
         objectWillChange.send()
     }
 
+    func clearSortPreference(for playlistID: UUID) {
+        sortFields.removeValue(forKey: playlistID)
+        sortAscending.removeValue(forKey: playlistID)
+        objectWillChange.send()
+    }
+
+    /// One-shot: Favorites used to auto-persist dateAdded; drop that so dateFavorited wins.
+    func clearStaleFavoritesDateAddedPreference(for playlistID: UUID) {
+        let key = "didClearFavoritesDateAddedSortV15"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        if sortFields[playlistID] == TrackSortField.dateAdded.rawValue {
+            clearSortPreference(for: playlistID)
+        }
+        UserDefaults.standard.set(true, forKey: key)
+    }
+
     // MARK: - Migration
 
     /// Migrate from the old "playlistSortCriteria" key to "playlistSortFields".
