@@ -102,11 +102,12 @@ struct PlaylistsTabView: View {
             }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
-                    ContentUnavailableView(
-                        String(localized: "No Music"),
-                        systemImage: Icons.musicNoteList,
-                        description: Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
-                    )
+                    ContentUnavailableView {
+                        Label(String(localized: "No Music"), systemImage: Icons.musicNoteList)
+                    } description: {
+                        Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
+                            .foregroundStyle(Color.secondaryText)
+                    }
                 }
             }
             .onAppear(perform: scheduleLoad)

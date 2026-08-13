@@ -7,10 +7,12 @@
 // with the palette of the artwork's dominant color, so a contrast gate would
 // go red whenever a cover changes; the Songs list's full-screen contrast pass
 // does not finish within the audit's internal timeout on the CI runner
-// (Code=-56) even though it passes locally. Now Playing's Dynamic Type gate
-// is scoped to its title and artist instead: the transport/chip glyphs are
-// deliberately capped `@ScaledMetric` icons, not growing text, sized to fixed
-// hit targets.
+// (Code=-56) even though it passes locally. Home waits until the seeded
+// library replaces the empty-state overlay before auditing — that overlay's
+// system description fails contrast, and Songs-with-0 appears too early.
+// Now Playing's Dynamic Type gate is scoped to its title and artist instead:
+// the transport/chip glyphs are deliberately capped `@ScaledMetric` icons,
+// not growing text, sized to fixed hit targets.
 //
 // No baseline file: the four screens are green from day one and more screens
 // join as they get fixed. The app self-seeds its audio fixtures via
@@ -29,8 +31,10 @@ final class AccessibilityAuditUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// Home is the default tab; wait for the Library section (the Songs row)
-    /// so the audit runs on the settled screen, not on the launch spinner.
+    /// Home is the default tab; wait until the seeded library is actually
+    /// loaded. The Songs row appears with count 0 while "No Music" is still
+    /// up — auditing that empty overlay fails contrast on the system
+    /// description text ("Contrast nearly passed" on CI).
     private func launchSeededApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["--uitest-seed-fixtures"]
@@ -40,6 +44,14 @@ final class AccessibilityAuditUITests: XCTestCase {
             NSPredicate(format: "label BEGINSWITH 'Songs'")
         ).firstMatch
         XCTAssertTrue(songsRow.waitForExistence(timeout: 60), "строка Songs не появилась (Documents пуст?)")
+
+        let noMusic = app.staticTexts["No Music"]
+        if noMusic.exists {
+            XCTAssertTrue(
+                noMusic.waitForNonExistence(timeout: 60),
+                "библиотека не заполнилась после --uitest-seed-fixtures"
+            )
+        }
         return app
     }
 

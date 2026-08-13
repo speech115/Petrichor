@@ -62,11 +62,15 @@ struct HomeTabView: View {
             }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
-                    ContentUnavailableView(
-                        String(localized: "No Music"),
-                        systemImage: Icons.musicNote,
-                        description: Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
-                    )
+                    ContentUnavailableView {
+                        Label(String(localized: "No Music"), systemImage: Icons.musicNote)
+                    } description: {
+                        // System description uses `.secondary` (~3.4:1); the
+                        // shared color clears the WCAG AA bar the Home audit
+                        // enforces.
+                        Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
+                            .foregroundStyle(Color.secondaryText)
+                    }
                 }
             }
             .onAppear(perform: scheduleLoad)
