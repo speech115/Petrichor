@@ -18,9 +18,17 @@ iOS 26–27 beta, плюс уже закрытые итерации
    отдача строк. Это поведение приложения, не материала.
 
 Petrichor уже закрыл каркас iOS 26 (minimize tab bar + bottom accessory +
-свой Now Playing overlay) и большую часть плеера. Имеет смысл добирать
-**редкие, читаемые** жесты и системный glass там, где он бесплатен; не
-переоткрывать морф обложки и pause-scale без новой модели перехода.
+свой Now Playing overlay) и большую часть плеера.
+
+Две анимации, которые чаще всего читаются как «это Music» — и которые
+пользователь отдельно отметил 2026-08-13:
+
+1. **Открытие плейлиста/альбома** — zoom hero с обложки в детальную страницу.
+2. **Mini-player ↔ Now Playing** — zoom-морф из accessory, не slide снизу.
+
+Первая у нас **никогда не пробовалась** (сейчас обычный push) — чистый
+кандидат. Вторая сознательно заменена своим overlay после замера latency;
+возвращать только с новой моделью и frame-by-frame планом.
 
 Правило отбора — то же, что в `library-motion`: частота убивает анимацию.
 
@@ -117,33 +125,124 @@ iOS 27 **не** приносит нового обязательного наб�
 
 ---
 
-## 4. Кандидаты: что можно внедрить
+## 4. Две анимации, которые нравятся в Music (разбор)
+
+### 4.1 Открытие плейлиста / альбома — zoom hero
+
+**Что видно в Music**
+
+Тап по обложке в сетке или по строке с миниатюрой: обложка **растёт и
+превращается** в шапку детальной страницы. Фон списка подтягивает цвет
+обложки (с iOS 26.4 — fullscreen color-matched album/playlist pages). Жест
+интерактивный: переход можно схватить и откатить mid-flight. Назад —
+тот же морф в обратную сторону.
+
+**Как это называется в SDK**
+
+Не «своя matchedGeometry магия Music», а системный **Zoom Navigation
+Transition** (с iOS 18, WWDC24 session 10145):
+
+```swift
+@Namespace private var zoomNS
+
+// на карточке / обложке-источнике
+.matchedTransitionSource(id: playlist.id, in: zoomNS)
+
+// на destination внутри NavigationStack
+.navigationTransition(.zoom(sourceID: playlist.id, in: zoomNS))
+```
+
+То же API для push в `NavigationStack` и для sheet/`fullScreenCover`.
+Система сама считает geometry path и уважает Reduce Motion.
+
+**Что усиливает ощущение после iOS 26.4**
+
+Не только переход: сама страница плейлиста/альбома стала full-bleed —
+крупная обложка плавно вливается в цветной фон трек-листа, Liquid Glass
+toolbar/tab bar сидят поверх. Без color-matched destination zoom выглядит
+беднее.
+
+**У нас сейчас**
+
+- `PlaylistsTabView` / `HomeTabView`: обычный `NavigationLink(value:)` →
+  `PlaylistDetailScreen` — **системный slide push**, без zoom.
+- `DetailHeader` уже есть (обложка + Play/Shuffle + лёгкий tint-градиент),
+  но не full-bleed color page как в 26.4 и не связан с transition source.
+
+**Вердикт:** это именно та анимация. **Брать.** Zoom на playlist/album/artist
+detail — лучший кандидат всей итерации: стандартный API, не ломает плеер,
+событие реже строк списка.
+
+### 4.2 Mini-player ↔ Now Playing — zoom-морф accessory
+
+**Что видно в Music**
+
+Мини-плеер (glass accessory над tab bar) при тапе **разворачивается из себя**:
+маленькая обложка вырастает в большую, chrome accessory морфится в полный
+экран, controls раскладываются. Закрытие — pinch / swipe вниз обратно **в
+ту же точку** мини-плеера, а не «уехал вниз в никуда».
+
+В iOS 26 это связано с `tabViewBottomAccessory`: источник перехода —
+сама accessory (часто обложка внутри неё) + `.navigationTransition(.zoom)`
+на presented Now Playing. Рецепты сообщества (и WWDC25 demo pattern) —
+`matchedTransitionSource` на accessory / artwork.
+
+Исторически тот же feel делали через `matchedGeometryEffect` на artwork+title
+в одном дереве; для настоящего presentation через tab accessory правильный
+путь сегодня — zoom navigation transition, не ручной matched geometry.
+
+**У нас сейчас**
+
+Свой `NowPlayingPresentationLayer`: mount off-screen → spring/ease **slide
+вверх одним слоем** → interactive drag dismiss вниз. Обложка **не** зумится
+из мини-плеера. Это сознательная замена после:
+
+- попытки `fullScreenCover` + `.navigationTransition(.zoom)` —
+  ~0,48 с задержки до первого кадра (`playlist-perf/13`);
+- решения не делать пятый заход через `matchedGeometryEffect` внутри overlay
+  (`library-motion` spec).
+
+Пользователь 2026-08-09 принял текущий slide («с анимацией плеера тоже всё
+отлично»), но 2026-08-13 отдельно отметил, что в Music open/close мини-плеера
+нравится больше — то есть gap именно в **морфе из accessory**, не в гладкости
+нашего slide.
+
+**Вердикт:** анимация найдена — тот же zoom family, что у плейлистов, но
+источник = mini-player accessory. Возврат **дороже**: надо снять свой
+presentation layer и заново доказать latency/interactive dismiss на устройстве.
+Не путать с pause-scale обложки (тот отдельно отвергнут).
+
+---
+
+## 5. Кандидаты: что можно внедрить
 
 Приоритет = заметность × дешевизна × отсутствие конфликта с текущим
 presentation.
 
-### P0 — дёшево и часто ощущается
+### P0 — то, что пользователь уже назвал / дёшево
 
 | # | Кандидат | Почему Music | Как у нас | Риск |
 |---|---|---|---|---|
-| A | **Press-подсветка строки трека** | Music подсвечивает серым на touchDown | Тикет `library-motion/06` открыт; `.buttonStyle(.plain)` глушит систему | Низкий: свой `ButtonStyle` с фоном, без `scaleEffect` |
-| B | **Swipe-up по mini-player → Now Playing** | Канон Music / наша спека | Тап есть; swipe-up отмечен как gap в `two-tab-layout/09` | Средний: не сломать drag dismiss NP и hit-testing accessory |
+| **Z** | **Zoom open плейлиста/альбома/артиста** | Hero с обложки в detail (§4.1) | Обычный NavigationLink push | Низкий–средний: namespace + id на source/destination; проверить back-swipe |
+| A | **Press-подсветка строки трека** | Music подсвечивает серым на touchDown | Тикет `library-motion/06` открыт | Низкий |
+| B | **Swipe-up по mini-player → Now Playing** | Канон Music | Тап есть; swipe-up gap в `two-tab-layout/09` | Средний |
 
-### P1 — системный iOS 26 polish
-
-| # | Кандидат | Почему Music | Как у нас | Риск |
-|---|---|---|---|---|
-| C | **Glass на chrome, не на контенте** | Music держит glass на tab/accessory/controls | Проверить, что мини-плеер и sheets не перекрыты кастомным `.ultraThinMaterial` там, где система уже даёт glass | Низкий, если не класть glass на списки/обложки |
-| D | **Zoom-морф для вторичных sheets** (Track Info, меню из toolbar) | WWDC: sheet растёт из кнопки | Track Info сейчас обычный sheet | Низкий; не трогать Now Playing |
-| E | **Свайп по названию = prev/next** (mini + NP) | Документировано в Apple Support | Нет | Средний: конфликт со свайпом dismiss / queue |
-
-### P2 — iOS 27 / редкие события
+### P1 — системный polish / layout destination
 
 | # | Кандидат | Почему Music | Как у нас | Риск |
 |---|---|---|---|---|
-| F | **Artist header blend** (цвет страницы от фото, мягкий переход в список) | iOS 27 artist redesign | `DetailHeader` / `ArtistPage` уже есть; нужен visual polish | Средний по вкусу, низкий по perf |
-| G | **Landscape Now Playing** | iOS 27 | Только portrait layout | Средний: второй layout + safe areas |
-| H | **Большой matched-geometry морф mini→NP** | Самое заметное отличие от Music | Сознательно свой overlay | **Высокий** — пятый заход; только если текущий transition снова станет проблемой и есть frame-by-frame план |
+| **P** | **Full-bleed color page** на playlist/album (как iOS 26.4) | Усиливает zoom destination | `DetailHeader` с лёгким градиентом | Средний по вкусу |
+| C | **Glass на chrome** | Music | Audit материалов | Низкий |
+| D | **Zoom для вторичных sheets** | WWDC | Track Info обычный sheet | Низкий |
+| E | **Свайп по названию = prev/next** | Apple Support | Нет | Средний |
+
+### P2 — дорогой reopen / iOS 27
+
+| # | Кандидат | Почему Music | Как у нас | Риск |
+|---|---|---|---|---|
+| **H** | **Zoom-морф mini → Now Playing** (§4.2) | Главный feel Music-плеера | Свой slide overlay | **Высокий** — latency history; нужен prototype + замер до замены |
+| F | Artist header blend (iOS 27) | Redesign | DetailHeader | Средний |
+| G | Landscape Now Playing | iOS 27 | Portrait only | Средний |
 
 ### Не брать (или только при ассетах)
 
@@ -157,30 +256,37 @@ presentation.
 
 ---
 
-## 5. Рекомендуемый порядок (если делать следующую итерацию)
+## 6. Рекомендуемый порядок (если делать следующую итерацию)
 
-1. **A — press feedback строк** (закрыть `library-motion/06` после проверки пальцем).
-2. **B — swipe-up mini-player**, не ломая текущий `NowPlayingPresentationLayer`.
-3. **C/D — audit glass**: убрать лишние материалы, дать системе zoom на мелких sheets.
-4. **E — title swipe prev/next**, если жесты не конфликтуют с dismiss.
-5. **F/G — iOS 27 layout polish** отдельной фазой после стабилизации motion.
-
-Морф обложки (H) и animated Lock Screen — вне очереди.
+1. **Z — zoom navigation на playlist/album/(artist) detail** — закрывает
+   «как в Music открывается плейлист»; API стандартный.
+2. **P — усилить destination** (color-matched / fuller header), чтобы zoom
+   приезжал «в Music-страницу», а не в плоский список.
+3. **A — press feedback строк**; **B — swipe-up mini-player**.
+4. **H — prototype only** для mini→NP zoom: один spike с замером
+   time-to-first-frame vs текущего overlay; менять presentation только если
+   spike ≤ текущего и interactive dismiss не хуже.
+5. Остальное (glass audit, title swipe, landscape) — после.
 
 ---
 
-## 6. Источники
+## 7. Источники
 
-- Apple Newsroom: Liquid Glass design (2025-06)
+- WWDC24: 10145 Enhance your UI animations and transitions (zoom navigation)
 - WWDC25: 219 Meet Liquid Glass; 323 Build a SwiftUI app with the new design; 284 UIKit
+- Apple Newsroom: Liquid Glass design (2025-06)
 - Apple Support: Music player controls (swipe title, Animated Art setting)
+- Benjamin Mayo / MacObserver / Pocket-lint: Apple Music fullscreen album/playlist
+  pages in iOS 26.4
 - 9to5Mac: Lock Screen Music art (iOS 26); Apple Music iOS 27 artist/album
-- SDK: `tabViewBottomAccessory`, `tabBarMinimizeBehavior`, `matchedTransitionSource`,
-  `navigationTransition(.zoom)`, `MPMediaItemAnimatedArtwork`, `.glassEffect()`
+- SDK: `matchedTransitionSource`, `navigationTransition(.zoom)`,
+  `tabViewBottomAccessory`, `tabBarMinimizeBehavior`, `.glassEffect()`,
+  `MPMediaItemAnimatedArtwork`
 - Внутреннее: `.scratch/library-motion/`, `player-defects/`, `playlist-perf/13`,
   `two-tab-layout/09`, `interface/02`
 
-## 7. Границы этого документа
+## 8. Границы этого документа
 
 Не меняет канон дизайна. Не открывает implementation-тикеты автоматически —
-при старте фазы создать `.scratch/<feature>/issues/` из таблицы §4.
+при старте фазы создать `.scratch/<feature>/issues/` из таблицы §5.
+Особенно: **H не реализовывать «заодно» с Z** — разная поверхность риска.
