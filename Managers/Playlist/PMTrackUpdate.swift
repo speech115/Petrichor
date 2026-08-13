@@ -145,7 +145,7 @@ extension PlaylistManager {
         // Update current queue if the track is in it
         await MainActor.run {
             if let queueIndex = self.currentQueue.firstIndex(where: { $0.trackId == track.trackId }) {
-                self.currentQueue[queueIndex] = track
+                self.replaceCurrentQueueEntry(at: queueIndex, with: track)
             }
         }
 

@@ -44,6 +44,7 @@ struct DiscoverTabView: View {
                         libraryManager: libraryManager,
                         playbackManager: playbackManager
                     )
+                    .equatable()
                 }
             )
             .rootTitle(String(localized: "Discover"))
@@ -51,7 +52,7 @@ struct DiscoverTabView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        libraryManager.refreshDiscoverTracks()
+                        libraryManager.refreshDiscoverTracks(populateArtwork: false)
                     } label: {
                         Image(systemName: Icons.arrowClockwise)
                     }

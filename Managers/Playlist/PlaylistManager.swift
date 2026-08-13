@@ -153,6 +153,34 @@ class PlaylistManager: ObservableObject {
     // MARK: - Dependencies
     internal weak var audioPlayer: PlaybackManager?
 
+    // MARK: - Queue writes
+    //
+    // `currentQueue` must stay artwork-free: assigning thousands of `Data`
+    // blobs into the `@Published` array stalls the main actor. Every full
+    // replace and single-entry update goes through these helpers.
+
+    /// Sole full-queue writer. Strips artwork payloads before publishing.
+    internal func replaceCurrentQueue(_ tracks: [Track], index: Int? = nil) {
+        currentQueue = tracks.map { $0.withoutArtwork() }
+        if let index {
+            currentQueueIndex = index
+        }
+    }
+
+    /// Single-entry update that keeps the queue payload-light.
+    internal func replaceCurrentQueueEntry(at index: Int, with track: Track) {
+        guard currentQueue.indices.contains(index) else { return }
+        currentQueue[index] = track.withoutArtwork()
+    }
+
+    internal func insertCurrentQueueEntry(_ track: Track, at index: Int) {
+        currentQueue.insert(track.withoutArtwork(), at: index)
+    }
+
+    internal func appendCurrentQueueEntry(_ track: Track) {
+        currentQueue.append(track.withoutArtwork())
+    }
+
     // MARK: - Initialization
     init() {
         // Don't load playlists yet - wait until libraryManager is set

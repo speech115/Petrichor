@@ -28,12 +28,32 @@ extension DatabaseManager {
         }
     }
 
-    /// Populate track album artwork thumbnails for list rows. Lists read the
-    /// small `artwork_thumbnail` column instead of the display-size BLOB; rows
-    /// without a thumbnail fall back to the targeted per-row fetch in the UI.
+    /// Populate album artwork thumbnails for list rows.
+    ///
+    /// Artwork preload policy:
+    /// - scroll lists (Songs / search / artist / album): do not call this;
+    ///   visible `ArtworkTile` loaders fetch one row at a time;
+    /// - mosaic headers (Discover / playlists): pass `limit` as the number of
+    ///   covers needed — albums are scanned in track order until that many
+    ///   thumbnails are assigned (not a hard `prefix(limit)` of tracks);
+    /// - macOS Folders: uses full `albumArtworkData` via `getTracksForFolder`.
     func populateAlbumArtworkThumbnailsForTracks(_ tracks: inout [Track], limit: Int? = nil) {
-        let candidates = limit.map { tracks.prefix($0) } ?? tracks.prefix(tracks.count)
-        let albumIds = candidates.compactMap { $0.albumId }.removingDuplicates()
+        let albumIds: [Int64]
+        if let limit {
+            // Headroom past `limit` so albums missing thumbnails do not leave
+            // the mosaic empty when early tracks lack art.
+            var seen = Set<Int64>()
+            var candidates: [Int64] = []
+            let headroom = max(limit * 4, limit)
+            for track in tracks {
+                guard candidates.count < headroom else { break }
+                guard let albumId = track.albumId, seen.insert(albumId).inserted else { continue }
+                candidates.append(albumId)
+            }
+            albumIds = candidates
+        } else {
+            albumIds = tracks.compactMap(\.albumId).removingDuplicates()
+        }
         guard !albumIds.isEmpty else { return }
 
         do {
@@ -51,10 +71,22 @@ extension DatabaseManager {
                     }
                 }
 
-                for i in 0..<tracks.count {
-                    if let albumId = tracks[i].albumId,
-                       let thumbnail = thumbnailMap[albumId] {
-                        tracks[i].albumArtworkThumbnail = thumbnail
+                if let limit {
+                    var filled = 0
+                    for i in tracks.indices {
+                        guard filled < limit else { break }
+                        if let albumId = tracks[i].albumId,
+                           let thumbnail = thumbnailMap[albumId] {
+                            tracks[i].albumArtworkThumbnail = thumbnail
+                            filled += 1
+                        }
+                    }
+                } else {
+                    for i in tracks.indices {
+                        if let albumId = tracks[i].albumId,
+                           let thumbnail = thumbnailMap[albumId] {
+                            tracks[i].albumArtworkThumbnail = thumbnail
+                        }
                     }
                 }
             }
@@ -89,17 +121,18 @@ extension DatabaseManager {
         }
     }
 
-    /// One album image for a visible card. Prefer the thumbnail and touch the
-    /// full BLOB only while the background thumbnail migration is incomplete.
+    /// One album image for a visible card. Lists read the thumbnail column
+    /// only. Callers that still need a cover while thumbnails are migrating
+    /// fall back through `getArtworkData(albumId:trackId:)` in
+    /// `ArtworkDataLoader.trackListArtwork`, not here.
     func getAlbumArtworkThumbnail(albumId: Int64) -> Data? {
         do {
             return try dbQueue.read { db in
-                let row = try Row.fetchOne(
+                try Row.fetchOne(
                     db,
-                    sql: "SELECT artwork_thumbnail, artwork_data FROM albums WHERE id = ?",
+                    sql: "SELECT artwork_thumbnail FROM albums WHERE id = ?",
                     arguments: [albumId]
-                )
-                return (row?["artwork_thumbnail"] as Data?) ?? (row?["artwork_data"] as Data?)
+                )?["artwork_thumbnail"] as Data?
             }
         } catch {
             Logger.error("Failed to fetch album thumbnail: \(error)")
@@ -184,8 +217,8 @@ extension DatabaseManager {
                     tracks.append(contentsOf: additionalTracks)
                 }
                 
-                // List contexts pass `false` and fill thumbnails themselves
-                // (populateAlbumArtworkThumbnailsForTracks).
+                // List contexts pass `false`; visible rows fetch thumbnails
+                // via ArtworkTile loaders.
                 if populateArtwork {
                     try populateAlbumArtworkForTracks(&tracks, db: db)
                 }
@@ -485,8 +518,8 @@ extension DatabaseManager {
                 // Order results
                 tracks = tracks.sorted { $0.title < $1.title }
                 
-                // Populate album artwork. List contexts pass `false` and fill
-                // thumbnails themselves (populateAlbumArtworkThumbnailsForTracks).
+                // Populate album artwork. List contexts pass `false`; visible
+                // rows fetch thumbnails via ArtworkTile loaders.
                 if populateArtwork {
                     try populateAlbumArtworkForTracks(&tracks, db: db)
                 }
@@ -571,8 +604,8 @@ extension DatabaseManager {
                     .fetchAll(db)
             }
             
-            // List contexts pass `false` and fill thumbnails themselves
-            // (populateAlbumArtworkThumbnailsForTracks).
+            // List contexts pass `false`; visible rows fetch thumbnails
+            // via ArtworkTile loaders.
             if populateArtwork {
                 populateAlbumArtworkForTracks(&tracks)
             }
@@ -612,8 +645,8 @@ extension DatabaseManager {
                 }
             }
             
-            // List contexts pass `false` and fill thumbnails themselves
-            // (populateAlbumArtworkThumbnailsForTracks).
+            // List contexts pass `false`; visible rows fetch thumbnails
+            // via ArtworkTile loaders.
             if populateArtwork {
                 populateAlbumArtworkForTracks(&tracks)
             }
@@ -750,9 +783,8 @@ extension DatabaseManager {
                     .fetchAll(db)
             }
 
-            // List contexts pass `false` and fill thumbnails themselves
-            // (populateAlbumArtworkThumbnailsForTracks); the All Tracks list
-            // must not pull every display-size BLOB of the library at once.
+            // List contexts pass `false`; visible rows fetch thumbnails via
+            // ArtworkTile loaders. Must not pull every display-size BLOB at once.
             if populateArtwork {
                 populateAlbumArtworkForTracks(&tracks)
             }
@@ -793,9 +825,10 @@ extension DatabaseManager {
                     .order(Track.Columns.title)
                     .fetchAll(db)
             }
-            
+
+            // macOS Folders table reads `albumArtworkData`; iOS has no Folders tab.
             populateAlbumArtworkForTracks(&tracks)
-            
+
             return tracks
         } catch {
             Logger.error("Failed to fetch tracks for folder: \(error)")

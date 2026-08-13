@@ -11,9 +11,10 @@ extension LibraryManager {
     // MARK: - List Read Wrappers
     //
     // The seam between views and the database: screens phrase their need
-    // ("album tracks with thumbnails") in these wrappers and never name
-    // DatabaseManager. Every list wrapper returns rows already carrying the
-    // album thumbnail — the display-size BLOB pass stays inside the database.
+    // ("all tracks", "album tracks") in these wrappers and never name
+    // DatabaseManager. List rows arrive without artwork payloads — visible
+    // `ArtworkTile` loaders fetch thumbnails as they appear. The display-size
+    // BLOB pass stays inside the database for detail/playback only.
 
     func getTracksInFolder(_ folder: Folder) -> [Track] {
         guard let folderId = folder.id else {
@@ -21,26 +22,24 @@ extension LibraryManager {
             return []
         }
 
-        var tracks = databaseManager.getTracksForFolder(folderId)
-        databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-        return tracks
+        // macOS Folders view; carries full artwork for the track table.
+        return databaseManager.getTracksForFolder(folderId)
     }
 
     nonisolated func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
-        var tracks: [Track]
         if filterType.usesMultiArtistParsing && value != filterType.unknownPlaceholder {
-            tracks = databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
-        } else {
-            tracks = databaseManager.getTracksByFilterType(filterType, value: value, albumId: albumId, populateArtwork: false)
+            return databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
         }
-        databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-        return tracks
+        return databaseManager.getTracksByFilterType(
+            filterType,
+            value: value,
+            albumId: albumId,
+            populateArtwork: false
+        )
     }
 
     nonisolated func getAllTracks() -> [Track] {
-        var tracks = databaseManager.getAllTracks(populateArtwork: false)
-        databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-        return tracks
+        databaseManager.getAllTracks(populateArtwork: false)
     }
 
     /// Tracks for Home / iOS Songs: «Все треки» export when present, else full library.
@@ -57,16 +56,12 @@ extension LibraryManager {
     /// detach this off the main actor to avoid blocking on a large query don't need
     /// to hop back just to make the call.
     nonisolated func getTracksForArtist(_ name: String) -> [Track] {
-        var tracks = databaseManager.getTracksForArtistEntity(name, populateArtwork: false)
-        databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-        return tracks
+        databaseManager.getTracksForArtistEntity(name, populateArtwork: false)
     }
 
     /// `nonisolated`: see `getTracksForArtist` above.
     nonisolated func getTracksForAlbum(_ album: AlbumEntity) -> [Track] {
-        var tracks = databaseManager.getTracksForAlbumEntity(album, populateArtwork: false)
-        databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-        return tracks
+        databaseManager.getTracksForAlbumEntity(album, populateArtwork: false)
     }
 
     /// `nonisolated`: see `getTracksForArtist` above.
@@ -184,8 +179,8 @@ extension LibraryManager {
     }
 
     /// Runs a search off the main thread and publishes the results. Matches
-    /// carry album thumbnails only — list rows never read the display-size
-    /// BLOB. The query is not routed through `globalSearchText` so the didSet
+    /// arrive without artwork — visible rows fetch thumbnails themselves.
+    /// The query is not routed through `globalSearchText` so the didSet
     /// path never double-runs the search. `@MainActor` keeps the published
     /// assignment on the main thread — the method is non-isolated otherwise
     /// and would resume off-main after the `await`. A stale result is
@@ -201,9 +196,7 @@ extension LibraryManager {
 
         let databaseManager = databaseManager
         let results = await Task.detached(priority: .userInitiated) {
-            var tracks = LibrarySearch.searchTracks([], with: trimmed, populateArtwork: false, databaseManager: databaseManager)
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-            return tracks
+            LibrarySearch.searchTracks([], with: trimmed, populateArtwork: false, databaseManager: databaseManager)
         }.value
 
         guard !Task.isCancelled else { return }

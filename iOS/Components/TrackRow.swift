@@ -9,12 +9,10 @@
 // confirmation haptic at gesture completion), long-press for the full
 // context menu. VoiceOver exposes the same two actions as custom actions.
 //
-// Artwork is normally carried by the track: every list wrapper in
-// LibraryManager fills `albumArtworkThumbnail` before rows are handed to the
-// screen. The one case it cannot cover is a cover that hangs off the track
-// instead of an album — 404 of them in a 2919-track library, full size, so
-// loading them with every list would cost ~29 MB of blobs no list shows at
-// once. Those rows fetch their own, one row at a time, as they appear.
+// Artwork is not preloaded into list track arrays: a Songs-sized library
+// would carry megabytes of thumbnails before the first row paints. Visible
+// rows fetch album thumbnails (and the rare track-only cover) through
+// `ArtworkTile`'s loader as they appear.
 //
 
 import SwiftUI
@@ -131,23 +129,18 @@ struct TrackRow: View {
     // MARK: - Artwork
 
     private var artworkCacheKey: String? {
-        if let albumId = track.albumId { return "album-\(albumId)" }
-        return track.trackId.map { "track-\($0)" }
+        ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId)
     }
 
-    /// Only for rows the album could not supply: everything else already has
-    /// its thumbnail and must not touch the database.
+    /// Visible rows without an in-memory thumbnail fetch it here.
     private var trackArtworkLoader: ArtworkDataLoader? {
-        guard track.displayArtwork == nil, let trackId = track.trackId else { return nil }
-        let database = libraryManager.databaseManager
-        let albumId = track.albumId
-        return ArtworkDataLoader {
-            if let albumId,
-               let thumbnail = database.getAlbumArtworkThumbnail(albumId: albumId) {
-                return thumbnail
-            }
-            return database.getArtworkData(albumId: nil, trackId: trackId)
-        }
+        guard let trackId = track.trackId else { return nil }
+        return ArtworkDataLoader.trackListArtwork(
+            database: libraryManager.databaseManager,
+            albumId: track.albumId,
+            trackId: trackId,
+            hasDisplayArtwork: track.displayArtwork != nil
+        )
     }
 
     private var artworkView: some View {

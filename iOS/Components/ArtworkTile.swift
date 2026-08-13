@@ -32,6 +32,30 @@ struct ArtworkDataLoader: @unchecked Sendable {
     func callAsFunction() -> Data? {
         load()
     }
+
+    /// Stable cache key shared by list rows and Search's top result.
+    static func cacheKey(albumId: Int64?, trackId: Int64?) -> String? {
+        if let albumId { return "album-\(albumId)" }
+        return trackId.map { "track-\($0)" }
+    }
+
+    /// Lazy list artwork: album thumbnail first; if that column is still empty
+    /// (migration incomplete), fall back to album then track display-size art.
+    static func trackListArtwork(
+        database: DatabaseManager,
+        albumId: Int64?,
+        trackId: Int64,
+        hasDisplayArtwork: Bool
+    ) -> ArtworkDataLoader? {
+        guard !hasDisplayArtwork else { return nil }
+        return ArtworkDataLoader {
+            if let albumId,
+               let thumbnail = database.getAlbumArtworkThumbnail(albumId: albumId) {
+                return thumbnail
+            }
+            return database.getArtworkData(albumId: albumId, trackId: trackId)
+        }
+    }
 }
 
 struct ArtworkTile: View {

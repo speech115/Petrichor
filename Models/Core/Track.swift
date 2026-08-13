@@ -55,9 +55,9 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     
     // Transient properties for album artwork (populated separately)
     var albumArtworkData: Data?
-    /// Small display thumbnail of the album artwork. List queries populate this
-    /// instead of the full-size BLOB; detail screens and playback use the full
-    /// artwork (see `populateAlbumArtworkThumbnailsForTracks`).
+    /// Small display thumbnail of the album artwork. Playlist/Discover headers
+    /// may preload a few; list rows otherwise fetch via `ArtworkTile` loaders.
+    /// Detail screens and playback use the full artwork.
     var albumArtworkThumbnail: Data?
 
     var filename: String {
@@ -264,9 +264,9 @@ extension Track {
         albumArtworkData
     }
 
-    /// The artwork a list row should render: the album thumbnail when the
-    /// list query populated it, the full-size artwork otherwise (detail
-    /// contexts carry full artwork only).
+    /// The artwork a list row should render when already attached to the
+    /// track. Scroll lists usually arrive without either field and load via
+    /// `ArtworkTile`; mosaic headers may preload a few thumbnails.
     var displayArtwork: Data? {
         albumArtworkThumbnail ?? albumArtworkData
     }
@@ -284,6 +284,16 @@ extension Track {
         var copy = self
         copy.isFavorite = isFavorite
         copy.dateFavorited = isFavorite ? Date() : nil
+        return copy
+    }
+
+    /// Queue and list-context copies must not carry artwork payloads: assigning
+    /// thousands of `Data` blobs into `@Published currentQueue` stalls the main
+    /// actor. Now Playing and detail screens load artwork on demand.
+    func withoutArtwork() -> Track {
+        var copy = self
+        copy.albumArtworkData = nil
+        copy.albumArtworkThumbnail = nil
         return copy
     }
 }

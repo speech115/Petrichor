@@ -9,7 +9,7 @@ import Foundation
 extension PlaylistManager {
     func createLibraryQueue() {
         guard let library = libraryManager else { return }
-        currentQueue = library.tracks
+        replaceCurrentQueue(library.tracks)
         currentPlaylist = nil
         currentQueueSource = .library
         Logger.info("Created playback queue from library")
@@ -31,8 +31,7 @@ extension PlaylistManager {
 
     func playNext(_ track: Track) {
         if currentQueue.isEmpty || currentQueueIndex < 0 {
-            currentQueue = [track]
-            currentQueueIndex = 0
+            replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
@@ -53,22 +52,23 @@ extension PlaylistManager {
 
         // Read after the dedupe removal, which can shift the cursor down by one.
         let position = min(currentQueueIndex + 1, currentQueue.count)
-        currentQueue.insert(track, at: position)
-        audioPlayer?.queueDidInsert(track, at: position)
+        let lightTrack = track.withoutArtwork()
+        insertCurrentQueueEntry(track, at: position)
+        audioPlayer?.queueDidInsert(lightTrack, at: position)
         Logger.info("Added track to playback queue to play up next")
     }
 
     func addToQueue(_ track: Track) {
         if currentQueue.isEmpty {
-            currentQueue = [track]
-            currentQueueIndex = 0
+            replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
 
         if !currentQueue.contains(where: { $0.id == track.id }) {
-            currentQueue.append(track)
-            audioPlayer?.queueDidAppend(track)
+            let lightTrack = track.withoutArtwork()
+            appendCurrentQueueEntry(track)
+            audioPlayer?.queueDidAppend(lightTrack)
             Logger.info("Added track to playback queue")
         }
     }
@@ -143,10 +143,7 @@ extension PlaylistManager {
         }
 
         guard let reordered = audioPlayer.shuffleUpcomingQueueEntries() else { return }
-        currentQueue = reordered
-        if let position = audioPlayer.mirroredQueuePosition {
-            currentQueueIndex = position
-        }
+        replaceCurrentQueue(reordered, index: audioPlayer.mirroredQueuePosition)
         Logger.info("Shuffled the upcoming playback queue")
     }
 }

@@ -59,18 +59,19 @@ extension LibraryManager {
             }
         }
 
-        // Home carousel rows read thumbnails only: fill them here, in the
-        // manager, when the full-size pass was skipped.
+        // iOS mosaic: seed up to four covers from anywhere in the rotation.
+        // macOS Discover passes populateArtwork: true and skips this path.
         if !populateArtwork {
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)
         }
         
         self.discoverTracks = tracks
         Logger.info("Discover tracks loaded")
     }
     
-    /// Force refresh discover tracks (called when settings change)
-    func refreshDiscoverTracks() {
+    /// Force refresh discover tracks (called when settings change).
+    /// Default keeps macOS Discover table artwork; iOS passes `false`.
+    func refreshDiscoverTracks(populateArtwork: Bool = true) {
         Logger.info("Force refreshing discover tracks")
         
         // Clear the last updated date to force refresh
@@ -79,8 +80,7 @@ extension LibraryManager {
         // Clear current tracks to force UI update
         self.discoverTracks = []
         
-        // Reload tracks immediately
-        loadDiscoverTracks()
+        loadDiscoverTracks(populateArtwork: populateArtwork)
         
         // Force UI update by triggering objectWillChange
         DispatchQueue.main.async { [weak self] in

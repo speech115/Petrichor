@@ -123,6 +123,7 @@ struct SearchView: View {
                             libraryManager: libraryManager,
                             playbackManager: playbackManager
                         )
+                        .equatable()
                     }
                 }
             }
@@ -196,9 +197,17 @@ struct SearchView: View {
     private func topResultArtwork(_ track: Track) -> some View {
         ArtworkTile(
             data: track.displayArtwork,
-            cacheKey: track.albumId.map(String.init),
+            cacheKey: ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId),
             cornerRadius: 8,
-            iconSize: 20
+            iconSize: 20,
+            loader: track.trackId.flatMap { trackId in
+                ArtworkDataLoader.trackListArtwork(
+                    database: libraryManager.databaseManager,
+                    albumId: track.albumId,
+                    trackId: trackId,
+                    hasDisplayArtwork: track.displayArtwork != nil
+                )
+            }
         )
             .frame(width: 56, height: 56)
     }

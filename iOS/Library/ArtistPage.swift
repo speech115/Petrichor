@@ -56,6 +56,7 @@ struct ArtistPage: View {
                             libraryManager: libraryManager,
                             playbackManager: playbackManager
                         )
+                        .equatable()
                     }
                 }
             }

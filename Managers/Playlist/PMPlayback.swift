@@ -95,8 +95,7 @@ extension PlaylistManager {
     /// rest follow in random order.
     private func beginPlayback(of track: Track, in contextTracks: [Track]) {
         guard let index = contextTracks.firstIndex(where: { $0.id == track.id }) else {
-            currentQueue = [track]
-            currentQueueIndex = 0
+            replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
@@ -105,11 +104,9 @@ extension PlaylistManager {
             var rest = contextTracks
             rest.remove(at: index)
             rest.shuffle()
-            currentQueue = [track] + rest
-            currentQueueIndex = 0
+            replaceCurrentQueue([track] + rest, index: 0)
         } else {
-            currentQueue = contextTracks
-            currentQueueIndex = index
+            replaceCurrentQueue(contextTracks, index: index)
         }
 
         audioPlayer?.startQueue(at: currentQueueIndex)
