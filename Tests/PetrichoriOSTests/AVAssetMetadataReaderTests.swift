@@ -19,6 +19,11 @@ import Testing
 /// must not be papered over with retries, `XCTSkip`, or loosened assertions
 /// — a seam test that passes by luck is worse than no test. Reproductions go
 /// in the ticket 8 report, not into weaker assertions.
+///
+/// No local timeout wrapper: `AVAsset.load` does not abandon on task
+/// cancellation, so a `TaskGroup` deadline cannot unbound a hung load. A
+/// hang surfaces as the suite/CI timeout; that is honest, not a silent stall
+/// behind a helper that claims to fail cleanly.
 struct AVAssetMetadataReaderTests {
     private let reader = AVAssetMetadataReader()
 
@@ -45,9 +50,7 @@ struct AVAssetMetadataReaderTests {
         )
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
-            await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
-        }
+        let metadata = await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
 
         #expect(metadata.title == "Above Your Hand")
         #expect(metadata.artist == "Annabel")
@@ -73,9 +76,7 @@ struct AVAssetMetadataReaderTests {
         let url = try makeSilentMP3() // no artist/title/album -> no ID3 header written at all
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
-            await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
-        }
+        let metadata = await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
 
         // Filename fallback: `makeSilentMP3` names the file after a random
         // UUID with no " - " separator, so `FilenameMetadataFallback` leaves
@@ -110,9 +111,7 @@ struct AVAssetMetadataReaderTests {
         let url = try makeCorruptMP3()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
-            await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
-        }
+        let metadata = await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
 
         // No crash reaching this line is itself the primary assertion. The
         // file is unparseable, so every tag field is empty and duration
@@ -148,9 +147,7 @@ struct AVAssetMetadataReaderTests {
         )
         defer { try? FileManager.default.removeItem(at: url) }
 
-        let metadata = try await SeamTimeout.withTimeout(seconds: 15) {
-            await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
-        }
+        let metadata = await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
 
         #expect(metadata.albumArtist == "Raw Key Album Artist")
         #expect(metadata.composer == "Raw Key Composer")
@@ -158,36 +155,29 @@ struct AVAssetMetadataReaderTests {
     }
 }
 
-// MARK: - Timeout helper
+// MARK: - Corrupt fixture (test-only)
 
-/// Seam tests here talk to the simulator's real media service through
-/// `AVAsset.load`, which the project has already observed to intermittently
-/// hang or fail under parallel test load (`TestFixtures.swift`). A hang
-/// should show up as a clear timeout failure, not as the whole test run
-/// stalling until the outer CI timeout kills it with no diagnostic.
-/// Namespaced in an enum so the generic-sounding names don't sit in the test
-/// target's global scope where they could collide with another file's helper.
-enum SeamTimeout {
-    struct Error: Swift.Error, CustomStringConvertible {
-        let seconds: Double
-        var description: String { "Timed out after \(seconds)s waiting on AVAssetMetadataReader" }
-    }
+/// Writes a `.mp3` that starts with a plausible ID3v2.3 header (correct
+/// magic and version) but a syncsafe size field claiming far more tag data
+/// than the file actually has, followed by garbage bytes instead of a real
+/// frame or any MPEG audio. Lives in the test target: UI seeding never needs it.
+private func makeCorruptMP3() throws -> URL {
+    var data = Data()
+    data.append(contentsOf: Array("ID3".utf8))
+    data.append(contentsOf: [3, 0, 0]) // version 2.3, no flags
+    let claimedSize = 1 << 16
+    data.append(UInt8((claimedSize >> 21) & 0x7F))
+    data.append(UInt8((claimedSize >> 14) & 0x7F))
+    data.append(UInt8((claimedSize >> 7) & 0x7F))
+    data.append(UInt8(claimedSize & 0x7F))
+    data.append(contentsOf: Array("XXXX".utf8))
+    data.append(contentsOf: [0xFF, 0xFF, 0xFF, 0xFF])
+    data.append(Data(repeating: 0xAA, count: 32))
 
-    static func withTimeout<T: Sendable>(
-        seconds: Double,
-        operation: @escaping @Sendable () async -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { await operation() }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                throw Error(seconds: seconds)
-            }
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
-        }
-    }
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("\(UUID().uuidString).mp3")
+    try data.write(to: url)
+    return url
 }
 
 // MARK: - Test artwork

@@ -115,36 +115,6 @@ func makeSilentMP3(
     return url
 }
 
-/// Writes a `.mp3` that starts with a plausible ID3v2.3 header (correct
-/// magic and version) but a syncsafe size field claiming far more tag data
-/// than the file actually has, followed by garbage bytes instead of a real
-/// frame or any MPEG audio — the "corrupted file" scenario for
-/// `AVAssetMetadataReaderTests`: neither a clean tag (parses fine) nor an
-/// absent one (no header at all), but a header lying about its own size, the
-/// way a truncated download or an overwritten first few KB would look.
-func makeCorruptMP3() throws -> URL {
-    var data = Data()
-    data.append(contentsOf: Array("ID3".utf8))
-    data.append(contentsOf: [3, 0, 0]) // version 2.3, no flags
-    // Syncsafe size claiming 64 KB of tag data that was never written.
-    let claimedSize = 1 << 16
-    data.append(UInt8((claimedSize >> 21) & 0x7F))
-    data.append(UInt8((claimedSize >> 14) & 0x7F))
-    data.append(UInt8((claimedSize >> 7) & 0x7F))
-    data.append(UInt8(claimedSize & 0x7F))
-    // A handful of bytes that look like they could be the start of a frame
-    // (an ASCII-ish 4-byte ID) but are not, followed by nothing: the file
-    // ends well before the header's own size field says it should.
-    data.append(contentsOf: Array("XXXX".utf8))
-    data.append(contentsOf: [0xFF, 0xFF, 0xFF, 0xFF])
-    data.append(Data(repeating: 0xAA, count: 32))
-
-    let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent("\(UUID().uuidString).mp3")
-    try data.write(to: url)
-    return url
-}
-
 // MARK: - UI-test seeding
 
 /// Launch argument that makes the DEBUG app seed the smoke-test fixtures into

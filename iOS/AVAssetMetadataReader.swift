@@ -223,11 +223,14 @@ struct AVAssetMetadataReader: MetadataReader {
         }
 
         if let artworkItem = items.first(where: { $0.commonKey == .commonKeyArtwork }) {
-            // `??` is an autoclosure, so it cannot await the async load; the
-            // fallback attempt has to be its own step.
-            var data = await Self.loggedLoad(tag: "artwork.data", url: url) { try await artworkItem.load(.dataValue) }
+            // Representation fallbacks: `.dataValue` often throws on files that
+            // still carry artwork under `.value`. Intermediate misses stay
+            // silent; only the last attempt logs a real decode failure.
+            var data = await Self.tryLoad { try await artworkItem.load(.dataValue) }
             if data == nil {
-                data = await Self.loggedLoad(tag: "artwork.value", url: url) { try await artworkItem.load(.value) } as? Data
+                data = await Self.loggedLoad(tag: "artwork", url: url) {
+                    try await artworkItem.load(.value)
+                } as? Data
             }
             if let data {
                 metadata.artworkData = await MetadataMapping.compressedArtwork(
@@ -259,17 +262,30 @@ struct AVAssetMetadataReader: MetadataReader {
         }
     }
 
+    /// Like `loggedLoad`, but silent on throw — for intermediate representation
+    /// attempts in a fallback chain where a throw usually means "wrong shape,
+    /// try the next one", not a corrupt tag.
+    private static func tryLoad<Value>(
+        _ load: () async throws -> Value?
+    ) async -> Value? {
+        do {
+            return try await load()
+        } catch {
+            return nil
+        }
+    }
+
     private static func trackNumberInfo(from item: AVMetadataItem, url: URL) async -> (number: Int?, total: Int?) {
-        if let data = await loggedLoad(tag: "trackNumber.data", url: url, { try await item.load(.dataValue) }),
+        if let data = await tryLoad({ try await item.load(.dataValue) }),
            data.count >= 2 {
             let number = Int(data[0])
             let total = data.count >= 3 ? Int(data[2]) : nil
             return (number > 0 ? number : nil, total)
         }
-        if let number = await loggedLoad(tag: "trackNumber.number", url: url, { try await item.load(.numberValue) }) {
+        if let number = await tryLoad({ try await item.load(.numberValue) }) {
             return (number.intValue, nil)
         }
-        if let string = await loggedLoad(tag: "trackNumber.string", url: url, { try await item.load(.stringValue) }) {
+        if let string = await loggedLoad(tag: "trackNumber", url: url, { try await item.load(.stringValue) }) {
             let parts = string.split(separator: "/").map { Int($0.trimmingCharacters(in: .whitespaces)) }
             return (parts.first ?? nil, parts.count > 1 ? parts[1] : nil)
         }
