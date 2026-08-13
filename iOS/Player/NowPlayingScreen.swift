@@ -337,9 +337,13 @@ struct NowPlayingScreen: View {
                 Text(displayedTrack?.title ?? "")
                     .font(.title2.weight(.bold))
                     .foregroundColor(palette.foreground)
+                    // The Dynamic Type audit is scoped to these two elements:
+                    // they must stay uncapped, real text styles.
+                    .accessibilityIdentifier("NowPlayingTitle")
                 Text(displayedTrack?.displayArtist ?? "")
                     .font(.title2)
                     .foregroundColor(palette.secondary)
+                    .accessibilityIdentifier("NowPlayingArtist")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Travels with the cover but half as far — the names sit in a
@@ -385,8 +389,10 @@ struct NowPlayingScreen: View {
             .font(.system(size: min(chipIconSize, 20), weight: .semibold))
             .foregroundColor(isActive ? palette.foreground : palette.secondary)
             .contentTransition(.symbolEffect(.replace.offUp))
-            .frame(width: 30, height: 30)
-            .background(Circle().fill(palette.chip))
+            // The label is a 44pt hit target around the 30pt chip circle, so
+            // the visual stays put while the touch area clears the HIG floor.
+            .frame(width: 44, height: 44)
+            .background(Circle().fill(palette.chip).frame(width: 30, height: 30))
             .contentShape(Circle())
     }
 

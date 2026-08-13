@@ -9,12 +9,20 @@
 
 import SwiftUI
 
-/// The app's brand accent: system pink darkened until it clears the WCAG AA
-/// bar (4.5:1) against the white Form cells and list backgrounds the tinted
-/// controls sit on. System `.pink` measures ~3.6:1 there, and the
-/// accessibility gate flags every tinted control (links, enabled switches).
+/// The app's brand accent, adaptive to the color scheme. Light mode keeps
+/// the darkened system pink that clears the WCAG AA bar (4.5:1) against the
+/// white Form cells and list backgrounds — system `.pink` measures ~3.6:1
+/// there. Dark mode needs the inverse adjustment: the same pink lands at
+/// ~3.6:1 on the grouped background and ~2.9:1 on inset row cells, so it is
+/// blended 40% toward white, which keeps the hue and clears 4.5:1 on both
+/// (6.2:1 grouped, 5.1:1 rows).
 extension Color {
-    static let brandAccent = Color(red: 0.871, green: 0.122, blue: 0.302)
+    static let brandAccent = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark {
+            return UIColor(red: 0.922, green: 0.475, blue: 0.581, alpha: 1)
+        }
+        return UIColor(red: 0.871, green: 0.122, blue: 0.302, alpha: 1)
+    })
 }
 
 @main

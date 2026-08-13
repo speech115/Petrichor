@@ -3,14 +3,11 @@
 //
 // The accessibility regression gate: four screens must pass
 // `performAccessibilityAudit` — Home, the Songs list, Now Playing and
-// Settings. Two screens exclude a category: Now Playing skips contrast (the
-// surface is painted with the palette of the artwork's dominant color, so a
-// contrast gate would go red whenever a cover changes) and Dynamic Type (its
-// transport/chip glyphs are deliberately capped `@ScaledMetric` icons, not
-// growing text, sized to fixed hit targets); the Songs list skips contrast
-// because it always overflows the screen, and its last row or two sit under
-// the floating tab bar's translucent material - by design, the same way
-// Music and Podcasts let a list scroll under their tab bar.
+// Settings. One screen excludes contrast: Now Playing's surface is painted
+// with the palette of the artwork's dominant color, so a contrast gate would
+// go red whenever a cover changes. Now Playing's Dynamic Type gate is scoped
+// to its title and artist instead: the transport/chip glyphs are deliberately
+// capped `@ScaledMetric` icons, not growing text, sized to fixed hit targets.
 //
 // No baseline file: the four screens are green from day one and more screens
 // join as they get fixed. The app self-seeds its audio fixtures via
@@ -84,17 +81,11 @@ final class AccessibilityAuditUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(alphaRow.waitForExistence(timeout: 30), "список треков не загрузился")
 
-        // Contrast excluded: with 1,503 rows the list always has content
-        // reaching the bottom of the screen, and the last row or two sit
-        // under the floating tab bar - translucent by design, the same way
-        // Music and Podcasts let a list scroll under their tab bar. Confirmed
-        // by inspecting the failing elements directly (issue.element.frame
-        // landed inside the tab bar's own button frames, y 877-931 of a
-        // 956pt screen) and by a cropped screenshot of that region: real
-        // text ghosting through translucent chrome, not a color defect in
-        // the row itself. A static screenshot-based contrast check can't
-        // account for the system's live vibrancy there.
-        try app.performAccessibilityAudit(for: .all.subtracting(.contrast))
+        // The list scrolls 80pt short of the screen bottom (contentMargins),
+        // so no row ever renders under the floating tab bar's translucent
+        // material, which the screenshot-based contrast check would flag as
+        // ghosted text.
+        try app.performAccessibilityAudit()
 
         attachScreenshot(of: app, named: "AX-TrackList")
     }
@@ -122,14 +113,20 @@ final class AccessibilityAuditUITests: XCTestCase {
         XCTAssertTrue(closeButton.waitForExistence(timeout: 10), "Now Playing не открылся")
 
         // Contrast excluded: the palette comes from the artwork. Dynamic
-        // Type excluded too: the transport/chip glyphs are @ScaledMetric
-        // with a deliberate cap (a 30x30 chip circle, a 44pt transport
-        // button - fixed hit targets, not text), which the audit calls
-        // "partially unsupported" because growth plateaus past the cap.
-        // Title and artist stay fully uncapped and pass on their own; only
-        // the icon glyphs, which the fixed composition can't let grow
-        // without overflowing their slot, need this.
+        // Type is scoped instead of excluded: the title and artist are real,
+        // uncapped text styles and must stay that way, while the
+        // transport/chip glyphs are @ScaledMetric with a deliberate cap (a
+        // 30x30 chip circle, a 44pt transport button - fixed hit targets,
+        // not text), which the audit calls "partially unsupported" because
+        // growth plateaus past the cap. The issue handler forgives every
+        // dynamicType issue except one on those two elements.
         try app.performAccessibilityAudit(for: .all.subtracting([.contrast, .dynamicType]))
+        try app.performAccessibilityAudit(for: .dynamicType) { issue in
+            let identifier = issue.element?.identifier
+            let isTitleOrArtist = identifier == "NowPlayingTitle" || identifier == "NowPlayingArtist"
+            // `true` swallows the issue: only title/artist issues are fatal.
+            return !isTitleOrArtist
+        }
 
         attachScreenshot(of: app, named: "AX-NowPlaying")
     }

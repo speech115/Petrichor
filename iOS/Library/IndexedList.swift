@@ -48,8 +48,13 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     let row: (Item) -> Row
     /// The section the index bar is currently on, for VoiceOver's value and
     /// adjustable action. Touch updates it as the finger drags; the adjustable
-    /// action moves it one section at a time.
+    /// action moves it one section at a time; plain scrolling syncs it with
+    /// the section actually at the top of the list.
     @State private var indexSelection: String?
+    /// Each mounted section header reports its top edge in the list's own
+    /// coordinate space; as the list scrolls, the topmost visible section is
+    /// the one whose top has just crossed the list's top edge.
+    @State private var sectionTops: [String: CGFloat] = [:]
     /// The bar is a fixed 24pt-wide column pinned to the trailing edge, with
     /// no room to its right to grow into. A real text style is required —
     /// the audit flags a capped/raw size as "Dynamic Type font sizes are
@@ -82,11 +87,33 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                         // mode; the shared secondary text color clears 4.5:1.
                         Text(section.key)
                             .foregroundColor(.secondaryText)
+                            .background {
+                                GeometryReader { geometry in
+                                    Color.clear.preference(
+                                        key: SectionTopPreferenceKey.self,
+                                        value: [
+                                            section.key: geometry.frame(
+                                                in: .named(Self.scrollCoordinateSpace)
+                                            ).minY
+                                        ]
+                                    )
+                                }
+                            }
                     }
                     .id(section.key)
                 }
             }
             .listStyle(.plain)
+            .coordinateSpace(name: Self.scrollCoordinateSpace)
+            .onPreferenceChange(SectionTopPreferenceKey.self) { tops in
+                sectionTops = tops
+                syncIndexSelection()
+            }
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y
+            } action: { _, _ in
+                syncIndexSelection()
+            }
             .overlay(alignment: .trailing) {
                 // Hidden at accessibility Dynamic Type sizes: the bar is a
                 // fixed 24pt column with no room to grow into, and a real
@@ -177,5 +204,31 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     private func selectSection(_ key: String, in keys: [String], proxy: ScrollViewProxy) {
         indexSelection = key
         proxy.scrollTo(key, anchor: .top)
+    }
+
+    /// Mirrors the section actually at the top of the list into the index
+    /// bar's value, so VoiceOver announces the current letter after a plain
+    /// scroll, not only after an index-bar drag or an adjustable step.
+    private func syncIndexSelection() {
+        // Topmost visible = the header with the largest top edge that has
+        // already crossed the list's top edge. No header crossed it yet (the
+        // list sits at the very top, or no header is mounted): first section.
+        let topmost = sectionTops
+            .filter { $0.value <= 0 }
+            .max { $0.value < $1.value }?
+            .key
+        indexSelection = topmost ?? sections.first?.key
+    }
+
+    private static var scrollCoordinateSpace: String { "indexedList" }
+}
+
+/// Tops of mounted section headers in the list's coordinate space, keyed by
+/// section key. Lazy sections join and leave the dictionary as they mount.
+private struct SectionTopPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
