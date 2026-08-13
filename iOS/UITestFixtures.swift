@@ -17,22 +17,31 @@ import Foundation
 /// is a stream of well-formed MPEG-1 Layer III silence frames (128 kbps,
 /// 44.1 kHz); the tags carry artist/title/album so the scan's metadata path
 /// and artist/album grouping are exercised, not just the filename fallback.
+///
+/// `albumArtist`/`composer`/`genre`/`year`/`trackNumber`/`totalTracks`/`artwork`
+/// exist for `AVAssetMetadataReaderTests` (ticket 08): the reader looks these
+/// up first by a common key that ID3v2.3 has no equivalent for, then falls
+/// back to the raw frame ID (`TPE2`/`TCOM`/`TCON`), so a fixture that carries
+/// them is the only way to exercise that fallback for real.
 func makeSilentMP3(
     artist: String? = nil,
     title: String? = nil,
     album: String? = nil,
+    albumArtist: String? = nil,
+    composer: String? = nil,
+    genre: String? = nil,
+    year: String? = nil,
+    trackNumber: Int? = nil,
+    totalTracks: Int? = nil,
+    artwork: Data? = nil,
     seconds: Int = 1
 ) throws -> URL {
     var data = Data()
 
-    // ID3v2.3 header, then one frame per non-nil tag. Text is latin-1 with
-    // the 0x00 encoding byte; ASCII fixture values make that safe.
-    let tags = [
-        ("TIT2", title),
-        ("TPE1", artist),
-        ("TALB", album)
-    ].compactMap { id, value -> Data? in
-        guard let value, let bytes = value.data(using: .isoLatin1) else { return nil }
+    func textFrame(_ id: String, _ value: String) -> Data {
+        // Text is latin-1 with the 0x00 encoding byte; ASCII fixture values
+        // make that safe.
+        let bytes = value.data(using: .isoLatin1) ?? Data()
         var frame = Data()
         frame.append(contentsOf: Array(id.utf8))
         frame.append(contentsOf: withUnsafeBytes(of: UInt32(bytes.count + 1).bigEndian, Array.init))
@@ -41,6 +50,42 @@ func makeSilentMP3(
         frame.append(bytes)
         return frame
     }
+
+    func apicFrame(_ imageData: Data) -> Data {
+        // APIC: text encoding, MIME type (null-terminated), picture type,
+        // description (null-terminated), then the raw image bytes. The
+        // fixture's `imageData` doesn't need to be a real JPEG for the tag
+        // reader — only `MetadataMapping.compressedArtwork`, which the seam
+        // test does not exercise, needs valid image bytes.
+        var payload = Data([0]) // text encoding: latin-1
+        payload.append(contentsOf: Array("image/jpeg".utf8))
+        payload.append(0) // MIME type terminator
+        payload.append(3) // picture type: front cover
+        payload.append(0) // description terminator (empty description)
+        payload.append(imageData)
+
+        var frame = Data()
+        frame.append(contentsOf: Array("APIC".utf8))
+        frame.append(contentsOf: withUnsafeBytes(of: UInt32(payload.count).bigEndian, Array.init))
+        frame.append(contentsOf: [0, 0]) // flags
+        frame.append(payload)
+        return frame
+    }
+
+    var tags: [Data] = []
+    if let title { tags.append(textFrame("TIT2", title)) }
+    if let artist { tags.append(textFrame("TPE1", artist)) }
+    if let album { tags.append(textFrame("TALB", album)) }
+    if let albumArtist { tags.append(textFrame("TPE2", albumArtist)) }
+    if let composer { tags.append(textFrame("TCOM", composer)) }
+    if let genre { tags.append(textFrame("TCON", genre)) }
+    if let year { tags.append(textFrame("TYER", year)) }
+    if let trackNumber {
+        let trackValue = totalTracks.map { "\(trackNumber)/\($0)" } ?? "\(trackNumber)"
+        tags.append(textFrame("TRCK", trackValue))
+    }
+    if let artwork { tags.append(apicFrame(artwork)) }
+
     if !tags.isEmpty {
         let tagSize = tags.reduce(0) { $0 + $1.count }
         data.append(contentsOf: Array("ID3".utf8))
