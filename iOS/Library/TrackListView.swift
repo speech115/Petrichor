@@ -12,6 +12,9 @@ struct TrackListView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
+    /// Clears the floating tab bar's zone. ~80pt at the default size; scales
+    /// with Dynamic Type so AX5 rows still stop above the bar.
+    @ScaledMetric(relativeTo: .body) private var tabBarScrollClearance: CGFloat = 80
 
     let filterItem: LibraryFilterItem?
 
@@ -49,11 +52,8 @@ struct TrackListView: View {
             }
         )
         // The floating tab bar overlays the list's last rows (its translucent
-        // material ghosts the text behind it and fails the contrast audit), so
-        // scroll content stops 80pt short of the screen bottom — the zone the
-        // bar occupies (measured: bar top at 79pt from the bottom) — and the
-        // last rows scroll clear of it.
-        .contentMargins(.bottom, 80, for: .scrollContent)
+        // material ghosts the text behind it and fails the contrast audit).
+        .contentMargins(.bottom, tabBarScrollClearance, for: .scrollContent)
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.large)
     }

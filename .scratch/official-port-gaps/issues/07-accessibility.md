@@ -100,5 +100,11 @@ Blocked by: 01
   - Shuffle/repeat hit-target 44×44.
   - IndexedList на AX-размерах: буквенный столбец скрыт (как Contacts/Music), но
     VoiceOver Index (label/value/adjustable) остаётся — jump-by-letter на AX5 жив.
-  - AX5-скриншоты Home/Tracks/Settings и VoiceOver на устройстве — ещё нужно
-    приложить сюда (симулятор/petrichor-device); код-гейты зелёные в CI.
+  - TrackListView `contentMargins` — `@ScaledMetric` от 80pt, иначе на AX5
+    последняя строка снова заезжала под таббар.
+  - AX5-скриншоты (симулятор, `accessibility-extra-extra-extra-large`):
+    `.scratch/official-port-gaps/ax5-screenshots/{ax5-home,ax5-tracks,ax5-settings}.png`.
+    Три аудита зелёные при этом размере. Обрезки нет; на Home «Top 25 Most Played»
+    переносится на две строки — ожидаемо при AX5.
+  - VoiceOver на устройстве (`petrichor-device`) — ещё вручную: строка трека одной
+    фразой, транспорт и скрубер.

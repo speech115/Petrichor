@@ -84,11 +84,10 @@ final class AccessibilityAuditUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(alphaRow.waitForExistence(timeout: 30), "список треков не загрузился")
 
-        // The list scrolls 80pt short of the screen bottom (contentMargins,
-        // the zone the floating tab bar occupies - measured bar top at 79pt
-        // from the bottom), so no row ever renders under the bar's translucent
-        // material, which the screenshot-based contrast check would flag as
-        // ghosted text.
+        // The list scrolls clear of the floating tab bar via a ScaledMetric
+        // contentMargins (80pt at the default size, growing with Dynamic Type),
+        // so no row ever renders under the bar's translucent material, which
+        // the screenshot-based contrast check would flag as ghosted text.
         //
         // Contrast stays excluded for this screen, but for a new reason: the
         // screenshot-based contrast pass over the whole app did not finish
