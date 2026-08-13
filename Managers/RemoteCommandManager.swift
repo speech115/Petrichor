@@ -6,10 +6,12 @@
 // is published by the engine - see `PlaybackEngine.setNowPlayingMetadata`.
 //
 // Concurrency: MPRemoteCommandCenter invokes target handlers on the main
-// thread by contract, and the returned status drives the enabled state of the
-// Control Center buttons, so a no-op command (already playing, already
-// paused) must return `.commandFailed` synchronously. `MainActor.assumeIsolated`
-// turns the documented main-thread guarantee into a checked one.
+// thread (the canonical `MPRemoteCommand.addTarget(handler:)` sample reads
+// player state and calls play() directly in the handler), and the returned
+// status drives the enabled state of the Control Center buttons, so a no-op
+// command (already playing, already paused) must return `.commandFailed`
+// synchronously. `MainActor.assumeIsolated` turns that guarantee into a
+// checked one.
 //
 
 import Foundation

@@ -573,7 +573,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// same two delegate calls `CrescendoPlaybackBackend` uses for this on
     /// macOS: `backendUnexpectedError` for the error itself, then
     /// `backendDidSkipQueueEntry` for the entry that got dropped.
-    private func handleItemFailure(key: ObjectIdentifier, notificationError: NSError? = nil) {
+    private func handleItemFailure(key: ObjectIdentifier, notificationError: NSError?) {
         guard let item = itemObjectMap[key] else { return }
         guard !failedItemKeys.contains(key) else { return }
         failedItemKeys.insert(key)

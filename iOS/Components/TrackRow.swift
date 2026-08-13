@@ -166,7 +166,7 @@ extension TrackRow: Equatable {
     // diffing (that's the whole point of conforming a `View` to `Equatable`),
     // so `nonisolated` plus `assumeIsolated` turns that real guarantee into a
     // checked one instead of leaving the conformance unimplementable. The
-    // contract behind it (SE-0461): `TrackRow` only ever lives on the main
+    // contract behind it (SE-0470, SE-0392): `TrackRow` only ever lives on the main
     // thread, so a call to `==` from anywhere else is a programmer error and
     // traps at runtime.
     nonisolated static func == (lhs: TrackRow, rhs: TrackRow) -> Bool {
