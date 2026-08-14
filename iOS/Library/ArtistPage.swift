@@ -42,7 +42,7 @@ struct ArtistPage: View {
                     ForEach(albums) { album in
                         NavigationLink(value: LibraryDestination.album(album)) {
                             albumRow(album)
-                                .detailZoomSource(.album(album.id), in: zoomNamespace)
+                                .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 6)
                         }
                     }
                 }

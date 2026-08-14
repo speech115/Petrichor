@@ -209,16 +209,6 @@ enum AnimationDuration {
     static let standardDuration: TimeInterval = 0.15
     static let mediumDuration: TimeInterval = 0.2
     static let immersiveTransition: TimeInterval = 0.25
-
-    /// Long enough to clear the system zoom transition, so work deferred past
-    /// the open/close animation (the Now Playing mount flag, fine scrubber
-    /// sampling) never fights `matchedTransitionSource` on the main thread.
-    /// The measured zoom is ~480ms, so this sits a comfortable margin past it.
-    static let zoomTransitionSettle: TimeInterval = 0.6
-
-    /// Defer for detail-header dominant-color extraction so it doesn't compete
-    /// with the open transition.
-    static let headerTintDefer: TimeInterval = 0.32
 }
 
 // MARK: - Delay Durations
@@ -227,6 +217,16 @@ enum TimeConstants {
     static let fiftyMilliseconds: UInt64 = 50_000_000
     static let oneHundredMilliseconds: UInt64 = 100_000_000
     static let searchDebounceDuration: UInt64 = 350_000_000
+
+    /// Long enough to clear the system zoom transition, so work deferred past
+    /// the open animation (fine scrubber sampling) never fights
+    /// `matchedTransitionSource` on the main thread. The measured zoom is
+    /// ~480ms, so this sits a comfortable margin past it.
+    static let zoomTransitionSettle: TimeInterval = 0.6
+
+    /// Defer for detail-header dominant-color extraction so it doesn't compete
+    /// with the open transition.
+    static let headerTintDefer: TimeInterval = 0.32
 }
 
 // MARK: - Default Playlists

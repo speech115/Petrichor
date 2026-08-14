@@ -12,38 +12,30 @@ import SwiftUI
 struct SectionHeaderLink<Value: Hashable>: View {
     let title: String
     let value: Value
-    var zoomID: DetailZoomID?
-    var zoomNamespace: Namespace.ID?
+    /// The single caller always zooms the header into its playlist detail, so
+    /// these are non-optional: the source/id pair can't be half-set.
+    let zoomID: DetailZoomID
+    let zoomNamespace: Namespace.ID
 
     var body: some View {
         NavigationLink(value: value) {
-            label
+            HStack(spacing: 4) {
+                Text(title)
+                    .font(.title2.weight(.bold))
+                // Decoration: the link's label is the section title alone.
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
+            // Zoom source lives on the label, not the link: on the link itself
+            // matchedTransitionSource swallows the tap and the header stops
+            // navigating. Zero radius — a text header has no cover to round.
+            .detailZoomSource(zoomID, in: zoomNamespace, cornerRadius: 0)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-    }
-
-    @ViewBuilder
-    private var label: some View {
-        let base = HStack(spacing: 4) {
-            Text(title)
-                .font(.title2.weight(.bold))
-            // Decoration: the link's label is the section title alone.
-            Image(systemName: "chevron.right")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.secondary)
-                .accessibilityHidden(true)
-        }
-        .contentShape(Rectangle())
-
-        // Zoom source lives on the label, not the link: on the link itself
-        // matchedTransitionSource swallows the tap and the header stops
-        // navigating.
-        if let zoomID, let zoomNamespace {
-            base.detailZoomSource(zoomID, in: zoomNamespace, cornerRadius: 0)
-        } else {
-            base
-        }
     }
 }
 

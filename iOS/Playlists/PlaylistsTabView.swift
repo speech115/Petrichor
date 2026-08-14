@@ -70,14 +70,19 @@ struct PlaylistsTabView: View {
             }
             .listStyle(.insetGrouped)
             .rootTitle(String(localized: "Playlists"))
-            .navigationDestination(for: UUID.self) { playlistID in
-                PlaylistDetailScreen(
-                    playlistID: playlistID,
-                    playlistManager: playlistManager,
-                    playbackManager: playbackManager,
-                    playlistCatalog: playlistCatalog
-                )
-                .detailZoomDestination(.playlist(playlistID), in: zoomNamespace)
+            .navigationDestination(for: LibraryDestination.self) { destination in
+                switch destination {
+                case .playlist(let playlistID):
+                    PlaylistDetailScreen(
+                        playlistID: playlistID,
+                        playlistManager: playlistManager,
+                        playbackManager: playbackManager,
+                        playlistCatalog: playlistCatalog
+                    )
+                    .detailZoomDestination(.playlist(playlistID), in: zoomNamespace)
+                case .category, .tracks, .allTracks, .artist, .album:
+                    EmptyView()
+                }
             }
             // The top-left is the title's, as it is in every other tab, so
             // creating and importing share one menu on the right beside the
@@ -184,12 +189,12 @@ struct PlaylistsTabView: View {
 
     private func playlistRows(_ playlists: [Playlist]) -> some View {
         ForEach(playlists) { playlist in
-            NavigationLink(value: playlist.id) {
+            NavigationLink(value: LibraryDestination.playlist(playlist.id)) {
                 PlaylistRowView(
                     playlist: playlist,
                     previewTracks: playlistPreviews[playlist.id] ?? []
                 )
-                .detailZoomSource(.playlist(playlist.id), in: zoomNamespace)
+                .detailZoomSource(.playlist(playlist.id), in: zoomNamespace, cornerRadius: 8)
             }
             // Vertical insets are not decoration: at zero the covers of
             // consecutive rows touch, and a column of identical service marks

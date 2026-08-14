@@ -46,6 +46,13 @@ struct PlayerScrubber: View {
     /// the visible bar and the times are presentation for the same value.
     private static let accessibilitySeekStep: Double = 15
 
+    /// Throttle between live seeks while the finger is down (~8/sec).
+    private static let liveSeekInterval: TimeInterval = 0.12
+
+    /// How long the bar stays in "scrubbing" after release so the playhead can
+    /// catch up with the seek instead of snapping back for one frame.
+    private static let releaseDelay: TimeInterval = 0.12
+
     var body: some View {
         VStack(spacing: 6) {
             track
@@ -152,10 +159,10 @@ struct PlayerScrubber: View {
                 scrubTime = time
                 // Live scrub: the audio follows the finger the way the lock
                 // screen's does, not just the bar. Throttled to one seek per
-                // ~120ms so a fast drag doesn't flood the engine; the exact
+                // interval so a fast drag doesn't flood the engine; the exact
                 // final position is still sought on release.
                 let now = Date().timeIntervalSinceReferenceDate
-                if now - lastLiveSeekAt >= 0.12 {
+                if now - lastLiveSeekAt >= Self.liveSeekInterval {
                     lastLiveSeekAt = now
                     playbackManager.seekTo(time: time)
                 }
@@ -174,7 +181,7 @@ struct PlayerScrubber: View {
                 // position for one frame.
                 releaseTask?.cancel()
                 releaseTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    try? await Task.sleep(for: .milliseconds(Int(Self.releaseDelay * 1000)))
                     guard !Task.isCancelled else { return }
                     isScrubbing = false
                 }

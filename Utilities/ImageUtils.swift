@@ -399,12 +399,16 @@ enum ImageUtils {
     /// Dominant color for a detail header. Served synchronously from cache when
     /// warm, so the wash paints before the open zoom settles; a miss defers past
     /// the transition so extraction doesn't fight it, then loads off-main.
+    ///
+    /// The `headerTintDefer` sleep is a view-layer concern living in this cache
+    /// helper for convenience: it exists so the extraction never lands on the
+    /// main thread mid-transition, not because the cache itself needs it.
     @MainActor
     static func headerDominantColor(id: String, imageData: Data) async -> PlatformColor? {
         if let cached = cachedDominantColorsIfAvailable(id: id, imageData: imageData)?.first {
             return cached
         }
-        try? await Task.sleep(for: .milliseconds(Int(AnimationDuration.headerTintDefer * 1000)))
+        try? await Task.sleep(for: .milliseconds(Int(TimeConstants.headerTintDefer * 1000)))
         guard !Task.isCancelled else { return nil }
         let dominant = await cachedDominantColors(id: id, imageData: imageData).first
         guard !Task.isCancelled else { return nil }

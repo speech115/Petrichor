@@ -240,7 +240,7 @@ struct SearchView: View {
             )
             // On the label, not the link: on the link matchedTransitionSource
             // swallows the tap and the row stops navigating.
-            .detailZoomSource(.album(album.id), in: zoomNamespace)
+            .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 6)
         }
         .buttonStyle(.plain)
     }

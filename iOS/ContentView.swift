@@ -41,7 +41,6 @@ struct ContentView: View {
 
     @State private var showingSettings = false
     @State private var showingNowPlaying = false
-    @State private var nowPlayingMounted = false
     @State private var showingPlaylistImporter = false
     @State private var importSummary: String?
     @State private var trackInfoTrack: Track?
@@ -50,7 +49,6 @@ struct ContentView: View {
     @State private var searchFocusRequest = 0
     @Namespace private var settingsZoomNamespace
     @Namespace private var nowPlayingZoomNamespace
-    @State private var nowPlayingMountTask: Task<Void, Never>?
 
     init(playlistManager: PlaylistManager, playbackManager: PlaybackManager) {
         self.playlistManager = playlistManager
@@ -83,7 +81,10 @@ struct ContentView: View {
         }
         // Mini-player artwork zooms into the full player (Music-style). The
         // earlier slide overlay was faster (~120 vs ~212 ms) but never read as
-        // the Music morph; system zoom wins on feel.
+        // the Music morph; system zoom wins on feel. The cover is a modal
+        // fullScreenCover, so the system already keeps the covered TabView out
+        // of hit-testing and VoiceOver — no manual gating needed (the old
+        // overlay had to do it by hand).
         .fullScreenCover(isPresented: $showingNowPlaying) {
             NowPlayingScreen(
                 isPresented: $showingNowPlaying,
@@ -91,20 +92,6 @@ struct ContentView: View {
                 playlistManager: playlistManager
             )
             .navigationTransition(.zoom(sourceID: NowPlayingZoomID.player, in: nowPlayingZoomNamespace))
-        }
-        .onChange(of: showingNowPlaying, initial: true) { _, presented in
-            // Keep the tab/accessory tree stable while the system zoom runs in
-            // both directions. Flipping accessibility/hit-testing on the whole
-            // TabView mid-zoom fights matchedTransitionSource and reads as a
-            // hitch, so the flip waits for the transition to settle — on open
-            // and on close alike (an immediate `false` on dismiss re-introduced
-            // the same hitch on the reverse zoom).
-            nowPlayingMountTask?.cancel()
-            nowPlayingMountTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(Int(AnimationDuration.zoomTransitionSettle * 1000)))
-                guard !Task.isCancelled, showingNowPlaying == presented else { return }
-                nowPlayingMounted = presented
-            }
         }
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
@@ -228,9 +215,7 @@ struct ContentView: View {
                 zoomNamespace: nowPlayingZoomNamespace
             )
         }
-        .environment(\.playerSurfaceCoversContent, nowPlayingMounted)
-        .allowsHitTesting(!nowPlayingMounted)
-        .accessibilityHidden(nowPlayingMounted)
+        .environment(\.playerSurfaceCoversContent, showingNowPlaying)
     }
 
     /// Tapping the tab you are already on still runs the selection setter,

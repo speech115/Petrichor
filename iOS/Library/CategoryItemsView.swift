@@ -70,7 +70,7 @@ struct CategoryItemsView: View {
                             item: item,
                             artworkLoader: albumArtworkLoader(for: item.albumId)
                         )
-                        .detailZoomSource(albumZoomID(for: item), in: zoomNamespace)
+                        .detailZoomSource(albumZoomID(for: item), in: zoomNamespace, cornerRadius: 10)
                     }
                     .buttonStyle(.plain)
                 }

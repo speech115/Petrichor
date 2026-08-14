@@ -155,7 +155,7 @@ struct NowPlayingScreen: View {
             // Fine scrubber sampling fights the open zoom for main-thread time.
             fineSamplingTask?.cancel()
             fineSamplingTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(Int(AnimationDuration.zoomTransitionSettle * 1000)))
+                try? await Task.sleep(for: .milliseconds(Int(TimeConstants.zoomTransitionSettle * 1000)))
                 guard !Task.isCancelled else { return }
                 playbackManager.setFineProgressSampling(true)
             }
