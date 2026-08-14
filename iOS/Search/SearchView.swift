@@ -90,15 +90,14 @@ struct SearchView: View {
                 .navigationDestination(for: LibraryDestination.self) { destination in
                     switch destination {
                     case .artist(let name):
-                        ArtistPage(artistName: name)
+                        ArtistPage(artistName: name, zoomNamespace: zoomNamespace)
                     case .album(let album):
                         AlbumPage(album: album)
-                            .detailZoomDestination(.album(album.id))
-                    case .category, .tracks, .allTracks:
+                            .detailZoomDestination(.album(album.id), in: zoomNamespace)
+                    case .category, .tracks, .allTracks, .playlist:
                         EmptyView()
                     }
                 }
-                .environment(\.zoomNamespace, zoomNamespace)
                 .onChange(of: focusRequest) { _, _ in
                     isSearchFieldFocused = true
                 }
@@ -239,9 +238,11 @@ struct SearchView: View {
                 icon: LibraryFilterType.albums.icon,
                 loader: albumArtworkLoader(for: album.albumId)
             )
+            // On the label, not the link: on the link matchedTransitionSource
+            // swallows the tap and the row stops navigating.
+            .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 6)
         }
         .buttonStyle(.plain)
-        .detailZoomSource(.album(album.id))
     }
 
     private func entityRow(

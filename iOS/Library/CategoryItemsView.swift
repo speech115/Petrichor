@@ -14,6 +14,7 @@ struct CategoryItemsView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let filterType: LibraryFilterType
+    let zoomNamespace: Namespace.ID
 
     @State private var items: [LibraryFilterItem] = []
     @State private var albumEntitiesByID: [Int64: AlbumEntity] = [:]
@@ -69,9 +70,9 @@ struct CategoryItemsView: View {
                             item: item,
                             artworkLoader: albumArtworkLoader(for: item.albumId)
                         )
+                        .detailZoomSource(albumZoomID(for: item), in: zoomNamespace, cornerRadius: 10)
                     }
                     .buttonStyle(.plain)
-                    .detailZoomSource(albumZoomID(for: item))
                 }
             }
             .padding(.horizontal, 16)

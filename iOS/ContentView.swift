@@ -41,7 +41,6 @@ struct ContentView: View {
 
     @State private var showingSettings = false
     @State private var showingNowPlaying = false
-    @State private var nowPlayingMounted = false
     @State private var showingPlaylistImporter = false
     @State private var importSummary: String?
     @State private var trackInfoTrack: Track?
@@ -49,6 +48,7 @@ struct ContentView: View {
     /// open. SearchView watches it and raises the keyboard.
     @State private var searchFocusRequest = 0
     @Namespace private var settingsZoomNamespace
+    @Namespace private var nowPlayingZoomNamespace
 
     init(playlistManager: PlaylistManager, playbackManager: PlaybackManager) {
         self.playlistManager = playlistManager
@@ -79,17 +79,19 @@ struct ContentView: View {
             }
             .environmentObject(playlistManager)
         }
-        // Keep Now Playing in this hierarchy, but let one presentation layer own
-        // mounting, drag progress and dismissal. A conditional `.move`
-        // transition used to start after NowPlayingScreen had already moved its
-        // content, so the cover and the surface visibly travelled in two steps.
-        .overlay {
-            NowPlayingPresentationLayer(
+        // Mini-player artwork zooms into the full player (Music-style). The
+        // earlier slide overlay was faster (~120 vs ~212 ms) but never read as
+        // the Music morph; system zoom wins on feel. The cover is a modal
+        // fullScreenCover, so the system already keeps the covered TabView out
+        // of hit-testing and VoiceOver — no manual gating needed (the old
+        // overlay had to do it by hand).
+        .fullScreenCover(isPresented: $showingNowPlaying) {
+            NowPlayingScreen(
                 isPresented: $showingNowPlaying,
-                isMounted: $nowPlayingMounted,
                 playbackManager: playbackManager,
                 playlistManager: playlistManager
             )
+            .navigationTransition(.zoom(sourceID: NowPlayingZoomID.player, in: nowPlayingZoomNamespace))
         }
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
@@ -209,12 +211,11 @@ struct ContentView: View {
             MiniPlayerAccessory(
                 playbackManager: playbackManager,
                 playlistManager: playlistManager,
-                showingNowPlaying: $showingNowPlaying
+                showingNowPlaying: $showingNowPlaying,
+                zoomNamespace: nowPlayingZoomNamespace
             )
         }
-        .environment(\.playerSurfaceCoversContent, nowPlayingMounted)
-        .allowsHitTesting(!nowPlayingMounted)
-        .accessibilityHidden(nowPlayingMounted)
+        .environment(\.playerSurfaceCoversContent, showingNowPlaying)
     }
 
     /// Tapping the tab you are already on still runs the selection setter,
@@ -329,115 +330,8 @@ struct ContentView: View {
 
 // MARK: - Now Playing Presentation
 
-/// Mounts the player one run-loop turn below the viewport, then moves the
-/// entire composited surface as one layer. The same offset is driven by the
-/// interactive drag, so releasing a successful dismissal continues from the
-/// user's finger instead of starting a second transition from the top.
-private struct NowPlayingPresentationLayer: View {
-    @Binding var isPresented: Bool
-    @Binding var isMounted: Bool
-    let playbackManager: PlaybackManager
-    let playlistManager: PlaylistManager
-
-    @Environment(\.accessibilityReduceMotion)
-    private var reduceMotion
-
-    @State private var isVisible = false
-    @State private var dragOffset: CGFloat = 0
-    @State private var lifecycleTask: Task<Void, Never>?
-
-    private var entranceAnimation: Animation {
-        reduceMotion
-            ? .easeOut(duration: 0.20)
-            : .spring(response: 0.30, dampingFraction: 0.94)
-    }
-
-    private var exitDuration: Double {
-        reduceMotion ? 0.20 : 0.22
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            if isMounted {
-                NowPlayingScreen(
-                    isPresented: $isPresented,
-                    presentationDragOffset: $dragOffset,
-                    playbackManager: playbackManager,
-                    playlistManager: playlistManager
-                )
-                .offset(y: reduceMotion ? 0 : verticalOffset(in: geometry))
-                .opacity(reduceMotion && !isVisible ? 0 : 1)
-                .allowsHitTesting(isVisible)
-                .accessibilityHidden(!isVisible)
-                .accessibilityAddTraits(.isModal)
-            }
-        }
-        .ignoresSafeArea()
-        .onChange(of: isPresented, initial: true) { _, presented in
-            updatePresentation(presented)
-        }
-        .onDisappear {
-            lifecycleTask?.cancel()
-        }
-    }
-
-    private func verticalOffset(in geometry: GeometryProxy) -> CGFloat {
-        return isVisible ? max(0, dragOffset) : geometry.size.height
-    }
-
-    private func updatePresentation(_ presented: Bool) {
-        lifecycleTask?.cancel()
-        if presented {
-            present()
-        } else {
-            dismiss()
-        }
-    }
-
-    private func present() {
-        dragOffset = 0
-
-        if !isMounted {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                isVisible = false
-                isMounted = true
-            }
-        }
-
-        // The off-screen mounted frame must commit before the entrance begins;
-        // otherwise SwiftUI can insert the cached cover at its final position
-        // and animate the surrounding hierarchy one frame later.
-        lifecycleTask = Task { @MainActor in
-            await Task.yield()
-            guard !Task.isCancelled, isPresented, isMounted else { return }
-            withAnimation(entranceAnimation) {
-                isVisible = true
-            }
-        }
-    }
-
-    private func dismiss() {
-        guard isMounted else { return }
-
-        let duration = exitDuration
-        withAnimation(.easeOut(duration: duration)) {
-            isVisible = false
-        }
-
-        lifecycleTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            guard !Task.isCancelled, !isPresented else { return }
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                isMounted = false
-                dragOffset = 0
-            }
-        }
-    }
+private enum NowPlayingZoomID {
+    static let player = "now-playing"
 }
 
 // MARK: - Mini Player Accessory
@@ -450,17 +344,20 @@ private struct MiniPlayerAccessory: View {
     @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
     private let playbackProgressState: PlaybackProgressState
     @Binding var showingNowPlaying: Bool
+    let zoomNamespace: Namespace.ID
 
     init(
         playbackManager: PlaybackManager,
         playlistManager: PlaylistManager,
-        showingNowPlaying: Binding<Bool>
+        showingNowPlaying: Binding<Bool>,
+        zoomNamespace: Namespace.ID
     ) {
         self.playbackManager = playbackManager
         self.playlistManager = playlistManager
         playbackPresentation = playbackManager.presentationObservation
         playbackProgressState = playbackManager.playbackProgressState
         _showingNowPlaying = showingNowPlaying
+        self.zoomNamespace = zoomNamespace
     }
 
     var body: some View {
@@ -473,6 +370,7 @@ private struct MiniPlayerAccessory: View {
                 } label: {
                     HStack(spacing: 12) {
                         artwork(size: isCompact ? 44 : 56)
+                            .matchedTransitionSource(id: NowPlayingZoomID.player, in: zoomNamespace)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(playbackPresentation.currentTrack?.title ?? "")
@@ -483,6 +381,15 @@ private struct MiniPlayerAccessory: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
+                        // Rasterize title+artist into a single layer. They are two
+                        // Text nodes, and the zoom transition's source restore
+                        // re-registers them in separate passes — the artist line
+                        // visibly pops in a beat after the title on collapse. One
+                        // Metal texture lands atomically instead (compositingGroup
+                        // still drew the two nodes separately, so the artist lag
+                        // survived it). The text is a two-line label at most, so
+                        // the rasterization cost is negligible.
+                        .drawingGroup()
                         // Cross-fade, not a slide: in a 44pt row a horizontal
                         // move reads as a twitch. The track usually changes on
                         // its own at the end of a song, with nobody's finger on

@@ -207,10 +207,13 @@ struct PlaylistDetailScreen: View {
             headerDominantColor = nil
             return
         }
-        let cacheID = playlistID.uuidString
-        let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
+        let dominant = await ImageUtils.headerDominantColor(id: playlistID.uuidString, imageData: artworkData)
         guard !Task.isCancelled else { return }
-        headerDominantColor = dominant
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            headerDominantColor = dominant
+        }
     }
 
     // MARK: - Loading

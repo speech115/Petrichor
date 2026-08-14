@@ -12,6 +12,10 @@ import SwiftUI
 struct SectionHeaderLink<Value: Hashable>: View {
     let title: String
     let value: Value
+    /// The single caller always zooms the header into its playlist detail, so
+    /// these are non-optional: the source/id pair can't be half-set.
+    let zoomID: DetailZoomID
+    let zoomNamespace: Namespace.ID
 
     var body: some View {
         NavigationLink(value: value) {
@@ -25,6 +29,10 @@ struct SectionHeaderLink<Value: Hashable>: View {
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
+            // Zoom source lives on the label, not the link: on the link itself
+            // matchedTransitionSource swallows the tap and the header stops
+            // navigating. Zero radius — a text header has no cover to round.
+            .detailZoomSource(zoomID, in: zoomNamespace, cornerRadius: 0)
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 16)

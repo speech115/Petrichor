@@ -45,7 +45,6 @@ struct NowPlayingScreen: View {
     }
 
     @Binding var isPresented: Bool
-    @Binding var presentationDragOffset: CGFloat
 
     let playbackManager: PlaybackManager
     let playlistManager: PlaylistManager
@@ -70,6 +69,7 @@ struct NowPlayingScreen: View {
     @State private var palette = PlayerPalette.neutral
     @State private var hasAppliedPalette = false
     @State private var paletteTask: Task<Void, Never>?
+    @State private var fineSamplingTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
     @State private var panelMounted = false
     @State private var panelVisible = false
@@ -95,12 +95,10 @@ struct NowPlayingScreen: View {
 
     init(
         isPresented: Binding<Bool>,
-        presentationDragOffset: Binding<CGFloat>,
         playbackManager: PlaybackManager,
         playlistManager: PlaylistManager
     ) {
         _isPresented = isPresented
-        _presentationDragOffset = presentationDragOffset
         self.playbackManager = playbackManager
         self.playlistManager = playlistManager
         playbackPresentation = playbackManager.presentationObservation
@@ -108,10 +106,6 @@ struct NowPlayingScreen: View {
 
     private var track: Track? {
         playbackPresentation.currentTrack
-    }
-
-    private var panelUp: Bool {
-        panelMounted
     }
 
     var body: some View {
@@ -148,14 +142,28 @@ struct NowPlayingScreen: View {
         // without changing the color scheme of the playlist underneath it.
         .environment(\.colorScheme, .dark)
         .onAppear {
-            playbackManager.setFineProgressSampling(true)
             displayedTrack = track
             lastQueueIndex = playlistManager.currentQueueIndex
-            updatePalette()
+            // Paint from cache before the first layout so zoom doesn't flash
+            // neutral gray then recolor; skip the async path on a warm hit.
+            if let cached = PlayerPalette.cachedPalette(for: track, useArtworkColors: useArtworkColors) {
+                palette = cached
+                hasAppliedPalette = true
+            } else {
+                updatePalette()
+            }
+            // Fine scrubber sampling fights the open zoom for main-thread time.
+            fineSamplingTask?.cancel()
+            fineSamplingTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(Int(TimeConstants.zoomTransitionSettle * 1000)))
+                guard !Task.isCancelled else { return }
+                playbackManager.setFineProgressSampling(true)
+            }
         }
         .onDisappear {
             paletteTask?.cancel()
             panelLifecycleTask?.cancel()
+            fineSamplingTask?.cancel()
             playbackManager.setFineProgressSampling(false)
         }
         .onChange(of: track?.id) { _, _ in
@@ -251,7 +259,6 @@ struct NowPlayingScreen: View {
         .padding(.top, 8)
         .padding(.bottom, 16)
         .contentShape(Rectangle())
-        .gesture(dismissGesture)
     }
 
     // MARK: - Grabber
@@ -553,28 +560,11 @@ struct NowPlayingScreen: View {
 
     // MARK: - Dismissal
 
-    /// `.global` is load-bearing. The surface this gesture lives on is the one
-    /// the offset moves, so a `.local` translation is measured against a ruler
-    /// that slides with the finger: the offset grows, the local position shrinks
-    /// by the same amount, and the surface oscillates one step per frame.
-    private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: 20, coordinateSpace: .global)
-            .onChanged { value in
-                guard !panelUp else { return }
-                presentationDragOffset = max(0, value.translation.height)
-            }
-            .onEnded { value in
-                let shouldDismiss = presentationDragOffset > 90
-                    || value.predictedEndTranslation.height > 200
-                if !panelUp && shouldDismiss {
-                    isPresented = false
-                } else {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.92)) {
-                        presentationDragOffset = 0
-                    }
-                }
-            }
-    }
+    // Dismissal is the system zoom transition's interactive gesture: the
+    // presented surface can be grabbed mid-flight and pulled down, or closed
+    // with the grabber. No custom drag lives here — a `DragGesture` on the
+    // content would claim the pan and starve the system gesture, which is the
+    // "only responds after the animation ends" feel.
 }
 
 // MARK: - System Volume Slider
