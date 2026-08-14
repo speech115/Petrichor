@@ -37,9 +37,9 @@
 Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создаются лениво, когда
 термин или решение действительно фиксируются. См. `docs/agents/domain.md`.
 
-## Пять швов — и только они
+## Шесть швов — и только они
 
-Платформенные различия сходятся ровно в пяти местах:
+Платформенные различия сходятся ровно в шести местах:
 
 | Шов | Интерфейс | macOS | iOS |
 |---|---|---|---|
@@ -48,6 +48,7 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 | Изображения | `PlatformImage` | `NSImage` | `UIImage` |
 | Пути к файлам | `LibraryPathStore` | абсолютный путь | путь от `Documents` |
 | Журнал прослушиваний | `PlaybackJournal` | nil (apply JSONL вручную) | `JSONLPlaybackJournal` |
+| Цветовая схема | `AppearanceApplier` | `NSApp.appearance` | `UIWindow.overrideUserInterfaceStyle` |
 
 **Новые `#if os(...)` вне этих швов и вне `Views/` — нарушение дизайна.** Если
 различие не влезает в существующий шов, нужен новый шов, а не разветвление по

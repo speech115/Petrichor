@@ -34,31 +34,39 @@ final class JSONLPlaybackJournal: PlaybackJournal {
         pending.append(.favorite(path: relativePath, value: value, at: date))
     }
 
-    func flush() {
+    func flush() async {
         guard !pending.isEmpty else { return }
 
         let events = pending
         pending.removeAll()
 
+        // The FileHandle seek+write is I/O that must not pin the main actor
+        // during the short backgrounding window; the pending swap above stays
+        // on the main actor, only the disk write hops off.
+        let fileURL = self.fileURL
+        let fileManager = self.fileManager
+
         do {
-            try fileManager.createDirectory(
-                at: fileURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
+            try await Task.detached(priority: .userInitiated) {
+                try fileManager.createDirectory(
+                    at: fileURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
 
-            let payload = try events
-                .map { try PlaybackJournalCodec.encodeLine($0) }
-                .joined(separator: "\n") + "\n"
-            let data = Data(payload.utf8)
+                let payload = try events
+                    .map { try PlaybackJournalCodec.encodeLine($0) }
+                    .joined(separator: "\n") + "\n"
+                let data = Data(payload.utf8)
 
-            if fileManager.fileExists(atPath: fileURL.path) {
-                let handle = try FileHandle(forWritingTo: fileURL)
-                defer { try? handle.close() }
-                try handle.seekToEnd()
-                try handle.write(contentsOf: data)
-            } else {
-                try data.write(to: fileURL, options: .atomic)
-            }
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    let handle = try FileHandle(forWritingTo: fileURL)
+                    defer { try? handle.close() }
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: data)
+                } else {
+                    try data.write(to: fileURL, options: .atomic)
+                }
+            }.value
         } catch {
             pending.insert(contentsOf: events, at: 0)
             Logger.error("PlaybackJournal flush failed: \(error)")

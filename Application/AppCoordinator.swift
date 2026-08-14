@@ -90,10 +90,10 @@ class AppCoordinator: ObservableObject {
     }
     
     func savePlaybackState() {
-        // Flush listen/favorite events with the same backgrounding beat as
-        // playback state — not on every mutation (gapless advances coincide
-        // with track finishes).
-        playbackJournal?.flush()
+        // macOS termination path. The playback journal is nil here (macOS
+        // applies a transferred JSONL file manually), so there is nothing to
+        // flush; the iOS backgrounding path does that in
+        // `savePlaybackStateInBackground()`.
 
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()
@@ -108,7 +108,7 @@ class AppCoordinator: ObservableObject {
     /// spent pinning the UI thread on a large queue/artwork encode. The caller
     /// holds a `beginBackgroundTask` open until this returns.
     func savePlaybackStateInBackground() async {
-        playbackJournal?.flush()
+        await playbackJournal?.flush()
 
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()

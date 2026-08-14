@@ -54,7 +54,10 @@ final actor SpotlightIndexer {
     // MARK: - Snapshot Storage (also the full-pass cursor)
 
     private enum Keys {
-        /// [String: Double] - "trackId" -> date_modified at index time.
+        /// [String: String] - "trackId" -> `String(date_modified)` at index
+        /// time. A pre-refactor build wrote `[String: Double]` here; that value
+        /// fails the `as? [String: String]` cast cleanly and reads as an empty
+        /// snapshot, triggering a one-time full reindex on first upgrade.
         static let trackSnapshot = "spotlight.indexedTracks"
         /// [String: String] - "albumId" -> "title|trackCount|thumbnailBytes".
         static let albumSnapshot = "spotlight.indexedAlbums"
@@ -267,10 +270,11 @@ final actor SpotlightIndexer {
 
         var changes = Changes()
 
-        // Keys that left the database: their index entries are stale.
-        let stale = snapshot.keys.filter { snapshotValue in
-            !current.contains { keyString($0.key) == snapshotValue }
-        }
+        // Keys that left the database: their index entries are stale. Build the
+        // surviving key set once (O(n)) — a per-key linear scan of `current`
+        // inside `filter` would be O(n·m) with a string alloc per comparison.
+        let currentKeys = Set(current.keys.map(keyString))
+        let stale = snapshot.keys.filter { !currentKeys.contains($0) }
         if !stale.isEmpty {
             let identifiers = stale.map { SpotlightDomain.identifier(domain: domain, value: $0) }
             try await index.deleteSearchableItems(withIdentifiers: identifiers)

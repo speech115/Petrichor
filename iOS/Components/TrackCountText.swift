@@ -13,13 +13,21 @@ enum TrackCountText {
         String(localized: "\(count) songs")
     }
 
+    /// The album's display year, or nil when unknown (empty or the "Unknown"
+    /// placeholder).
+    static func year(_ album: AlbumEntity) -> String? {
+        let year = LibraryFilterType.years.localizedDisplay(album.year ?? "")
+        guard !year.isEmpty, year != LibraryFilterType.years.localizedUnknownPlaceholder else {
+            return nil
+        }
+        return year
+    }
+
     /// "year • N songs", or just "N songs" when the year is unknown.
     static func albumSubtitle(_ album: AlbumEntity) -> String {
-        let year = LibraryFilterType.years.localizedDisplay(album.year ?? "")
-        let count = songs(album.trackCount)
-        if !year.isEmpty, year != LibraryFilterType.years.localizedUnknownPlaceholder {
-            return "\(year) • \(count)"
+        if let year = year(album) {
+            return "\(year) • \(songs(album.trackCount))"
         }
-        return count
+        return songs(album.trackCount)
     }
 }

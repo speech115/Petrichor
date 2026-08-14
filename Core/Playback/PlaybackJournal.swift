@@ -15,7 +15,7 @@ import Foundation
 protocol PlaybackJournal: AnyObject {
     func trackPlayed(relativePath: String, at date: Date)
     func favoriteChanged(relativePath: String, value: Bool, at date: Date)
-    func flush()
+    func flush() async
 }
 
 /// The one place the "nil on macOS, JSONL on iOS" decision lives. The

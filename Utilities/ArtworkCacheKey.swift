@@ -14,6 +14,9 @@ enum ArtworkCacheKey {
     /// "album-<id>" — shared by the row image cache and the dominant-color cache.
     static func album(_ albumId: Int64) -> String { "album-\(albumId)" }
 
+    /// "album-detail-<id>" — the album page's own header tile.
+    static func albumDetail(_ albumId: Int64) -> String { "album-detail-\(albumId)" }
+
     /// "track-<id>" — for tracks whose cover hangs off the track, not an album.
     static func track(_ trackId: Int64) -> String { "track-\(trackId)" }
 

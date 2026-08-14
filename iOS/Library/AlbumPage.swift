@@ -75,7 +75,7 @@ struct AlbumPage: View {
     private var artwork: some View {
         ArtworkTile(
             data: artworkData ?? album.displayArtwork,
-            cacheKey: album.albumId.map { "album-detail-\($0)" },
+            cacheKey: album.albumId.map(ArtworkCacheKey.albumDetail),
             cornerRadius: 12,
             iconSize: 60,
             maxPixelSize: 720,
@@ -89,8 +89,7 @@ struct AlbumPage: View {
         if let artistName = album.artistName, !artistName.isEmpty {
             parts.append(LibraryFilterType.artists.localizedDisplay(artistName))
         }
-        let year = LibraryFilterType.years.localizedDisplay(album.year ?? "")
-        if !year.isEmpty, year != LibraryFilterType.years.localizedUnknownPlaceholder {
+        if let year = TrackCountText.year(album) {
             parts.append(year)
         }
         parts.append(TrackCountText.songs(album.trackCount))

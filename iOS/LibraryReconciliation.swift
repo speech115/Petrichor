@@ -103,24 +103,23 @@ extension LibraryManager {
             Logger.info("Library root scan already in progress, skipping duplicate trigger")
             return
         }
-
-        do {
-            let root = LibraryPathStore.libraryRoot
-            let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
-            guard !folders.isEmpty else { return }
-            await MainActor.run {
-                self.scheduleLibraryReload()
-            }
-            // The single Spotlight scheduling call site: both `reconcileLibrary()`
-            // (which calls this method) and the Settings "Rescan Library" button
-            // (which calls it directly) land here, so a resync always follows a
-            // real scan and never a no-change launch.
-            SpotlightIndexer.scheduleSync(with: databaseManager)
-            await MainActor.run { isScanningLibraryRoot = false }
-        } catch {
-            await MainActor.run { isScanningLibraryRoot = false }
-            throw error
+        // Every exit path — including the empty-folders guard below — must
+        // clear the gate, or a single empty result wedges rescan forever.
+        defer {
+            Task { @MainActor in isScanningLibraryRoot = false }
         }
+
+        let root = LibraryPathStore.libraryRoot
+        let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
+        guard !folders.isEmpty else { return }
+        await MainActor.run {
+            self.scheduleLibraryReload()
+        }
+        // The single Spotlight scheduling call site: both `reconcileLibrary()`
+        // (which calls this method) and the Settings "Rescan Library" button
+        // (which calls it directly) land here, so a resync always follows a
+        // real scan and never a no-change launch.
+        SpotlightIndexer.scheduleSync(with: databaseManager)
     }
 
     // MARK: - M3U Playlist Auto-Import

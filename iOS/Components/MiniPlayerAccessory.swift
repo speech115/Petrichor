@@ -155,9 +155,7 @@ struct MiniPlayerAccessory: View {
             data: playbackPresentation.currentTrack?.displayArtwork,
             cacheKey: playbackPresentation.currentTrack.map { ArtworkCacheKey.nowPlaying($0.id) },
             cornerRadius: size * 0.15,
-            maxPixelSize: 180,
-            // The title and artist texts in the same row name the track; the
-            // cover is decoration for VoiceOver.
+            maxPixelSize: 180
         )
         .frame(width: size, height: size)
     }

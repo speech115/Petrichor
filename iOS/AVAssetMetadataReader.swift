@@ -229,10 +229,13 @@ struct AVAssetMetadataReader: MetadataReader {
             return (number.intValue, nil)
         }
         if var data = try? await item.load(.dataValue), data.count >= 2 {
-            // Strip the leading text-encoding byte (0x00 latin-1); the digit
-            // and slash characters that follow are ASCII, so latin-1 decodes
-            // them unchanged.
-            data.removeFirst()
+            // ID3v2.3 text frames begin with a one-byte encoding (0x00 latin-1,
+            // 0x01 UTF-16, 0x02 UTF-16BE, 0x03 UTF-8). Strip it only when it
+            // looks like one — a bare ASCII payload ("3/12") starts with a
+            // digit and must not lose its first character.
+            if let first = data.first, (0x00 ... 0x03).contains(first) {
+                data.removeFirst()
+            }
             if let string = String(data: data, encoding: .isoLatin1),
                let parsed = parseTrackNumber(string) {
                 return (parsed.number, parsed.total)
