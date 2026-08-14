@@ -145,16 +145,17 @@ struct NowPlayingScreen: View {
             displayedTrack = track
             lastQueueIndex = playlistManager.currentQueueIndex
             // Paint from cache before the first layout so zoom doesn't flash
-            // neutral gray then recolor.
-            if useArtworkColors, let cached = track?.cachedDominantColors, !cached.isEmpty {
-                palette = PlayerPalette.makeSync(from: cached)
+            // neutral gray then recolor; skip the async path on a warm hit.
+            if let cached = PlayerPalette.cachedPalette(for: track, useArtworkColors: useArtworkColors) {
+                palette = cached
                 hasAppliedPalette = true
+            } else {
+                updatePalette()
             }
-            updatePalette()
             // Fine scrubber sampling fights the open zoom for main-thread time.
             fineSamplingTask?.cancel()
             fineSamplingTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(360))
+                try? await Task.sleep(for: .milliseconds(Int(AnimationDuration.zoomTransitionSettle * 1000)))
                 guard !Task.isCancelled else { return }
                 playbackManager.setFineProgressSampling(true)
             }

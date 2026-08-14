@@ -15,32 +15,17 @@ enum DetailZoomID: Hashable {
 }
 
 extension View {
-    /// Marks this view as the zoom source for a playlist/album push.
-    func detailZoomSource(_ id: DetailZoomID, in namespace: Namespace.ID) -> some View {
+    /// Marks this view as the zoom source for a playlist/album push. `cornerRadius`
+    /// clips the source to match the detail cover during the morph; pass `0` for
+    /// text rows that have no cover.
+    func detailZoomSource(_ id: DetailZoomID, in namespace: Namespace.ID, cornerRadius: CGFloat = 12) -> some View {
         matchedTransitionSource(id: id, in: namespace) { source in
-            source
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            source.clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 
     /// Zooms the pushed detail screen out of the matching source.
     func detailZoomDestination(_ id: DetailZoomID, in namespace: Namespace.ID) -> some View {
         navigationTransition(.zoom(sourceID: id, in: namespace))
-    }
-}
-
-/// Applies a detail zoom source only when a parent stack passes a namespace
-/// (Home category / Artist). Hosts without zoom leave `namespace` nil.
-struct OptionalDetailZoomSource: ViewModifier {
-    let id: DetailZoomID
-    let namespace: Namespace.ID?
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if let namespace {
-            content.detailZoomSource(id, in: namespace)
-        } else {
-            content
-        }
     }
 }

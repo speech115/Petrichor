@@ -118,14 +118,10 @@ struct AlbumPage: View {
             headerDominantColor = nil
             return
         }
-        let cacheID = album.id.uuidString
-        if let cached = ImageUtils.cachedDominantColorsIfAvailable(id: cacheID, imageData: artworkData)?.first {
-            headerDominantColor = cached
-            return
-        }
-        try? await Task.sleep(for: .milliseconds(320))
-        guard !Task.isCancelled else { return }
-        let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
+        // Match the Now Playing cache key ("album-<id>") so an album whose
+        // colors were already extracted for the player hits the warm cache here.
+        let cacheID = album.albumId.map { "album-\($0)" } ?? album.id.uuidString
+        let dominant = await ImageUtils.headerDominantColor(id: cacheID, imageData: artworkData)
         guard !Task.isCancelled else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true

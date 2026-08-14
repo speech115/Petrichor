@@ -94,7 +94,7 @@ struct SearchView: View {
                     case .album(let album):
                         AlbumPage(album: album)
                             .detailZoomDestination(.album(album.id), in: zoomNamespace)
-                    case .category, .tracks, .allTracks:
+                    case .category, .tracks, .allTracks, .playlist:
                         EmptyView()
                     }
                 }
@@ -238,9 +238,11 @@ struct SearchView: View {
                 icon: LibraryFilterType.albums.icon,
                 loader: albumArtworkLoader(for: album.albumId)
             )
+            // On the label, not the link: on the link matchedTransitionSource
+            // swallows the tap and the row stops navigating.
+            .detailZoomSource(.album(album.id), in: zoomNamespace)
         }
         .buttonStyle(.plain)
-        .detailZoomSource(.album(album.id), in: zoomNamespace)
     }
 
     private func entityRow(

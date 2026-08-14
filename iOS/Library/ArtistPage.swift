@@ -19,7 +19,7 @@ struct ArtistPage: View {
     private var useArtworkColors = true
 
     let artistName: String
-    var zoomNamespace: Namespace.ID?
+    let zoomNamespace: Namespace.ID
 
     @State private var tracks: [Track] = []
     @State private var albums: [AlbumEntity] = []
@@ -42,10 +42,7 @@ struct ArtistPage: View {
                     ForEach(albums) { album in
                         NavigationLink(value: LibraryDestination.album(album)) {
                             albumRow(album)
-                                .modifier(OptionalDetailZoomSource(
-                                    id: .album(album.id),
-                                    namespace: zoomNamespace
-                                ))
+                                .detailZoomSource(.album(album.id), in: zoomNamespace)
                         }
                     }
                 }
@@ -120,14 +117,7 @@ struct ArtistPage: View {
             headerDominantColor = nil
             return
         }
-        let cacheID = artistName
-        if let cached = ImageUtils.cachedDominantColorsIfAvailable(id: cacheID, imageData: photoData)?.first {
-            headerDominantColor = cached
-            return
-        }
-        try? await Task.sleep(for: .milliseconds(320))
-        guard !Task.isCancelled else { return }
-        let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: photoData).first
+        let dominant = await ImageUtils.headerDominantColor(id: artistName, imageData: photoData)
         guard !Task.isCancelled else { return }
         var transaction = Transaction()
         transaction.disablesAnimations = true

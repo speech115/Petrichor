@@ -209,6 +209,17 @@ enum AnimationDuration {
     static let standardDuration: TimeInterval = 0.15
     static let mediumDuration: TimeInterval = 0.2
     static let immersiveTransition: TimeInterval = 0.25
+
+    /// Long enough to clear the system zoom transition, so work deferred past
+    /// the open/close animation (the Now Playing mount flag, fine scrubber
+    /// sampling) never fights `matchedTransitionSource` on the main thread.
+    /// Empirical, tuned against the measured zoom on the iOS 26 simulator —
+    /// not a value the system exposes.
+    static let zoomTransitionSettle: TimeInterval = 0.38
+
+    /// Defer for detail-header dominant-color extraction so it doesn't compete
+    /// with the open transition.
+    static let headerTintDefer: TimeInterval = 0.32
 }
 
 // MARK: - Delay Durations

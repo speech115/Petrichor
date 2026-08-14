@@ -93,18 +93,17 @@ struct ContentView: View {
             .navigationTransition(.zoom(sourceID: NowPlayingZoomID.player, in: nowPlayingZoomNamespace))
         }
         .onChange(of: showingNowPlaying, initial: true) { _, presented in
-            // Keep the tab/accessory tree stable while the system zoom runs.
-            // Flipping accessibility/hit-testing on the whole TabView at tap
-            // time fights matchedTransitionSource and reads as hitch.
+            // Keep the tab/accessory tree stable while the system zoom runs in
+            // both directions. Flipping accessibility/hit-testing on the whole
+            // TabView mid-zoom fights matchedTransitionSource and reads as a
+            // hitch, so the flip waits for the transition to settle — on open
+            // and on close alike (an immediate `false` on dismiss re-introduced
+            // the same hitch on the reverse zoom).
             nowPlayingMountTask?.cancel()
-            if presented {
-                nowPlayingMountTask = Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(380))
-                    guard !Task.isCancelled, showingNowPlaying else { return }
-                    nowPlayingMounted = true
-                }
-            } else {
-                nowPlayingMounted = false
+            nowPlayingMountTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(Int(AnimationDuration.zoomTransitionSettle * 1000)))
+                guard !Task.isCancelled, showingNowPlaying == presented else { return }
+                nowPlayingMounted = presented
             }
         }
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
@@ -397,12 +396,16 @@ private struct MiniPlayerAccessory: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
-                        // Flatten title+artist into one draw layer. They are two
-                        // Text nodes, and the zoom transition's source restore
-                        // re-registers them in separate passes — the artist line
-                        // visibly pops in a beat after the title on collapse. One
-                        // composited layer lands atomically instead.
-                        .drawingGroup()
+                        // Group title+artist into one composited layer. They are
+                        // two Text nodes, and the zoom transition's source
+                        // restore re-registers them in separate passes — the
+                        // artist line visibly pops in a beat after the title on
+                        // collapse. A compositing group lands them atomically
+                        // without the bitmap rasterization `.drawingGroup()`
+                        // would impose (blurred text, a blank frame on track
+                        // change). If the pop-in ever returns, `.drawingGroup()`
+                        // is the stronger hammer.
+                        .compositingGroup()
                         // Cross-fade, not a slide: in a 44pt row a horizontal
                         // move reads as a twitch. The track usually changes on
                         // its own at the end of a song, with nobody's finger on

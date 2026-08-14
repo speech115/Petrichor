@@ -54,15 +54,6 @@ struct HomeTabView: View {
             .navigationDestination(for: LibraryDestination.self) { destination in
                 destinationView(destination)
             }
-            .navigationDestination(for: UUID.self) { playlistID in
-                PlaylistDetailScreen(
-                    playlistID: playlistID,
-                    playlistManager: playlistManager,
-                    playbackManager: playbackManager,
-                    playlistCatalog: playlistManager.catalogObservation
-                )
-                .detailZoomDestination(.playlist(playlistID), in: zoomNamespace)
-            }
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
                     ContentUnavailableView {
@@ -112,21 +103,21 @@ struct HomeTabView: View {
                 )
                 if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
                     rowDivider
-                    libraryRow(
+                    librarySmartRow(
                         title: DefaultPlaylists.displayName(for: favorites),
                         count: favorites.trackCount,
-                        value: favorites.id
+                        value: LibraryDestination.playlist(favorites.id),
+                        zoomID: .playlist(favorites.id)
                     )
-                    .detailZoomSource(.playlist(favorites.id), in: zoomNamespace)
                 }
                 if let mostPlayed = smartPlaylist(DefaultPlaylists.mostPlayed) {
                     rowDivider
-                    libraryRow(
+                    librarySmartRow(
                         title: DefaultPlaylists.displayName(for: mostPlayed),
                         count: mostPlayed.trackCount,
-                        value: mostPlayed.id
+                        value: LibraryDestination.playlist(mostPlayed.id),
+                        zoomID: .playlist(mostPlayed.id)
                     )
-                    .detailZoomSource(.playlist(mostPlayed.id), in: zoomNamespace)
                 }
             }
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
@@ -140,24 +131,41 @@ struct HomeTabView: View {
 
     private func libraryRow(title: String, count: Int?, value: some Hashable) -> some View {
         NavigationLink(value: value) {
-            HStack {
-                Text(title)
-                    .font(.body)
-                Spacer()
-                if let count {
-                    Text("\(count)")
-                        .font(.body)
-                        .foregroundColor(.secondaryText)
-                        .monospacedDigit()
-                }
-            }
-            .padding(.horizontal, 16)
-            // Min, not fixed: the row grows with Dynamic Type instead of
-            // clipping the title at the largest accessibility sizes.
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            libraryRowLabel(title: title, count: count)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Smart-playlist rows (Favorites / Most Played) zoom into their detail page.
+    /// The source sits on the label, not the `NavigationLink`: on the link itself
+    /// `matchedTransitionSource` swallows the tap and the row stops navigating.
+    private func librarySmartRow(title: String, count: Int?, value: some Hashable, zoomID: DetailZoomID) -> some View {
+        NavigationLink(value: value) {
+            libraryRowLabel(title: title, count: count)
+                // Text rows have no cover; a zero-radius clip keeps the source
+                // rectangular instead of inheriting the cover's rounded clip.
+                .detailZoomSource(zoomID, in: zoomNamespace, cornerRadius: 0)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func libraryRowLabel(title: String, count: Int?) -> some View {
+        HStack {
+            Text(title)
+                .font(.body)
+            Spacer()
+            if let count {
+                Text("\(count)")
+                    .font(.body)
+                    .foregroundColor(.secondaryText)
+                    .monospacedDigit()
+            }
+        }
+        .padding(.horizontal, 16)
+        // Min, not fixed: the row grows with Dynamic Type instead of
+        // clipping the title at the largest accessibility sizes.
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private func smartPlaylist(_ name: String) -> Playlist? {
@@ -184,6 +192,14 @@ struct HomeTabView: View {
         case .album(let album):
             AlbumPage(album: album)
                 .detailZoomDestination(.album(album.id), in: zoomNamespace)
+        case .playlist(let playlistID):
+            PlaylistDetailScreen(
+                playlistID: playlistID,
+                playlistManager: playlistManager,
+                playbackManager: playbackManager,
+                playlistCatalog: playlistManager.catalogObservation
+            )
+            .detailZoomDestination(.playlist(playlistID), in: zoomNamespace)
         }
     }
 

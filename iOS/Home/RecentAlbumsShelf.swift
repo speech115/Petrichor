@@ -21,8 +21,12 @@ struct RecentAlbumsShelf: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let headerValue {
-                SectionHeaderLink(title: String(localized: "Recently Played"), value: headerValue)
-                    .detailZoomSource(.playlist(headerValue), in: zoomNamespace)
+                SectionHeaderLink(
+                    title: String(localized: "Recently Played"),
+                    value: LibraryDestination.playlist(headerValue),
+                    zoomID: .playlist(headerValue),
+                    zoomNamespace: zoomNamespace
+                )
             } else {
                 SectionTitle(title: String(localized: "Recently Played"))
             }
@@ -39,7 +43,7 @@ struct RecentAlbumsShelf: View {
                                     iconSize: 28
                                 )
                                 .frame(width: 130, height: 130)
-                                .detailZoomSource(.album(album.id), in: zoomNamespace)
+                                .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 10)
 
                                 // The combine modifier sits on this text
                                 // group alone, not the card: combined with

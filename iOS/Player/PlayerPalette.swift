@@ -36,22 +36,22 @@ struct PlayerPalette: Equatable {
         Color(white: 0.06)
     ])
 
-    /// Sync path for the first NP frame when dominant colors are already cached.
+    /// Synchronous palette from the warm dominant-color cache; nil when artwork
+    /// colors are off or the cache hasn't computed this artwork yet. The first
+    /// Now Playing frame paints from this so the zoom doesn't flash neutral.
     @MainActor
-    static func makeSync(from dominant: [PlatformColor]) -> PlayerPalette {
-        palette(from: Array(dominant.prefix(2)))
+    static func cachedPalette(for track: Track?, useArtworkColors: Bool) -> PlayerPalette? {
+        guard useArtworkColors, let track,
+              let cached = track.cachedDominantColors, !cached.isEmpty else { return nil }
+        return palette(from: Array(cached.prefix(2)))
     }
 
     @MainActor
     static func make(for track: Track?, useArtworkColors: Bool) async -> PlayerPalette {
-        guard useArtworkColors, let track else { return neutral }
-
-        // Prefer the sync cache so the first NP frame already matches the
-        // cover — an async neutral→colored swap mid-zoom is the hitch users
-        // read as lag.
-        if let cached = track.cachedDominantColors, !cached.isEmpty {
-            return palette(from: Array(cached.prefix(2)))
+        if let cached = cachedPalette(for: track, useArtworkColors: useArtworkColors) {
+            return cached
         }
+        guard useArtworkColors, let track else { return neutral }
 
         let dominant = Array((await track.loadDominantColors()).prefix(2))
         guard !dominant.isEmpty else { return neutral }
