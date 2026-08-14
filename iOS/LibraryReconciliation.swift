@@ -105,9 +105,8 @@ extension LibraryManager {
         }
         // Every exit path — including the empty-folders guard below — must
         // clear the gate, or a single empty result wedges rescan forever.
-        defer {
-            Task { @MainActor in isScanningLibraryRoot = false }
-        }
+        // `LibraryManager` is `@MainActor`, so the flag clears synchronously.
+        defer { isScanningLibraryRoot = false }
 
         let root = LibraryPathStore.libraryRoot
         let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])

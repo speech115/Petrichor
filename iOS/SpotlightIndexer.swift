@@ -72,6 +72,11 @@ final actor SpotlightIndexer {
     /// re-runs against the post-reset database instead of leaving the
     /// pre-reset snapshot in place.
     private var resetPending = false
+    /// Bumped by `resetIndex` before it wipes the index and snapshots. A pass
+    /// captures this at its start and aborts before any write once it changes,
+    /// so a mid-flight pass cannot write its pre-reset snapshot back over the
+    /// wipe (and a reused id with a coinciding fingerprint cannot survive).
+    private var resetGeneration = 0
 
     /// Batch size for the full pass. Keeps one `indexSearchableItems` call (and
     /// one thumbnail batch) bounded, and gives the progress cursor a save
@@ -190,6 +195,11 @@ final actor SpotlightIndexer {
     /// reset must win even if a sync happens to be mid-flight, since the
     /// database underneath it was just erased regardless.
     func resetIndex(databaseManager: DatabaseManager) async {
+        // Bump the generation before touching anything: a pass mid-flight
+        // checks this before every write and aborts once it changes, so its
+        // pre-reset snapshot cannot be written back over the wipe below.
+        resetGeneration += 1
+
         do {
             try await index.deleteAllSearchableItems()
         } catch {
@@ -250,16 +260,19 @@ final actor SpotlightIndexer {
     /// against the snapshot, delete stale entries, then chunk-index the rest
     /// and advance the snapshot per chunk. The three entity kinds (tracks,
     /// albums, artists) differ only in the key type, the snapshot key and how
-    /// they build items — not in this algorithm.
+    /// they build items — not in this algorithm. `makeItems` captures whatever
+    /// it needs (tracks re-query the database; albums/artists read the
+    /// pre-fetched digests they close over).
     private func syncEntityKind<Key: Hashable>(
         domain: String,
         snapshotKey: String,
         entityName: String,
         keyString: @escaping (Key) -> String,
         current: [Key: String],
-        databaseManager: DatabaseManager,
-        makeItems: @escaping ([Key], DatabaseManager) async throws -> [CSSearchableItem]
+        makeItems: @escaping ([Key]) async throws -> [CSSearchableItem]
     ) async throws -> Changes {
+        let generation = resetGeneration
+
         var snapshot = userDefaults.dictionary(forKey: snapshotKey) as? [String: String] ?? [:]
 
         var toIndex: [Key] = []
@@ -275,6 +288,12 @@ final actor SpotlightIndexer {
         // inside `filter` would be O(n·m) with a string alloc per comparison.
         let currentKeys = Set(current.keys.map(keyString))
         let stale = snapshot.keys.filter { !currentKeys.contains($0) }
+
+        // A reset that landed while this pass was mid-flight bumped the
+        // generation; the wipe already cleared the index+snapshot, so this pass
+        // must not write its pre-reset state back over it.
+        guard generation == resetGeneration else { return changes }
+
         if !stale.isEmpty {
             let identifiers = stale.map { SpotlightDomain.identifier(domain: domain, value: $0) }
             try await index.deleteSearchableItems(withIdentifiers: identifiers)
@@ -288,8 +307,9 @@ final actor SpotlightIndexer {
         changes.indexed = toIndex.count
 
         for chunk in stride(from: 0, to: toIndex.count, by: chunkSize) {
+            guard generation == resetGeneration else { return changes }
             let keys = Array(toIndex[chunk..<min(chunk + chunkSize, toIndex.count)])
-            let items = try await makeItems(keys, databaseManager)
+            let items = try await makeItems(keys)
             guard !items.isEmpty else { continue }
             try await index.indexSearchableItems(items)
             for key in keys {
@@ -324,9 +344,8 @@ final actor SpotlightIndexer {
             snapshotKey: Keys.trackSnapshot,
             entityName: "track",
             keyString: { String($0) },
-            current: current,
-            databaseManager: databaseManager
-        ) { ids, databaseManager in
+            current: current
+        ) { ids in
             try await self.makeTrackItems(ids: ids, databaseManager: databaseManager)
         }
     }
@@ -454,9 +473,8 @@ final actor SpotlightIndexer {
             snapshotKey: Keys.albumSnapshot,
             entityName: "album",
             keyString: { String($0) },
-            current: current.mapValues { $0.fingerprint },
-            databaseManager: databaseManager
-        ) { ids, _ in
+            current: current.mapValues { $0.fingerprint }
+        ) { ids in
             ids.compactMap { id -> CSSearchableItem? in
                 guard let digest = current[id] else { return nil }
                 let attributeSet = CSSearchableItemAttributeSet()
@@ -505,9 +523,8 @@ final actor SpotlightIndexer {
             snapshotKey: Keys.artistSnapshot,
             entityName: "artist",
             keyString: { $0 },
-            current: current.mapValues { $0.fingerprint },
-            databaseManager: databaseManager
-        ) { names, _ in
+            current: current.mapValues { $0.fingerprint }
+        ) { names in
             names.compactMap { name -> CSSearchableItem? in
                 guard let digest = current[name] else { return nil }
                 let attributeSet = CSSearchableItemAttributeSet()

@@ -55,8 +55,9 @@ enum SpotlightRouter {
         return (domain, value)
     }
 
-    /// Same lookup order as ContentView's `albumEntity(for:)`: the in-memory
-    /// entity cache first (it may hold artwork), then the database.
+    /// Same lookup order as `LibraryNavigation.albumEntity(for:)`: the
+    /// in-memory entity cache first (it may hold artwork), then the database
+    /// (a search result may reference an album not in the in-memory cache).
     private static func albumEntity(forAlbumId albumId: Int64, libraryManager: LibraryManager) -> AlbumEntity? {
         if let cached = libraryManager.albumEntities.first(where: { $0.albumId == albumId }) {
             return cached
