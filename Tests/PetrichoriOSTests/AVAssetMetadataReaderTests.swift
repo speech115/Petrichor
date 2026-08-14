@@ -68,21 +68,18 @@ struct AVAssetMetadataReaderTests {
     /// A file with no ID3 tag at all: every tag-derived field must come back
     /// empty, and that is the correct, non-error outcome — distinct from the
     /// corrupted-file scenario below, where the file *has* a tag and it's
-    /// malformed. `title`/`artist` still get a value because
-    /// `extractMetadata`'s filename fallback runs after the tag parse
-    /// (`FilenameMetadataFallback`), so the fixture name is asserted through
-    /// that fallback rather than treated as a leak from the tag path.
+    /// malformed. `title`/`artist` stay empty here: the filename fallback is
+    /// no longer the reader's job — it lives in the shared layer
+    /// (`FilenameMetadataFallback`, applied by `DMMetadata.applyMetadataToTrack`),
+    /// so `extractMetadata` returns the tag fields as it found them.
     @Test func fileWithNoTagsHasEmptyFieldsNotAnError() async throws {
         let url = try makeSilentMP3() // no artist/title/album -> no ID3 header written at all
         defer { try? FileManager.default.removeItem(at: url) }
 
         let metadata = await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
 
-        // Filename fallback: `makeSilentMP3` names the file after a random
-        // UUID with no " - " separator, so `FilenameMetadataFallback` leaves
-        // artist nil and sets the title to the bare filename.
         #expect(metadata.artist == nil)
-        #expect(metadata.title == url.deletingPathExtension().lastPathComponent)
+        #expect(metadata.title == nil)
         #expect(metadata.album == nil)
         #expect(metadata.albumArtist == nil)
         #expect(metadata.composer == nil)
@@ -124,11 +121,10 @@ struct AVAssetMetadataReaderTests {
         #expect(metadata.trackNumber == nil)
         #expect(metadata.artworkData == nil)
         #expect(metadata.duration == 0)
-        // Filename fallback still runs: the random UUID filename has no
-        // " - " separator, so title falls back to the bare filename and
-        // artist stays nil (same fallback shape as the no-tags test above).
+        // The filename fallback moved to the shared layer, so the reader
+        // returns empty title/artist for an unparseable file.
         #expect(metadata.artist == nil)
-        #expect(metadata.title == url.deletingPathExtension().lastPathComponent)
+        #expect(metadata.title == nil)
     }
 
     /// The raw-key fallback in isolation: `albumArtist`/`composer`/`genre`

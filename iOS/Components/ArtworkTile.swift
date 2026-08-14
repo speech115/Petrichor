@@ -35,8 +35,8 @@ struct ArtworkDataLoader: @unchecked Sendable {
 
     /// Stable cache key shared by list rows and Search's top result.
     static func cacheKey(albumId: Int64?, trackId: Int64?) -> String? {
-        if let albumId { return "album-\(albumId)" }
-        return trackId.map { "track-\($0)" }
+        if let albumId { return ArtworkCacheKey.album(albumId) }
+        return trackId.map(ArtworkCacheKey.track)
     }
 
     /// Lazy list artwork: album thumbnail first; if that column is still empty

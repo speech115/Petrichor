@@ -21,14 +21,11 @@ struct PlaylistDetailScreen: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
 
-    @AppStorage("useArtworkColors")
-    private var useArtworkColors = true
-
     @State private var missingPaths: Set<String> = []
     @State private var showingRenameAlert = false
     @State private var renameText = ""
     @State private var showingDeleteConfirmation = false
-    @State private var headerDominantColor: PlatformColor?
+    @State private var headerTint: Color?
 
     private var playlist: Playlist? {
         playlistCatalog.playlists.first { $0.id == playlistID }
@@ -109,9 +106,7 @@ struct PlaylistDetailScreen: View {
         .task(id: playlistID) {
             await refreshMissingFiles()
         }
-        .task(id: tintTaskID) {
-            await updateHeaderTint()
-        }
+        .detailHeaderTint(cacheID: playlistID.uuidString, imageData: playlist?.coverArtworkData, tint: $headerTint)
     }
 
     // MARK: - Rename
@@ -159,61 +154,19 @@ struct PlaylistDetailScreen: View {
             subtitle: subtitle(playlist),
             tint: headerTint,
             artwork: {
-                Group {
-                    if playlist.coverArtworkData != nil {
-                        ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 12, iconSize: 56)
-                            .frame(width: 280, height: 280)
-                    } else if let cover = PlaylistCover.of(playlist) {
-                        PlaylistCoverView(cover: cover, cornerRadius: 12)
-                            .frame(width: 280, height: 280)
-                    // No service-mark fallback here: the row for this playlist
-                    // shows the mosaic, and the page it opens has to show the
-                    // same cover it grew out of.
-                    } else {
-                        ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: tracks))
-                            .frame(width: 280, height: 280)
-                    }
-                }
-                // The title and subtitle under the cover name the playlist;
-                // the artwork itself is decoration for VoiceOver.
-                .accessibilityHidden(true)
+                PlaylistArtworkView(playlist: playlist, tracks: tracks, cornerRadius: 12, iconSize: 56)
+                    .frame(width: 280, height: 280)
             }
         )
     }
 
     /// "N songs" plus the total duration, mirroring the macOS header.
     private func subtitle(_ playlist: Playlist) -> String {
-        let count = String(localized: "\(playlist.trackCount) songs")
+        let count = TrackCountText.songs(playlist.trackCount)
         if playlist.trackCount > 0 {
             return "\(count) • \(playlist.formattedTotalDuration)"
         }
         return count
-    }
-
-    /// The custom cover tints the header; a mosaic has no single color.
-    private var headerTint: Color? {
-        NowPlayingArtwork.headerTint(
-            forDominantColor: headerDominantColor,
-            enabled: useArtworkColors
-        )
-    }
-
-    private var tintTaskID: String {
-        "\(playlistID)-\(playlist?.coverArtworkData?.count ?? 0)-\(useArtworkColors)"
-    }
-
-    private func updateHeaderTint() async {
-        guard useArtworkColors, let artworkData = playlist?.coverArtworkData else {
-            headerDominantColor = nil
-            return
-        }
-        let dominant = await ImageUtils.headerDominantColor(id: playlistID.uuidString, imageData: artworkData)
-        guard !Task.isCancelled else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            headerDominantColor = dominant
-        }
     }
 
     // MARK: - Loading

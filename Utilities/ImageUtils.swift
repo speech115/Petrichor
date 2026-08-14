@@ -326,11 +326,7 @@ enum ImageUtils {
         isDark: Bool
     ) -> [Color] {
         colors.map { color -> Color in
-            #if os(macOS)
-            guard let rgb = color.usingColorSpace(.deviceRGB) else { return Color(platformColor: color) }
-            #else
-            let rgb = color
-            #endif
+            guard let rgb = color.rgb() else { return Color(platformColor: color) }
 
             var hue: CGFloat = 0
             var saturation: CGFloat = 0
@@ -439,11 +435,7 @@ enum ImageUtils {
     }
 
     private static func platformColor(from color: Color) -> PlatformColor {
-        #if os(macOS)
-        NSColor(color)
-        #else
-        UIColor(color)
-        #endif
+        PlatformColor.from(color)
     }
 
     @MainActor
@@ -596,11 +588,7 @@ enum ImageUtils {
     }
 
     private static func systemFont(ofSize size: CGFloat, weight: FontWeight) -> PlatformFont {
-        #if os(macOS)
-        NSFont.systemFont(ofSize: size, weight: weight == .bold ? .bold : .regular)
-        #else
-        UIFont.systemFont(ofSize: size, weight: weight == .bold ? .bold : .regular)
-        #endif
+        PlatformFont.systemFont(ofSize: size, bold: weight == .bold)
     }
 
     private enum FontWeight {
@@ -609,11 +597,7 @@ enum ImageUtils {
     }
 
     private static func encodeJPEGPlatform(_ cgImage: CGImage, quality: CGFloat) -> Data? {
-        #if os(macOS)
-        return NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: [.compressionFactor: quality])
-        #else
-        return UIImage(cgImage: cgImage).jpegData(compressionQuality: quality)
-        #endif
+        PlatformImage.jpegData(from: cgImage, quality: quality)
     }
 
     // MARK: - Intel x86_64 fallback

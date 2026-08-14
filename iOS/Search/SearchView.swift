@@ -220,7 +220,7 @@ struct SearchView: View {
                 title: artist.displayName,
                 subtitle: artist.subtitle,
                 artworkData: artist.displayArtwork,
-                cacheKey: "artist-\(artist.name)",
+                cacheKey: ArtworkCacheKey.artist(artist.name),
                 icon: LibraryFilterType.artists.icon,
                 loader: artistArtworkLoader(for: artist.name)
             )
@@ -234,7 +234,7 @@ struct SearchView: View {
                 title: album.displayName,
                 subtitle: album.artistName ?? album.subtitle,
                 artworkData: album.displayArtwork,
-                cacheKey: album.albumId.map { "album-\($0)" },
+                cacheKey: album.albumId.map(ArtworkCacheKey.album),
                 icon: LibraryFilterType.albums.icon,
                 loader: albumArtworkLoader(for: album.albumId)
             )

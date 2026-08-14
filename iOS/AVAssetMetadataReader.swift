@@ -8,43 +8,6 @@
 import AVFoundation
 import Foundation
 
-/// Разбор имени файла как источник метаданных, когда теги их не содержат.
-///
-/// Библиотека пользователя смешивает два стиля имён: `#### - Исполнитель -
-/// Название` (числовой префикс задаёт порядок в плейлистах и остаётся частью
-/// заголовка) и обычный `Исполнитель - Название` без префикса — именно этот
-/// второй случай встречается чаще всего там, где тег исполнителя реально
-/// отсутствует.
-enum FilenameMetadataFallback {
-    private static let separator = " - "
-
-    static func parse(_ url: URL) -> (artist: String?, title: String) {
-        let base = url.deletingPathExtension().lastPathComponent
-            .trimmingCharacters(in: .whitespaces)
-        let parts = base.components(separatedBy: separator)
-
-        guard parts.count >= 2 else {
-            return (nil, base)
-        }
-
-        // `#### - Исполнитель - Название`: префикс остаётся частью заголовка.
-        if parts.count >= 3, !parts[0].isEmpty, parts[0].allSatisfy(\.isNumber) {
-            let artist = parts[1].trimmingCharacters(in: .whitespaces)
-            return (artist, base)
-        }
-
-        // `Исполнитель - Название`.
-        guard !parts[0].isEmpty, !parts[0].allSatisfy(\.isNumber) else {
-            return (nil, base)
-        }
-
-        let artist = parts[0].trimmingCharacters(in: .whitespaces)
-        let title = parts.dropFirst().joined(separator: separator)
-            .trimmingCharacters(in: .whitespaces)
-        return (artist, title)
-    }
-}
-
 struct AVAssetMetadataReader: MetadataReader {
     /// MP3 is the only format the iOS port plays.
     static var supportedFileExtensions: [String] {
@@ -119,19 +82,9 @@ struct AVAssetMetadataReader: MetadataReader {
             metadata.artworkData = externalArtwork
         }
 
-        // Filename fallback: only for whatever the tags left empty. The
-        // "Unknown Artist" placeholder is applied later, in shared code
-        // (`DMMetadata.swift`) — here we only care whether a real value is
-        // still missing.
-        if metadata.artist?.nilIfEmpty == nil || metadata.title?.nilIfEmpty == nil {
-            let parsed = FilenameMetadataFallback.parse(url)
-            if metadata.artist?.nilIfEmpty == nil {
-                metadata.artist = parsed.artist
-            }
-            if metadata.title?.nilIfEmpty == nil {
-                metadata.title = parsed.title
-            }
-        }
+        // The filename fallback and the "Unknown Artist" placeholder are
+        // applied later, in shared code (`DMMetadata.swift` / the shared
+        // `FilenameMetadataFallback`), so both targets agree.
 
         return metadata
     }
@@ -263,20 +216,41 @@ struct AVAssetMetadataReader: MetadataReader {
     }
 
     private static func trackNumberInfo(from item: AVMetadataItem, url: URL) async -> (number: Int?, total: Int?) {
-        if let data = try? await item.load(.dataValue),
-           data.count >= 2 {
-            let number = Int(data[0])
-            let total = data.count >= 3 ? Int(data[2]) : nil
-            return (number > 0 ? number : nil, total)
+        // TRCK is a text frame ("3" or "3/12"), so try the text forms first.
+        // The `.dataValue` path below is a fallback for files whose value
+        // AVFoundation only surfaces as raw bytes; those begin with the
+        // ID3v2.3 text-encoding byte, which must be stripped rather than read
+        // as a digit.
+        if let string = await loggedLoad(tag: "trackNumber", url: url, { try await item.load(.stringValue) }),
+           let parsed = parseTrackNumber(string) {
+            return (parsed.number, parsed.total)
         }
-        if let number = try? await item.load(.numberValue) {
+        if let number = try? await item.load(.numberValue), number.intValue > 0 {
             return (number.intValue, nil)
         }
-        if let string = await loggedLoad(tag: "trackNumber", url: url, { try await item.load(.stringValue) }) {
-            let parts = string.split(separator: "/").map { Int($0.trimmingCharacters(in: .whitespaces)) }
-            return (parts.first ?? nil, parts.count > 1 ? parts[1] : nil)
+        if var data = try? await item.load(.dataValue), data.count >= 2 {
+            // ID3v2.3 text frames begin with a one-byte encoding (0x00 latin-1,
+            // 0x01 UTF-16, 0x02 UTF-16BE, 0x03 UTF-8). Strip it only when it
+            // looks like one — a bare ASCII payload ("3/12") starts with a
+            // digit and must not lose its first character.
+            if let first = data.first, (0x00 ... 0x03).contains(first) {
+                data.removeFirst()
+            }
+            if let string = String(data: data, encoding: .isoLatin1),
+               let parsed = parseTrackNumber(string) {
+                return (parsed.number, parsed.total)
+            }
         }
         return (nil, nil)
+    }
+
+    private static func parseTrackNumber(_ string: String) -> (number: Int, total: Int?)? {
+        let parts = string
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: "/")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        guard let number = parts.first, number > 0 else { return nil }
+        return (number, parts.count > 1 ? parts[1] : nil)
     }
 
     private static func codecName(for subtype: CMFormatDescription.MediaSubType) -> String {

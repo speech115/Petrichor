@@ -13,12 +13,9 @@ struct AlbumPage: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
-    @AppStorage("useArtworkColors")
-    private var useArtworkColors = true
-
     let album: AlbumEntity
     @State private var artworkData: Data?
-    @State private var headerDominantColor: PlatformColor?
+    @State private var headerTint: Color?
 
     var body: some View {
         TrackListScreen(
@@ -36,6 +33,7 @@ struct AlbumPage: View {
         )
         .detailPageWash(headerTint)
         .navigationBarTitleDisplayMode(.inline)
+        .detailHeaderTint(cacheID: tintCacheID, imageData: artworkData, tint: $headerTint)
         .task(id: album.albumId) {
             if let existing = album.artworkData {
                 artworkData = existing
@@ -46,9 +44,6 @@ struct AlbumPage: View {
             artworkData = await Task.detached(priority: .utility) {
                 database.getArtworkData(albumId: albumId, trackId: nil)
             }.value
-        }
-        .task(id: tintTaskID) {
-            await updateHeaderTint()
         }
     }
 
@@ -80,7 +75,7 @@ struct AlbumPage: View {
     private var artwork: some View {
         ArtworkTile(
             data: artworkData ?? album.displayArtwork,
-            cacheKey: album.albumId.map { "album-detail-\($0)" },
+            cacheKey: album.albumId.map(ArtworkCacheKey.albumDetail),
             cornerRadius: 12,
             iconSize: 60,
             maxPixelSize: 720,
@@ -94,40 +89,17 @@ struct AlbumPage: View {
         if let artistName = album.artistName, !artistName.isEmpty {
             parts.append(LibraryFilterType.artists.localizedDisplay(artistName))
         }
-        let year = LibraryFilterType.years.localizedDisplay(album.year ?? "")
-        if !year.isEmpty, year != LibraryFilterType.years.localizedUnknownPlaceholder {
+        if let year = TrackCountText.year(album) {
             parts.append(year)
         }
-        parts.append(String(localized: "\(album.trackCount) songs"))
+        parts.append(TrackCountText.songs(album.trackCount))
         return parts.joined(separator: " • ")
     }
 
-    private var headerTint: Color? {
-        NowPlayingArtwork.headerTint(
-            forDominantColor: headerDominantColor,
-            enabled: useArtworkColors
-        )
-    }
-
-    private var tintTaskID: String {
-        "\(album.id)-\(artworkData?.count ?? 0)-\(useArtworkColors)"
-    }
-
-    private func updateHeaderTint() async {
-        guard useArtworkColors, let artworkData else {
-            headerDominantColor = nil
-            return
-        }
-        // Match the Now Playing cache key ("album-<id>") so an album whose
-        // colors were already extracted for the player hits the warm cache here.
-        let cacheID = album.albumId.map { "album-\($0)" } ?? album.id.uuidString
-        let dominant = await ImageUtils.headerDominantColor(id: cacheID, imageData: artworkData)
-        guard !Task.isCancelled else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            headerDominantColor = dominant
-        }
+    /// Matches the Now Playing color-cache key ("album-<id>") so an album whose
+    /// colors were already extracted for the player hits the warm cache here.
+    private var tintCacheID: String {
+        album.albumId.map(ArtworkCacheKey.album) ?? album.id.uuidString
     }
 
     // MARK: - Track Sections
@@ -162,12 +134,10 @@ struct AlbumPage: View {
     }
 
     private func playAll(_ tracks: [Track]) {
-        guard let first = tracks.first else { return }
-        playlistManager.play(first, source: .library(context: tracks))
+        playlistManager.playLibrary(tracks)
     }
 
     private func shuffleAll(_ tracks: [Track]) {
-        playlistManager.playTrackShuffled(tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.shuffleLibrary(tracks)
     }
 }

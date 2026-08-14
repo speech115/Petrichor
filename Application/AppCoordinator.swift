@@ -54,33 +54,9 @@ class AppCoordinator: ObservableObject {
         // Setup Scrobbling
         scrobbleManager = ScrobbleManager()
 
-        #if os(iOS)
-        playbackJournal = JSONLPlaybackJournal()
-        #else
-        playbackJournal = nil
-        #endif
+        playbackJournal = PlaybackJournalFactory.make()
 
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
-
-        #if os(iOS)
-        // The iOS library *is* the app's own Documents folder - there is no
-        // picker step, so it has to be registered on every launch rather than
-        // through user action. Fire-and-forget: `hadFoldersAtStartup` above
-        // already captured the pre-scan state the restoration flow below
-        // needs, and `reconcileLibrary()` re-registering the same folder row
-        // (Task 7) plus the .initialScanStarted/.foldersAddedToDatabase
-        // notifications LibraryManager already observes are what actually
-        // bring newly-copied tracks into view - this call must not block
-        // startup on that. Reconciliation skips the full scan entirely when
-        // the library already exists and the file set has not changed.
-        Task(priority: .utility) { [libraryManager] in
-            do {
-                try await libraryManager.reconcileLibrary()
-            } catch {
-                Logger.error("Failed to reconcile the iOS documents library: \(error)")
-            }
-        }
-        #endif
 
         Self.shared = self
         
@@ -114,31 +90,60 @@ class AppCoordinator: ObservableObject {
     }
     
     func savePlaybackState() {
-        // Flush listen/favorite events with the same backgrounding beat as
-        // playback state — not on every mutation (gapless advances coincide
-        // with track finishes).
-        playbackJournal?.flush()
+        // macOS termination path. The playback journal is nil here (macOS
+        // applies a transferred JSONL file manually), so there is nothing to
+        // flush; the iOS backgrounding path does that in
+        // `savePlaybackStateInBackground()`.
 
-        // Only save if we have a current track
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()
             return
         }
-        
-        // Determine source identifier
+
+        persist(playbackStateSnapshot(currentTrack: currentTrack))
+    }
+
+    /// iOS backgrounding path: the same snapshot, but the encode and write run
+    /// off the main actor, so the brief background-transition window is not
+    /// spent pinning the UI thread on a large queue/artwork encode. The caller
+    /// holds a `beginBackgroundTask` open until this returns.
+    func savePlaybackStateInBackground() async {
+        await playbackJournal?.flush()
+
+        guard let currentTrack = playbackManager.currentTrack else {
+            clearAllSavedState()
+            return
+        }
+
+        let snapshot = playbackStateSnapshot(currentTrack: currentTrack)
+        let stateKey = playbackStateKey
+        let uiStateKey = playbackUIStateKey
+        await Task.detached(priority: .userInitiated) {
+            Self.write(snapshot, stateKey: stateKey, uiStateKey: uiStateKey)
+        }.value
+    }
+
+    private struct PlaybackStateSnapshot: Sendable {
+        let state: PlaybackState
+        let uiState: PlaybackUIState?
+    }
+
+    private func playbackStateSnapshot(currentTrack: Track) -> PlaybackStateSnapshot {
+        // Determine source identifier. A folder stores its path relative to
+        // the library root, like every other persisted path.
         var sourceIdentifier: String?
         switch playlistManager.currentQueueSource {
         case .folder:
             if let folderId = currentTrack.folderId,
                let folder = libraryManager.folders.first(where: { $0.id == folderId }) {
-                sourceIdentifier = folder.url.path
+                sourceIdentifier = LibraryPathStore.storedPath(for: folder.url)
             }
         case .playlist:
             sourceIdentifier = playlistManager.currentPlaylist?.id.uuidString
         default:
             break
         }
-        
+
         let state = PlaybackState(
             currentTrack: currentTrack,
             playbackPosition: playbackManager.actualCurrentTime,
@@ -151,17 +156,30 @@ class AppCoordinator: ObservableObject {
             shuffleEnabled: playlistManager.isShuffleEnabled,
             repeatMode: playlistManager.repeatMode
         )
-        
-        if let uiState = state.createUIState(from: currentTrack) {
-            if let uiData = try? JSONEncoder().encode(uiState) {
-                UserDefaults.standard.set(uiData, forKey: playbackUIStateKey)
-            }
+        return PlaybackStateSnapshot(
+            state: state,
+            uiState: state.createUIState(from: currentTrack)
+        )
+    }
+
+    private func persist(_ snapshot: PlaybackStateSnapshot) {
+        Self.write(snapshot, stateKey: playbackStateKey, uiStateKey: playbackUIStateKey)
+    }
+
+    nonisolated private static func write(
+        _ snapshot: PlaybackStateSnapshot,
+        stateKey: String,
+        uiStateKey: String
+    ) {
+        if let uiState = snapshot.uiState,
+           let uiData = try? JSONEncoder().encode(uiState) {
+            UserDefaults.standard.set(uiData, forKey: uiStateKey)
         }
-        
+
         do {
             let encoder = JSONEncoder()
-            let data = try encoder.encode(state)
-            UserDefaults.standard.set(data, forKey: playbackStateKey)
+            let data = try encoder.encode(snapshot.state)
+            UserDefaults.standard.set(data, forKey: stateKey)
             Logger.info("Playback state saved")
         } catch {
             Logger.warning("Failed to save playback state: \(error)")
@@ -277,10 +295,12 @@ class AppCoordinator: ObservableObject {
             }
         ) { first, _ in first }
         
-        // Create a path to track map as fallback
+        // Create a path to track map as fallback. Both sides use the
+        // Documents-relative path now that `PlaybackState` persists relative
+        // paths (the same seam the database uses).
         let trackPathMap: [String: Track] = Dictionary(
             relevantTracks.map { track in
-                (track.url.path, track)
+                (LibraryPathStore.storedPath(for: track.url), track)
             }
         ) { first, _ in first }
         

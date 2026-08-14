@@ -8,12 +8,6 @@
 
 import SwiftUI
 
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
-
 enum ColorMode: String, CaseIterable {
     case light = "Light"
     case dark = "Dark"
@@ -43,28 +37,6 @@ enum ColorMode: String, CaseIterable {
     /// Applies the mode to the whole app immediately.
     @MainActor
     func apply() {
-        #if os(macOS)
-        switch self {
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        case .auto:
-            NSApp.appearance = nil
-        }
-        #else
-        let style: UIUserInterfaceStyle
-        switch self {
-        case .light: style = .light
-        case .dark: style = .dark
-        case .auto: style = .unspecified
-        }
-        for scene in UIApplication.shared.connectedScenes {
-            guard let windowScene = scene as? UIWindowScene else { continue }
-            for window in windowScene.windows {
-                window.overrideUserInterfaceStyle = style
-            }
-        }
-        #endif
+        AppearanceApplier.apply(self)
     }
 }

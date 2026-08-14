@@ -10,9 +10,12 @@ import GRDB
 
 extension DatabaseManager {
     func applyMetadataToTrack(_ track: inout FullTrack, from metadata: TrackMetadata, at fileURL: URL) {
-        // Core fields
-        track.title = metadata.title?.nilIfEmpty ?? fileURL.deletingPathExtension().lastPathComponent
-        track.artist = metadata.artist?.nilIfEmpty ?? "Unknown Artist"
+        // Core fields. Filename fallback for whatever the tags left empty,
+        // from the shared layer so both targets apply the same
+        // `#### - Artist - Title` rule.
+        let filenameFallback = FilenameMetadataFallback.parse(fileURL)
+        track.title = metadata.title?.nilIfEmpty ?? filenameFallback.title
+        track.artist = metadata.artist?.nilIfEmpty ?? filenameFallback.artist ?? "Unknown Artist"
         track.album = metadata.album?.nilIfEmpty ?? "Unknown Album"
         track.genre = metadata.genre?.nilIfEmpty ?? "Unknown Genre"
         track.composer = metadata.composer?.nilIfEmpty ?? "Unknown Composer"

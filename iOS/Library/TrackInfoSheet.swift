@@ -90,7 +90,7 @@ struct TrackInfoSheet: View {
         VStack(spacing: 10) {
             ArtworkTile(
                 data: fullTrack.artworkData,
-                cacheKey: fullTrack.trackId.map { "track-info-\($0)" },
+                cacheKey: fullTrack.trackId.map(ArtworkCacheKey.trackInfo),
                 cornerRadius: 10,
                 iconSize: 48,
                 maxPixelSize: 600,
@@ -245,7 +245,7 @@ enum TrackInfoFields {
             ))
         }
 
-        items.append(Item(label: String(localized: "File Path"), value: track.url.path))
+        items.append(Item(label: String(localized: "File Path"), value: LibraryPathStore.storedPath(for: track.url)))
 
         if let dateAdded = track.dateAdded {
             items.append(Item(label: String(localized: "Date Added"), value: formatted(dateAdded)))

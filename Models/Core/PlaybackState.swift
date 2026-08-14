@@ -1,6 +1,6 @@
 import Foundation
 
-struct PlaybackUIState: Codable {
+struct PlaybackUIState: Codable, Sendable {
     let trackTitle: String
     let trackArtist: String
     let trackAlbum: String
@@ -10,7 +10,7 @@ struct PlaybackUIState: Codable {
     let volume: Float
 }
 
-struct PlaybackState: Codable {
+struct PlaybackState: Codable, Sendable {
     static let currentVersion = 1
     let version: Int
 
@@ -52,12 +52,15 @@ struct PlaybackState: Codable {
         repeatMode: RepeatMode
     ) {
         self.version = Self.currentVersion
-        self.currentTrackPath = currentTrack?.url.path
+        // Persist relative paths (the same seam the database uses), not
+        // absolute URLs: the container UUID is not stable across reinstalls,
+        // and an absolute path can never re-match after one.
+        self.currentTrackPath = currentTrack.map { LibraryPathStore.storedPath(for: $0.url) }
         self.currentTrackId = currentTrack?.trackId
         self.playbackPosition = playbackPosition
         self.trackDuration = currentTrack?.duration ?? 0
 
-        self.queueTrackPaths = queue.map { $0.url.path }
+        self.queueTrackPaths = queue.map { LibraryPathStore.storedPath(for: $0.url) }
         self.queueTrackIds = queue.compactMap { $0.trackId }
         self.currentQueueIndex = currentQueueIndex
 

@@ -24,15 +24,6 @@ enum NowPlayingArtwork {
         return Color(platformColor: dominantColor)
     }
 
-    /// Detail-header background tint: nil when artwork colors are disabled or
-    /// the artwork has no dominant color, so the header renders plain. The
-    /// screens hold their own `useArtworkColors` AppStorage; this is the
-    /// shared guard-and-map for their `tint:` parameter.
-    static func headerTint(forDominantColor dominantColor: PlatformColor?, enabled: Bool) -> Color? {
-        guard enabled, let dominantColor else { return nil }
-        return Color(platformColor: dominantColor)
-    }
-
     private static func accentFallback() -> Color {
         // Use the system accent (the empty AccentColor asset means Color.accentColor won't track it).
         #if os(macOS)
