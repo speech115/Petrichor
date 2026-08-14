@@ -92,11 +92,7 @@ struct Folder: Identifiable, Hashable, Codable, FetchableRecord, PersistableReco
         container[Columns.trackCount] = trackCount
         container[Columns.dateAdded] = dateAdded
         container[Columns.dateUpdated] = dateUpdated
-        #if os(iOS)
-        container[Columns.bookmarkData] = nil
-        #else
-        container[Columns.bookmarkData] = bookmarkData
-        #endif
+        container[Columns.bookmarkData] = LibraryPathStore.storedBookmarkData(for: bookmarkData)
         container[Columns.shasumHash] = shasumHash
     }
 

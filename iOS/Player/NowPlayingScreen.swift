@@ -17,8 +17,7 @@
 //
 
 import SwiftUI
-import AVKit
-import MediaPlayer
+import UIKit
 
 struct NowPlayingScreen: View {
     private enum PanelKind: Equatable {
@@ -317,7 +316,7 @@ struct NowPlayingScreen: View {
     private var artwork: some View {
         ArtworkTile(
             data: displayedTrack?.displayArtwork,
-            cacheKey: displayedTrack.map { "now-playing-\($0.id)" },
+            cacheKey: displayedTrack.map { ArtworkCacheKey.nowPlaying($0.id) },
             cornerRadius: 12,
             iconSize: 72,
             maxPixelSize: 960,
@@ -565,64 +564,4 @@ struct NowPlayingScreen: View {
     // with the grabber. No custom drag lives here — a `DragGesture` on the
     // content would claim the pan and starve the system gesture, which is the
     // "only responds after the animation ends" feel.
-}
-
-// MARK: - System Volume Slider
-
-/// The system volume control: a UIKit `MPVolumeView` stripped to its slider.
-/// It reflects the hardware buttons' volume and moves with them, which no
-/// custom control can do.
-///
-/// The knob is a clear 1×1 image so only the bar shows (Apple Music style).
-/// An empty `UIImage()` leaves an unlabeled AX element; a clear pixel does not.
-struct SystemVolumeSlider: UIViewRepresentable {
-    let tint: UIColor
-
-    func makeUIView(context: Context) -> MPVolumeView {
-        let view = MPVolumeView(frame: .zero)
-        // `showsRouteButton` is deprecated (iOS 13) and a no-op since: `MPVolumeView`
-        // has not shown a route button on its own since AirPlay routing moved to
-        // `AVRoutePickerView` (see `AirPlayButton` below, which is that picker).
-        view.showsVolumeSlider = true
-        view.tintColor = tint
-        let thumb = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { renderer in
-            UIColor.clear.setFill()
-            renderer.fill(CGRect(x: 0, y: 0, width: 1, height: 1))
-        }
-        view.setVolumeThumbImage(thumb, for: .normal)
-        view.setVolumeThumbImage(thumb, for: .highlighted)
-        view.isAccessibilityElement = true
-        view.accessibilityLabel = String(localized: "Volume")
-        view.accessibilityTraits.insert(.adjustable)
-        return view
-    }
-
-    func updateUIView(_ view: MPVolumeView, context: Context) {
-        view.tintColor = tint
-        view.accessibilityLabel = String(localized: "Volume")
-    }
-}
-
-// MARK: - AirPlay Button
-
-/// The system AirPlay route picker, matching the tint of the surrounding
-/// Lyrics / Queue buttons.
-struct AirPlayButton: UIViewRepresentable {
-    let tint: UIColor
-
-    func makeUIView(context: Context) -> AVRoutePickerView {
-        let view = AVRoutePickerView(frame: .zero)
-        view.tintColor = tint
-        view.activeTintColor = tint
-        view.isAccessibilityElement = true
-        view.accessibilityLabel = String(localized: "AirPlay")
-        view.accessibilityTraits.insert(.button)
-        return view
-    }
-
-    func updateUIView(_ view: AVRoutePickerView, context: Context) {
-        view.tintColor = tint
-        view.activeTintColor = tint
-        view.accessibilityLabel = String(localized: "AirPlay")
-    }
 }

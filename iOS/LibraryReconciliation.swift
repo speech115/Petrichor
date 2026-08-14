@@ -10,6 +10,25 @@
 import Foundation
 
 extension LibraryManager {
+    /// Fire-and-forget launch reconciliation for the iOS entry point. The
+    /// library *is* the app's own `Documents` folder — there is no picker
+    /// step, so it has to be registered on every launch rather than through
+    /// user action. The coordinator captured `hadFoldersAtStartup` before this
+    /// runs, and `reconcileLibrary()` re-registers the same folder row plus the
+    /// `.initialScanStarted`/`.foldersAddedToDatabase` notifications the
+    /// manager already observes are what bring newly-copied tracks into view —
+    /// so this must not block startup. Reconciliation skips the full scan when
+    /// the library already exists and the file set has not changed.
+    func reconcileInBackground() {
+        Task(priority: .utility) {
+            do {
+                try await reconcileLibrary()
+            } catch {
+                Logger.error("Failed to reconcile the iOS documents library: \(error)")
+            }
+        }
+    }
+
     /// iOS entry point: background reconciliation of the database against the
     /// `Documents` folder. Called on app launch and on return from background;
     /// the Settings "Rescan Library" button stays a forced full scan via
@@ -48,11 +67,9 @@ extension LibraryManager {
 
             await importLibraryPlaylistsIfNeeded()
             await MainActor.run { isReconcilingLibrary = false }
-            // Keep the system search index in step with the database. Runs
-            // only after reconciliation fully ends, at `.utility` priority,
-            // so a cold start is never held up by indexing. The snapshot
-            // diff inside makes a no-change launch a cheap no-op.
-            SpotlightIndexer.scheduleSync(with: databaseManager)
+            // The system search index is kept in step from `scanLibraryRoot()`
+            // (the single scheduling call site): a launch whose contents did
+            // not change never scans, and never needs a resync.
         } catch {
             await MainActor.run { isReconcilingLibrary = false }
             throw error
@@ -77,16 +94,33 @@ extension LibraryManager {
     /// `NotificationManager.shared`'s activity tray, so adding a parallel
     /// progress mechanism here would just be a second, redundant channel.
     func scanLibraryRoot() async throws {
-        let root = LibraryPathStore.libraryRoot
-        let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
-        guard !folders.isEmpty else { return }
-        await MainActor.run {
-            self.scheduleLibraryReload()
+        let shouldStart = await MainActor.run { () -> Bool in
+            guard !isScanningLibraryRoot else { return false }
+            isScanningLibraryRoot = true
+            return true
         }
-        // The Settings "Rescan Library" button calls `scanLibraryRoot()`
-        // directly (bypassing `reconcileLibrary()`), so the index sync hook
-        // lives here too. `SpotlightIndexer` deduplicates when both fire.
-        SpotlightIndexer.scheduleSync(with: databaseManager)
+        guard shouldStart else {
+            Logger.info("Library root scan already in progress, skipping duplicate trigger")
+            return
+        }
+
+        do {
+            let root = LibraryPathStore.libraryRoot
+            let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
+            guard !folders.isEmpty else { return }
+            await MainActor.run {
+                self.scheduleLibraryReload()
+            }
+            // The single Spotlight scheduling call site: both `reconcileLibrary()`
+            // (which calls this method) and the Settings "Rescan Library" button
+            // (which calls it directly) land here, so a resync always follows a
+            // real scan and never a no-change launch.
+            SpotlightIndexer.scheduleSync(with: databaseManager)
+            await MainActor.run { isScanningLibraryRoot = false }
+        } catch {
+            await MainActor.run { isScanningLibraryRoot = false }
+            throw error
+        }
     }
 
     // MARK: - M3U Playlist Auto-Import
@@ -122,7 +156,7 @@ extension LibraryManager {
                 .contentModificationDate?.timeIntervalSince1970 ?? 0
             let lastImported = importedMtimes[file.lastPathComponent]
             // Same tolerance as `libraryContentsDiffer` for filesystem clock jitter.
-            if lastImported == nil || abs((lastImported ?? 0) - mtime) > 1.0 {
+            if lastImported == nil || abs((lastImported ?? 0) - mtime) > TimeConstants.filesystemMtimeTolerance {
                 changedFiles.append((file, mtime))
             }
         }

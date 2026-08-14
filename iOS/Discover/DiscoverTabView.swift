@@ -70,7 +70,7 @@ struct DiscoverTabView: View {
             onPlay: { playAll(tracks) },
             onShuffle: { shuffleAll(tracks) },
             playDisabled: tracks.isEmpty,
-            subtitle: String(localized: "\(tracks.count) songs"),
+            subtitle: TrackCountText.songs(tracks.count),
             artwork: {
                 ArtworkMosaic(covers: Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4)))
                     .frame(width: 240, height: 240)
@@ -98,12 +98,10 @@ struct DiscoverTabView: View {
     }
 
     private func playAll(_ tracks: [Track]) {
-        guard let first = tracks.first else { return }
-        playlistManager.play(first, source: .library(context: tracks))
+        playlistManager.playLibrary(tracks)
     }
 
     private func shuffleAll(_ tracks: [Track]) {
-        playlistManager.playTrackShuffled(tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.shuffleLibrary(tracks)
     }
 }

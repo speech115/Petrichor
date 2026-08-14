@@ -49,6 +49,49 @@ extension Image {
     }
 }
 
+extension PlatformColor {
+    /// SwiftUI `Color` → platform color. The reverse of
+    /// `Color.init(platformColor:)`.
+    static func from(_ color: Color) -> PlatformColor {
+        #if os(macOS)
+        NSColor(color)
+        #else
+        UIColor(color)
+        #endif
+    }
+
+    /// An RGB-space copy of the color. `NSColor` may carry a non-RGB color
+    /// space and needs the conversion; `UIColor` is already RGB-backed.
+    func rgb() -> PlatformColor? {
+        #if os(macOS)
+        usingColorSpace(.deviceRGB)
+        #else
+        self
+        #endif
+    }
+}
+
+extension PlatformFont {
+    static func systemFont(ofSize size: CGFloat, bold: Bool) -> PlatformFont {
+        #if os(macOS)
+        NSFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+        #else
+        UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+        #endif
+    }
+}
+
+extension PlatformImage {
+    /// Encode a `CGImage` as JPEG platform data.
+    static func jpegData(from cgImage: CGImage, quality: CGFloat) -> Data? {
+        #if os(macOS)
+        return NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: [.compressionFactor: quality])
+        #else
+        return UIImage(cgImage: cgImage).jpegData(compressionQuality: quality)
+        #endif
+    }
+}
+
 #if !os(macOS)
 extension UIColor {
     static var windowBackgroundColor: UIColor { .systemBackground }

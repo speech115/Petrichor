@@ -66,6 +66,7 @@ import Testing
             t.column("lossless", .boolean)
             t.column("date_added", .datetime)
             t.column("is_favorite", .boolean)
+            t.column("date_favorited", .datetime)
             t.column("play_count", .integer)
             t.column("last_played_date", .datetime)
             t.column("album_artist", .text)

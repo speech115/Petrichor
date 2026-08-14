@@ -381,7 +381,7 @@ extension DatabaseManager {
         }
 
         let supportedExtensions = Set(AudioFormat.supportedExtensions.map { $0.lowercased() })
-        let tolerance: TimeInterval = 1.0
+        let tolerance = TimeConstants.filesystemMtimeTolerance
 
         // What the database knows: stored relative path -> mtime at scan time.
         let stored: [String: TimeInterval]

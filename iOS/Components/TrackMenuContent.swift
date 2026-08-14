@@ -32,7 +32,7 @@ struct TrackMenuContent: View {
         }
 
         Button {
-            UIPasteboard.general.string = track.url.path
+            UIPasteboard.general.string = LibraryPathStore.storedPath(for: track.url)
         } label: {
             Label(String(localized: "Copy File Path"), systemImage: "doc.on.doc")
         }

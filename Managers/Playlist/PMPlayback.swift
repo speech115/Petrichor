@@ -58,6 +58,20 @@ extension PlaylistManager {
         playTrack(first, fromTracks: shuffled)
     }
 
+    /// Plays a whole library-context list from its first track — the header
+    /// "Play" action.
+    func playLibrary(_ tracks: [Track]) {
+        guard let first = tracks.first else { return }
+        play(first, source: .library(context: tracks))
+    }
+
+    /// Shuffles and plays a library-context list — the header "Shuffle" action.
+    /// A one-off shuffle, not a change to the user's shuffle setting.
+    func shuffleLibrary(_ tracks: [Track]) {
+        playTrackShuffled(tracks)
+        currentQueueSource = .library
+    }
+
     func playTrackFromPlaylist(_ playlist: Playlist, at index: Int) {
         guard index >= 0, index < playlist.tracks.count else { return }
 

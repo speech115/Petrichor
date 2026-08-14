@@ -64,6 +64,11 @@ final actor SpotlightIndexer {
 
     private let userDefaults: UserDefaults
     private var isSyncing = false
+    /// Set by `resetIndex` when a database reset lands while a sync is
+    /// mid-flight. The in-flight pass is allowed to finish, then a fresh pass
+    /// re-runs against the post-reset database instead of leaving the
+    /// pre-reset snapshot in place.
+    private var resetPending = false
 
     /// Batch size for the full pass. Keeps one `indexSearchableItems` call (and
     /// one thumbnail batch) bounded, and gives the progress cursor a save
@@ -162,11 +167,17 @@ final actor SpotlightIndexer {
         isSyncing = true
         defer { isSyncing = false }
 
-        do {
-            try await performSync(databaseManager: databaseManager)
-        } catch {
-            Logger.error("Spotlight sync failed: \(error)")
-        }
+        // A reset requested mid-sync (`resetPending`) re-runs the pass once
+        // the current one ends, so the snapshot never survives under stale
+        // pre-reset content.
+        repeat {
+            resetPending = false
+            do {
+                try await performSync(databaseManager: databaseManager)
+            } catch {
+                Logger.error("Spotlight sync failed: \(error)")
+            }
+        } while resetPending
     }
 
     /// Clears the system index and the three id/digest snapshots outright,
@@ -186,7 +197,15 @@ final actor SpotlightIndexer {
         userDefaults.removeObject(forKey: Keys.artistSnapshot)
         Logger.info("Spotlight: cleared the index and snapshot after a database reset")
 
-        await syncAfterReconciliation(databaseManager: databaseManager)
+        // A sync already in flight holds pre-reset reads; its own snapshot
+        // write would resurrect the stale state this wipe just removed. Ask
+        // it to re-run after it ends rather than syncing here (which would
+        // return early on `isSyncing` and lose the resync entirely).
+        if isSyncing {
+            resetPending = true
+        } else {
+            await syncAfterReconciliation(databaseManager: databaseManager)
+        }
     }
 
     // MARK: - Sync
@@ -224,63 +243,88 @@ final actor SpotlightIndexer {
         var deleted = 0
     }
 
+    /// One sync pass over a single entity kind: diff the current fingerprints
+    /// against the snapshot, delete stale entries, then chunk-index the rest
+    /// and advance the snapshot per chunk. The three entity kinds (tracks,
+    /// albums, artists) differ only in the key type, the snapshot key and how
+    /// they build items — not in this algorithm.
+    private func syncEntityKind<Key: Hashable>(
+        domain: String,
+        snapshotKey: String,
+        entityName: String,
+        keyString: @escaping (Key) -> String,
+        current: [Key: String],
+        databaseManager: DatabaseManager,
+        makeItems: @escaping ([Key], DatabaseManager) async throws -> [CSSearchableItem]
+    ) async throws -> Changes {
+        var snapshot = userDefaults.dictionary(forKey: snapshotKey) as? [String: String] ?? [:]
+
+        var toIndex: [Key] = []
+        for (key, fingerprint) in current where snapshot[keyString(key)] != fingerprint {
+            toIndex.append(key)
+        }
+        toIndex.sort { keyString($0) < keyString($1) }
+
+        var changes = Changes()
+
+        // Keys that left the database: their index entries are stale.
+        let stale = snapshot.keys.filter { snapshotValue in
+            !current.contains { keyString($0.key) == snapshotValue }
+        }
+        if !stale.isEmpty {
+            let identifiers = stale.map { SpotlightDomain.identifier(domain: domain, value: $0) }
+            try await index.deleteSearchableItems(withIdentifiers: identifiers)
+            for key in stale {
+                snapshot.removeValue(forKey: key)
+            }
+            userDefaults.set(snapshot, forKey: snapshotKey)
+            Logger.info("Spotlight: deleted \(stale.count) stale \(entityName) entries from the index")
+        }
+        changes.deleted = stale.count
+        changes.indexed = toIndex.count
+
+        for chunk in stride(from: 0, to: toIndex.count, by: chunkSize) {
+            let keys = Array(toIndex[chunk..<min(chunk + chunkSize, toIndex.count)])
+            let items = try await makeItems(keys, databaseManager)
+            guard !items.isEmpty else { continue }
+            try await index.indexSearchableItems(items)
+            for key in keys {
+                snapshot[keyString(key)] = current[key] ?? ""
+            }
+            userDefaults.set(snapshot, forKey: snapshotKey)
+        }
+
+        return changes
+    }
+
     // MARK: - Tracks
 
     private func syncTracks(databaseManager: DatabaseManager) async throws -> Changes {
         // id -> date_modified as stored in the database. The scan rewrites
         // `date_modified` exactly for files that were added or changed, so it
         // is the change detector for the incremental pass.
-        let current = try await databaseManager.dbQueue.read { db -> [Int64: TimeInterval] in
-            var result: [Int64: TimeInterval] = [:]
+        let current = try await databaseManager.dbQueue.read { db -> [Int64: String] in
+            var result: [Int64: String] = [:]
             let rows = try Row.fetchAll(db, sql: "SELECT id, date_modified FROM tracks")
             result.reserveCapacity(rows.count)
             for row in rows {
                 let id: Int64 = row["id"]
                 let modified: Date? = row["date_modified"]
-                result[id] = modified?.timeIntervalSince1970 ?? 0
+                result[id] = String(modified?.timeIntervalSince1970 ?? 0)
             }
             return result
         }
 
-        var snapshot = userDefaults.dictionary(forKey: Keys.trackSnapshot)
-            as? [String: TimeInterval] ?? [:]
-
-        var toIndex: [Int64] = []
-        for (id, modified) in current where snapshot[String(id)] != modified {
-            toIndex.append(id)
+        return try await syncEntityKind(
+            domain: SpotlightDomain.track,
+            snapshotKey: Keys.trackSnapshot,
+            entityName: "track",
+            keyString: { String($0) },
+            current: current,
+            databaseManager: databaseManager
+        ) { ids, databaseManager in
+            try await self.makeTrackItems(ids: ids, databaseManager: databaseManager)
         }
-        toIndex.sort()
-
-        // Rows that left the database: their index entries are stale.
-        let stale = snapshot.keys
-            .compactMap { Int64($0) }
-            .filter { current[$0] == nil }
-        if !stale.isEmpty {
-            let identifiers = stale.map { SpotlightDomain.identifier(domain: SpotlightDomain.track, value: String($0)) }
-            try await index.deleteSearchableItems(withIdentifiers: identifiers)
-            for id in stale {
-                snapshot.removeValue(forKey: String(id))
-            }
-            userDefaults.set(snapshot, forKey: Keys.trackSnapshot)
-            Logger.info("Spotlight: deleted \(stale.count) stale track entries from the index")
-        }
-
-        var changes = Changes()
-        changes.deleted = stale.count
-        changes.indexed = toIndex.count
-
-        for chunk in stride(from: 0, to: toIndex.count, by: chunkSize) {
-            let ids = Array(toIndex[chunk..<min(chunk + chunkSize, toIndex.count)])
-            let items = try await makeTrackItems(ids: ids, databaseManager: databaseManager)
-            guard !items.isEmpty else { continue }
-            try await index.indexSearchableItems(items)
-            for id in ids {
-                snapshot[String(id)] = current[id] ?? 0
-            }
-            userDefaults.set(snapshot, forKey: Keys.trackSnapshot)
-        }
-
-        return changes
     }
 
     /// Sendable projection of the raw `SELECT` below, decoded inside the
@@ -299,7 +343,7 @@ final actor SpotlightIndexer {
     /// album in the description, thumbnail from the album's `artwork_thumbnail`
     /// or - for the ~404 tracks whose only cover is `track_artwork_data` -
     /// from a freshly made thumbnail, never a full-size BLOB.
-    private func makeTrackItems(ids: [Int64], databaseManager: DatabaseManager) async throws -> [CSSearchableItem] {
+    nonisolated private func makeTrackItems(ids: [Int64], databaseManager: DatabaseManager) async throws -> [CSSearchableItem] {
         let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
         let sql = """
             SELECT
@@ -401,59 +445,28 @@ final actor SpotlightIndexer {
             return result
         }
 
-        var snapshot = userDefaults.dictionary(forKey: Keys.albumSnapshot)
-            as? [String: String] ?? [:]
-
-        var changes = Changes()
-
-        var toIndex: [Int64] = []
-        for (id, digest) in current where snapshot[String(id)] != digest.fingerprint {
-            toIndex.append(id)
-        }
-        toIndex.sort()
-
-        let stale = snapshot.keys
-            .compactMap { Int64($0) }
-            .filter { current[$0] == nil }
-        if !stale.isEmpty {
-            let identifiers = stale.map { SpotlightDomain.identifier(domain: SpotlightDomain.album, value: String($0)) }
-            try await index.deleteSearchableItems(withIdentifiers: identifiers)
-            for id in stale {
-                snapshot.removeValue(forKey: String(id))
-            }
-            userDefaults.set(snapshot, forKey: Keys.albumSnapshot)
-            Logger.info("Spotlight: deleted \(stale.count) stale album entries from the index")
-        }
-        changes.deleted = stale.count
-        changes.indexed = toIndex.count
-
-        for chunk in stride(from: 0, to: toIndex.count, by: chunkSize) {
-            let ids = Array(toIndex[chunk..<min(chunk + chunkSize, toIndex.count)])
-            var items: [CSSearchableItem] = []
-            items.reserveCapacity(ids.count)
-            for id in ids {
-                guard let digest = current[id] else { continue }
+        return try await syncEntityKind(
+            domain: SpotlightDomain.album,
+            snapshotKey: Keys.albumSnapshot,
+            entityName: "album",
+            keyString: { String($0) },
+            current: current.mapValues { $0.fingerprint },
+            databaseManager: databaseManager
+        ) { ids, _ in
+            ids.compactMap { id -> CSSearchableItem? in
+                guard let digest = current[id] else { return nil }
                 let attributeSet = CSSearchableItemAttributeSet()
                 attributeSet.title = digest.title
                 if let thumbnail = digest.thumbnail {
                     attributeSet.thumbnailData = thumbnail
                 }
-                items.append(CSSearchableItem(
+                return CSSearchableItem(
                     uniqueIdentifier: SpotlightDomain.identifier(domain: SpotlightDomain.album, value: String(id)),
                     domainIdentifier: SpotlightDomain.album,
                     attributeSet: attributeSet
-                ))
-            }
-            if !items.isEmpty {
-                try await index.indexSearchableItems(items)
-                for id in ids {
-                    snapshot[String(id)] = current[id]?.fingerprint ?? ""
-                }
-                userDefaults.set(snapshot, forKey: Keys.albumSnapshot)
+                )
             }
         }
-
-        return changes
     }
 
     // MARK: - Artists
@@ -483,56 +496,27 @@ final actor SpotlightIndexer {
             return result
         }
 
-        var snapshot = userDefaults.dictionary(forKey: Keys.artistSnapshot)
-            as? [String: String] ?? [:]
-
-        var changes = Changes()
-
-        var toIndex: [String] = []
-        for (name, digest) in current where snapshot[name] != digest.fingerprint {
-            toIndex.append(name)
-        }
-        toIndex.sort()
-
-        let stale = snapshot.keys.filter { current[$0] == nil }
-        if !stale.isEmpty {
-            let identifiers = stale.map { SpotlightDomain.identifier(domain: SpotlightDomain.artist, value: $0) }
-            try await index.deleteSearchableItems(withIdentifiers: identifiers)
-            for name in stale {
-                snapshot.removeValue(forKey: name)
-            }
-            userDefaults.set(snapshot, forKey: Keys.artistSnapshot)
-            Logger.info("Spotlight: deleted \(stale.count) stale artist entries from the index")
-        }
-        changes.deleted = stale.count
-        changes.indexed = toIndex.count
-
-        for chunk in stride(from: 0, to: toIndex.count, by: chunkSize) {
-            let names = Array(toIndex[chunk..<min(chunk + chunkSize, toIndex.count)])
-            var items: [CSSearchableItem] = []
-            items.reserveCapacity(names.count)
-            for name in names {
-                guard let digest = current[name] else { continue }
+        return try await syncEntityKind(
+            domain: SpotlightDomain.artist,
+            snapshotKey: Keys.artistSnapshot,
+            entityName: "artist",
+            keyString: { $0 },
+            current: current.mapValues { $0.fingerprint },
+            databaseManager: databaseManager
+        ) { names, _ in
+            names.compactMap { name -> CSSearchableItem? in
+                guard let digest = current[name] else { return nil }
                 let attributeSet = CSSearchableItemAttributeSet()
                 attributeSet.title = name
                 if let thumbnail = digest.thumbnail {
                     attributeSet.thumbnailData = thumbnail
                 }
-                items.append(CSSearchableItem(
+                return CSSearchableItem(
                     uniqueIdentifier: SpotlightDomain.identifier(domain: SpotlightDomain.artist, value: name),
                     domainIdentifier: SpotlightDomain.artist,
                     attributeSet: attributeSet
-                ))
-            }
-            if !items.isEmpty {
-                try await index.indexSearchableItems(items)
-                for name in names {
-                    snapshot[name] = current[name]?.fingerprint ?? ""
-                }
-                userDefaults.set(snapshot, forKey: Keys.artistSnapshot)
+                )
             }
         }
-
-        return changes
     }
 }

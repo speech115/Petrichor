@@ -37,6 +37,17 @@ enum LibraryPathStore {
         #endif
     }
 
+    /// Bookmark data to persist for a folder row. iOS music stays inside the
+    /// container, where security-scoped bookmarks are not needed, so it stores
+    /// `nil`; macOS persists the data to reopen folders outside its sandbox.
+    static func storedBookmarkData(for bookmarkData: Data?) -> Data? {
+        #if os(iOS)
+        return nil
+        #else
+        return bookmarkData
+        #endif
+    }
+
     /// Путь для записи в базу.
     static func storedPath(for url: URL) -> String {
         // /var is a symlink to /private/var on iOS; enumeration can hand back

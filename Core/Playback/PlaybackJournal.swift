@@ -18,6 +18,20 @@ protocol PlaybackJournal: AnyObject {
     func flush()
 }
 
+/// The one place the "nil on macOS, JSONL on iOS" decision lives. The
+/// coordinator asks the seam for its journal instead of branching per
+/// platform at the call site.
+@MainActor
+enum PlaybackJournalFactory {
+    static func make() -> (any PlaybackJournal)? {
+        #if os(iOS)
+        return JSONLPlaybackJournal()
+        #else
+        return nil
+        #endif
+    }
+}
+
 /// One JSONL line in `Documents/Sync/playback-journal.jsonl`.
 enum PlaybackJournalEvent: Equatable, Sendable {
     case played(path: String, at: Date)

@@ -227,6 +227,10 @@ enum TimeConstants {
     /// Defer for detail-header dominant-color extraction so it doesn't compete
     /// with the open transition.
     static let headerTintDefer: TimeInterval = 0.32
+
+    /// Filesystem clock-jitter tolerance for mtime comparisons: a file modified
+    /// within this window of its stored scan time reads as unchanged.
+    static let filesystemMtimeTolerance: TimeInterval = 1.0
 }
 
 // MARK: - Default Playlists

@@ -17,7 +17,6 @@ struct CategoryItemsView: View {
     let zoomNamespace: Namespace.ID
 
     @State private var items: [LibraryFilterItem] = []
-    @State private var albumEntitiesByID: [Int64: AlbumEntity] = [:]
 
     var body: some View {
         Group {
@@ -92,23 +91,13 @@ struct CategoryItemsView: View {
     }
 
     /// Artists and albums get their detail pages; genres and years keep the
-    /// plain track list.
+    /// plain track list. Resolved by the shared `LibraryNavigation`.
     private func destination(for item: LibraryFilterItem) -> LibraryDestination {
-        switch filterType {
-        case .artists:
-            return .artist(name: item.name)
-        case .albums:
-            return .album(albumEntity(for: item) ?? AlbumEntity(name: item.name, trackCount: item.count))
-        default:
-            return .tracks(item)
-        }
+        LibraryNavigation.destination(for: filterType, item: item, libraryManager: libraryManager)
     }
 
     private func albumEntity(for item: LibraryFilterItem) -> AlbumEntity? {
-        if let albumId = item.albumId {
-            return albumEntitiesByID[albumId]
-        }
-        return libraryManager.albumEntities.first { $0.name == item.name }
+        LibraryNavigation.albumEntity(for: item, libraryManager: libraryManager)
     }
 
     private func albumZoomID(for item: LibraryFilterItem) -> DetailZoomID {
@@ -125,7 +114,7 @@ struct CategoryItemsView: View {
             HStack(spacing: 12) {
                 ArtworkTile(
                     data: nil,
-                    cacheKey: "artist-\(item.name)",
+                    cacheKey: ArtworkCacheKey.artist(item.name),
                     cornerRadius: 22,
                     loader: artistArtworkLoader(for: item.name)
                 )
@@ -147,17 +136,7 @@ struct CategoryItemsView: View {
     }
 
     private func reload() {
-        let sorted = sort(libraryManager.getLibraryFilterItems(for: filterType))
-        items = sorted
-
-        if filterType == .albums {
-            albumEntitiesByID = Dictionary(
-                libraryManager.albumEntities.compactMap { album in
-                    album.albumId.map { ($0, album) }
-                },
-                uniquingKeysWith: { first, _ in first }
-            )
-        }
+        items = sort(libraryManager.getLibraryFilterItems(for: filterType))
     }
 
     private func artistArtworkLoader(for name: String) -> ArtworkDataLoader {
@@ -195,7 +174,7 @@ private struct AlbumGridCard: View {
         VStack(alignment: .leading, spacing: 6) {
             ArtworkTile(
                 data: nil,
-                cacheKey: item.albumId.map { "album-\($0)" },
+                cacheKey: item.albumId.map(ArtworkCacheKey.album),
                 cornerRadius: 10,
                 iconSize: 28,
                 maxPixelSize: 600,
@@ -208,7 +187,7 @@ private struct AlbumGridCard: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
 
-            Text(String(localized: "\(item.count) songs"))
+            Text(TrackCountText.songs(item.count))
                 .font(.caption)
                 .foregroundColor(.secondary)
         }

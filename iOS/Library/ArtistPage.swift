@@ -15,16 +15,13 @@ struct ArtistPage: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
-    @AppStorage("useArtworkColors")
-    private var useArtworkColors = true
-
     let artistName: String
     let zoomNamespace: Namespace.ID
 
     @State private var tracks: [Track] = []
     @State private var albums: [AlbumEntity] = []
     @State private var photoData: Data?
-    @State private var headerDominantColor: PlatformColor?
+    @State private var headerTint: Color?
     @State private var bio: String?
     @State private var loadTask: Task<Void, Never>?
 
@@ -65,11 +62,9 @@ struct ArtistPage: View {
         }
         .listStyle(.insetGrouped)
         .navigationBarTitleDisplayMode(.inline)
+        .detailHeaderTint(cacheID: artistName, imageData: photoData, tint: $headerTint)
         .task(id: artistName) {
             await load()
-        }
-        .task(id: tintTaskID) {
-            await updateHeaderTint()
         }
         .onChange(of: libraryManager.libraryRevision) { _, _ in
             scheduleLoad()
@@ -101,37 +96,12 @@ struct ArtistPage: View {
         )
     }
 
-    private var headerTint: Color? {
-        NowPlayingArtwork.headerTint(
-            forDominantColor: headerDominantColor,
-            enabled: useArtworkColors
-        )
-    }
-
-    private var tintTaskID: String {
-        "\(artistName)-\(photoData?.count ?? 0)-\(useArtworkColors)"
-    }
-
-    private func updateHeaderTint() async {
-        guard useArtworkColors, let photoData else {
-            headerDominantColor = nil
-            return
-        }
-        let dominant = await ImageUtils.headerDominantColor(id: artistName, imageData: photoData)
-        guard !Task.isCancelled else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            headerDominantColor = dominant
-        }
-    }
-
     private var photo: some View {
         Group {
             if let photoData {
                 ArtworkTile(
                     data: photoData,
-                    cacheKey: "artist-detail-\(artistName)",
+                    cacheKey: ArtworkCacheKey.artistDetail(artistName),
                     cornerRadius: 90,
                     maxPixelSize: 720
                 )
@@ -176,7 +146,7 @@ struct ArtistPage: View {
     private func albumArtwork(_ album: AlbumEntity) -> some View {
         ArtworkTile(
             data: album.displayArtwork,
-            cacheKey: album.albumId.map { "album-\($0)" },
+            cacheKey: album.albumId.map(ArtworkCacheKey.album),
             loader: albumArtworkLoader(for: album.albumId)
         )
             .frame(width: 44, height: 44)
@@ -189,11 +159,7 @@ struct ArtistPage: View {
     }
 
     private func albumSubtitle(_ album: AlbumEntity) -> String {
-        let year = LibraryFilterType.years.localizedDisplay(album.year ?? "")
-        if !year.isEmpty, year != LibraryFilterType.years.localizedUnknownPlaceholder {
-            return "\(year) • \(String(localized: "\(album.trackCount) songs"))"
-        }
-        return String(localized: "\(album.trackCount) songs")
+        TrackCountText.albumSubtitle(album)
     }
 
     // MARK: - Loading
@@ -203,13 +169,11 @@ struct ArtistPage: View {
     }
 
     private func playAll() {
-        guard let first = tracks.first else { return }
-        playlistManager.play(first, source: .library(context: tracks))
+        playlistManager.playLibrary(tracks)
     }
 
     private func shuffleAll() {
-        playlistManager.playTrackShuffled(tracks)
-        playlistManager.currentQueueSource = .library
+        playlistManager.shuffleLibrary(tracks)
     }
 
     private func scheduleLoad() {

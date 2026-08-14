@@ -87,7 +87,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
-        onResume: { [weak self] in self?.resume() }
+        onResume: { [weak self] in self?.resume() },
+        isPlaying: { [weak self] in self?.player.timeControlStatus == .playing }
     )
 
     /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared

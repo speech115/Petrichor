@@ -54,7 +54,13 @@ struct PetrichorApp: App {
         // iPhone rows load artwork only as they become visible. Keeping every
         // album and artist BLOB in the shared entity cache costs hundreds of
         // megabytes on a real library and makes launch contend with the UI.
-        _appCoordinator = StateObject(wrappedValue: AppCoordinator(cacheEntityArtwork: false))
+        let coordinator = AppCoordinator(cacheEntityArtwork: false)
+        _appCoordinator = StateObject(wrappedValue: coordinator)
+
+        // The iOS library is the app's own Documents folder, so it must be
+        // registered on every launch (no picker step). Fire-and-forget; the
+        // coordinator captured the pre-scan folder state before this runs.
+        coordinator.libraryManager.reconcileInBackground()
 
         // Catches the search-index deletions reconciliation never causes on
         // its own: folder removal and entity merges, both of which post
@@ -93,7 +99,17 @@ struct PetrichorApp: App {
                             }
                         }
                     case .background, .inactive:
-                        appCoordinator.savePlaybackState()
+                        // Save off-main within a background task: the system
+                        // may otherwise suspend the app mid-write, dropping the
+                        // journal batch or the playback state.
+                        var backgroundTask = UIBackgroundTaskIdentifier.invalid
+                        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save playback state") {
+                            UIApplication.shared.endBackgroundTask(backgroundTask)
+                        }
+                        Task {
+                            await appCoordinator.savePlaybackStateInBackground()
+                            UIApplication.shared.endBackgroundTask(backgroundTask)
+                        }
                     @unknown default:
                         break
                     }

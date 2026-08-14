@@ -250,7 +250,7 @@ private struct PlaylistRowView: View {
                 Text(PlaylistDisplay.name(for: playlist))
                     .font(.body)
                     .lineLimit(1)
-                Text(String(localized: "\(playlist.trackCount) songs"))
+                Text(TrackCountText.songs(playlist.trackCount))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -262,18 +262,7 @@ private struct PlaylistRowView: View {
     /// Cover precedence: the playlist's own artwork, then the cover its pinned
     /// entry gives it, then the 2x2 preview mosaic. Which service a row came
     /// from is the section header's job, not the row's.
-    @ViewBuilder
     private var artwork: some View {
-        Group {
-            if playlist.coverArtworkData != nil {
-                ArtworkTile(data: playlist.coverArtworkData, cacheKey: "playlist-\(playlist.id)", cornerRadius: 8, iconSize: 20)
-            } else if let cover = PlaylistCover.of(playlist) {
-                PlaylistCoverView(cover: cover)
-            } else {
-                ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: previewTracks))
-            }
-        }
-        // The row's name and count read it; the cover is decoration.
-        .accessibilityHidden(true)
+        PlaylistArtworkView(playlist: playlist, tracks: previewTracks)
     }
 }

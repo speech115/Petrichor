@@ -87,6 +87,11 @@ class LibraryManager: ObservableObject {
     /// arrive again while the filesystem walk is still running; without this
     /// gate every caller starts another full scan against the same root.
     internal var isReconcilingLibrary = false
+    /// Serializes `scanLibraryRoot()` itself. The Settings "Rescan" button calls
+    /// it directly (not through `reconcileLibrary()`), and `isScanning` flips
+    /// late inside `addFoldersAsync`; this gate closes the window where two
+    /// scans race the same root.
+    internal var isScanningLibraryRoot = false
 
     // Database manager. `nonisolated`: a pure `Sendable` `DatabasePool` wrapper
     // (see `DatabaseManager`'s own doc comment), so the handful of read-only
