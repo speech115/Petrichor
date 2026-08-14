@@ -5,9 +5,9 @@
 // state. Reused by the library, search, playlists, folders and the queue.
 //
 // Gestures live here so they work identically everywhere the row appears:
-// swipe right to add to a playlist, swipe left to play next (with a
-// confirmation haptic at gesture completion), long-press for the full
-// context menu. VoiceOver exposes the same two actions as custom actions.
+// swipe left to play next (with a confirmation haptic at gesture completion),
+// long-press for the full context menu. VoiceOver exposes the same "Play Next"
+// action as a custom action.
 //
 // Artwork is not preloaded into list track arrays: a Songs-sized library
 // would carry megabytes of thumbnails before the first row paints. Visible
@@ -28,8 +28,6 @@ struct TrackRow: View {
     let playbackManager: PlaybackManager
     var menuContext: TrackContextMenu.MenuContext = .library
 
-    @State private var showingPlaylistPicker = false
-
     var body: some View {
         Button(action: onPlay) {
             HStack(spacing: 12) {
@@ -45,13 +43,6 @@ struct TrackRow: View {
         // The custom actions below stay on that same element, so the row
         // remains operable after combining.
         .accessibilityElement(children: .combine)
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            Button {
-                showingPlaylistPicker = true
-            } label: {
-                Label(String(localized: "Add to Playlist"), systemImage: "text.badge.plus")
-            }
-        }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
                 playNextWithConfirmation()
@@ -63,26 +54,8 @@ struct TrackRow: View {
         .contextMenu {
             contextMenuContent
         }
-        .confirmationDialog(
-            String(localized: "Add to Playlist"),
-            isPresented: $showingPlaylistPicker,
-            titleVisibility: .visible
-        ) {
-            ForEach(regularPlaylists) { playlist in
-                Button(PlaylistDisplay.name(for: playlist)) {
-                    playlistManager.updateTrackInPlaylist(track: track, playlist: playlist, add: true)
-                }
-            }
-            Button(String(localized: "New Playlist...")) {
-                playlistManager.showCreatePlaylistModal(with: [track])
-            }
-            Button(String(localized: "Cancel"), role: .cancel) {}
-        }
         .accessibilityAction(named: String(localized: "Play Next")) {
             playNextWithConfirmation()
-        }
-        .accessibilityAction(named: String(localized: "Add to Playlist")) {
-            showingPlaylistPicker = true
         }
     }
 
@@ -91,10 +64,6 @@ struct TrackRow: View {
     private func playNextWithConfirmation() {
         playlistManager.playNext(track)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-    }
-
-    private var regularPlaylists: [Playlist] {
-        playlistManager.playlists.filter { $0.type == .regular }
     }
 
     @ViewBuilder

@@ -213,9 +213,8 @@ enum AnimationDuration {
     /// Long enough to clear the system zoom transition, so work deferred past
     /// the open/close animation (the Now Playing mount flag, fine scrubber
     /// sampling) never fights `matchedTransitionSource` on the main thread.
-    /// Empirical, tuned against the measured zoom on the iOS 26 simulator —
-    /// not a value the system exposes.
-    static let zoomTransitionSettle: TimeInterval = 0.38
+    /// The measured zoom is ~480ms, so this sits a comfortable margin past it.
+    static let zoomTransitionSettle: TimeInterval = 0.6
 
     /// Defer for detail-header dominant-color extraction so it doesn't compete
     /// with the open transition.

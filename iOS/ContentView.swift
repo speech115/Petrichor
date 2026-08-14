@@ -396,16 +396,15 @@ private struct MiniPlayerAccessory: View {
                                 .foregroundColor(.secondary)
                                 .lineLimit(1)
                         }
-                        // Group title+artist into one composited layer. They are
-                        // two Text nodes, and the zoom transition's source
-                        // restore re-registers them in separate passes — the
-                        // artist line visibly pops in a beat after the title on
-                        // collapse. A compositing group lands them atomically
-                        // without the bitmap rasterization `.drawingGroup()`
-                        // would impose (blurred text, a blank frame on track
-                        // change). If the pop-in ever returns, `.drawingGroup()`
-                        // is the stronger hammer.
-                        .compositingGroup()
+                        // Rasterize title+artist into a single layer. They are two
+                        // Text nodes, and the zoom transition's source restore
+                        // re-registers them in separate passes — the artist line
+                        // visibly pops in a beat after the title on collapse. One
+                        // Metal texture lands atomically instead (compositingGroup
+                        // still drew the two nodes separately, so the artist lag
+                        // survived it). The text is a two-line label at most, so
+                        // the rasterization cost is negligible.
+                        .drawingGroup()
                         // Cross-fade, not a slide: in a 44pt row a horizontal
                         // move reads as a twitch. The track usually changes on
                         // its own at the end of a song, with nobody's finger on

@@ -22,6 +22,9 @@ struct PlayerScrubber: View {
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
     @State private var releaseTask: Task<Void, Never>?
+    /// Wall-clock of the last live seek, so a fast drag seeks the engine at a
+    /// bounded rate instead of once per touch frame.
+    @State private var lastLiveSeekAt: TimeInterval = 0
 
     init(palette: PlayerPalette, playbackManager: PlaybackManager) {
         self.palette = palette
@@ -141,11 +144,21 @@ struct PlayerScrubber: View {
                     isScrubbing = true
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 }
-                scrubTime = SeekScrub.seekTime(
+                let time = SeekScrub.seekTime(
                     position: Double(value.location.x),
                     width: Double(width),
                     duration: duration
                 )
+                scrubTime = time
+                // Live scrub: the audio follows the finger the way the lock
+                // screen's does, not just the bar. Throttled to one seek per
+                // ~120ms so a fast drag doesn't flood the engine; the exact
+                // final position is still sought on release.
+                let now = Date().timeIntervalSinceReferenceDate
+                if now - lastLiveSeekAt >= 0.12 {
+                    lastLiveSeekAt = now
+                    playbackManager.seekTo(time: time)
+                }
             }
             .onEnded { value in
                 let time = SeekScrub.seekTime(
@@ -155,6 +168,7 @@ struct PlayerScrubber: View {
                 )
                 scrubTime = time
                 playbackManager.seekTo(time: time)
+                lastLiveSeekAt = 0
                 // The playhead needs a beat to catch up with the seek; ending
                 // the scrub immediately would snap the bar back to the old
                 // position for one frame.
