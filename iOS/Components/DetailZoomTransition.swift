@@ -1,11 +1,10 @@
 //
 // DetailZoomTransition (iOS)
 //
-// Shared zoom-navigation helpers for playlist/album detail opens — the
-// Apple Music hero transition via matchedTransitionSource + zoom.
-// Each NavigationStack installs a Namespace into the environment; sources
-// and destinations read it. Missing namespace is a no-op so nested previews
-// and non-zooming links stay safe.
+// Zoom-navigation helpers for playlist/album detail opens. Callers pass the
+// NavigationStack's `@Namespace` directly — storing Namespace.ID? in the
+// environment made matchedTransitionSource a silent no-op, so opens fell
+// back to the plain slide push.
 //
 
 import SwiftUI
@@ -15,51 +14,31 @@ enum DetailZoomID: Hashable {
     case album(UUID)
 }
 
-private struct ZoomNamespaceKey: EnvironmentKey {
-    static let defaultValue: Namespace.ID? = nil
-}
-
-extension EnvironmentValues {
-    var zoomNamespace: Namespace.ID? {
-        get { self[ZoomNamespaceKey.self] }
-        set { self[ZoomNamespaceKey.self] = newValue }
-    }
-}
-
 extension View {
     /// Marks this view as the zoom source for a playlist/album push.
-    func detailZoomSource(_ id: DetailZoomID) -> some View {
-        modifier(DetailZoomSourceModifier(id: id))
+    func detailZoomSource(_ id: DetailZoomID, in namespace: Namespace.ID) -> some View {
+        matchedTransitionSource(id: id, in: namespace) { source in
+            source
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
     }
 
     /// Zooms the pushed detail screen out of the matching source.
-    func detailZoomDestination(_ id: DetailZoomID) -> some View {
-        modifier(DetailZoomDestinationModifier(id: id))
+    func detailZoomDestination(_ id: DetailZoomID, in namespace: Namespace.ID) -> some View {
+        navigationTransition(.zoom(sourceID: id, in: namespace))
     }
 }
 
-private struct DetailZoomSourceModifier: ViewModifier {
+/// Applies a detail zoom source only when a parent stack passes a namespace
+/// (Home category / Artist). Hosts without zoom leave `namespace` nil.
+struct OptionalDetailZoomSource: ViewModifier {
     let id: DetailZoomID
-    @Environment(\.zoomNamespace) private var zoomNamespace
+    let namespace: Namespace.ID?
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if let zoomNamespace {
-            content.matchedTransitionSource(id: id, in: zoomNamespace)
-        } else {
-            content
-        }
-    }
-}
-
-private struct DetailZoomDestinationModifier: ViewModifier {
-    let id: DetailZoomID
-    @Environment(\.zoomNamespace) private var zoomNamespace
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if let zoomNamespace {
-            content.navigationTransition(.zoom(sourceID: id, in: zoomNamespace))
+        if let namespace {
+            content.detailZoomSource(id, in: namespace)
         } else {
             content
         }

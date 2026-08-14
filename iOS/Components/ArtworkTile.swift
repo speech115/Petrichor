@@ -173,7 +173,12 @@ struct ArtworkTile: View {
         if let cacheKey {
             RowArtworkCache.shared.setImage(image, forKey: cacheKey)
         }
-        withAnimation(.easeOut(duration: 0.18)) {
+        // No cross-fade: a 180ms opacity tween on decode fights Navigation
+        // zoom and fullScreenCover zoom, and reads as hitch. Cache hits already
+        // paint instantly; decode into a fallback should too.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
             decodedImage = image
             decodedImageKey = cacheKey
         }

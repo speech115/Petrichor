@@ -90,15 +90,14 @@ struct SearchView: View {
                 .navigationDestination(for: LibraryDestination.self) { destination in
                     switch destination {
                     case .artist(let name):
-                        ArtistPage(artistName: name)
+                        ArtistPage(artistName: name, zoomNamespace: zoomNamespace)
                     case .album(let album):
                         AlbumPage(album: album)
-                            .detailZoomDestination(.album(album.id))
+                            .detailZoomDestination(.album(album.id), in: zoomNamespace)
                     case .category, .tracks, .allTracks:
                         EmptyView()
                     }
                 }
-                .environment(\.zoomNamespace, zoomNamespace)
                 .onChange(of: focusRequest) { _, _ in
                     isSearchFieldFocused = true
                 }
@@ -241,7 +240,7 @@ struct SearchView: View {
             )
         }
         .buttonStyle(.plain)
-        .detailZoomSource(.album(album.id))
+        .detailZoomSource(.album(album.id), in: zoomNamespace)
     }
 
     private func entityRow(

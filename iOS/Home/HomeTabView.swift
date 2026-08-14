@@ -39,7 +39,8 @@ struct HomeTabView: View {
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
                             albums: recentAlbums,
-                            headerValue: smartPlaylistID(DefaultPlaylists.recentlyPlayed)
+                            headerValue: smartPlaylistID(DefaultPlaylists.recentlyPlayed),
+                            zoomNamespace: zoomNamespace
                         )
                     }
                     librarySection
@@ -60,9 +61,8 @@ struct HomeTabView: View {
                     playbackManager: playbackManager,
                     playlistCatalog: playlistManager.catalogObservation
                 )
-                .detailZoomDestination(.playlist(playlistID))
+                .detailZoomDestination(.playlist(playlistID), in: zoomNamespace)
             }
-            .environment(\.zoomNamespace, zoomNamespace)
             .overlay {
                 if isEmpty, libraryManager.shouldShowMainUI {
                     ContentUnavailableView {
@@ -117,7 +117,7 @@ struct HomeTabView: View {
                         count: favorites.trackCount,
                         value: favorites.id
                     )
-                    .detailZoomSource(.playlist(favorites.id))
+                    .detailZoomSource(.playlist(favorites.id), in: zoomNamespace)
                 }
                 if let mostPlayed = smartPlaylist(DefaultPlaylists.mostPlayed) {
                     rowDivider
@@ -126,7 +126,7 @@ struct HomeTabView: View {
                         count: mostPlayed.trackCount,
                         value: mostPlayed.id
                     )
-                    .detailZoomSource(.playlist(mostPlayed.id))
+                    .detailZoomSource(.playlist(mostPlayed.id), in: zoomNamespace)
                 }
             }
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
@@ -174,16 +174,16 @@ struct HomeTabView: View {
     private func destinationView(_ destination: LibraryDestination) -> some View {
         switch destination {
         case .category(let filterType):
-            CategoryItemsView(filterType: filterType)
+            CategoryItemsView(filterType: filterType, zoomNamespace: zoomNamespace)
         case .tracks(let item):
             TrackListView(filterItem: item)
         case .allTracks:
             TrackListView(filterItem: nil)
         case .artist(let name):
-            ArtistPage(artistName: name)
+            ArtistPage(artistName: name, zoomNamespace: zoomNamespace)
         case .album(let album):
             AlbumPage(album: album)
-                .detailZoomDestination(.album(album.id))
+                .detailZoomDestination(.album(album.id), in: zoomNamespace)
         }
     }
 

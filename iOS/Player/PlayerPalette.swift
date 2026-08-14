@@ -36,13 +36,30 @@ struct PlayerPalette: Equatable {
         Color(white: 0.06)
     ])
 
+    /// Sync path for the first NP frame when dominant colors are already cached.
+    @MainActor
+    static func makeSync(from dominant: [PlatformColor]) -> PlayerPalette {
+        palette(from: Array(dominant.prefix(2)))
+    }
+
     @MainActor
     static func make(for track: Track?, useArtworkColors: Bool) async -> PlayerPalette {
         guard useArtworkColors, let track else { return neutral }
 
-        let dominant = Array((await track.loadDominantColors()).prefix(2))
-        guard let top = dominant.first else { return neutral }
+        // Prefer the sync cache so the first NP frame already matches the
+        // cover — an async neutral→colored swap mid-zoom is the hitch users
+        // read as lag.
+        if let cached = track.cachedDominantColors, !cached.isEmpty {
+            return palette(from: Array(cached.prefix(2)))
+        }
 
+        let dominant = Array((await track.loadDominantColors()).prefix(2))
+        guard !dominant.isEmpty else { return neutral }
+        return palette(from: dominant)
+    }
+
+    private static func palette(from dominant: [PlatformColor]) -> PlayerPalette {
+        guard let top = dominant.first else { return neutral }
         let second = dominant.count > 1 ? dominant[1] : top
         return PlayerPalette(gradient: [
             surface(top, brightness: 0.52),

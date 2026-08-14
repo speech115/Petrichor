@@ -208,9 +208,21 @@ struct PlaylistDetailScreen: View {
             return
         }
         let cacheID = playlistID.uuidString
+        // Serve a sync cache hit before the zoom settles so the wash doesn't
+        // pop in mid-transition. Misses still decode off-main afterward.
+        if let cached = ImageUtils.cachedDominantColorsIfAvailable(id: cacheID, imageData: artworkData)?.first {
+            headerDominantColor = cached
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(320))
+        guard !Task.isCancelled else { return }
         let dominant = await ImageUtils.cachedDominantColors(id: cacheID, imageData: artworkData).first
         guard !Task.isCancelled else { return }
-        headerDominantColor = dominant
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            headerDominantColor = dominant
+        }
     }
 
     // MARK: - Loading

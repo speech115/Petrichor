@@ -16,12 +16,13 @@ struct RecentAlbumsShelf: View {
     /// Destination of the section title link (the "Top 25 Recently Played"
     /// smart playlist); nil renders a plain title.
     let headerValue: UUID?
+    let zoomNamespace: Namespace.ID
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let headerValue {
                 SectionHeaderLink(title: String(localized: "Recently Played"), value: headerValue)
-                    .detailZoomSource(.playlist(headerValue))
+                    .detailZoomSource(.playlist(headerValue), in: zoomNamespace)
             } else {
                 SectionTitle(title: String(localized: "Recently Played"))
             }
@@ -38,6 +39,7 @@ struct RecentAlbumsShelf: View {
                                     iconSize: 28
                                 )
                                 .frame(width: 130, height: 130)
+                                .detailZoomSource(.album(album.id), in: zoomNamespace)
 
                                 // The combine modifier sits on this text
                                 // group alone, not the card: combined with
@@ -78,7 +80,6 @@ struct RecentAlbumsShelf: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .detailZoomSource(.album(album.id))
                     }
                 }
                 .padding(.horizontal, 16)

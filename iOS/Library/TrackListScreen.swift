@@ -147,10 +147,14 @@ struct TrackListScreen<Header: View, Row: View>: View {
 
         spinnerTask?.cancel()
         guard !Task.isCancelled else { return }
-        tracks = loaded
-        sections = sectioner(loaded)
-        isLoading = false
-        withAnimation(.easeOut(duration: AnimationDuration.standardDuration)) {
+        // Publish without animation: list pop-in during a zoom push is the
+        // hitch. Spinner hide stays unanimated for the same reason.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            tracks = loaded
+            sections = sectioner(loaded)
+            isLoading = false
             showsSpinner = false
         }
         onRowsChange?(loaded)
