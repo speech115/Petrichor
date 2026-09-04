@@ -38,7 +38,6 @@ xcodebuild -scheme Petrichor -destination 'platform=macOS' build
 - Воспроизведение — только MP3 (AVFoundation): FLAC на iOS не играет.
 - Избранное и счётчики прослушиваний, набранные на телефоне, теряются при
   переносе библиотеки (ADR 0003); синк телефон→мак — в работе
-  (`PlaybackJournal`, тикет 05: `.scratch/official-port-gaps/issues/05-playback-journal.md`).
 
 ## Скриншоты
 

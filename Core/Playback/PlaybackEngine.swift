@@ -90,8 +90,10 @@ public struct QueueEntry {
 
 // MARK: - Now Playing Metadata
 
-/// The descriptive half of the system Now Playing tile. The engine owns the
-/// dynamic half - duration, elapsed time, rate - and publishes the merged result.
+/// The descriptive half of the system Now Playing tile. `duration` is the
+/// library row's value and is authoritative for the tile (the live item
+/// duration is still indeterminate at first publish); the engine still owns
+/// elapsed time and rate, and merges everything into the published tile.
 public struct NowPlayingMetadata {
     public var title: String?
     public var artist: String?
@@ -100,6 +102,11 @@ public struct NowPlayingMetadata {
     public var genre: String?
     /// Encoded image bytes; the engine decodes and caches them.
     public var artworkData: Data?
+    /// Total length in seconds, taken from the library row rather than the live
+    /// `AVPlayerItem`. The item's duration is still indeterminate at the first
+    /// publish, and a zero duration leaves the lock screen and Control Center
+    /// with no total time and a disabled scrubber.
+    public var duration: Double
 
     public init(
         title: String? = nil,
@@ -107,7 +114,8 @@ public struct NowPlayingMetadata {
         albumTitle: String? = nil,
         albumArtist: String? = nil,
         genre: String? = nil,
-        artworkData: Data? = nil
+        artworkData: Data? = nil,
+        duration: Double = 0
     ) {
         self.title = title
         self.artist = artist
@@ -115,6 +123,7 @@ public struct NowPlayingMetadata {
         self.albumArtist = albumArtist
         self.genre = genre
         self.artworkData = artworkData
+        self.duration = duration
     }
 }
 

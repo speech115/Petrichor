@@ -50,7 +50,7 @@ struct MiniPlayerAccessory: View {
                     showingNowPlaying = true
                 } label: {
                     HStack(spacing: 12) {
-                        artwork(size: isCompact ? 44 : 56)
+                        artwork(size: isCompact ? 44 : 48)
                             .matchedTransitionSource(id: NowPlayingZoomID.player, in: zoomNamespace)
 
                         VStack(alignment: .leading, spacing: 2) {

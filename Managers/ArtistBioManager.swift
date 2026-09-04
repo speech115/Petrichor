@@ -2,7 +2,7 @@
 //  ArtistBioManager.swift
 //  Petrichor
 //
-//  Handles fetching artist images (MusicBrainz/Wikidata, TMDB) and bios (Last.fm)
+//  Handles fetching artist images (MusicBrainz/Wikidata, TMDB)
 //  from online sources and storing them in the database.
 //
 
@@ -10,10 +10,10 @@ import CryptoKit
 import Foundation
 
 /// An `actor`, not a `@MainActor` class: this is a background network worker
-/// (rate-limited MusicBrainz/Wikidata/TMDB/Last.fm fetches), and its only
+/// (rate-limited MusicBrainz/Wikidata/TMDB fetches), and its only
 /// mutable state (`fetchTask`, the per-service rate-limit timestamps) is
 /// touched exclusively from its own async methods - exactly what an actor is
-/// for. `isArtistInfoFetchEnabled`/`tmdbReadAccessToken`/`lastfmApiKey` stay
+/// for. `isArtistInfoFetchEnabled`/`tmdbReadAccessToken` stay
 /// `nonisolated`: they read `UserDefaults`/`Bundle` (both thread-safe) and
 /// never touch actor-isolated storage, so callers on other threads (DM*
 /// background scan code) can keep reading them synchronously.
@@ -43,11 +43,6 @@ actor ArtistBioManager {
         static let rateLimitDelay: TimeInterval = 0.3 // ~40 req / 10s
     }
 
-    private enum LastFM {
-        static let apiBaseURL = "https://ws.audioscrobbler.com/2.0/"
-        static let rateLimitDelay: TimeInterval = 0.25
-    }
-
     private enum UserDefaultsKeys {
         static let artistInfoFetchEnabled = "artistInfoFetchEnabled"
     }
@@ -58,14 +53,9 @@ actor ArtistBioManager {
     private var lastMusicBrainzRequest: Date?
     private var lastWikimediaRequest: Date?
     private var lastTMDBRequest: Date?
-    private var lastLastFMRequest: Date?
 
     private nonisolated var tmdbReadAccessToken: String? {
         Bundle.main.object(forInfoDictionaryKey: "TMDB_READ_ACCESS_TOKEN") as? String
-    }
-
-    private nonisolated var lastfmApiKey: String? {
-        Bundle.main.object(forInfoDictionaryKey: "LASTFM_API_KEY") as? String
     }
 
     nonisolated var isArtistInfoFetchEnabled: Bool {
@@ -120,21 +110,17 @@ actor ArtistBioManager {
             var lastUIUpdate = Date.distantPast
             let uiUpdateInterval: TimeInterval = 2
 
-            // Stop a doomed run (offline / APIs down) instead of timing out on every
-            // artist. The list is popular-first, so a long run yielding neither image
-            // nor bio means "offline", not "no data exists".
+            // Stop a doomed run (offline / APIs down) instead of timing out on every artist.
             let maxConsecutiveFailures = 10
             var consecutiveFailures = 0
             var stoppedEarly = false
 
-            // Full (image+bio) misses deferred until we can tell "offline" from "no
-            // data": a success or finishing the whole list stamps them; any early exit
-            // (offline breaker or cancel) drops them so a later refresh retries them.
+            // Misses are deferred until the whole list finishes; cancellation keeps
+            // them retryable on the next refresh.
             var deferredFullMisses: [Int64] = []
             func flushDeferredFailures() {
                 for artistId in deferredFullMisses {
                     databaseManager.markArtistImageFetchFailed(artistId: artistId)
-                    databaseManager.markArtistBioFetchFailed(artistId: artistId)
                 }
                 deferredFullMisses.removeAll()
             }
@@ -146,10 +132,8 @@ actor ArtistBioManager {
                     break
                 }
 
-                // Fetch image and bio, then write once
-                Logger.info("Fetching info for '\(artist.name)' (image: \(!artist.hasImage), bio: \(!artist.hasBio))")
+                Logger.info("Fetching image for '\(artist.name)' (missing: \(!artist.hasImage))")
                 let imageResult = artist.hasImage ? nil : await self.fetchArtistImage(name: artist.name)
-                let bio = artist.hasBio ? nil : await self.fetchArtistBio(name: artist.name)
 
                 // A cancel mid-fetch surfaces as nil results; bail before treating them
                 // as misses so we don't stamp an interrupted artist as failed.
@@ -166,29 +150,18 @@ actor ArtistBioManager {
                         imageData: compressed,
                         imageUrl: imageResult.imageUrl,
                         imageSource: source,
-                        bio: bio,
-                        bioSource: bio != nil ? "last.fm" : nil
+                        bio: nil,
+                        bioSource: nil
                     )
                     pendingUpdates.append((name: artist.name, artworkData: compressed))
-                } else if let bio {
-                    databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: "last.fm")
                 }
 
-                // A miss = an attempted fetch that got an empty remote response.
-                // (A downloaded image that fails local compression is not a miss; it
-                // stays unstamped so it retries rather than being skipped for 7 days.)
                 let imageMiss = !artist.hasImage && imageResult == nil
-                let bioMiss = !artist.hasBio && bio == nil
-
-                if imageResult != nil || bio != nil {
-                    // Got data, so we're online: flush deferred full misses (genuine),
-                    // stamp this artist's own miss, reset the breaker.
+                if imageResult != nil {
                     flushDeferredFailures()
                     if imageMiss { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
-                    if bioMiss { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
                     consecutiveFailures = 0
-                } else if imageMiss && bioMiss {
-                    // Both attempted fields came back empty: an offline candidate.
+                } else if imageMiss {
                     // Defer the stamps and count toward the breaker.
                     deferredFullMisses.append(artist.id)
                     consecutiveFailures += 1
@@ -197,12 +170,6 @@ actor ArtistBioManager {
                         stoppedEarly = true
                         break
                     }
-                } else {
-                    // Only one field was attempted and authoritatively returned nothing
-                    // (e.g. no Last.fm bio exists, or no Last.fm key): a genuine miss,
-                    // not evidence of offline. Stamp it; leave the breaker untouched.
-                    if imageMiss { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
-                    if bioMiss { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
                 }
 
                 // Flush pending UI updates every 2 seconds
@@ -437,53 +404,6 @@ actor ArtistBioManager {
             if isCancellation(error) { return [] }
             Logger.error("TMDB error for '\(name)': \(error.localizedDescription)")
             return []
-        }
-    }
-
-    // MARK: - Last.fm Bio
-
-    private func fetchArtistBio(name: String) async -> String? {
-        guard let apiKey = lastfmApiKey, !apiKey.isEmpty else { return nil }
-
-        lastLastFMRequest = await waitForRateLimit(lastRequest: lastLastFMRequest, delay: LastFM.rateLimitDelay)
-
-        guard var components = URLComponents(string: LastFM.apiBaseURL) else { return nil }
-        components.queryItems = [
-            URLQueryItem(name: "method", value: "artist.getinfo"),
-            URLQueryItem(name: "artist", value: name),
-            URLQueryItem(name: "api_key", value: apiKey),
-            URLQueryItem(name: "format", value: "json")
-        ]
-
-        guard let url = components.url else { return nil }
-
-        do {
-            var request = URLRequest(url: url)
-            request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
-
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                return nil
-            }
-
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let artist = json["artist"] as? [String: Any],
-                  let bio = artist["bio"] as? [String: Any],
-                  let content = bio["summary"] as? String else {
-                return nil
-            }
-
-            // Last.fm appends a "Read more" link in HTML
-            let cleaned = content
-                .replacingOccurrences(of: "<a href=\".*?\">.*?</a>", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            return cleaned.isEmpty ? nil : cleaned
-        } catch {
-            if isCancellation(error) { return nil }
-            Logger.error("Last.fm bio error for '\(name)': \(error.localizedDescription)")
-            return nil
         }
     }
 

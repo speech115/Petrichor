@@ -178,4 +178,27 @@ struct QueueBackendTests {
     #expect((info?[MPNowPlayingInfoPropertyPlaybackRate] as? Double) == 0, "пауза пере-публикует rate 0")
     #expect(info?[MPMediaItemPropertyTitle] as? String == "Now Playing Test", "пере-публикация сохраняет метаданные трека")
 }
+
+/// The lock screen's scrubber needs a non-zero duration, but the backend's own
+/// item duration is still indeterminate at the first publish (see the zero-
+/// duration bug). The metadata carries the library row's duration, and the
+/// backend must publish *that*, not the not-yet-loaded item duration.
+@Test func metadataDurationOverridesItemDuration() async throws {
+    let url = try makeSilentWAV(seconds: 2)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let backend = AVQueuePlayerBackend()
+    backend.setQueue(
+        [QueueEntry(entryId: AudioEntryId(id: "silent"), url: url)],
+        startingAt: 0,
+        startPaused: true
+    )
+
+    let metadata = NowPlayingMetadata(title: "Duration Test", duration: 123)
+    backend.setNowPlayingMetadata(metadata)
+
+    let info = MPNowPlayingInfoCenter.default().nowPlayingInfo
+    #expect((info?[MPMediaItemPropertyPlaybackDuration] as? Double) == 123,
+        "тайл публикует длительность из метаданных, а не живого айтема")
+}
 }

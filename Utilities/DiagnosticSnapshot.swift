@@ -141,7 +141,6 @@ enum DiagnosticSnapshot {
                 "discoverTrackCount": defaults.intOrNull("discoverTrackCount")
             ],
             "integrations": [
-                "lastfmUsername": defaults.string(forKey: "lastfmUsername") != nil ? "<set>" : "<unset>",
                 "scrobblingEnabled": defaults.boolOrNull("scrobblingEnabled"),
                 "loveSyncEnabled": defaults.boolOrNull("loveSyncEnabled"),
                 "onlineLyricsEnabled": defaults.boolOrNull("onlineLyricsEnabled"),

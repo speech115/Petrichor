@@ -40,7 +40,7 @@ extension DatabaseManager {
     
     /// Get all artist entities
     func getArtistEntities(includeArtwork: Bool = true) -> [ArtistEntity] {
-        let isImageFetchEnabled = ArtistBioManager.shared.isArtistInfoFetchEnabled
+        let isImageFetchEnabled = false
 
         do {
             return try dbQueue.read { db in

@@ -10,10 +10,6 @@ import Foundation
 import GRDB
 
 extension PlaylistManager {
-    var playbackJournal: (any PlaybackJournal)? {
-        AppCoordinator.shared?.playbackJournal
-    }
-
     func updateTrackFavoriteStatus(track: Track, isFavorite: Bool) async {
         guard let trackId = track.trackId else {
             Logger.error("Cannot update favorite - track has no database ID")
@@ -28,12 +24,6 @@ extension PlaylistManager {
 
                 Logger.info("Updated favorite status for track: \(track.title) to \(isFavorite)")
 
-                playbackJournal?.favoriteChanged(
-                    relativePath: LibraryPathStore.storedPath(for: track.url),
-                    value: isFavorite,
-                    at: Date()
-                )
-                
                 await handleTrackPropertyUpdate(updatedTrack)
                 
                 await MainActor.run {
@@ -110,11 +100,6 @@ extension PlaylistManager {
                 )
 
                 Logger.info("Incremented play count for track: \(track.title) (now: \(newPlayCount))")
-
-                playbackJournal?.trackPlayed(
-                    relativePath: LibraryPathStore.storedPath(for: track.url),
-                    at: lastPlayedDate
-                )
 
                 updateSmartPlaylistCounts()
                 

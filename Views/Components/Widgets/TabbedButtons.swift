@@ -405,7 +405,6 @@ extension SettingsView.SettingsTab: TabbedItem {
         case .general: return String(localized: "General")
         case .appearance: return String(localized: "Appearance")
         case .library: return String(localized: "Library")
-        case .integrations: return String(localized: "Integrations")
         case .about: return String(localized: "About")
         }
     }

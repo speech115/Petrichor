@@ -30,16 +30,14 @@ struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
-    // The first .active arrives right after launch, when AppCoordinator.init
-    // has already kicked off reconciliation; only later transitions back to
-    // .active (return from background) are a reconciliation trigger.
+    // Ignore the first .active transition generated during launch.
     @State private var hasAppearedActiveOnce = false
 
     init() {
         #if DEBUG
         // UI tests are self-sufficient: launched with `--uitest-seed-fixtures`,
         // the app seeds Documents/Music with the smoke-test fixtures before
-        // AppCoordinator kicks off the launch reconciliation, so a clean
+        // AppCoordinator kicks off the launch scan, so a clean
         // simulator needs no manual `simctl push`. Nothing runs without the
         // argument, and the whole path is DEBUG-only.
         if ProcessInfo.processInfo.arguments.contains(uitestSeedFixturesLaunchArgument) {
@@ -60,12 +58,8 @@ struct PetrichorApp: App {
         // The iOS library is the app's own Documents folder, so it must be
         // registered on every launch (no picker step). Fire-and-forget; the
         // coordinator captured the pre-scan folder state before this runs.
-        coordinator.libraryManager.reconcileInBackground()
+        coordinator.libraryManager.scanLibraryInBackground()
 
-        // Catches the search-index deletions reconciliation never causes on
-        // its own: folder removal and entity merges, both of which post
-        // `.libraryDataDidChange`. See `SpotlightIndexer.observeLibraryChanges()`.
-        SpotlightIndexer.observeLibraryChanges()
     }
 
     var body: some Scene {
@@ -92,24 +86,18 @@ struct PetrichorApp: App {
                             return
                         }
                         Task(priority: .utility) {
-                            do {
-                                try await appCoordinator.libraryManager.reconcileLibrary()
-                            } catch {
-                                Logger.error("Failed to reconcile the library after returning to foreground: \(error)")
-                            }
+                            appCoordinator.libraryManager.scanLibraryInBackground()
                         }
-                    case .background, .inactive:
-                        // Save off-main within a background task: the system
-                        // may otherwise suspend the app mid-write, dropping the
-                        // journal batch or the playback state.
-                        var backgroundTask = UIBackgroundTaskIdentifier.invalid
-                        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save playback state") {
-                            UIApplication.shared.endBackgroundTask(backgroundTask)
-                        }
+                    case .background:
+                        // Save off-main within a background task so the system
+                        // cannot suspend the app mid-write.
+                        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save playback state")
                         Task {
                             await appCoordinator.savePlaybackStateInBackground()
                             UIApplication.shared.endBackgroundTask(backgroundTask)
                         }
+                    case .inactive:
+                        break
                     @unknown default:
                         break
                     }

@@ -88,7 +88,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
         onResume: { [weak self] in self?.resume() },
-        isPlaying: { [weak self] in self?.player.timeControlStatus == .playing }
+        isPlaying: { [weak self] in self?.playbackIntentActive == true }
     )
 
     /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared
@@ -99,6 +99,16 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// directly in tests (see `QueueBackendTests`), which never start
     /// playback and so never trip this activation at all.
     private var didActivateSession = false
+
+    /// Whether the app intends playback, independent of the live
+    /// `timeControlStatus`. The system flips the latter to `.paused` when an
+    /// interruption (call, alarm, camera) begins, so reading it in the
+    /// interruption handler always reports "not playing" and the
+    /// resume-after-interruption path never fires. This flag is updated only at
+    /// the sites where the backend itself starts or stops the player (transport
+    /// calls and internal queue transitions), never by the `timeControlStatus`
+    /// KVO, so the system's interruption pause can't clear it.
+    private var playbackIntentActive = false
 
     override init() {
         super.init()
@@ -228,6 +238,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         currentIndex = 0
         player.removeAllItems()
         clearItemTracking()
+        playbackIntentActive = false
         notifyStateIfChanged()
     }
 
@@ -267,6 +278,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         clearItemTracking()
 
         guard !entries.isEmpty else {
+            playbackIntentActive = false
             notifyStateIfChanged()
             return
         }
@@ -277,9 +289,11 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
         if startPaused {
             player.pause()
+            playbackIntentActive = false
         } else {
             activateSessionIfNeeded()
             player.play()
+            playbackIntentActive = true
         }
         notifyStateIfChanged()
     }
@@ -290,6 +304,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         guard !entries.isEmpty else {
             player.removeAllItems()
             clearItemTracking()
+            playbackIntentActive = false
             return
         }
         guard player.currentItem != nil else { return }
@@ -314,6 +329,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
               entries[currentIndex].entryId != lastFinishedEntryId else { return }
         player.insert(makePlayerItem(for: entries[currentIndex]), after: nil)
         player.play()
+        playbackIntentActive = true
     }
 
     /// Builds a fresh `AVPlayerItem` for `entry` and starts tracking it so a
@@ -417,6 +433,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         guard nextIndex < entries.count else {
             removeTracking(for: item)
             currentIndex = min(finishedIndex, max(0, entries.count - 1))
+            playbackIntentActive = false
             notifyStateIfChanged()
             return
         }
@@ -430,6 +447,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         removeTracking(for: item)
         player.advanceToNextItem()
         player.play()
+        playbackIntentActive = true
         refillUpcomingItems()
     }
 
@@ -643,6 +661,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 extension AVQueuePlayerBackend {
     func pause() {
         player.pause()
+        playbackIntentActive = false
         notifyStateIfChanged()
         publishNowPlaying()
     }
@@ -650,6 +669,7 @@ extension AVQueuePlayerBackend {
     func resume() {
         activateSessionIfNeeded()
         player.play()
+        playbackIntentActive = true
         notifyStateIfChanged()
         publishNowPlaying()
     }
@@ -661,13 +681,10 @@ extension AVQueuePlayerBackend {
 
     func togglePlayPause() {
         if player.timeControlStatus == .playing {
-            player.pause()
+            pause()
         } else {
-            activateSessionIfNeeded()
-            player.play()
+            resume()
         }
-        notifyStateIfChanged()
-        publishNowPlaying()
     }
 
     @discardableResult
@@ -700,9 +717,10 @@ extension AVQueuePlayerBackend {
 
     private func applyNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
         let artworkChanged = metadata?.artworkData != nowPlayingMetadata?.artworkData
-        nowPlayingMetadata = metadata
 
+        // Same cover (or none): the title/artist/duration can publish right away.
         guard artworkChanged else {
+            nowPlayingMetadata = metadata
             publishNowPlaying()
             return
         }
@@ -710,16 +728,26 @@ extension AVQueuePlayerBackend {
         nowPlayingArtworkRevision += 1
         let revision = nowPlayingArtworkRevision
         nowPlayingArtworkTask?.cancel()
-        nowPlayingArtwork = nil
-        publishNowPlaying()
 
-        guard let artworkData = metadata?.artworkData else { return }
+        guard let artworkData = metadata?.artworkData else {
+            nowPlayingMetadata = metadata
+            nowPlayingArtwork = nil
+            publishNowPlaying()
+            return
+        }
+
+        // Title and artwork are published together once the cover is decoded, so
+        // the lock screen cross-fades the whole tile at once instead of snapping
+        // the title first and fading the artwork in a beat later. `nowPlayingMetadata`
+        // stays the *previous* track until then, so a stray re-publish during the
+        // decode (play/pause, seek) can't show the new title over the old cover.
         nowPlayingArtworkTask = Task { @MainActor [weak self] in
             let prepared = await Task.detached(priority: .utility) {
                 NowPlayingPublisher.prepareArtwork(from: artworkData)
             }.value
             guard !Task.isCancelled else { return }
             guard let self, self.nowPlayingArtworkRevision == revision else { return }
+            self.nowPlayingMetadata = metadata
             self.nowPlayingArtwork = NowPlayingPublisher.artwork(from: prepared)
             self.publishNowPlaying()
         }
@@ -735,11 +763,15 @@ extension AVQueuePlayerBackend {
             NowPlayingPublisher.publish(nil, artwork: nil, elapsed: 0, duration: 0, rate: 0)
             return
         }
+        // The library row's duration is authoritative (it is what the in-app
+        // scrubber divides by), so the tile matches the scrubber; the live item
+        // duration only covers a track whose row has no duration yet.
+        let reportedDuration = metadata.duration > 0 ? metadata.duration : duration
         NowPlayingPublisher.publish(
             metadata,
             artwork: nowPlayingArtwork,
             elapsed: currentPlaybackProgress,
-            duration: duration,
+            duration: reportedDuration,
             rate: Double(player.rate)
         )
     }

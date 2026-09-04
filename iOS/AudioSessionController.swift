@@ -10,7 +10,8 @@
 
 import AVFoundation
 
-final class AudioSessionController {
+@MainActor
+final class AudioSessionController: NSObject {
     private let onPause: () -> Void
     private let onResume: () -> Void
     private let isPlaying: () -> Bool
@@ -65,43 +66,37 @@ final class AudioSessionController {
     // backend state. The main-queue FIFO hop mirrors
     // `AVQueuePlayerBackend.enqueueAVFoundationEvent`.
 
-    @objc private func handleInterruption(_ notification: Notification) {
+    @objc private nonisolated func handleInterruption(_ notification: Notification) {
         guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
 
         switch type {
         case .began:
-            DispatchQueue.main.async { [weak self] in
-                MainActor.assumeIsolated {
-                    guard let self else { return }
-                    self.wasPlayingBeforeInterruption = self.isPlaying()
-                    self.onPause()
-                }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.wasPlayingBeforeInterruption = self.isPlaying()
+                self.onPause()
             }
         case .ended:
             let optionsRaw = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
-            DispatchQueue.main.async { [weak self] in
-                MainActor.assumeIsolated {
-                    guard let self, shouldResume, self.wasPlayingBeforeInterruption else { return }
-                    self.reactivateSession()
-                    self.onResume()
-                }
+            Task { @MainActor [weak self] in
+                guard let self, shouldResume, self.wasPlayingBeforeInterruption else { return }
+                self.reactivateSession()
+                self.onResume()
             }
         @unknown default:
             break
         }
     }
 
-    @objc private func handleRouteChange(_ notification: Notification) {
+    @objc private nonisolated func handleRouteChange(_ notification: Notification) {
         guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 
         if reason == .oldDeviceUnavailable {
-            DispatchQueue.main.async { [weak self] in
-                MainActor.assumeIsolated {
-                    self?.onPause()
-                }
+            Task { @MainActor [weak self] in
+                self?.onPause()
             }
         }
     }

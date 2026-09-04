@@ -307,9 +307,6 @@ extension LibraryManager {
                 Logger.info("No folders need refreshing")
                 // Still retry missing artist info: it's independent of track changes,
                 // and this is the manual-refresh resume path for the offline breaker.
-                await MainActor.run { [weak self] in
-                    if let self { ArtistBioManager.shared.fetchMissingArtistImages(using: self) }
-                }
                 return
             }
 
@@ -396,7 +393,6 @@ extension LibraryManager {
                 // Retry missing artist info now the library is current; also how the
                 // breaker resumes while the app stays open (each refresh re-attempts
                 // unstamped artists). No-op when nothing's missing or the feature's off.
-                if let self { ArtistBioManager.shared.fetchMissingArtistImages(using: self) }
             }
 
             // Add notifications based on results

@@ -50,10 +50,6 @@ final class PlaybackPresentationObservation: ObservableObject {
 class PlaybackManager: NSObject, ObservableObject {
     let playbackProgressState = PlaybackProgressState()
     
-    var scrobbleManager: ScrobbleManager? {
-        AppCoordinator.shared?.scrobbleManager
-    }
-
     // MARK: - Published Properties
 
     @Published var currentTrack: Track?
@@ -212,6 +208,10 @@ class PlaybackManager: NSObject, ObservableObject {
                         self.startPlayback(of: fullTrack, lightweightTrack: track)
                     } else {
                         self.isPlaying = false
+                        // Load the cover and publish the tile now, so the restored
+                        // track's artwork is ready before playback starts instead of
+                        // popping in only after the first play.
+                        self.publishNowPlayingMetadata(for: track)
                     }
 
                     Logger.info("Prepared track for restoration at position: \(position)")
@@ -235,26 +235,35 @@ class PlaybackManager: NSObject, ObservableObject {
     // MARK: - Playback Controls
     
     func togglePlayPause() {
-        if isPlaying {
-            // Pausing while a restored track is still loading cancels the latched play.
-            pendingPlayOnRestore = false
+        // The engine's live state is the only decision input. The cached
+        // `isPlaying` flag can lag it — the system can pause and resume the
+        // player around a background/foreground transition without every change
+        // reaching us — and branching on the stale flag restarts a track that is
+        // actually playing.
+        switch audioPlayer.state {
+        case .playing:
             audioPlayer.pause()
             isPlaying = false
-        } else if audioPlayer.state == .paused {
-            // A loaded, paused session always just resumes. Checked first because the
-            // full track is fetched asynchronously after every advance and jump, so it
-            // is briefly nil for a track that is perfectly resumable.
+        case .paused:
+            // A loaded, paused session always just resumes.
             audioPlayer.resume()
             isPlaying = true
-        } else if let fullTrack = currentFullTrack, let track = currentTrack {
-            startPlayback(of: fullTrack, lightweightTrack: track)
-        } else if currentTrack != nil {
-            // Restored track still loading; resume() would no-op, so latch the intent
-            pendingPlayOnRestore = true
-            isPlaying = true
-        } else {
-            audioPlayer.resume()
-            isPlaying = true
+        case .stopped, .ready:
+            if pendingPlayOnRestore {
+                // Play was latched while a restored track was still loading; a
+                // second tap cancels it.
+                pendingPlayOnRestore = false
+                isPlaying = false
+            } else if let fullTrack = currentFullTrack, let track = currentTrack {
+                startPlayback(of: fullTrack, lightweightTrack: track)
+            } else if currentTrack != nil {
+                // Restored track still loading; resume() would no-op, so latch the intent.
+                pendingPlayOnRestore = true
+                isPlaying = true
+            } else {
+                audioPlayer.resume()
+                isPlaying = true
+            }
         }
     }
     
@@ -316,9 +325,17 @@ class PlaybackManager: NSObject, ObservableObject {
     /// when the engine adopts a new entry; it keeps elapsed and rate current itself.
     func publishNowPlayingMetadata(for track: Track) {
         artworkEnrichmentTask?.cancel()
-        setNowPlayingMetadata(for: track, artworkData: track.artworkData)
 
-        guard track.artworkData == nil else { return }
+        // A track that already carries its cover publishes immediately. Queue
+        // tracks arrive without artwork, so fetch the cover first and publish
+        // title + artwork together: the lock screen then cross-fades the whole
+        // tile at once, instead of snapping the title and fading the artwork in
+        // a beat later.
+        guard track.artworkData == nil else {
+            setNowPlayingMetadata(for: track, artworkData: track.artworkData)
+            return
+        }
+
         let database = libraryManager.databaseManager
         let albumId = track.albumId
         let trackId = track.trackId
@@ -330,9 +347,11 @@ class PlaybackManager: NSObject, ObservableObject {
             }.value
             guard !Task.isCancelled,
                   let self,
-                  let artwork,
                   self.currentTrack?.id == identity else { return }
 
+            // `artwork` may be nil: a resolved nil tells the engine this track
+            // has no cover, so it clears any lingering one rather than leaving
+            // the previous track's art up.
             var enriched = self.currentTrack ?? track
             enriched.albumArtworkData = artwork
             self.currentTrack = enriched
@@ -348,7 +367,8 @@ class PlaybackManager: NSObject, ObservableObject {
                 albumTitle: track.album,
                 albumArtist: track.albumArtist,
                 genre: track.genre,
-                artworkData: artworkData
+                artworkData: artworkData,
+                duration: track.duration
             )
         )
     }
@@ -472,6 +492,10 @@ class PlaybackManager: NSObject, ObservableObject {
             // Gate on the engine's live state, not the cached isPlaying flag, which
             // can be briefly stale and freeze the bar at 0.
             guard let self = self, self.audioPlayer.state == .playing else { return }
+            // Self-heal the cached flag too: the UI reads `isPlaying`, and a missed
+            // state change around a background/foreground transition leaves it false
+            // while audio is playing. The engine is the source of truth.
+            if !self.isPlaying { self.isPlaying = true }
             let sampled = self.audioPlayer.currentPlaybackProgress
             self.currentTime = sampled
             self.watchProgressForFreeze(sampled)
@@ -712,9 +736,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
 
         if stopReason == .eof, let finishedTrack {
             self.playlistManager.incrementPlayCount(for: finishedTrack)
-            self.scrobbleManager?.trackFinished(finishedTrack)
-
-            Logger.info("Track completed naturally, updating play count, last played date, and scrobbling it if configured")
+            Logger.info("Track completed naturally, updating play count and last played date")
         }
 
         // Only tear down current playback when the finished entry is still
