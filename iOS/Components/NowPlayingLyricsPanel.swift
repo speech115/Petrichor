@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct NowPlayingLyricsPanel: View {
     @EnvironmentObject private var libraryManager: LibraryManager
@@ -131,22 +132,39 @@ struct NowPlayingLyricsPanel: View {
                 LazyVStack(spacing: 12) {
                     ForEach(Array(lyricLines.enumerated()), id: \.offset) { index, line in
                         let isActive = hasTimedLyrics && currentLineIndex == index
+                        let isPast = hasTimedLyrics && index < currentLineIndex
 
                         Text(line.text.isEmpty ? " " : line.text)
                             // Content text in a scrolling panel: a real text
                             // style, free to grow with Dynamic Type.
                             .font(.subheadline.weight(.semibold))
-                            .opacity(isActive ? 1 : 0.45)
-                            .scaleEffect(isActive ? 1.06 : 1.0)
+                            // Apple Music-style depth: the active line is bright
+                            // and slightly enlarged, upcoming lines dim mildly,
+                            // and past lines dim further with a soft blur so the
+                            // eye rests on the present line.
+                            .opacity(isActive ? 1 : (isPast ? 0.3 : 0.5))
+                            .blur(radius: isPast ? 1.2 : 0)
+                            .scaleEffect(isActive ? 1.08 : 1.0)
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                // Tap a timed line to jump to it, like Apple Music.
+                                guard hasTimedLyrics else { return }
+                                UISelectionFeedbackGenerator().selectionChanged()
+                                playbackManager.seekTo(time: line.startTime)
+                            }
                             .animation(highlightAnimation, value: isActive)
+                            .animation(highlightAnimation, value: isPast)
                             .id(index)
                     }
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity)
                 .textSelection(.enabled)
+                // The panel reaches under the home indicator now; keep the text
+                // above it so the last line is not obscured.
+                .safeAreaPadding(.bottom)
             }
             .scrollIndicators(.never)
             .onChange(of: currentLineIndex) { _, newIndex in

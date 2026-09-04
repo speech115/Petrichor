@@ -363,13 +363,8 @@ extension DatabaseManager {
         return count
     }
     
-    /// Cheap change detection for reconciliation: enumerates audio file names and
-    /// modification dates under `root` and compares them against the database
-    /// without reading file contents, decoding metadata, or touching artwork.
-    /// - Returns: true when a file is new or its mtime changed since the scan,
-    ///   i.e. a full scan is required. Files absent from disk are not a change:
-    ///   the database keeps their rows on purpose (see ADR-0001).
-    func libraryContentsDiffer(from root: URL) async -> Bool {
+    /* removed sync-only library change detection */
+    /*
         // This runs on every launch and every return to the foreground; the
         // full-tree walk below is the suspect cost. Log how long the check
         // takes so a real device number (not a first-scan conflation) drives
@@ -466,6 +461,7 @@ extension DatabaseManager {
 
         return false
     }
+    */
 
     func scanFoldersForTracks(
         _ folders: [Folder],

@@ -83,15 +83,6 @@ class LibraryManager: ObservableObject {
     internal let fileManager = FileManager.default
     internal var folderTrackCounts: [Int64: Int] = [:]
     private var pendingLibraryReload: DispatchWorkItem?
-    /// Serializes launch/foreground reconciliation. Scene-phase transitions can
-    /// arrive again while the filesystem walk is still running; without this
-    /// gate every caller starts another full scan against the same root.
-    internal var isReconcilingLibrary = false
-    /// Serializes `scanLibraryRoot()` itself. The Settings "Rescan" button calls
-    /// it directly (not through `reconcileLibrary()`), and `isScanning` flips
-    /// late inside `addFoldersAsync`; this gate closes the window where two
-    /// scans race the same root.
-    internal var isScanningLibraryRoot = false
 
     // Database manager. `nonisolated`: a pure `Sendable` `DatabasePool` wrapper
     // (see `DatabaseManager`'s own doc comment), so the handful of read-only
@@ -157,7 +148,6 @@ class LibraryManager: ObservableObject {
                     NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
                 }
             }
-            ArtistBioManager.shared.fetchMissingArtistImages(using: self)
         }
 
         // Observe auto-scan interval changes
@@ -511,7 +501,6 @@ class LibraryManager: ObservableObject {
             Logger.info("Initial scan completed, library fully loaded")
 
             // Fetch artist images after scan
-            ArtistBioManager.shared.fetchMissingArtistImages(using: self)
         }
     }
     

@@ -17,12 +17,6 @@ import SwiftUI
 struct SettingsScreen: View {
     @EnvironmentObject private var libraryManager: LibraryManager
 
-    @AppStorage("onlineLyricsEnabled")
-    private var onlineLyricsEnabled = false
-
-    @AppStorage("artistInfoFetchEnabled")
-    private var artistInfoFetchEnabled = false
-
     @AppStorage("hideDuplicateTracks")
     private var hideDuplicateTracks = true
 
@@ -114,14 +108,7 @@ struct SettingsScreen: View {
                     libraryManager.reloadForDuplicateVisibilityChange()
                 }
 
-            Toggle(String(localized: "Fetch lyrics from the internet"), isOn: $onlineLyricsEnabled)
 
-            Toggle(String(localized: "Fetch artist photos and bios from the internet"), isOn: $artistInfoFetchEnabled)
-                .onChange(of: artistInfoFetchEnabled) { _, enabled in
-                    if enabled {
-                        ArtistBioManager.shared.fetchMissingArtistImages(using: libraryManager)
-                    }
-                }
         } header: {
             sectionHeader(String(localized: "Music"))
         }

@@ -11,7 +11,6 @@
 // settings gear top-right.
 //
 
-import CoreSpotlight
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -138,17 +137,6 @@ struct ContentView: View {
                 selectedTab = .home
                 homePath = [LibraryNavigation.destination(for: filterType, item: item, libraryManager: libraryManager)]
             }
-        }
-        // A tap on a system-search result (CoreSpotlight). The identifier is
-        // routed exactly like `.goToLibraryFilter`: home tab, one pushed
-        // destination. A track result opens its album page - no autoplay.
-        .onContinueUserActivity(CSSearchableItemActionType) { activity in
-            guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
-                  let destination = SpotlightRouter.destination(for: identifier, libraryManager: libraryManager) else {
-                return
-            }
-            selectedTab = .home
-            homePath = [destination]
         }
         .onReceive(NotificationCenter.default.publisher(for: .showTrackInfo)) { notification in
             if let track = notification.userInfo?["track"] as? Track {

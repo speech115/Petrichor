@@ -16,10 +16,6 @@ class AppCoordinator: ObservableObject {
     #if os(macOS)
     let menuBarManager: MenuBarManager
     #endif
-    let scrobbleManager: ScrobbleManager
-    /// Fifth seam: phone→Mac listen/favorite journal. Created only on iOS;
-    /// macOS leaves this nil and applies a transferred JSONL file manually.
-    let playbackJournal: (any PlaybackJournal)?
     
     private var hadFoldersAtStartup: Bool = false
     private let playbackStateKey = "SavedPlaybackState"
@@ -27,7 +23,6 @@ class AppCoordinator: ObservableObject {
     
     // Track restoration state to prevent race conditions
     private var isRestoringPlayback = false
-    private var libraryObserver: NSObjectProtocol?
     
     // MARK: - Initialization
     
@@ -51,10 +46,6 @@ class AppCoordinator: ObservableObject {
         menuBarManager = MenuBarManager(playbackManager: playbackManager, playlistManager: playlistManager)
         #endif
         
-        // Setup Scrobbling
-        scrobbleManager = ScrobbleManager()
-
-        playbackJournal = PlaybackJournalFactory.make()
 
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
 
@@ -67,16 +58,7 @@ class AppCoordinator: ObservableObject {
             // Only restore if we have folders
             restoreUIStateImmediately()
             
-            // Schedule restoration after a minimal delay to ensure UI is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                self?.restorePlaybackState()
-            }
-        }
-    }
-    
-    isolated deinit {
-        if let observer = libraryObserver {
-            NotificationCenter.default.removeObserver(observer)
+            restorePlaybackState()
         }
     }
     
@@ -108,7 +90,6 @@ class AppCoordinator: ObservableObject {
     /// spent pinning the UI thread on a large queue/artwork encode. The caller
     /// holds a `beginBackgroundTask` open until this returns.
     func savePlaybackStateInBackground() async {
-        await playbackJournal?.flush()
 
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()
@@ -204,53 +185,19 @@ class AppCoordinator: ObservableObject {
         }
         
         isRestoringPlayback = true
-        
-        // Don't restore immediately, wait for library to be fully loaded
-        if libraryManager.totalTrackCount == 0 {
-            if libraryManager.folders.isEmpty {
-                clearAllSavedState()
-                isRestoringPlayback = false
-                return
-            }
-            
-            // Use a stored observer reference to ensure proper cleanup
-            libraryObserver = NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("LibraryDidLoad"),
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.libraryDidLoad()
-                }
-            }
-            return
-        }
-        
-        // Proceed with restoration
-        performActualRestoration()
-    }
-    
-    @objc
-    private func libraryDidLoad() {
-        if let observer = libraryObserver {
-            NotificationCenter.default.removeObserver(observer)
-            libraryObserver = nil
-        }
-        
-        // Don't restore if we didn't have folders at startup
-        if !hadFoldersAtStartup {
-            isRestoringPlayback = false
-            return
-        }
-        
-        // Check if library is loaded with content
-        if libraryManager.folders.isEmpty || libraryManager.totalTrackCount == 0 {
+
+        // The library's folders and track rows are loaded synchronously in
+        // `LibraryManager.init` (before this runs). `totalTrackCount` is a
+        // deferred COUNT that can still be 0 here on a warm launch, so gating
+        // on it and waiting for `LibraryDidLoad` — a notification that was
+        // already posted during init — leaves the restore waiting forever.
+        guard !libraryManager.folders.isEmpty else {
             clearAllSavedState()
             isRestoringPlayback = false
             return
         }
         
-        // Now perform restoration
+        // Proceed with restoration
         performActualRestoration()
     }
     

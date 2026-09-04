@@ -131,6 +131,11 @@ struct NowPlayingScreen: View {
                     }
                     .frame(height: geometry.size.height * panelKind.heightRatio)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    // The panel is a sheet that should reach the screen's
+                    // physical bottom, covering the home-indicator band; without
+                    // this the geometry stops at the safe area and a dark strip
+                    // of the gradient shows under the material.
+                    .ignoresSafeArea(edges: .bottom)
                     .offset(y: reduceMotion ? 0 : panelOffset(height: geometry.size.height * panelKind.heightRatio))
                     .opacity(reduceMotion && !panelVisible ? 0 : 1)
                     .allowsHitTesting(panelVisible)

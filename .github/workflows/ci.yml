@@ -99,8 +99,6 @@ jobs:
         run: |
           {
             echo "// CI placeholder - online features disabled"
-            echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
@@ -201,8 +199,6 @@ jobs:
         run: |
           {
             echo "// CI placeholder - online features disabled"
-            echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
@@ -322,8 +318,6 @@ jobs:
         run: |
           {
             echo "// CI placeholder - online features disabled"
-            echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
@@ -387,8 +381,6 @@ jobs:
         run: |
           {
             echo "// CI placeholder - online features disabled"
-            echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify

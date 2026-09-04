@@ -313,7 +313,6 @@ extension Notification.Name {
     static let libraryDataDidChange = Notification.Name("LibraryDataDidChange")
     /// The database was wiped and re-migrated (`DatabaseManager.resetDatabase()`
     /// via `LibraryManager.resetAllData()`): row ids restart from 1, so a
-    /// listener that tracks state keyed by id (`iOS/SpotlightIndexer.swift`)
     /// must drop that state outright rather than diff it - a reused id could
     /// otherwise be misread as "unchanged" against stale data from before
     /// the reset. Distinct from `.libraryDataDidChange`, which means "diff

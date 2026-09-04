@@ -140,7 +140,7 @@ import Testing
 /// a track whose file disappears from disk keeps its database row through a
 /// full rescan. This is the exact flow iOS reconciliation runs — the app's
 /// Documents folder is re-registered and rescanned on every launch/foreground
-/// (LibraryManager.scanLibraryRoot / reconcileLibrary), and the scan must
+/// (LibraryManager.scanLibraryRoot), and the scan must
 /// never delete rows for files that are no longer there.
 @Test func missingFileKeepsItsRowThroughARescan() async throws {
     let root = FileManager.default.temporaryDirectory
@@ -169,7 +169,7 @@ import Testing
     try FileManager.default.removeItem(at: firstInLibrary)
 
     // Re-registering the same folder row and rescanning is what
-    // scanLibraryRoot() does on every reconciliation.
+    // scanLibraryRoot() does on every launch/rescan.
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
 
     let tracks = databaseManager.getTracksRespectingDuplicates(hideDuplicates: false)

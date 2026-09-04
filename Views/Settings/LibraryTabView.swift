@@ -83,7 +83,6 @@ struct LibraryTabView: View {
 
             #if os(macOS)
             Section("Phone Sync") {
-                playbackJournalRow
             }
             #endif
         }
@@ -305,50 +304,6 @@ struct LibraryTabView: View {
         }
     }
 
-    #if os(macOS)
-    private var playbackJournalRow: some View {
-        HStack {
-            Text(String(localized: "Apply iPhone playback journal"))
-            Spacer()
-            Button(action: applyPlaybackJournal, label: {
-                Label("Apply…", systemImage: "iphone.and.arrow.forward")
-            })
-            .disabled(isLibraryUpdateInProgress)
-            .help("Import Documents/Sync/playback-journal.jsonl from the phone to update play counts and favorites")
-        }
-    }
-
-    private func applyPlaybackJournal() {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = ["jsonl"].compactMap { UTType(filenameExtension: $0) }
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.message = String(localized: "Choose playback-journal.jsonl copied from the iPhone")
-        panel.prompt = String(localized: "Apply")
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-
-        do {
-            let summary = try libraryManager.applyPlaybackJournal(from: url)
-            let message = String(
-                localized: "Applied \(summary.applied) events, \(summary.skipped) tracks not found"
-            )
-            let alert = NSAlert()
-            alert.messageText = String(localized: "Playback Journal")
-            alert.informativeText = message
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: String(localized: "OK"))
-            alert.runModal()
-        } catch {
-            Logger.error("Failed to apply playback journal: \(error)")
-            NotificationManager.shared.addMessage(
-                .error,
-                String(localized: "Failed to apply playback journal")
-            )
-        }
-    }
-    #endif
-
     private var resetRow: some View {
         HStack {
             Text(String(localized: "Reset all library data"))
@@ -506,7 +461,6 @@ struct LibraryTabView: View {
                 UserDefaults.standard.synchronize()
                 Logger.info("All app preferences reset along with library data")
 
-                KeychainManager.delete(key: KeychainManager.Keys.lastfmSessionKey)
             }
         }
 

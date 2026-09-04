@@ -47,7 +47,6 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 | Чтение метаданных | `MetadataEngine` | `CrescendoMetadataReader` | `AVAssetMetadataReader` |
 | Изображения | `PlatformImage` | `NSImage` | `UIImage` |
 | Пути к файлам | `LibraryPathStore` | абсолютный путь | путь от `Documents` |
-| Журнал прослушиваний | `PlaybackJournal` | nil (apply JSONL вручную) | `JSONLPlaybackJournal` |
 | Цветовая схема | `AppearanceApplier` | `NSApp.appearance` | `UIWindow.overrideUserInterfaceStyle` |
 
 **Новые `#if os(...)` вне этих швов и вне `Views/` — нарушение дизайна.** Если
@@ -87,7 +86,7 @@ GRDB привязана к обоим таргетам. Crescendo и Sparkle о�
 
 Спека фиксирует места под автотесты: резолв относительного пути, разбор M3U с
 сохранением порядка, отображение метаданных `AVAsset`, сборка библиотеки из
-папки, журнал прослушиваний (`PlaybackJournal`). Тесты на других уровнях не
+папки. Тесты на других уровнях не
 пишутся — не потому что вредны, а потому что стоимость их поддержки при
 переписывании интерфейса выше пользы.
 

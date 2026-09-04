@@ -153,7 +153,6 @@ struct AboutTabView: View {
                     acknowledgementItem("logo-musicbrainz", url: "https://musicbrainz.org/", tooltip: "MusicBrainz")
                     acknowledgementItem("logo-tmdb", url: "https://www.themoviedb.org/", tooltip: "The Movie Database")
                     acknowledgementItem("logo-wikidata", url: "https://www.wikidata.org/", tooltip: "Wikimedia")
-                    acknowledgementItem("logo-lastfm", url: "https://www.last.fm/", tooltip: "Last.fm")
                     Spacer()
                 }
                 .padding(.horizontal, 6)

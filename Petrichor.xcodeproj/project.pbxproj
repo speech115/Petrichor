@@ -79,6 +79,7 @@
 				Automation/AutomationManager.swift,
 				Automation/AutomationShortcuts.swift,
 				MenuBarManager.swift,
+				ArtistBioManager.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};
@@ -141,11 +142,9 @@
 				Settings/AppearanceTabView.swift,
 				Settings/EqualizerView.swift,
 				Settings/GeneralTabView.swift,
-				Settings/IntegrationsTabView.swift,
 				Settings/LibraryTabView.swift,
 				Settings/SettingsView.swift,
 				Support/AcknowledgementsView.swift,
-				Support/ReportProblemView.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};

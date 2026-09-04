@@ -144,7 +144,7 @@ extension DatabaseManager {
     /// while remote artist images are enabled, a row with no fetched source
     /// keeps its placeholder instead of silently falling back to album art.
     func getArtistArtworkThumbnail(name: String) -> Data? {
-        let requiresFetchedImage = ArtistBioManager.shared.isArtistInfoFetchEnabled
+        let requiresFetchedImage = false
         do {
             return try dbQueue.read { db in
                 guard let row = try Row.fetchOne(
@@ -906,7 +906,7 @@ extension DatabaseManager {
     /// When artist info fetching is enabled, only returns artwork that was fetched from online
     /// (has imageSource set), not album art carried over from track processing.
     func getArtistArtworkAndBio(for artistName: String) -> (artworkData: Data?, bio: String?) {
-        let isImageFetchEnabled = ArtistBioManager.shared.isArtistInfoFetchEnabled
+        let isImageFetchEnabled = false
         do {
             return try dbQueue.read { db in
                 let normalizedName = ArtistParser.normalizeArtistName(artistName)

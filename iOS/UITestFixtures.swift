@@ -118,7 +118,7 @@ func makeSilentMP3(
 // MARK: - UI-test seeding
 
 /// Launch argument that makes the DEBUG app seed the smoke-test fixtures into
-/// `Documents/Music` before the library reconciliation starts. The UI test
+/// `Documents/Music` before the library scan starts. The UI test
 /// passes it explicitly; without it nothing is seeded, and the whole file is
 /// DEBUG-only, so the seeding never reaches a Release build.
 let uitestSeedFixturesLaunchArgument = "--uitest-seed-fixtures"
@@ -131,7 +131,7 @@ let uitestFixtureNames = ["Alpha One", "Beta Two", "Gamma Three"]
 /// existing file with the same name is left untouched, so repeated launches
 /// (and repeated test runs without an app reinstall) do not rewrite anything.
 /// Called before `AppCoordinator` is created, so the fixtures are on disk
-/// before the launch reconciliation scans the library.
+/// before the launch scan indexes the library.
 func seedUITestFixturesIfNeeded() throws {
     let fileManager = FileManager.default
     let musicDirectory = LibraryPathStore.libraryRoot
