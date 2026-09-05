@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-and-copy",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "echo 'Starting build...'; " +
+        "xcodebuild -scheme Petrichor -configuration Debug -destination 'platform=macOS'; " +
+        "BUILD_DIR=$(xcodebuild -scheme Petrichor -configuration Debug -showBuildSettings | grep BUILT_PRODUCTS_DIR | head -1 | awk '{print $3}'); " +
+        "echo \"Build dir is $BUILD_DIR\"; " +
+        "mkdir -p \"${workspaceFolder}/build/Debug\"; " +
+        "cp -Rv \"$BUILD_DIR/Petrichor.app\" \"${workspaceFolder}/build/Debug/\"; " +
+        "echo 'Copy complete.'"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

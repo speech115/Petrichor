@@ -2,34 +2,37 @@ import SwiftUI
 
 struct NoMusicEmptyStateView: View {
     @EnvironmentObject var libraryManager: LibraryManager
+    @ObservedObject private var radioManager = InternetRadioManager.shared
     @State private var stableScanningState = false
     @State private var scanningStateTimer: Timer?
     @State private var showFormatsPopover = false
+    @State private var isDownloadingStations = false
 
     // Customization options
     let context: EmptyStateContext
 
     enum EmptyStateContext {
-        case mainWindow
+        case onboarding
+        case localLibrary
         case settings
 
         var iconSize: CGFloat {
             switch self {
-            case .mainWindow: return 80
+            case .onboarding, .localLibrary: return 80
             case .settings: return 60
             }
         }
 
         var spacing: CGFloat {
             switch self {
-            case .mainWindow: return 24
+            case .onboarding, .localLibrary: return 24
             case .settings: return 20
             }
         }
 
         var titleFont: Font {
             switch self {
-            case .mainWindow: return .largeTitle
+            case .onboarding, .localLibrary: return .largeTitle
             case .settings: return .title2
             }
         }
@@ -38,12 +41,10 @@ struct NoMusicEmptyStateView: View {
     /// Determines if scanning state should be shown based on context and initial scan progress
     private var shouldShowScanningState: Bool {
         switch context {
-        case .mainWindow:
-            // During initial onboarding scan, show scanning state until threshold is reached
+        case .onboarding, .localLibrary:
             if libraryManager.isInitialOnboardingScan {
                 return !libraryManager.hasReachedInitialScanThreshold
             }
-            // For non-initial scans, show scanning state only if no folders exist
             return libraryManager.folders.isEmpty
         case .settings:
             // Settings always shows scanning state when scanning is active
@@ -53,13 +54,18 @@ struct NoMusicEmptyStateView: View {
 
     var body: some View {
         VStack(spacing: context.spacing) {
-            if stableScanningState && shouldShowScanningState {
+            if isDownloadingStations {
+                downloadingStationsContent
+                    .transition(.opacity)
+            } else if stableScanningState && shouldShowScanningState {
                 // Show scanning animation during initial scan until threshold is reached
                 scanningProgressContent
                     .transition(.opacity)
-            } else if libraryManager.folders.isEmpty {
-                // Show empty state only when no folders exist
-                emptyStateContent
+            } else if context == .onboarding && libraryManager.folders.isEmpty {
+                onboardingContent
+                    .transition(.opacity)
+            } else if context != .settings && libraryManager.folders.isEmpty {
+                localLibraryContent
                     .transition(.opacity)
             } else {
                 noContentView
@@ -68,9 +74,9 @@ struct NoMusicEmptyStateView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: stableScanningState)
         .animation(.easeInOut(duration: 0.3), value: libraryManager.hasReachedInitialScanThreshold)
-        .frame(maxWidth: context == .mainWindow ? .infinity : 500)
-        .frame(maxHeight: context == .mainWindow ? .infinity : 400)
-        .padding(context == .mainWindow ? 60 : 40)
+        .frame(maxWidth: context == .settings ? 500 : .infinity)
+        .frame(maxHeight: context == .settings ? 400 : .infinity)
+        .padding(context == .settings ? 40 : 60)
         .onAppear {
             setupScanningStateObserver()
         }
@@ -120,9 +126,59 @@ struct NoMusicEmptyStateView: View {
         }
     }
 
-    private var emptyStateContent: some View {
+    private var onboardingContent: some View {
         VStack(spacing: context.spacing) {
-            // Icon with subtle animation
+            Image("custom.music")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .foregroundStyle(.tint)
+                .frame(width: context.iconSize, height: context.iconSize)
+                .symbolEffect(.pulse, options: .repeating.speed(0.5))
+
+            VStack(spacing: 12) {
+                Text("Welcome to Petrichor")
+                    .font(context.titleFont)
+                    .fontWeight(.semibold)
+
+                Text("Play music from your library or start with internet radio.")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            }
+
+            HStack(spacing: 14) {
+                onboardingButton(
+                    title: String(localized: "Add Music Folder"),
+                    subtitle: String(localized: "Scan music stored on this Mac or an external drive."),
+                    icon: Icons.folderBadgePlus,
+                    action: libraryManager.addFolder
+                )
+
+                onboardingButton(
+                    title: String(localized: "Explore Internet Radio"),
+                    subtitle: String(localized: "Download a starter set of popular stations."),
+                    icon: Icons.radioFill
+                ) {
+                    isDownloadingStations = true
+                    Task {
+                        await Task.yield()
+                        let result = await radioManager.downloadTopStations()
+                        isDownloadingStations = false
+                        guard result.canOpenRadio else { return }
+                        NotificationCenter.default.post(name: .navigateToInternetRadio, object: nil)
+                    }
+                }
+                .disabled(isDownloadingStations || radioManager.isFetchingDefaults)
+            }
+
+            supportedFormatsButton
+        }
+        .transition(.opacity)
+    }
+
+    private var localLibraryContent: some View {
+        VStack(spacing: context.spacing) {
             ZStack {
                 Circle()
                     .fill(Color.accentColor.opacity(0.1))
@@ -131,10 +187,9 @@ struct NoMusicEmptyStateView: View {
                 Image(systemName: Icons.folderBadgePlus)
                     .font(.system(size: context.iconSize, weight: .light))
                     .foregroundColor(.accentColor)
-                    .symbolEffect(.pulse.byLayer, options: .repeating.speed(0.5))
             }
 
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 Text("No Music Added Yet")
                     .font(context.titleFont)
                     .fontWeight(.semibold)
@@ -184,33 +239,74 @@ struct NoMusicEmptyStateView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(.secondary)
-                    .underline()
             }
-            .buttonStyle(.plain)
-            .popover(isPresented: $showFormatsPopover, arrowEdge: .bottom) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Supported Formats")
-                        .font(.headline)
 
-                    Divider()
+            Button("Add Music Folder", action: libraryManager.addFolder)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
 
-                    ScrollView {
-                        Text(AudioFormat.supportedFormatsDisplay)
-                            .font(.system(size: 12, design: .monospaced))
-                            .textSelection(.enabled)
-                            .padding(.vertical, 4)
-                    }
-                    .frame(maxWidth: 320, maxHeight: 160)
-                }
-                .padding(12)
-                .frame(width: 340)
-            }
-            .padding(.top, 8)
+            supportedFormatsButton
         }
-        .transition(.opacity)
+    }
+
+    private func onboardingButton(
+        title: String,
+        subtitle: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundStyle(.tint)
+                    .frame(height: 24)
+                Text(title)
+                    .font(.headline)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(width: 230, height: 105, alignment: .topLeading)
+            .padding(18)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var supportedFormatsButton: some View {
+        Button {
+            showFormatsPopover.toggle()
+        } label: {
+            Text("Supported formats")
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundStyle(.secondary)
+                .underline()
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showFormatsPopover, arrowEdge: .bottom) {
+            SupportedFormatsPopover()
+        }
     }
 
     // MARK: - Scanning Progress Content
+
+    private var downloadingStationsContent: some View {
+        VStack(spacing: 20) {
+            ActivityAnimation(size: .large)
+
+            Text("Downloading popular stations...")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("This may take a moment")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .transition(.opacity)
+    }
 
     private var scanningProgressContent: some View {
         VStack(spacing: 20) {
@@ -248,7 +344,7 @@ struct NoMusicEmptyStateView: View {
 // MARK: - Preview
 
 #Preview("Main Window") {
-    NoMusicEmptyStateView(context: .mainWindow)
+    NoMusicEmptyStateView(context: .onboarding)
         .environmentObject(LibraryManager())
         .frame(width: 800, height: 600)
 }
@@ -260,7 +356,7 @@ struct NoMusicEmptyStateView: View {
 }
 
 #Preview("Scanning") {
-    NoMusicEmptyStateView(context: .mainWindow)
+    NoMusicEmptyStateView(context: .localLibrary)
         .environmentObject({
             let manager = LibraryManager()
             manager.isScanning = true

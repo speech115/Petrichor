@@ -103,6 +103,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             Logger.warning("Termination diagnostic snapshot timed out")
         }
     }
+
+    func applicationDidResignActive(_ notification: Notification) {
+        AppCoordinator.shared?.savePlaybackState(synchronous: false)
+    }
+
+    func applicationDidHide(_ notification: Notification) {
+        WindowManager.shared.playbackWindowsDidHide()
+    }
+
+    func applicationDidUnhide(_ notification: Notification) {
+        WindowManager.shared.playbackWindowVisibilityDidChange()
+    }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize logging system explicitly
@@ -220,7 +232,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         nowPlayingItem.isEnabled = false
         menu.addItem(nowPlayingItem)
         
-        if let currentTrack = playbackManager.currentTrack {
+        if let station = playbackManager.currentStation {
+            // Station name; a stream has no favorite action and nothing to skip to.
+            // swiftlint:disable:next localized_appkit_string - dynamic station name, not localizable
+            let titleItem = NSMenuItem(title: "  \(station.name)", action: nil, keyEquivalent: "")
+            titleItem.isEnabled = false
+            menu.addItem(titleItem)
+
+            if let nowPlaying = playbackManager.streamNowPlayingTitle {
+                // swiftlint:disable:next localized_appkit_string - live stream metadata, not localizable
+                let nowPlayingLine = NSMenuItem(title: "  \(nowPlaying)", action: nil, keyEquivalent: "")
+                nowPlayingLine.isEnabled = false
+                menu.addItem(nowPlayingLine)
+            }
+        } else if let currentTrack = playbackManager.currentTrack {
             // Song title
             // swiftlint:disable:next localized_appkit_string - dynamic track title, not localizable
             let titleItem = NSMenuItem(title: "  \(currentTrack.title)", action: nil, keyEquivalent: "")
@@ -305,14 +330,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         menu.addItem(NSMenuItem.separator())
         
         // Playback controls
-        let playPauseTitle = playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play")
+        let playPauseTitle = playbackManager.playPauseActionTitle
         let playPauseItem = NSMenuItem(
             title: playPauseTitle,
             action: #selector(togglePlayPause),
             keyEquivalent: ""
         )
         playPauseItem.target = self
-        playPauseItem.isEnabled = playbackManager.currentTrack != nil
+        playPauseItem.isEnabled = playbackManager.currentTrack != nil || playbackManager.currentStation != nil
         menu.addItem(playPauseItem)
         
         let nextItem = NSMenuItem(
@@ -321,7 +346,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             keyEquivalent: ""
         )
         nextItem.target = self
-        nextItem.isEnabled = playbackManager.currentTrack != nil
+        nextItem.isEnabled = playbackManager.currentTrack != nil && playbackManager.currentStation == nil
         menu.addItem(nextItem)
 
         let previousItem = NSMenuItem(
@@ -330,7 +355,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             keyEquivalent: ""
         )
         previousItem.target = self
-        previousItem.isEnabled = playbackManager.currentTrack != nil
+        previousItem.isEnabled = playbackManager.currentTrack != nil && playbackManager.currentStation == nil
         menu.addItem(previousItem)
         
         return menu
@@ -414,13 +439,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             "colorMode": "Auto",
             "showFoldersTab": false,
             "showTrackTechnicalInfo": true,
+            "useArtworkColors": true,
             "tintPlaybackControls": true,
             "tintNowPlayingBackground": true,
             "playerBarBackgroundStyle": "Full width",
             "discoverUpdateInterval": "weekly",
-            "discoverTrackCount": 50
+            "discoverTrackCount": DiscoverConfiguration.freshMusicTrackCount,
+            "artistInfoPeriodicRefreshEnabled": false,
+            "internetRadioEnabled": true,
+            "crossfadeEnabled": false,
+            "crossfadeDuration": 3.0,
+            "replayGainEnabled": false,
+            "replayGainMode": "auto",
+            "replayGainPreamp": 0.0
         ]
 
         UserDefaults.standard.register(defaults: defaults)
+
+        normalizeDiscoverUpdateInterval()
+    }
+
+    /// `DiscoverUpdateInterval` used to persist English display strings as its
+    /// rawValues, so a stored "Every week" no longer decodes. Rewrite it once to
+    /// the bare case name; without this, `@AppStorage` silently falls back to
+    /// `.weekly` and leaves the stale string in place forever.
+    private static func normalizeDiscoverUpdateInterval() {
+        let key = "discoverUpdateInterval"
+        guard let stored = UserDefaults.standard.string(forKey: key),
+              DiscoverUpdateInterval(rawValue: stored) == nil,
+              let migrated = DiscoverUpdateInterval(persistedValue: stored) else {
+            return
+        }
+
+        UserDefaults.standard.set(migrated.rawValue, forKey: key)
+        Logger.info("Migrated discoverUpdateInterval '\(stored)' to '\(migrated.rawValue)'")
     }
 }

@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Bounds of the header artwork, so the background can grow its colour from that point.
+private struct ArtworkBoundsKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
 struct EntityDetailView: View {
     let entity: any Entity
     let onBack: (() -> Void)?
@@ -10,10 +19,10 @@ struct EntityDetailView: View {
     @State private var tracks: [Track] = []
     @State private var selectedTrackID: String?
     @State private var isLoading = true
-    @State private var isBackButtonHovered = false
     @State private var isArtworkHovered = false
     @State private var showingImagePicker = false
     @State private var overrideArtworkData: Data?
+    @State private var resolvedArtworkData: Data?
     @State private var artworkDeleted = false
     @State private var artistBio: String?
     @State private var gradientColors: [Color] = []
@@ -36,6 +45,7 @@ struct EntityDetailView: View {
     var colorScheme
 
     @State private var trackTableSortOrder = [KeyPathComparator(\Track.title)]
+    @State private var globalFallbackSortOrder = [KeyPathComparator(\Track.title, order: .forward)]
     
     var body: some View {
         VStack(spacing: 0) {
@@ -50,9 +60,11 @@ struct EntityDetailView: View {
             } else {
                 TrackView(
                     tracks: tracks,
-                    selectedTrackID: $selectedTrackID,
                     playlistID: nil,
                     entityID: entity.id,
+                    grouping: trackGrouping,
+                    fallbackSortOrder: globalFallbackSortOrder,
+                    usesGlobalSortOrder: trackGrouping == .none,
                     queueSource: queueSource,
                     sortOrder: $trackTableSortOrder,
                     onPlayTrack: { track in
@@ -75,6 +87,9 @@ struct EntityDetailView: View {
         }
         .onChange(of: entity.id) { oldValue, newValue in
             if oldValue != newValue {
+                // Cleared first, or the gradient extracts from the previous entity's bytes
+                // and caches the result under the new entity's id.
+                resolvedArtworkData = nil
                 loadTracks()
                 updateGradientColors()
             }
@@ -89,6 +104,13 @@ struct EntityDetailView: View {
             updateGradientColors()
         }
         .onChange(of: useArtworkColors) {
+            updateGradientColors()
+        }
+        // Procedural artwork isn't rendered yet, and differs per appearance.
+        .task(id: "\(entity.artworkIdentity)-\(colorScheme)") {
+            let resolved = await entity.resolvedArtworkData(isDark: colorScheme == .dark)
+            guard !Task.isCancelled else { return }
+            resolvedArtworkData = resolved
             updateGradientColors()
         }
     }
@@ -158,32 +180,59 @@ struct EntityDetailView: View {
                 Spacer()
             }
         }
-        .background {
-            if !gradientColors.isEmpty {
-                GradientBackground(colors: gradientColors)
-                    .transaction { $0.animation = nil }
-            } else {
-                Rectangle().fill(.regularMaterial)
+        .backgroundPreferenceValue(ArtworkBoundsKey.self) { anchor in
+            GeometryReader { geometry in
+                ZStack {
+                    // Always present: the bleed reveals over this, so the header is never bare.
+                    Rectangle().fill(.regularMaterial)
+
+                    if !gradientColors.isEmpty {
+                        GradientBackground(colors: gradientColors)
+                            // Suppresses colour tweening only (a mesh gradient smears mid-flight).
+                            .animation(nil, value: gradientColors)
+                            .transition(.artworkBleed(from: bleedOrigin(anchor, in: geometry)))
+                    }
+                }
             }
         }
         .overlay(alignment: .bottomTrailing) {
             HStack(spacing: 12) {
                 TrackTableOptionsDropdown(
                     sortOrder: $trackTableSortOrder,
-                    tableRowSize: $trackTableRowSize
+                    tableRowSize: $trackTableRowSize,
+                    usesGlobalSortOrder: trackGrouping == .none,
+                    showsArtistGroupingOptions: trackGrouping == .albumAndDisc
                 )
             }
             .padding([.bottom, .trailing], 12)
         }
     }
     
+    /// Artwork centre as the bleed's unit point; `.center` until the anchor is measured.
+    private func bleedOrigin(_ anchor: Anchor<CGRect>?, in geometry: GeometryProxy) -> UnitPoint {
+        guard let anchor, geometry.size.width > 0, geometry.size.height > 0 else { return .center }
+
+        let bounds = geometry[anchor]
+        return UnitPoint(
+            x: bounds.midX / geometry.size.width,
+            y: bounds.midY / geometry.size.height
+        )
+    }
+
     private var displayedArtworkData: Data? {
         if artworkDeleted { return nil }
-        return overrideArtworkData ?? entity.artworkData
+        // Synchronous cache read, so the clicked tile's artwork paints on the first pass.
+        return overrideArtworkData ?? resolvedArtworkData ?? entity.cachedArtworkData(isDark: colorScheme == .dark)
     }
 
     private var isPersonEntity: Bool {
         entity is ArtistEntity
+    }
+
+    private var trackGrouping: TrackGrouping {
+        if entity is AlbumEntity { return .disc }
+        if isPersonEntity { return .albumAndDisc }
+        return .none
     }
 
     private var entityArtwork: some View {
@@ -192,7 +241,7 @@ struct EntityDetailView: View {
                let platformImage = PlatformImage(data: artworkData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .frame(width: 120, height: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
@@ -417,15 +466,8 @@ struct EntityDetailView: View {
     // MARK: - Views
     
     private var loadingView: some View {
-        VStack {
-            ProgressView()
-                .scaleEffect(0.8)
-            Text("Loading tracks...")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .padding(.top, 8)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ActivityAnimation(size: .large)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var emptyViewIcon: String {
@@ -462,7 +504,7 @@ struct EntityDetailView: View {
         guard entity is AlbumEntity, !tracks.isEmpty else { return false }
         return tracks.allSatisfy { $0.lossless == true }
     }
-    
+
     private var isPinned: Bool {
         if let folder = entity as? FolderEntity {
             return libraryManager.isFolderPinned(path: folder.path)
@@ -529,24 +571,20 @@ extension EntityDetailView {
         } else if let albumEntity = entity as? AlbumEntity {
             fetchedTracks = libraryManager.getTracksForAlbum(albumEntity)
         } else {
+            // FolderEntity only ever arrives through the pinned path above, which
+            // has its own loader; there is no path-based lookup here by design.
             fetchedTracks = []
         }
 
-        // Albums with full track numbering force disc/track ordering; everything
-        // else follows the user's saved global sort.
-        let hasCompleteAlbumOrdering = entity is AlbumEntity
-            && fetchedTracks.allSatisfy { ($0.trackNumber ?? 0) > 0 }
+        globalFallbackSortOrder = TrackSortPreferences.loadGlobal()
 
-        if hasCompleteAlbumOrdering {
-            trackTableSortOrder = [
-                KeyPathComparator(\Track.sortableDiscNumber, order: .forward),
-                KeyPathComparator(\Track.sortableTrackNumber, order: .forward)
-            ]
-        } else if let savedSort = UserDefaults.standard.dictionary(forKey: "trackTableSortOrder"),
-                  let key = savedSort["key"] as? String,
-                  let ascending = savedSort["ascending"] as? Bool,
-                  let field = TrackSortField.from(storageKey: key) {
-            trackTableSortOrder = [field.getComparator(ascending: ascending)]
+        // Albums and people use local presentation ordering; everything else follows the global sort.
+        if entity is AlbumEntity {
+            trackTableSortOrder = Track.albumSortOrder
+        } else if isPersonEntity {
+            trackTableSortOrder = Track.artistSortOrder
+        } else {
+            trackTableSortOrder = globalFallbackSortOrder
         }
 
         self.tracks = fetchedTracks
@@ -560,7 +598,7 @@ extension EntityDetailView {
 
         self.isLoading = false
     }
-    
+
     private func pinEntity() {
         Task {
             if let folder = entity as? FolderEntity {
@@ -603,7 +641,6 @@ extension EntityDetailView {
 
     private func playTrack(_ track: Track) {
         playlistManager.playTrack(track, fromTracks: tracks)
-        selectedTrackID = track.id
     }
 
     private func playEntity(shuffle: Bool = false) {

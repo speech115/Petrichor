@@ -64,6 +64,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppDelegate.swift,
+				PlaybackSessionStore.swift,
 				WindowDelegate.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
@@ -78,7 +79,13 @@
 				Automation/AutomationIntents.swift,
 				Automation/AutomationManager.swift,
 				Automation/AutomationShortcuts.swift,
+				Database/DMInternetRadio.swift,
+				InternetRadioManager.swift,
 				MenuBarManager.swift,
+				Library/LMDiscoverArtwork.swift,
+				Library/LMDiscoverSelection.swift,
+				PlaybackRadio.swift,
+				Playlist/PMStationCollections.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};
@@ -88,7 +95,9 @@
 				Components/ActivityAnimation.swift,
 				Components/ArtistImageSheet.swift,
 				Components/EntityGridView.swift,
+				Components/EntityListView.swift,
 				Components/EntityView.swift,
+				Components/SupportedFormatsPopover.swift,
 				Components/FloatingControlCluster.swift,
 				Components/FocusStableMaterial.swift,
 				Components/HoverEffect.swift,
@@ -104,6 +113,9 @@
 				Components/Sidebar/SidebarProtocol.swift,
 				Components/SidebarView.swift,
 				Components/TrackView.swift,
+				Components/TrackViews/StationTableView.swift,
+				Components/TrackViews/ArtistTrackGrouper.swift,
+				Components/TrackViews/TrackListView.swift,
 				Components/TrackViews/TrackTableOptionsDropdown.swift,
 				Components/TrackViews/TrackTableView.swift,
 				Components/ViewExtensions.swift,
@@ -116,13 +128,21 @@
 				Folders/FolderSidebarView.swift,
 				Folders/FoldersView.swift,
 				Home/EntityDetailView.swift,
+				Home/DiscoverView.swift,
+				Home/EntityTypeView.swift,
 				Home/HomeSidebarView.swift,
 				Home/HomeView.swift,
 				Immersive/ImmersiveView.swift,
 				Library/LibrarySidebarView.swift,
+				Library/LibraryTypeSidebarView.swift,
 				Library/LibraryView.swift,
 				Main/ContentView.swift,
 				Main/PlayQueueView.swift,
+				Main/PlayerProgressBar.swift,
+				Main/PlayerStreamViews.swift,
+				Components/Widgets/AirPlayRoutePicker.swift,
+				Components/Widgets/ArtworkImageWell.swift,
+				Components/Widgets/ArtworkInputField.swift,
 				Main/PlayerView.swift,
 				Main/TrackDetailView.swift,
 				Main/TrackLyricsView.swift,
@@ -135,8 +155,13 @@
 				Playlists/PlaylistsView.swift,
 				Playlists/Sheets/ExportPlaylistsSheet.swift,
 				Playlists/Sheets/PlaylistNameField.swift,
+				Playlists/Sheets/PlaylistArtworkSheet.swift,
 				Playlists/Sheets/RegularPlaylistEditorSheet.swift,
 				Playlists/Sheets/SmartPlaylistEditorSheet.swift,
+				Playlists/Sheets/StationCollectionEditorSheet.swift,
+				Playlists/StationCollectionContentView.swift,
+				Radio/InternetRadioView.swift,
+				Radio/StationEditorSheet.swift,
 				Settings/AboutTabView.swift,
 				Settings/AppearanceTabView.swift,
 				Settings/EqualizerView.swift,
@@ -726,7 +751,7 @@
 				CODE_SIGN_ENTITLEMENTS = Configuration/Petrichor.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 161;
+				CURRENT_PROJECT_VERSION = 170;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = B53W6J5RWK;
@@ -752,7 +777,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = "Development Build";
+				MARKETING_VERSION = 1.7.0;
 				"OTHER_CODE_SIGN_FLAGS[sdk=*]" = "--timestamp";
 				PETRICHOR_URL_SCHEME = petrichor;
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor;
@@ -833,7 +858,7 @@
 				CODE_SIGN_ENTITLEMENTS = Configuration/Petrichor.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Developer ID Application";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 161;
+				CURRENT_PROJECT_VERSION = 170;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=macosx*]" = B53W6J5RWK;
@@ -1163,7 +1188,7 @@
 			repositoryURL = "https://github.com/kushalpandya/CrescendoKit";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 1.1.1;
+				minimumVersion = 1.2.2;
 			};
 		};
 		55B0DEBF2DE3A58400A41ED9 /* XCRemoteSwiftPackageReference "GRDB" */ = {

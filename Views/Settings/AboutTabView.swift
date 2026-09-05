@@ -46,7 +46,7 @@ struct AboutTabView: View {
             if let appIcon = NSApp.applicationIconImage {
                 Image(nsImage: appIcon)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .scaledToFit()
                     .frame(width: 128, height: 128)
             } else {
                 Image(systemName: Icons.musicNote)
@@ -172,7 +172,7 @@ struct AboutTabView: View {
                 Link(destination: url) {
                     Image(imageName)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .scaledToFit()
                         .frame(maxHeight: 24)
                 }
             }

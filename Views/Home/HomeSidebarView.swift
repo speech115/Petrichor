@@ -11,6 +11,14 @@ struct HomeSidebarView: View {
     @State private var pinnedCollageArtwork: [UUID: SidebarItemArtwork] = [:]
     @State private var playlistToDelete: Playlist?
     @State private var showingDeleteConfirmation = false
+    @ObservedObject private var radioManager = InternetRadioManager.shared
+    @AppStorage("internetRadioEnabled")
+    private var internetRadioEnabled = true
+
+    private var fixedItemCount: Int {
+        guard libraryManager.hasLocalMusic else { return internetRadioEnabled ? 1 : 0 }
+        return internetRadioEnabled ? HomeSidebarItem.HomeItemType.allCases.count : 2
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +48,7 @@ struct HomeSidebarView: View {
                 trailingContent: { item in
                     trailingContentView(for: item)
                 },
-                reorderableFromIndex: HomeSidebarItem.HomeItemType.allCases.count,
+                reorderableFromIndex: fixedItemCount,
                 // swiftlint:disable:next trailing_closure
                 onReorder: { reorderedItems in
                     handlePinnedItemsReorder(reorderedItems)
@@ -64,7 +72,6 @@ struct HomeSidebarView: View {
         }
         .onAppear {
             updateAllItems()
-            updateSelectedItem()
 
             if !hasLoadedInitialCounts {
                 hasLoadedInitialCounts = true
@@ -76,11 +83,6 @@ struct HomeSidebarView: View {
         }
         .onChange(of: libraryManager.tracks.count) {
             updateAllItems()
-            updateSelectedItem()
-        }
-        .onChange(of: libraryManager.discoverTracks.count) {
-            updateAllItems()
-            updateSelectedItem()
         }
         .onChange(of: libraryManager.pinnedItems) {
             updateAllItems()
@@ -92,6 +94,12 @@ struct HomeSidebarView: View {
                 }
             }
         }
+        .onChange(of: radioManager.stations.count) {
+            updateAllItems()
+        }
+        .onChange(of: internetRadioEnabled) {
+            updateAllItems()
+        }
         .onChange(of: pinnedPlaylistCountSignature) {
             // Only rebuild when a *pinned* playlist's count changes. Count changes on
             // non-pinned playlists don't affect anything shown in the Home sidebar.
@@ -99,7 +107,6 @@ struct HomeSidebarView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .libraryDataDidChange)) { _ in
             updateAllItems()
-            updateSelectedItem()
             Task {
                 await updatePinnedItemTrackCounts()
             }
@@ -119,8 +126,21 @@ struct HomeSidebarView: View {
     }
 
     private func updateAllItems() {
-        let artistCount = libraryManager.artistCount
-        let albumCount = libraryManager.albumCount
+        if !libraryManager.hasLocalMusic {
+            let playlistsById = Dictionary(playlistManager.playlists.map { ($0.id, $0) }) { first, _ in first }
+            let stationPins = libraryManager.pinnedItems.compactMap { pinnedItem -> HomeSidebarItem? in
+                guard let playlistId = pinnedItem.playlistId,
+                      let playlist = playlistsById[playlistId],
+                      playlist.type == .stations else { return nil }
+                let cachedCount = pinnedItemTrackCounts[pinnedItem.id ?? 0] ?? playlist.trackCount
+                return HomeSidebarItem(pinnedItem: pinnedItem, trackCount: cachedCount, playlist: playlist)
+            }
+            allItems = internetRadioEnabled
+                ? [HomeSidebarItem(type: .internetRadio, stationCount: radioManager.stations.count)] + stationPins
+                : stationPins
+            restoreSelection(defaultType: .internetRadio)
+            return
+        }
 
         var items: [HomeSidebarItem] = [
             HomeSidebarItem(type: .discover, trackCount: libraryManager.discoverTracks.count),
@@ -128,11 +148,13 @@ struct HomeSidebarView: View {
             HomeSidebarItem(type: .artists, artistCount: artistCount),
             HomeSidebarItem(type: .albums, albumCount: albumCount)
         ]
-
+        if internetRadioEnabled {
+            items.append(HomeSidebarItem(type: .internetRadio, stationCount: radioManager.stations.count))
+        }
         // O(1) playlist lookups instead of a linear scan per pinned item.
         let playlistsById = Dictionary(playlistManager.playlists.map { ($0.id, $0) }) { first, _ in first }
         let pinnedSidebarItems = libraryManager.pinnedItems.map { pinnedItem in
-            let cachedCount = pinnedItemTrackCounts[pinnedItem.id ?? 0] ?? 0
+            let cachedCount = pinnedItemTrackCounts[pinnedItem.id ?? 0] ?? fallbackCount(for: pinnedItem)
             let playlist = pinnedItem.playlistId.flatMap { playlistsById[$0] }
             let collage = playlist.flatMap { pinnedCollageArtwork[$0.id] }
             return HomeSidebarItem(
@@ -144,15 +166,8 @@ struct HomeSidebarView: View {
         }
         items.append(contentsOf: pinnedSidebarItems)
         
-        // Preserve selection when updating items
-        let currentSelectionId = selectedItem?.id
         allItems = items
-        
-        // Restore selection if it still exists
-        if let currentId = currentSelectionId,
-           let matchingItem = allItems.first(where: { $0.id == currentId }) {
-            selectedItem = matchingItem
-        }
+        restoreSelection(defaultType: .discover)
         
         // Update track counts asynchronously to avoid blocking UI
         Task {
@@ -220,6 +235,17 @@ struct HomeSidebarView: View {
         }
     }
     
+    /// Stand-in until the async count lands, so default pins don't read "0 artists" at first.
+    private func fallbackCount(for pinnedItem: PinnedItem) -> Int {
+        guard pinnedItem.itemType == .category else { return 0 }
+
+        switch pinnedItem.filterType {
+        case .artists: return libraryManager.artistCount
+        case .albums: return libraryManager.albumCount
+        default: return 0
+        }
+    }
+
     private func updatePinnedItemTrackCounts() async {
         // Don't update if we have no pinned items
         guard !libraryManager.pinnedItems.isEmpty else { return }
@@ -308,12 +334,17 @@ struct HomeSidebarView: View {
     // MARK: - Reorder Pinned Items
 
     private func handlePinnedItemsReorder(_ reorderedItems: [HomeSidebarItem]) {
-        let fixedCount = HomeSidebarItem.HomeItemType.allCases.count
-        let reorderedPinned = reorderedItems.dropFirst(fixedCount).compactMap { item -> PinnedItem? in
+        let visiblePinned = reorderedItems.dropFirst(fixedItemCount).compactMap { item -> PinnedItem? in
             if case .pinned(let pinnedItem) = item.source {
                 return pinnedItem
             }
             return nil
+        }
+        let visibleIds = Set(visiblePinned.compactMap(\.id))
+        var iterator = visiblePinned.makeIterator()
+        let reorderedPinned = libraryManager.pinnedItems.map { item in
+            guard let id = item.id, visibleIds.contains(id) else { return item }
+            return iterator.next() ?? item
         }
 
         allItems = reorderedItems
@@ -323,31 +354,12 @@ struct HomeSidebarView: View {
         }
     }
 
-    // MARK: - Update Selection Helper
-
-    private func updateSelectedItem() {
-        // Select "Discover" by default if nothing is selected
-        if selectedItem == nil {
-            selectedItem = allItems.first { item in
-                if case .fixed(let type) = item.source, type == .discover {
-                    return true
-                }
-                return false
-            } ?? allItems.first
-        } else if let current = selectedItem {
-            // Update the selected item to get the latest count for fixed items
-            switch current.source {
-            case .fixed(let type):
-                selectedItem = allItems.first { item in
-                    if case .fixed(let itemType) = item.source {
-                        return itemType == type
-                    }
-                    return false
-                }
-            case .pinned:
-                // Pinned items don't need updates
-                break
-            }
+    private func restoreSelection(defaultType: HomeSidebarItem.HomeItemType) {
+        if let currentId = selectedItem?.id,
+           let matching = allItems.first(where: { $0.id == currentId }) {
+            selectedItem = matching
+        } else {
+            selectedItem = allItems.first { $0.type == defaultType } ?? allItems.first
         }
     }
 }

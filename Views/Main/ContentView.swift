@@ -64,6 +64,7 @@ struct ContentView: View {
     @State private var windowDelegate = WindowDelegate()
     @State private var shouldFocusSearch = false
     @State private var showingExportPlaylistSheet = false
+    @State private var wasInitialLibraryScan = false
 
     // Sidebar selection state (owned here, passed as bindings to sidebars + content views)
     @State private var selectedHomeSidebarItem: HomeSidebarItem?
@@ -78,6 +79,7 @@ struct ContentView: View {
     @State private var librarySelectedSidebarItem: LibrarySidebarItem?
     
     @ObservedObject private var notificationManager = NotificationManager.shared
+    @ObservedObject private var radioManager = InternetRadioManager.shared
 
     init() {
         let raw = UserDefaults.standard.string(forKey: mainWindowPanelStateKey)
@@ -99,7 +101,7 @@ struct ContentView: View {
                 return .ignored
             }
             
-            if playbackManager.currentTrack != nil {
+            if playbackManager.currentTrack != nil || playbackManager.currentStation != nil {
                 DispatchQueue.main.async {
                     playbackManager.togglePlayPause()
                 }
@@ -108,18 +110,18 @@ struct ContentView: View {
             
             return .ignored
         }
-        .frame(minWidth: 1000, minHeight: 600)
+        .frame(minWidth: 1100, minHeight: 600)
         .overlay {
             if isImmersiveActive {
                 ImmersiveView(
                     isPresented: $isImmersiveActive,
-                    artwork: NowPlayingArtwork.image(for: playbackManager.currentTrack),
+                    artwork: NowPlayingArtwork.image(for: playbackManager.nowPlayingSource),
                     gradient: NowPlayingArtwork.gradient(
-                        for: playbackManager.currentTrack,
+                        for: playbackManager.nowPlayingSource,
                         isDark: colorScheme == .dark,
                         enabled: useArtworkColors && tintNowPlayingBackground
                     ),
-                    trackID: playbackManager.currentTrack?.id,
+                    trackID: playbackManager.nowPlayingSource?.id,
                     isDarkMode: colorScheme == .dark
                 )
                 .transition(.move(edge: .bottom))
@@ -138,6 +140,7 @@ struct ContentView: View {
             showingSettings: $showingSettings,
             selectedTab: $selectedTab,
             pendingLibraryFilter: $pendingLibraryFilter,
+            selectedHomeSidebarItem: $selectedHomeSidebarItem,
             showTrackDetail: showTrackDetail
         )
         .onChange(of: playbackManager.currentTrack?.id) { oldId, _ in
@@ -164,6 +167,19 @@ struct ContentView: View {
                 }
             }
         }
+        .onChange(of: libraryManager.isInitialOnboardingScan) { _, isInitialScan in
+            if isInitialScan {
+                wasInitialLibraryScan = true
+            } else if wasInitialLibraryScan && libraryManager.hasLocalMusic {
+                navigateToDiscover()
+                wasInitialLibraryScan = false
+            }
+        }
+        .onChange(of: libraryManager.hasReachedInitialScanThreshold) { _, reachedThreshold in
+            guard reachedThreshold, libraryManager.hasLocalMusic else { return }
+            navigateToDiscover()
+            wasInitialLibraryScan = false
+        }
         .background(WindowAccessor(windowDelegate: windowDelegate))
         .navigationTitle("")
         .toolbar {
@@ -176,16 +192,33 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
                 .environmentObject(libraryManager)
+                .environmentObject(playbackManager)
         }
         .sheet(isPresented: $playlistManager.showingCreatePlaylistModal) {
-            CreatePlaylistSheet(
+            NamePromptSheet(
+                title: "New Playlist",
+                prompt: "Playlist Name",
+                detail: playlistManager.tracksToAddToNewPlaylist.isEmpty
+                    ? nil
+                    : Text("Will add: \(playlistManager.tracksToAddToNewPlaylist.count) tracks"),
                 isPresented: $playlistManager.showingCreatePlaylistModal,
-                playlistName: $playlistManager.newPlaylistName,
-                tracksToAdd: playlistManager.tracksToAddToNewPlaylist
+                name: $playlistManager.newPlaylistName
             ) {
                 playlistManager.createPlaylistFromModal()
             }
-            .environmentObject(playlistManager)
+        }
+        .sheet(isPresented: $playlistManager.showingCreateStationCollectionModal) {
+            NamePromptSheet(
+                title: "New Collection",
+                prompt: "Collection Name",
+                detail: playlistManager.stationsToAddToNewCollection.isEmpty
+                    ? nil
+                    : Text("Will add: \(playlistManager.stationsToAddToNewCollection.count) stations"),
+                isPresented: $playlistManager.showingCreateStationCollectionModal,
+                name: $playlistManager.newStationCollectionName
+            ) {
+                playlistManager.createStationCollectionFromModal()
+            }
         }
         .sheet(isPresented: $playlistManager.showingSmartPlaylistEditor) {
             SmartPlaylistEditorSheet(
@@ -200,6 +233,19 @@ struct ContentView: View {
                 editingPlaylist: playlistManager.regularPlaylistToEdit
             )
             .environmentObject(libraryManager)
+            .environmentObject(playlistManager)
+        }
+        .sheet(isPresented: $radioManager.showingStationEditor) {
+            // Presented here, not from the Internet Radio section, so the File menu can open it from any tab.
+            StationEditorSheet(station: radioManager.stationToEdit) {
+                radioManager.showingStationEditor = false
+            }
+        }
+        .sheet(isPresented: $playlistManager.showingStationCollectionEditor) {
+            StationCollectionEditorSheet(
+                isPresented: $playlistManager.showingStationCollectionEditor,
+                editingCollection: playlistManager.stationCollectionToEdit
+            )
             .environmentObject(playlistManager)
         }
         .sheet(isPresented: $showingExportPlaylistSheet) {
@@ -217,7 +263,7 @@ struct ContentView: View {
             showingExportPlaylistSheet = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleImmersivePlayer)) { _ in
-            guard playbackManager.currentTrack != nil || isImmersiveActive else { return }
+            guard playbackManager.hasPlayableContent || isImmersiveActive else { return }
             if isImmersiveActive {
                 withAnimation(.easeInOut(duration: AnimationDuration.immersiveTransition)) {
                     isImmersiveActive = false
@@ -247,8 +293,19 @@ struct ContentView: View {
     // MARK: - View Components
 
     @ViewBuilder private var mainContentArea: some View {
-        if !libraryManager.shouldShowMainUI {
-            NoMusicEmptyStateView(context: .mainWindow)
+        if libraryManager.isInitialLibraryScanBlocking {
+            NoMusicEmptyStateView(context: .localLibrary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !libraryManager.isLocalLibraryReady
+                    && radioManager.stations.isEmpty
+                    && !radioManager.hasStoredStations
+                    && !radioManager.hasLoadedStations {
+            ActivityAnimation(size: .large)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if !libraryManager.isLocalLibraryReady
+                    && radioManager.stations.isEmpty
+                    && !radioManager.hasStoredStations {
+            NoMusicEmptyStateView(context: .onboarding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             PersistentSplitView(
@@ -273,13 +330,11 @@ struct ContentView: View {
                 .allowsHitTesting(selectedTab == .home)
 
             if selectedTab == .library {
-                LibrarySidebarView(
-                    selectedFilterType: $libraryFilterType,
-                    selectedFilterItem: $libraryFilterItem,
-                    pendingSearchText: $libraryPendingSearchText,
-                    filteredItems: $libraryFilteredItems,
-                    selectedSidebarItem: $librarySelectedSidebarItem
-                )
+                if libraryManager.hasLocalMusic {
+                    LibraryTypeSidebarView(selectedFilterType: $libraryFilterType)
+                } else {
+                    emptyLocalLibrarySidebar(title: String(localized: "Library"))
+                }
             }
 
             if selectedTab == .playlists {
@@ -287,14 +342,34 @@ struct ContentView: View {
             }
 
             if selectedTab == .folders {
-                FoldersSidebarView(selectedNode: $selectedFolderNode)
+                if libraryManager.isLocalLibraryReady {
+                    FoldersSidebarView(selectedNode: $selectedFolderNode)
+                } else {
+                    emptyLocalLibrarySidebar(title: String(localized: "Folders"))
+                }
             }
+        }
+    }
+
+    private func emptyLocalLibrarySidebar(title: String) -> some View {
+        VStack(spacing: 0) {
+            ListHeader(opaque: true) {
+                Text(title).headerTitleStyle()
+                Spacer()
+            }
+            Divider()
+            Spacer()
         }
     }
 
     private var sectionContent: some View {
         ZStack {
-            HomeView(selectedSidebarItem: $selectedHomeSidebarItem, isShowingEntities: .constant(false))
+            // HomeView is always in the hierarchy and merely opacity-gated, so it gets no
+            // appear/disappear callbacks on tab switches.
+            HomeView(
+                selectedSidebarItem: $selectedHomeSidebarItem,
+                isActiveTab: selectedTab == .home
+            )
                 .opacity(selectedTab == .home ? 1 : 0)
                 .allowsHitTesting(selectedTab == .home)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -305,6 +380,8 @@ struct ContentView: View {
                     selectedFilterItem: $libraryFilterItem,
                     pendingSearchText: $libraryPendingSearchText,
                     cachedFilteredTracks: $libraryCachedTracks,
+                    filteredItems: $libraryFilteredItems,
+                    selectedSidebarItem: $librarySelectedSidebarItem,
                     pendingFilter: $pendingLibraryFilter
                 )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -346,7 +423,7 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var playerControls: some View {
-        if libraryManager.shouldShowMainUI {
+        if libraryManager.isLocalLibraryReady || !radioManager.stations.isEmpty {
             PlayerView(
                 rightSidebarContent: $rightSidebarContent
             )
@@ -357,76 +434,18 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            TabbedButtons(
-                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
-                selection: $selectedTab,
-                animation: .transform,
-                isDisabled: libraryManager.folders.isEmpty
-            )
-        }
-
-        // Do not remove this spacer, it allows
-        // for pushing toolbar items below to the
-        // right-edge of window frame on macOS 14.x
-        ToolbarItem { Spacer() }
-
-        ToolbarItem(placement: .confirmationAction) {
-            HStack(spacing: 8) {
-                NotificationTray()
-                    .frame(width: 24, height: 24)
-
-                SearchInputField(
-                    text: $libraryManager.globalSearchText,
-                    placeholder: String(localized: "Search"),
-                    fontSize: 12,
-                    shouldFocus: shouldFocusSearch
-                )
-                .frame(width: 280)
-                .disabled(!libraryManager.shouldShowMainUI)
-            }
-        }
-    }
-
-    @available(macOS 26.0, *)
-    @ToolbarContentBuilder private var modernToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            TabbedButtons(
-                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
-                selection: $selectedTab,
-                style: .modern,
-                animation: .transform,
-                isDisabled: libraryManager.folders.isEmpty
-            )
-        }
-
-        ToolbarItem(placement: .confirmationAction) {
-            NotificationTray()
-                .frame(width: 34, height: 30)
-        }
-        .sharedBackgroundVisibility(.hidden)
-
-        ToolbarItem(placement: .confirmationAction) {
-            SearchInputField(
-                text: $libraryManager.globalSearchText,
-                placeholder: String(localized: "Search"),
-                fontSize: 12,
-                shouldFocus: shouldFocusSearch
-            )
-            .frame(width: 280)
-            .disabled(!libraryManager.shouldShowMainUI)
-        }
-    }
-    
     // MARK: - Event Handlers
 
     private func handleOnAppear() {
+        wasInitialLibraryScan = libraryManager.isInitialOnboardingScan
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NSApp.keyWindow?.makeFirstResponder(nil)
         }
+    }
+
+    private func navigateToDiscover() {
+        selectedTab = .home
+        selectedHomeSidebarItem = HomeSidebarItem(type: .discover)
     }
 
     // MARK: - Playlist Import/Export
@@ -528,12 +547,88 @@ struct ContentView: View {
     }
 }
 
+private extension ContentView {
+    @ToolbarContentBuilder var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            TabbedButtons(
+                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
+                selection: $selectedTab,
+                animation: .transform,
+                isDisabled: false
+            )
+        }
+
+        // Do not remove this spacer, it allows
+        // for pushing toolbar items below to the
+        // right-edge of window frame on macOS 14.x
+        ToolbarItem { Spacer() }
+
+        ToolbarItem(placement: .confirmationAction) {
+            HStack(spacing: 8) {
+                NotificationTray()
+                    .frame(width: 24, height: 24)
+
+                SearchInputField(
+                    text: $libraryManager.globalSearchText,
+                    placeholder: String(localized: "Search"),
+                    fontSize: 12,
+                    shouldFocus: shouldFocusSearch
+                )
+                .frame(width: 280)
+                .disabled(!libraryManager.hasLocalMusic)
+
+                AirPlayRoutePicker()
+                    .frame(width: 22, height: 22)
+                    .help("AirPlay")
+            }
+        }
+    }
+
+    @available(macOS 26.0, *)
+    @ToolbarContentBuilder var modernToolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            TabbedButtons(
+                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
+                selection: $selectedTab,
+                style: .modern,
+                animation: .transform,
+                isDisabled: false
+            )
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+            NotificationTray()
+                .frame(width: 34, height: 30)
+        }
+        .sharedBackgroundVisibility(.hidden)
+
+        ToolbarItem(placement: .confirmationAction) {
+            SearchInputField(
+                text: $libraryManager.globalSearchText,
+                placeholder: String(localized: "Search"),
+                fontSize: 12,
+                shouldFocus: shouldFocusSearch
+            )
+            .frame(width: 280)
+            .disabled(!libraryManager.hasLocalMusic)
+        }
+
+        ToolbarItem(placement: .confirmationAction) {
+            AirPlayRoutePicker()
+                .frame(width: 22, height: 22)
+                .help("AirPlay")
+        }
+        .sharedBackgroundVisibility(.hidden)
+    }
+}
+
 extension View {
     func contentViewNotificationHandlers(
         shouldFocusSearch: Binding<Bool>,
         showingSettings: Binding<Bool>,
         selectedTab: Binding<Sections>,
         pendingLibraryFilter: Binding<LibraryFilterRequest?>,
+        selectedHomeSidebarItem: Binding<HomeSidebarItem?>,
         showTrackDetail: @escaping (Track) -> Void
     ) -> some View {
         self
@@ -584,41 +679,48 @@ extension View {
                     }
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .navigateToInternetRadio)) { _ in
+                selectedTab.wrappedValue = .home
+                selectedHomeSidebarItem.wrappedValue = HomeSidebarItem(
+                    type: .internetRadio,
+                    stationCount: InternetRadioManager.shared.stations.count
+                )
+            }
     }
 }
 
-// MARK: - Create Playlist Sheet
+// MARK: - Name Prompt Sheet
 
-struct CreatePlaylistSheet: View {
-    @EnvironmentObject var playlistManager: PlaylistManager
+/// The name-only creation dialog, shared by "New Playlist..." and "New Collection...".
+struct NamePromptSheet: View {
+    let title: LocalizedStringKey
+    let prompt: LocalizedStringKey
+    var detail: Text?
     @Binding var isPresented: Bool
-    @Binding var playlistName: String
-    let tracksToAdd: [Track]
+    @Binding var name: String
     let onCreate: () -> Void
-    
+
     var body: some View {
         VStack(spacing: 20) {
-            Text("New Playlist")
+            Text(title)
                 .font(.headline)
 
-            TextField("Playlist Name", text: $playlistName)
+            TextField(prompt, text: $name)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 250)
                 .onSubmit {
-                    if !playlistName.isEmpty {
+                    if !name.isEmpty {
                         onCreate()
                     }
                 }
 
-            if !tracksToAdd.isEmpty {
-                Text("Will add: \(tracksToAdd.count) tracks")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            detail?
+                .font(.caption)
+                .foregroundColor(.secondary)
 
             HStack(spacing: 12) {
                 Button("Cancel") {
-                    playlistName = ""
+                    name = ""
                     isPresented = false
                 }
                 .keyboardShortcut(.escape)
@@ -627,7 +729,7 @@ struct CreatePlaylistSheet: View {
                     onCreate()
                 }
                 .keyboardShortcut(.return)
-                .disabled(playlistName.isEmpty)
+                .disabled(name.isEmpty)
             }
         }
         .padding(30)
@@ -650,6 +752,7 @@ struct WindowAccessor: NSViewRepresentable {
                 WindowManager.shared.mainWindow = window
                 window.title = ""
                 window.isExcludedFromWindowsMenu = true
+                WindowManager.shared.playbackWindowVisibilityDidChange()
             }
         }
         return view
@@ -660,9 +763,38 @@ struct WindowAccessor: NSViewRepresentable {
 
 // MARK: - Window Manager
 
+@MainActor
 class WindowManager {
     static let shared = WindowManager()
     weak var mainWindow: NSWindow?
+    private var hiddenReconciliation: DispatchWorkItem?
+
+    var hasVisiblePlaybackWindow: Bool {
+        guard !NSApp.isHidden else { return false }
+        let mainVisible = mainWindow.map { $0.isVisible && !$0.isMiniaturized } ?? false
+        return mainVisible || MiniPlayerWindowManager.shared.isVisible
+    }
+
+    func playbackWindowVisibilityDidChange() {
+        updatePlaybackWindowVisibility(hasVisiblePlaybackWindow)
+    }
+
+    func playbackWindowsDidHide() {
+        updatePlaybackWindowVisibility(false)
+    }
+
+    private func updatePlaybackWindowVisibility(_ visible: Bool) {
+        AppCoordinator.shared?.playbackManager.playbackWindowVisibilityDidChange(isVisible: visible)
+        hiddenReconciliation?.cancel()
+        guard !visible else { return }
+
+        let reconciliation = DispatchWorkItem { [weak self] in
+            guard let self, !self.hasVisiblePlaybackWindow else { return }
+            AppCoordinator.shared?.playbackManager.playbackWindowVisibilityDidChange(isVisible: false)
+        }
+        hiddenReconciliation = reconciliation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: reconciliation)
+    }
 
     private init() {}
 }

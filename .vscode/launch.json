@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Petrichor (LLDB)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/Debug/Petrichor.app/Contents/MacOS/Petrichor",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build-and-copy"
+    }
+  ]
+}

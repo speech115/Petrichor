@@ -19,10 +19,28 @@ struct PinnedItem: Identifiable, FetchableRecord, PersistableRecord {
         case library
         case playlist
         case folder
+        /// A whole entity type (all Artists, all Genres, ...) rather than one value within it.
+        case category
     }
-    
+
     // MARK: - Initialization
-    
+
+    // For a whole entity type, browsed on Home as a grid
+    init(categoryType: LibraryFilterType) {
+        self.itemType = .category
+        self.filterType = categoryType
+        self.filterValue = nil
+        self.entityId = nil
+        self.artistId = nil
+        self.albumId = nil
+        self.playlistId = nil
+        // Stored English like `rawValue`; display sites use `pluralDisplayName` to stay localized.
+        self.displayName = categoryType.rawValue
+        self.subtitle = nil
+        self.sortOrder = 0
+        self.dateAdded = Date()
+    }
+
     // For library sidebar items
     init(filterType: LibraryFilterType, filterValue: String, displayName: String, subtitle: String? = nil, albumId: Int64? = nil) {
         self.itemType = .library
@@ -179,12 +197,12 @@ struct PinnedItem: Identifiable, FetchableRecord, PersistableRecord {
     /// Check if this pinned item matches a given entity
     func matches(entity: any Entity) -> Bool {
         guard itemType == .library else { return false }
-        
+
         // First try to match by entity ID if available
         if let entityId = entityId, entityId == entity.id {
             return true
         }
-        
+
         // Then try to match by name and type
         if let filterType = filterType {
             switch filterType {
@@ -200,11 +218,16 @@ struct PinnedItem: Identifiable, FetchableRecord, PersistableRecord {
                     return filterValue == entity.name
                 }
                 return false
+            case .genres, .decades, .years:
+                // Discover surfaces these as CategoryEntity with no PinnedItem behind
+                // them, so the pin state has to be resolved by type + raw value.
+                guard let category = entity as? CategoryEntity else { return false }
+                return category.filterType == filterType && filterValue == entity.name
             default:
                 return false
             }
         }
-        
+
         return false
     }
     

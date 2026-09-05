@@ -63,7 +63,7 @@ extension TrackSortField {
         ]
     }
 
-    // MARK: - Comparator Parsing
+    // MARK: - Comparator Detection
 
     /// Map of KeyPathComparator description substrings to sort fields.
     private static let comparatorKeyMap: [(String, TrackSortField)] = [
@@ -90,17 +90,33 @@ extension TrackSortField {
     /// Detect the sort field from a KeyPathComparator array by parsing its description.
     static func detect(from sortOrder: [KeyPathComparator<Track>]) -> TrackSortField {
         guard let firstSort = sortOrder.first else { return .title }
-        let sortString = String(describing: firstSort)
-        for (key, field) in comparatorKeyMap where sortString.contains(key) {
-            return field
-        }
-        return .title
+        return comparatorMatch(for: firstSort)?.field ?? .title
     }
 
-    /// Detect whether the sort order is ascending from a KeyPathComparator array.
     static func isAscending(from sortOrder: [KeyPathComparator<Track>]) -> Bool {
         guard let firstSort = sortOrder.first else { return true }
-        return String(describing: firstSort).contains("forward")
+        return comparatorMatch(for: firstSort)?.ascending ?? true
+    }
+
+    private static func comparatorMatch(
+        for comparator: KeyPathComparator<Track>
+    ) -> (field: TrackSortField, ascending: Bool)? {
+        for field in allCases where field != .custom {
+            if comparator == field.getComparator(ascending: true) {
+                return (field, true)
+            }
+            if comparator == field.getComparator(ascending: false) {
+                return (field, false)
+            }
+        }
+
+        let aliases: [(TrackSortField, Bool, KeyPathComparator<Track>)] = [
+            (.discNumber, true, KeyPathComparator(\Track.normalizedDiscNumber, order: .forward)),
+            (.discNumber, false, KeyPathComparator(\Track.normalizedDiscNumber, order: .reverse)),
+            (.dateAdded, true, KeyPathComparator(\Track.sortableDateAdded, order: .forward)),
+            (.dateAdded, false, KeyPathComparator(\Track.sortableDateAdded, order: .reverse))
+        ]
+        return aliases.first { $0.2 == comparator }.map { ($0.0, $0.1) }
     }
 
     /// The UserDefaults storage key (matches rawValue).
@@ -112,6 +128,26 @@ extension TrackSortField {
     }
 }
 
+enum TrackSortPreferences {
+    static let globalKey = "trackTableSortOrder"
+
+    static func loadGlobal() -> [KeyPathComparator<Track>] {
+        guard let savedSort = UserDefaults.standard.dictionary(forKey: globalKey),
+              let key = savedSort["key"] as? String,
+              let ascending = savedSort["ascending"] as? Bool,
+              let field = TrackSortField.from(storageKey: key) else {
+            return [KeyPathComparator(\Track.title, order: .forward)]
+        }
+        return [field.getComparator(ascending: ascending)]
+    }
+
+    static func save(_ sortOrder: [KeyPathComparator<Track>], key: String = globalKey) {
+        let field = TrackSortField.detect(from: sortOrder)
+        let ascending = TrackSortField.isAscending(from: sortOrder)
+        UserDefaults.standard.set(["key": field.storageKey, "ascending": ascending], forKey: key)
+    }
+}
+
 // MARK: - TrackTableOptionsDropdown
 
 struct TrackTableOptionsDropdown: View {
@@ -119,18 +155,33 @@ struct TrackTableOptionsDropdown: View {
     @Binding var tableRowSize: TableRowSize
     private let playlistID: UUID?
     private let showCustomSort: Bool
+    private let usesGlobalSortOrder: Bool
+    private let showsArtistGroupingOptions: Bool
     @State private var isCustomSort = false
+
+    @AppStorage("groupArtistTracksByAlbum")
+    private var groupsArtistTracksByAlbum = true
+
+    @AppStorage("artistAlbumGroupsAscending")
+    private var artistAlbumGroupsAscending = true
+
+    @AppStorage("artistAlbumGroupSortField")
+    private var artistAlbumGroupSortField: ArtistAlbumGroupSortField = .albumName
 
     init(
         sortOrder: Binding<[KeyPathComparator<Track>]>,
         tableRowSize: Binding<TableRowSize>,
         playlistID: UUID? = nil,
-        showCustomSort: Bool = false
+        showCustomSort: Bool = false,
+        usesGlobalSortOrder: Bool = true,
+        showsArtistGroupingOptions: Bool = false
     ) {
         self._sortOrder = sortOrder
         self._tableRowSize = tableRowSize
         self.playlistID = playlistID
         self.showCustomSort = showCustomSort
+        self.usesGlobalSortOrder = usesGlobalSortOrder
+        self.showsArtistGroupingOptions = showsArtistGroupingOptions
     }
 
     private var currentSortField: TrackSortField {
@@ -150,7 +201,7 @@ struct TrackTableOptionsDropdown: View {
 
     var body: some View {
         Menu {
-            Section("Sort by") {
+            Section("Sort tracks by") {
                 ForEach(TrackSortField.sortFields, id: \.self) { field in
                     Toggle(field.displayName, isOn: Binding(
                         get: { currentSortField == field },
@@ -165,6 +216,50 @@ struct TrackTableOptionsDropdown: View {
                         get: { isCustomSort },
                         set: { _ in setSortField(.custom) }
                     ))
+                }
+            }
+
+            if showsArtistGroupingOptions {
+                Divider()
+
+                Section("Group tracks by") {
+                    Toggle("None", isOn: Binding(
+                        get: { !groupsArtistTracksByAlbum },
+                        set: { _ in groupsArtistTracksByAlbum = false }
+                    ))
+                    Toggle("Album", isOn: Binding(
+                        get: { groupsArtistTracksByAlbum },
+                        set: { _ in groupsArtistTracksByAlbum = true }
+                    ))
+
+                    if groupsArtistTracksByAlbum {
+                        Menu("Sort groups by") {
+                            Section("Sort groups by") {
+                                ForEach(ArtistAlbumGroupSortField.allCases, id: \.self) { field in
+                                    Toggle(field.displayName, isOn: Binding(
+                                        get: { artistAlbumGroupSortField == field },
+                                        set: { _ in artistAlbumGroupSortField = field }
+                                    ))
+                                }
+                            }
+
+                            Divider()
+
+                            Section("Sort order") {
+                                Toggle("Ascending", isOn: Binding(
+                                    get: { artistAlbumGroupsAscending },
+                                    set: { _ in artistAlbumGroupsAscending = true }
+                                ))
+                                Toggle("Descending", isOn: Binding(
+                                    get: { !artistAlbumGroupsAscending },
+                                    set: { _ in artistAlbumGroupsAscending = false }
+                                ))
+                            }
+                        }
+                    } else {
+                        Button("Sort groups by") {}
+                            .disabled(true)
+                    }
                 }
             }
 
@@ -194,7 +289,7 @@ struct TrackTableOptionsDropdown: View {
                 }
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")
+            Image(systemName: Icons.sortMenu)
                 .font(.system(size: 14))
                 .foregroundColor(.secondary)
         }
@@ -212,6 +307,8 @@ struct TrackTableOptionsDropdown: View {
             syncCustomSortState()
         }
         .onReceive(NotificationCenter.default.publisher(for: .trackTableSortChanged)) { notification in
+            guard usesGlobalSortOrder || playlistID != nil else { return }
+
             if notification.userInfo?["fromTable"] as? Bool == true,
                let newSortOrder = notification.userInfo?["sortOrder"] as? [KeyPathComparator<Track>] {
                 sortOrder = newSortOrder
@@ -251,6 +348,10 @@ struct TrackTableOptionsDropdown: View {
         }
 
         let newComparator = field.getComparator(ascending: isAscending)
+        guard usesGlobalSortOrder || playlistID != nil else {
+            sortOrder = [newComparator]
+            return
+        }
         let userDefaultsKey = playlistID != nil ? "playlistTableSortOrder" : "trackTableSortOrder"
 
         NotificationCenter.default.post(
@@ -266,6 +367,11 @@ struct TrackTableOptionsDropdown: View {
 
     private func setSortAscending(_ ascending: Bool) {
         let newComparator = currentSortField.getComparator(ascending: ascending)
+
+        guard usesGlobalSortOrder || playlistID != nil else {
+            sortOrder = [newComparator]
+            return
+        }
 
         let userDefaultsKey = playlistID != nil ? "playlistTableSortOrder" : "trackTableSortOrder"
 

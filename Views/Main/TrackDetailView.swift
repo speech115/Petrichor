@@ -31,6 +31,7 @@ struct TrackDetailView: View {
                     .easeInOut(duration: AnimationDuration.standardDuration),
                     value: gradientColors
                 )
+                .transition(.opacity)
             }
 
             VStack(spacing: 0) {
@@ -113,6 +114,7 @@ struct TrackDetailView: View {
         .onChange(of: useArtworkColors) {
             updateGradientColors()
         }
+        .onDisappear { gradientTask?.cancel() }
     }
 
     private func updateGradientColors() {
@@ -191,7 +193,7 @@ struct TrackDetailView: View {
                let platformImage = PlatformImage(data: artworkData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .frame(width: 250, height: 250)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)

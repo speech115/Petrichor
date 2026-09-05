@@ -14,6 +14,7 @@ class ScanLookupCache {
     var artists: [String: Artist] = [:]        // normalizedName -> Artist
     var albums: [String: Album] = [:]          // compositeKey -> Album
     var genres: [String: Genre] = [:]          // name -> Genre
+    var albumsWithSelectedArtwork: Set<Int64> = []
 
     static func albumKey(_ normalizedTitle: String, _ normalizedArtist: String?) -> String {
         "\(normalizedTitle)|\(normalizedArtist ?? "")"
@@ -302,7 +303,7 @@ extension DatabaseManager {
 
         // Update release year if not set
         if album.releaseYear == nil && !track.year.isEmpty && track.year != "Unknown Year" {
-            if let year = Int(track.year) {
+            if let year = Int(track.year), (1900...2100).contains(year) {
                 album.releaseYear = year
                 needsUpdate = true
             }
@@ -341,7 +342,12 @@ extension DatabaseManager {
     }
 
     /// Update album artwork
-    func updateAlbumArtwork(_ albumId: Int64, artworkData: Data?, in db: Database) throws {
+    func updateAlbumArtwork(
+        _ albumId: Int64,
+        artworkData: Data?,
+        replacingExisting: Bool = false,
+        in db: Database
+    ) throws {
         guard let artworkData = artworkData, !artworkData.isEmpty else { return }
 
         // Only update if album doesn't already have artwork

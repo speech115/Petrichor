@@ -91,6 +91,13 @@ struct ImmersiveView: View {
         playbackManager.currentTrack != nil
     }
 
+    private var hasStation: Bool { playbackManager.hasStation }
+
+    private var effectivePanel: ImmersivePanel {
+        if panel == .queue && !playbackManager.canShowCompactPlaybackQueue { return .none }
+        return hasStation && panel == .lyrics ? .none : panel
+    }
+
     private var controlsUseArtworkTint: Bool {
         useArtworkColors && tintPlaybackControls
     }
@@ -100,7 +107,7 @@ struct ImmersiveView: View {
     }
 
     private var artworkTint: Color {
-        NowPlayingArtwork.tint(for: playbackManager.currentTrack, useArtworkTint: controlsUseArtworkTint)
+        NowPlayingArtwork.tint(for: playbackManager.nowPlayingSource, useArtworkTint: controlsUseArtworkTint)
     }
 
     /// Whether the immersive background reads as dark: the gradient (under its scrim)
@@ -114,7 +121,7 @@ struct ImmersiveView: View {
     /// deepened to match the actual background rather than always assuming dark.
     private var controlColor: Color {
         NowPlayingArtwork.controlColor(
-            for: playbackManager.currentTrack,
+            for: playbackManager.nowPlayingSource,
             useArtworkTint: controlsUseArtworkTint,
             isDarkBackground: backgroundIsDark
         )
@@ -159,7 +166,7 @@ struct ImmersiveView: View {
             // changes crossfade while the initial gradient slid in untouched.
             DispatchQueue.main.async { didAppear = true }
         }
-        .onChange(of: playbackManager.currentTrack?.id) {
+        .onChange(of: playbackManager.nowPlayingSource?.id) {
             refreshArtwork()
             updateGradientColors()
         }
@@ -172,6 +179,9 @@ struct ImmersiveView: View {
         }
         .onChange(of: backgroundUsesArtwork) {
             updateGradientColors()
+        }
+        .onChange(of: playbackManager.hasPlayableContent) { _, hasPlayableContent in
+            if !hasPlayableContent { close() }
         }
         .clearQueueConfirmation(isPresented: $showingClearConfirmation) {
             playlistManager.clearQueue()
@@ -208,7 +218,7 @@ struct ImmersiveView: View {
         return HStack(alignment: .center, spacing: layout.spacing) {
             nowPlayingColumn(layout: layout)
 
-            if panel != .none {
+            if effectivePanel != .none {
                 panelBox(layout: layout)
                     .frame(width: layout.blockWidth, height: layout.blockHeight)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -216,7 +226,7 @@ struct ImmersiveView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(layout.padding)
-        .animation(.easeInOut(duration: AnimationDuration.standardDuration), value: panel)
+        .animation(.easeInOut(duration: AnimationDuration.standardDuration), value: effectivePanel)
     }
 
     private func makeLayout(for size: CGSize) -> ImmersiveLayout {
@@ -245,12 +255,12 @@ struct ImmersiveView: View {
             artworkView(side: layout.artSide, cornerRadius: layout.cornerRadius)
 
             VStack(spacing: layout.titleSpacing) {
-                Text(playbackManager.currentTrack?.title ?? String(localized: "Not Playing"))
+                Text(playbackManager.nowPlayingSource?.title ?? String(localized: "Not Playing"))
                     .font(.system(size: layout.titleFontSize, weight: .semibold))
                     .foregroundColor(adaptiveText)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                Text(playbackManager.currentTrack?.displayArtist ?? "")
+                Text(playbackManager.nowPlayingSource?.subtitle ?? "")
                     .font(.system(size: layout.artistFontSize))
                     .foregroundColor(adaptiveText.opacity(0.75))
                     .lineLimit(1)
@@ -266,7 +276,13 @@ struct ImmersiveView: View {
                     neutral: adaptiveText,
                     scale: layout.controlsScale
                 )
-                NowPlayingProgressBar(accent: controlColor, neutral: adaptiveText, scale: layout.controlsScale)
+                PlayerProgressBar(
+                    accent: controlColor,
+                    neutral: adaptiveText,
+                    scale: layout.controlsScale,
+                    compactStreamIndicator: true
+                )
+                .frame(height: 14 * layout.controlsScale)
             }
             .frame(width: layout.artSide)
         }
@@ -279,7 +295,7 @@ struct ImmersiveView: View {
             if let image = cachedArtwork {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
             } else {
                 Rectangle()
                     .fill(Color.white.opacity(0.08))
@@ -300,7 +316,7 @@ struct ImmersiveView: View {
     private func panelBox(layout: ImmersiveLayout) -> some View {
         VStack(spacing: 0) {
             // Lyrics don't need a header; the queue keeps its count / clear action.
-            if panel == .queue {
+            if effectivePanel == .queue {
                 panelHeader(layout: layout)
                 Divider()
                     .background(adaptiveText)
@@ -318,7 +334,7 @@ struct ImmersiveView: View {
 
     @ViewBuilder
     private func panelContent(layout: ImmersiveLayout) -> some View {
-        switch panel {
+        switch effectivePanel {
         case .queue:
             PlayQueueContent(
                 accentColor: artworkTint,
@@ -371,8 +387,8 @@ struct ImmersiveView: View {
     private var floatingToolbar: some View {
         HStack(spacing: 4) {
             PanelToolbarButton(
-                isActive: panel == .queue,
-                isEnabled: true,
+                isActive: effectivePanel == .queue,
+                isEnabled: playbackManager.canShowCompactPlaybackQueue,
                 activeTint: artworkTint,
                 activeHelp: String(localized: "Hide Queue"),
                 inactiveHelp: String(localized: "Show Queue"),
@@ -384,8 +400,8 @@ struct ImmersiveView: View {
             )
 
             PanelToolbarButton(
-                isActive: panel == .lyrics,
-                isEnabled: hasCurrentTrack,
+                isActive: effectivePanel == .lyrics,
+                isEnabled: hasCurrentTrack && !hasStation,
                 activeTint: artworkTint,
                 activeHelp: String(localized: "Hide Lyrics"),
                 inactiveHelp: String(localized: "Show Lyrics"),
@@ -459,7 +475,7 @@ struct ImmersiveView: View {
 
     private func updateGradientColors() {
         gradientColors = NowPlayingArtwork.gradient(
-            for: playbackManager.currentTrack,
+            for: playbackManager.nowPlayingSource,
             isDark: colorScheme == .dark,
             enabled: backgroundUsesArtwork
         )

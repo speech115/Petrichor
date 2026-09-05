@@ -13,8 +13,8 @@ struct FoldersView: View {
     private var trackTableRowSize: TableRowSize = .expanded
 
     var body: some View {
-        if !libraryManager.shouldShowMainUI {
-            NoMusicEmptyStateView(context: .mainWindow)
+        if !libraryManager.hasLocalMusic {
+            NoMusicEmptyStateView(context: .localLibrary)
         } else {
             folderTracksView
                 .onChange(of: selectedFolderNode) { _, newNode in
@@ -82,7 +82,6 @@ struct FoldersView: View {
     private var trackListView: some View {
         TrackView(
             tracks: folderTracks,
-            selectedTrackID: $selectedTrackID,
             playlistID: nil,
             entityID: nil,
             queueSource: .folder,
@@ -91,7 +90,6 @@ struct FoldersView: View {
                 if selectedFolderNode != nil {
                     // For hierarchical view, we need to play from the track list
                     playlistManager.playTrack(track, fromTracks: folderTracks)
-                    selectedTrackID = track.id
                 }
             },
             contextMenuItems: { tracks, _ in

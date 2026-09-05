@@ -77,9 +77,17 @@ struct PlaylistSidebarView: View {
                 Button("New Playlist") {
                     playlistManager.showCreateRegularPlaylistModal()
                 }
+                .disabled(!libraryManager.hasLocalMusic)
 
                 Button("New Smart Playlist") {
                     playlistManager.showCreateSmartPlaylistModal()
+                }
+                .disabled(!libraryManager.hasLocalMusic)
+
+                if internetRadioEnabled {
+                    Button("New Station Collection") {
+                        playlistManager.showCreateStationCollectionEditor()
+                    }
                 }
             } label: {
                 Image(systemName: "plus")

@@ -25,6 +25,8 @@ extension DatabaseManager {
         try createPinnedItemsTable(in: db)
         try createArtistAliasesTable(in: db)
         try createAlbumAliasesTable(in: db)
+        try createInternetRadioTable(in: db)
+        try createPlaylistStationsTable(in: db)
         // Create all indices
         try createIndices(in: db)
         
@@ -315,6 +317,45 @@ extension DatabaseManager {
         Logger.info("Created `album_aliases` table")
     }
 
+    // MARK: - Internet Radio Table
+    static func createInternetRadioTable(in db: Database) throws {
+        try db.createTableIfNotExists("internet_radio") { t in
+            t.autoIncrementedPrimaryKey("id")
+            t.column("name", .text).notNull()
+            t.column("stream_url", .text).notNull()
+            t.column("description", .text)
+            t.column("artwork_data", .blob)
+            // radio-browser's stable station identity, used to avoid re-adding a station
+            t.column("station_uuid", .text)
+            t.column("favicon_url", .text)
+            t.column("homepage_url", .text)
+            t.column("tags", .text)
+            t.column("country", .text)
+            t.column("country_code", .text)
+            t.column("language", .text)
+            t.column("codec", .text)
+            t.column("bitrate", .integer)
+            t.column("votes", .integer)
+            t.column("play_count", .integer).notNull().defaults(to: 0)
+            t.column("last_played", .datetime)
+            t.column("date_added", .datetime).notNull()
+            t.column("date_modified", .datetime).notNull()
+        }
+        Logger.info("Created `internet_radio` table")
+    }
+
+    // MARK: - Playlist Stations Table
+    static func createPlaylistStationsTable(in db: Database) throws {
+        try db.createTableIfNotExists("playlist_stations") { t in
+            t.column("playlist_id", .text).notNull().references("playlists", column: "id", onDelete: .cascade)
+            t.column("station_id", .integer).notNull().references("internet_radio", column: "id", onDelete: .cascade)
+            t.column("position", .integer).notNull()
+            t.column("date_added", .datetime).notNull()
+            t.primaryKey(["playlist_id", "station_id"])
+        }
+        Logger.info("Created `playlist_stations` table")
+    }
+
     // MARK: - FTS5 Search Table
     static func createFTSTable(in db: Database) throws {
         // Create FTS5 virtual table for tracks
@@ -423,8 +464,7 @@ extension DatabaseManager {
         try db.createIndexIfNotExists(name: "idx_tracks_compilation", table: "tracks", columns: ["compilation"])
         try db.createIndexIfNotExists(name: "idx_tracks_media_type", table: "tracks", columns: ["media_type"])
 
-        // TODO: Uncomment in next minor release to add filename index for playlist import performance
-        // try db.createIndexIfNotExists(name: "idx_tracks_filename", table: "tracks", columns: ["filename"])
+        try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_tracks_filename_lower ON tracks(LOWER(filename))")
 
         // Duplicate tracking indices
         try db.createIndexIfNotExists(name: "idx_tracks_primary_track_id", table: "tracks", columns: ["primary_track_id"])
@@ -440,6 +480,19 @@ extension DatabaseManager {
         )
         try db.createIndexIfNotExists(name: "idx_tracks_duplicate_composer", table: "tracks", columns: ["is_duplicate", "composer"])
         try db.createIndexIfNotExists(name: "idx_tracks_duplicate_genre", table: "tracks", columns: ["is_duplicate", "genre"])
+
+        // Playback-history indices backing the Discover queries
+        try db.createIndexIfNotExists(name: "idx_tracks_last_played_date", table: "tracks", columns: ["last_played_date"])
+        try db.createIndexIfNotExists(
+            name: "idx_tracks_duplicate_last_played",
+            table: "tracks",
+            columns: ["is_duplicate", "last_played_date"]
+        )
+        try db.createIndexIfNotExists(
+            name: "idx_tracks_duplicate_play_count",
+            table: "tracks",
+            columns: ["is_duplicate", "play_count"]
+        )
         try db.createIndexIfNotExists(name: "idx_tracks_duplicate_year", table: "tracks", columns: ["is_duplicate", "year"])
         try db.createIndexIfNotExists(
             name: "idx_tracks_album_id_duplicate",
@@ -479,6 +532,8 @@ extension DatabaseManager {
 
         // Playlist tracks index
         try db.createIndexIfNotExists(name: "idx_playlist_tracks_playlist_id", table: "playlist_tracks", columns: ["playlist_id"])
+        // Reverse direction, for deriving playlists from a pool of track ids (Discover)
+        try db.createIndexIfNotExists(name: "idx_playlist_tracks_track_id", table: "playlist_tracks", columns: ["track_id"])
 
         // Junction table indices
         try db.createIndexIfNotExists(name: "idx_track_artists_artist_id", table: "track_artists", columns: ["artist_id"])
@@ -497,11 +552,37 @@ extension DatabaseManager {
         try db.createIndexIfNotExists(name: "idx_pinned_items_sort_order", table: "pinned_items", columns: ["sort_order"])
         try db.createIndexIfNotExists(name: "idx_pinned_items_item_type", table: "pinned_items", columns: ["item_type"])
 
+        try createInternetRadioIndices(in: db)
+
         // Merge alias indices for re-pointing aliases when a canonical entity is merged
         try db.createIndexIfNotExists(name: "idx_artist_aliases_canonical", table: "artist_aliases", columns: ["canonical_artist_id"])
         try db.createIndexIfNotExists(name: "idx_album_aliases_canonical", table: "album_aliases", columns: ["canonical_album_id"])
 
         Logger.info("Created column indices")
+    }
+
+    static func createInternetRadioIndices(in db: Database) throws {
+        try db.createIndexIfNotExists(name: "idx_internet_radio_name", table: "internet_radio", columns: ["name"])
+        try db.createIndexIfNotExists(
+            name: "idx_internet_radio_station_uuid",
+            table: "internet_radio",
+            columns: ["station_uuid"]
+        )
+        try db.createIndexIfNotExists(
+            name: "idx_internet_radio_last_played",
+            table: "internet_radio",
+            columns: ["last_played"]
+        )
+        try db.createIndexIfNotExists(
+            name: "idx_playlist_stations_playlist_position",
+            table: "playlist_stations",
+            columns: ["playlist_id", "position"]
+        )
+        try db.createIndexIfNotExists(
+            name: "idx_playlist_stations_station_id",
+            table: "playlist_stations",
+            columns: ["station_id"]
+        )
     }
     
     // MARK: - Seed Default Playlists
@@ -538,22 +619,38 @@ extension DatabaseManager {
                 .filter(Playlist.Columns.name == DefaultPlaylists.mostPlayed)
                 .fetchOne(db)
             
+            // Artists and Albums are ordinary pins now, so they can be reordered or removed.
+            try insertDefaultCategoryPins(in: db, startingAt: 0)
+            let playlistOrder = defaultCategoryPins.count
+
             // Create pinned items for these playlists
             if let favorites = favoritesPlaylist {
                 let pinnedFavorites = PinnedItem(playlist: favorites)
                 var savedItem = pinnedFavorites
-                savedItem.sortOrder = 0
+                savedItem.sortOrder = playlistOrder
                 try savedItem.insert(db)
                 Logger.info("Pinned default playlist: \(favorites.name)")
             }
-            
+
             if let mostPlayed = mostPlayedPlaylist {
                 let pinnedMostPlayed = PinnedItem(playlist: mostPlayed)
                 var savedItem = pinnedMostPlayed
-                savedItem.sortOrder = 1
+                savedItem.sortOrder = playlistOrder + 1
                 try savedItem.insert(db)
                 Logger.info("Pinned default playlist: \(mostPlayed.name)")
             }
+        }
+    }
+
+    /// Shared by first-run seeding and the v15 migration so both produce the same pins.
+    static let defaultCategoryPins: [LibraryFilterType] = [.artists, .albums]
+
+    static func insertDefaultCategoryPins(in db: Database, startingAt sortOrder: Int) throws {
+        for (offset, filterType) in defaultCategoryPins.enumerated() {
+            var item = PinnedItem(categoryType: filterType)
+            item.sortOrder = sortOrder + offset
+            try item.insert(db)
+            Logger.info("Pinned default category: \(filterType.rawValue)")
         }
     }
     

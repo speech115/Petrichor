@@ -110,9 +110,12 @@ class MenuBarManager: NSObject {
         menu.autoenablesItems = false
         menu.minimumWidth = 180
 
+        // A stream stops rather than pauses, and has nothing to skip to.
+        let isStream = playbackManager.hasStation
+
         // Play/Pause
         let playPauseItem = NSMenuItem(
-            title: playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"),
+            title: playbackManager.playPauseActionTitle,
             action: #selector(togglePlayPause),
             keyEquivalent: ""
         )
@@ -132,7 +135,7 @@ class MenuBarManager: NSObject {
             keyEquivalent: ""
         )
         nextItem.target = self
-        nextItem.isEnabled = true
+        nextItem.isEnabled = !isStream
         if #available(macOS 26.0, *) {
             nextItem.image = NSImage(systemSymbolName: Icons.nextFill, accessibilityDescription: nil)
             nextItem.image?.size = NSSize(width: 16, height: 16)
@@ -147,7 +150,7 @@ class MenuBarManager: NSObject {
             keyEquivalent: ""
         )
         previousItem.target = self
-        previousItem.isEnabled = true
+        previousItem.isEnabled = !isStream
         if #available(macOS 26.0, *) {
             previousItem.image = NSImage(systemSymbolName: Icons.previousFIll, accessibilityDescription: nil)
             previousItem.image?.size = NSSize(width: 16, height: 16)
@@ -189,6 +192,21 @@ class MenuBarManager: NSObject {
             showWindowItem.image?.isTemplate = true
         }
         menu.addItem(showWindowItem)
+
+        // Show Mini Player
+        let showMiniPlayerItem = NSMenuItem(
+            title: String(localized: "Show Mini Player"),
+            action: #selector(showMiniPlayer),
+            keyEquivalent: ""
+        )
+        showMiniPlayerItem.target = self
+        showMiniPlayerItem.isEnabled = playbackManager.hasPlayableContent
+        if #available(macOS 26.0, *) {
+            showMiniPlayerItem.image = NSImage(systemSymbolName: Icons.miniPlayer, accessibilityDescription: nil)
+            showMiniPlayerItem.image?.size = NSSize(width: 16, height: 16)
+            showMiniPlayerItem.image?.isTemplate = true
+        }
+        menu.addItem(showMiniPlayerItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -261,6 +279,12 @@ class MenuBarManager: NSObject {
                 }
             }
         }
+    }
+
+    @MainActor
+    @objc
+    private func showMiniPlayer() {
+        MiniPlayerWindowManager.shared.show()
     }
 
     @objc

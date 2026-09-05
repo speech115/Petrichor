@@ -143,8 +143,7 @@ extension DatabaseManager {
             return folders
         }
         
-        // Post .initialScanStarted before .foldersAddedToDatabase so the onboarding
-        // flag is set before folders publish, else shouldShowMainUI briefly flashes
+        // Post .initialScanStarted before folders publish so the shell cannot flash
         // the main UI with an empty track list.
         let existingTrackCount = try await dbQueue.read { db in
             try Track.fetchCount(db)
@@ -674,6 +673,9 @@ extension DatabaseManager {
                             Logger.warning("Skipping oversized artwork: \(fileURL.lastPathComponent) (\(size) bytes)")
                         } else if let data = try? Data(contentsOf: fileURL) {
                             artworkMap[directory] = ImageUtils.compressImage(from: data, source: fileURL.path) ?? data
+                        } else {
+                            // Retry lazily during metadata extraction and preserve existing art if that also fails.
+                            artworkPaths[directory] = fileURL
                         }
                     }
                 }

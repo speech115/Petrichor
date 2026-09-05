@@ -201,6 +201,9 @@ extension DatabaseManager {
                 Logger.error("Failed to get tracks for pinned playlist \(item.displayName): \(error)")
                 return []
             }
+
+        default:
+            return []
         }
     }
     
@@ -301,6 +304,9 @@ extension DatabaseManager {
                 .filter(PinnedItem.Columns.itemType == PinnedItem.ItemType.playlist.rawValue)
                 .filter(PinnedItem.Columns.playlistId == playlistId.uuidString)
                 .fetchOne(db)
+
+        default:
+            return nil
         }
     }
     

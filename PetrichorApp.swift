@@ -20,6 +20,9 @@ struct PetrichorApp: App {
     @AppStorage("miniPlayerAlwaysOnTop")
     private var miniPlayerAlwaysOnTop = false
 
+    @AppStorage("internetRadioEnabled")
+    private var internetRadioEnabled = true
+
     @State private var menuUpdateTrigger = UUID()
     @Environment(\.openWindow)
     private var openWindow
@@ -28,7 +31,6 @@ struct PetrichorApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appCoordinator.playbackManager)
-                .environmentObject(appCoordinator.playbackManager.playbackProgressState)
                 .environmentObject(appCoordinator.libraryManager)
                 .environmentObject(appCoordinator.playlistManager)
                 .onReceive(appCoordinator.playlistManager.$repeatMode) { _ in
@@ -182,6 +184,11 @@ extension PetrichorApp {
             Menu {
                 newPlaylistMenuItem()
                 newPlaylistFromSelectionMenuItem()
+
+                if internetRadioEnabled {
+                    Divider()
+                    newRadioStationMenuItem()
+                }
             } label: {
                 if #available(macOS 26.0, *) {
                     Label("New", systemImage: "plus.square")
@@ -243,6 +250,9 @@ extension PetrichorApp {
         if closeToMenubar && isMainWindow {
             appCoordinator.savePlaybackState()
             window.orderOut(nil)
+            DispatchQueue.main.async {
+                WindowManager.shared.playbackWindowVisibilityDidChange()
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NSApp.setActivationPolicy(.accessory)
             }
@@ -264,6 +274,20 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut("n", modifiers: .command)
+        .disabled(!appCoordinator.libraryManager.hasLocalMusic)
+    }
+
+    private func newRadioStationMenuItem() -> some View {
+        Button {
+            InternetRadioManager.shared.showAddStation()
+        } label: {
+            if #available(macOS 26.0, *) {
+                Label("Radio Station", systemImage: Icons.radioFill)
+            } else {
+                Text("Radio Station")
+            }
+        }
+        .keyboardShortcut("n", modifiers: [.command, .option])
     }
 
     private func newPlaylistFromSelectionMenuItem() -> some View {
@@ -361,7 +385,7 @@ extension PetrichorApp {
     
     private func playPauseMenuItem() -> some View {
         Button {
-            if appCoordinator.playbackManager.currentTrack != nil {
+            if appCoordinator.playbackManager.hasPlayableContent {
                 appCoordinator.playbackManager.togglePlayPause()
             }
         } label: {
@@ -375,7 +399,7 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(" ", modifiers: [])
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(!appCoordinator.playbackManager.hasPlayableContent)
     }
     
     private func favoriteMenuItem() -> some View {
@@ -597,7 +621,7 @@ extension PetrichorApp {
                 }
             }
             .keyboardShortcut("m", modifiers: [.command, .option])
-            .disabled(appCoordinator.playbackManager.currentTrack == nil)
+            .disabled(!appCoordinator.playbackManager.hasPlayableContent)
 
             Button {
                 NotificationCenter.default.post(name: .toggleImmersivePlayer, object: nil)
@@ -612,7 +636,7 @@ extension PetrichorApp {
                 }
             }
             .keyboardShortcut("f", modifiers: [.command, .option])
-            .disabled(appCoordinator.playbackManager.currentTrack == nil)
+            .disabled(!appCoordinator.playbackManager.hasPlayableContent)
 
             Divider()
         }
