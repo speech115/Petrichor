@@ -35,6 +35,7 @@ cd "$repo"
 run xcodebuild -scheme PetrichoriOS \
   -destination 'generic/platform=iOS' \
   -configuration "$configuration" \
+  -allowProvisioningUpdates \
   build
 
 # Ask xcodebuild where it put the bundle rather than hardcoding the DerivedData
