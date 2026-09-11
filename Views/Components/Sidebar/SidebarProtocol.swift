@@ -67,7 +67,7 @@ struct HomeSidebarItem: SidebarItem {
         var title: String {
             switch self {
             case .discover: return String(localized: "Discover")
-            case .tracks: return String(localized: "Tracks")
+            case .tracks: return String(localized: "All Music")
             case .internetRadio: return String(localized: "Internet Radio")
             }
         }

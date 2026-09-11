@@ -1,15 +1,8 @@
 //
 // PlaylistsTabView (iOS)
 //
-// Root of the Playlists tab: one section per import source — Spotify, VK,
-// Яндекс Музыка — and then everything the library owns itself, Favorites
-// first. The source sections exist because the library is a pile of exports
-// from three services and a flat alphabetical list buries that; grouping is
-// what the names already encode. See `PlaylistSource`.
-//
-// Of the smart playlists only Favorites appears here. Both Top 25s are
-// queries the library answers rather than lists the owner keeps: Recently
-// Played is already Home's shelf, and Most Played is already a Home row.
+// Favorites, personal playlists, then imported collections grouped by source.
+// The built-in Top 25 lists remain on Home.
 //
 // The service's mark rides in the section header, once, next to its name;
 // rows carry a 48 pt cover — the playlist's own artwork when it has one,
@@ -52,6 +45,21 @@ struct PlaylistsTabView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    playlistRows(favorites)
+                }
+                Section(String(localized: "My Playlists")) {
+                    if ownPlaylists.isEmpty {
+                        Text("No playlists yet")
+                            .foregroundStyle(.secondary)
+                    }
+                    playlistRows(ownPlaylists)
+                }
+                if !otherImports.isEmpty {
+                    Section(String(localized: "Imported from services")) {
+                        playlistRows(otherImports)
+                    }
+                }
                 ForEach(PlaylistSource.allCases, id: \.title) { source in
                     let playlists = sourcePlaylists[source] ?? []
                     if !playlists.isEmpty {
@@ -60,11 +68,6 @@ struct PlaylistsTabView: View {
                         } header: {
                             sourceHeader(source)
                         }
-                    }
-                }
-                if !ownPlaylists.isEmpty {
-                    Section(String(localized: "My Playlists")) {
-                        playlistRows(ownPlaylists)
                     }
                 }
             }
@@ -166,13 +169,12 @@ struct PlaylistsTabView: View {
         }
     }
 
-    /// What the library owns rather than imported: Favorites, then the regular
-    /// playlists that belong to no import source. Favorites leads because it is
-    /// the one list here that fills itself and the only one worth reaching for
-    /// twice a day; the exports sit above because they are what the sections
-    /// are for.
     private var ownPlaylists: [Playlist] {
-        favorites + displayPlaylists.filter { $0.type == .regular && PlaylistSource.of($0) == nil }
+        displayPlaylists.filter { $0.isUserEditable && !PlaylistSource.isImported($0) }
+    }
+
+    private var otherImports: [Playlist] {
+        displayPlaylists.filter { PlaylistSource.isImported($0) && PlaylistSource.of($0) == nil }
     }
 
     /// The service's mark belongs to the section, not to its rows: repeated
@@ -182,7 +184,7 @@ struct PlaylistsTabView: View {
         HStack(spacing: 7) {
             PlaylistSourceLogo(source: source, cornerRadius: 5)
                 .frame(width: 20, height: 20)
-            Text(source.title)
+            Text(source.importTitle)
         }
         .accessibilityElement(children: .combine)
     }

@@ -97,10 +97,11 @@ struct HomeTabView: View {
 
             VStack(spacing: 0) {
                 libraryRow(
-                    title: String(localized: "Songs"),
-                    count: libraryManager.countsLoaded ? libraryManager.songsDisplayCount : nil,
+                    title: String(localized: "All Music"),
+                    count: libraryManager.countsLoaded ? libraryManager.totalTrackCount : nil,
                     value: LibraryDestination.allTracks
                 )
+                .accessibilityIdentifier("library.allMusic")
                 if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
                     rowDivider
                     librarySmartRow(

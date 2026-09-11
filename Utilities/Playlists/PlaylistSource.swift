@@ -3,9 +3,9 @@
 //
 // Where an imported playlist came from. The library is built from M3U exports
 // whose names carry the service they came from ("01 ВКонтакте",
-// "05 Spotify - Shazam"). iOS groups the Playlists tab by that — one section
-// per service, the service's mark in the section header. macOS uses the same
-// pinned entries for cover and display-name lookup.
+// "05 Spotify - Shazam"). Both platforms group playlists by source. iOS also
+// shows the service's mark in the section header. Pinned entries supply shared
+// cover and display-name overrides.
 //
 // Two things decide a section's contents. A `pinned` list names the playlists
 // that belong to a source explicitly, in the order they should appear, and may
@@ -107,6 +107,17 @@ enum PlaylistSource: CaseIterable {
         return allCases.first { source in
             source.markers.contains { name.contains($0) }
         }
+    }
+
+    /// The unlabelled collection is also an import; its stored name stays intact.
+    static func isImported(_ playlist: Playlist) -> Bool {
+        guard playlist.type == .regular else { return false }
+        return of(playlist) != nil
+            || PlaylistDisplay.storedName(for: playlist).caseInsensitiveCompare("Все треки") == .orderedSame
+    }
+
+    var importTitle: String {
+        String(localized: "Imported from \(title)")
     }
 
     /// Position in `pinned`, or nil when the playlist is not pinned here.
