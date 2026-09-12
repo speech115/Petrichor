@@ -269,7 +269,7 @@ struct NowPlayingScreen: View {
             Capsule()
                 .fill(Color.white.opacity(0.35))
                 .frame(width: 36, height: 5)
-                .padding(.vertical, 10)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

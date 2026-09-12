@@ -14,6 +14,7 @@ enum LibraryDestination: Hashable {
     case category(LibraryFilterType)
     case tracks(LibraryFilterItem)
     case allTracks
+    case recentlyAdded
     case artist(name: String)
     case album(AlbumEntity)
     case playlist(UUID)

@@ -11,14 +11,12 @@ import Foundation
 @MainActor
 final class JSONLPlaybackJournal: PlaybackJournal {
     private var pending: [PlaybackJournalEvent] = []
+    private var flushTask: Task<Void, Never>?
     private let fileURL: URL
-    private let fileManager: FileManager
 
     init(
-        documentsURL: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0],
-        fileManager: FileManager = .default
+        documentsURL: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     ) {
-        self.fileManager = fileManager
         self.fileURL = documentsURL
             .appendingPathComponent("Sync", isDirectory: true)
             .appendingPathComponent("playback-journal.jsonl")
@@ -35,39 +33,49 @@ final class JSONLPlaybackJournal: PlaybackJournal {
     }
 
     func flush() async {
+        if let flushTask {
+            await flushTask.value
+            return
+        }
         guard !pending.isEmpty else { return }
+        let task = Task {
+            defer { flushTask = nil }
+            await writePendingEvents()
+        }
+        flushTask = task
+        await task.value
+    }
 
-        let events = pending
-        pending.removeAll()
-
-        // The FileHandle seek+write is I/O that must not pin the main actor
-        // during the short backgrounding window; the pending swap above stays
-        // on the main actor, only the disk write hops off. Scene-phase
-        // transitions fire `.inactive` then `.background` back-to-back, so two
-        // flushes can overlap — the serial queue keeps each seek+write atomic.
-        let fileURL = self.fileURL
-        let fileManager = self.fileManager
-
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try Self.writeQueue.sync {
-                    try Self.write(events, to: fileURL, fileManager: fileManager)
+    private func writePendingEvents() async {
+        while !pending.isEmpty {
+            let events = pending
+            pending.removeAll()
+            let fileURL = fileURL
+            do {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    Self.writeQueue.async {
+                        continuation.resume(with: Result {
+                            try Self.write(events, to: fileURL)
+                        })
+                    }
                 }
-            }.value
-        } catch {
-            pending.insert(contentsOf: events, at: 0)
-            Logger.error("PlaybackJournal flush failed: \(error)")
+            } catch {
+                // Keep the failed batch ahead of events recorded during its write.
+                pending.insert(contentsOf: events, at: 0)
+                Logger.error("PlaybackJournal flush failed: \(error)")
+                return
+            }
         }
     }
 
-    /// Serializes the detached file writes (see `flush()`).
+    // ponytail: one process-wide writer; per-file queues only if multiple journals need throughput.
     nonisolated private static let writeQueue = DispatchQueue(label: "petrichor.playback-journal.write")
 
     nonisolated private static func write(
         _ events: [PlaybackJournalEvent],
-        to fileURL: URL,
-        fileManager: FileManager
+        to fileURL: URL
     ) throws {
+        let fileManager = FileManager()
         try fileManager.createDirectory(
             at: fileURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -81,8 +89,14 @@ final class JSONLPlaybackJournal: PlaybackJournal {
         if fileManager.fileExists(atPath: fileURL.path) {
             let handle = try FileHandle(forWritingTo: fileURL)
             defer { try? handle.close() }
-            try handle.seekToEnd()
-            try handle.write(contentsOf: data)
+            let offset = try handle.seekToEnd()
+            do {
+                try handle.write(contentsOf: data)
+            } catch {
+                // A partial append must not become a duplicate batch on retry.
+                try handle.truncate(atOffset: offset)
+                throw error
+            }
         } else {
             try data.write(to: fileURL, options: .atomic)
         }

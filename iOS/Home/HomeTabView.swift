@@ -4,7 +4,7 @@
 // The Home tab, top to bottom:
 //   1. Recently Played - a horizontal shelf of albums (large squares are
 //      containers, not songs), grouped from the recently played tracks.
-//   2. Library - three rows (Songs, Favorites, Top 25 Most Played) with
+//   2. Library - songs, recently added, artists, albums and smart playlists with
 //      counts on the right, leading to the all-tracks list and the smart
 //      playlists.
 //
@@ -101,6 +101,24 @@ struct HomeTabView: View {
                     count: libraryManager.countsLoaded ? libraryManager.songsDisplayCount : nil,
                     value: LibraryDestination.allTracks
                 )
+                rowDivider
+                libraryRow(
+                    title: String(localized: "Recently Added"),
+                    count: nil,
+                    value: LibraryDestination.recentlyAdded
+                )
+                rowDivider
+                libraryRow(
+                    title: LibraryFilterType.artists.pluralDisplayName,
+                    count: libraryManager.countsLoaded ? libraryManager.artistCount : nil,
+                    value: LibraryDestination.category(.artists)
+                )
+                rowDivider
+                libraryRow(
+                    title: LibraryFilterType.albums.pluralDisplayName,
+                    count: libraryManager.countsLoaded ? libraryManager.albumCount : nil,
+                    value: LibraryDestination.category(.albums)
+                )
                 if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
                     rowDivider
                     librarySmartRow(
@@ -187,6 +205,8 @@ struct HomeTabView: View {
             TrackListView(filterItem: item)
         case .allTracks:
             TrackListView(filterItem: nil)
+        case .recentlyAdded:
+            TrackListView(filterItem: nil, recentlyAdded: true)
         case .artist(let name):
             ArtistPage(artistName: name, zoomNamespace: zoomNamespace)
         case .album(let album):

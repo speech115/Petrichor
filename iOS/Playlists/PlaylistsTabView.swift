@@ -80,7 +80,7 @@ struct PlaylistsTabView: View {
                         playlistCatalog: playlistCatalog
                     )
                     .detailZoomDestination(.playlist(playlistID), in: zoomNamespace)
-                case .category, .tracks, .allTracks, .artist, .album:
+                case .category, .tracks, .allTracks, .recentlyAdded, .artist, .album:
                     EmptyView()
                 }
             }

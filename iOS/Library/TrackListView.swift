@@ -14,11 +14,20 @@ struct TrackListView: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
 
     let filterItem: LibraryFilterItem?
+    var recentlyAdded = false
+    @State private var loadedTracks: [Track] = []
 
     var body: some View {
         TrackListScreen(
-            identity: AnyHashable(filterItem.map { "\($0.id)" } ?? "all-tracks"),
-            load: { [libraryManager, filterItem] in
+            identity: AnyHashable(recentlyAdded ? "recently-added" : filterItem.map { "\($0.id)" } ?? "all-tracks"),
+            load: { [libraryManager, filterItem, recentlyAdded] in
+                if recentlyAdded {
+                    return libraryManager.getAllTracks().sorted {
+                        let lhs = $0.dateAdded ?? .distantPast
+                        let rhs = $1.dateAdded ?? .distantPast
+                        return lhs == rhs ? $0.id < $1.id : lhs > rhs
+                    }
+                }
                 if let filterItem, !filterItem.isAllItem {
                     return libraryManager.getTracksBy(
                         filterType: filterItem.filterType,
@@ -31,12 +40,17 @@ struct TrackListView: View {
                 }
                 return libraryManager.getSongsTracks()
             },
-            sectioner: { IndexedListSectionFactory.sections(
-                from: $0,
-                key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
-            ) },
-            isIndexed: true,
+            sectioner: { tracks in
+                if recentlyAdded { return [IndexedSection(key: "", items: tracks)] }
+                return IndexedListSectionFactory.sections(
+                    from: tracks,
+                    key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
+                )
+            },
+            isIndexed: !recentlyAdded,
+            usesPlainStyle: true,
             showsHeader: false,
+            onRowsChange: { loadedTracks = $0 },
             header: { _ in EmptyView() },
             row: { track, context in
                 TrackRow(
@@ -49,11 +63,22 @@ struct TrackListView: View {
                 .equatable()
             }
         )
+        .safeAreaInset(edge: .top, spacing: 0) {
+            PlayShuffleRow(
+                onPlay: { playlistManager.playLibrary(loadedTracks) },
+                onShuffle: { playlistManager.shuffleLibrary(loadedTracks) },
+                playDisabled: loadedTracks.isEmpty
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.large)
     }
 
     private var navigationTitle: String {
+        if recentlyAdded { return String(localized: "Recently Added") }
         guard let filterItem else { return String(localized: "Songs") }
         if filterItem.isAllItem {
             return String(localized: "Songs")
