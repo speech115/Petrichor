@@ -30,7 +30,7 @@ struct TrackListView: View {
                         $0.title.localizedStandardCompare($1.title) == .orderedAscending
                     }
                 }
-                return libraryManager.getSongsTracks()
+                return libraryManager.getAllTracks()
             },
             sectioner: { tracks in
                 return IndexedListSectionFactory.sections(
@@ -69,9 +69,9 @@ struct TrackListView: View {
     }
 
     private var navigationTitle: String {
-        guard let filterItem else { return String(localized: "Songs") }
+        guard let filterItem else { return String(localized: "All Music") }
         if filterItem.isAllItem {
-            return String(localized: "Songs")
+            return String(localized: "All Music")
         }
         return filterItem.filterType.localizedDisplay(filterItem.name)
     }

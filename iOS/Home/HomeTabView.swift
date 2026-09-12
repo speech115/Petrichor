@@ -124,11 +124,12 @@ struct HomeTabView: View {
     private var librarySection: some View {
         NavigationLink(value: LibraryDestination.allTracks) {
             libraryRowLabel(
-                title: String(localized: "Songs"),
-                count: libraryManager.countsLoaded ? libraryManager.songsDisplayCount : nil
+                title: String(localized: "All Music"),
+                count: libraryManager.countsLoaded ? libraryManager.totalTrackCount : nil
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("library.allMusic")
         .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
         .padding(.horizontal, 16)
     }

@@ -31,7 +31,7 @@ struct LibrarySidebarView: View {
                 filterItems: filteredItems,
                 filterType: selectedFilterType,
                 totalTracksCount: libraryManager.globalSearchText.isEmpty ?
-                    libraryManager.songsDisplayCount :
+                    libraryManager.totalTrackCount :
                     libraryManager.searchResults.count,
                 selectedItem: $selectedSidebarItem,
                 showAllItem: !libraryManager.globalSearchText.isEmpty,

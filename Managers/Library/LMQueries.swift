@@ -42,16 +42,6 @@ extension LibraryManager {
         databaseManager.getAllTracks(populateArtwork: false)
     }
 
-    /// Tracks for Home / iOS Songs: «Все треки» export when present, else full library.
-    nonisolated func getSongsTracks() -> [Track] {
-        if let exported = databaseManager.getExportedAllTracksPlaylist() {
-            var tracks = databaseManager.loadTracksForPlaylist(exported.id, populateArtwork: false)
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
-            return tracks
-        }
-        return getAllTracks()
-    }
-
     /// `nonisolated`: touches only the `Sendable` `databaseManager`, so screens that
     /// detach this off the main actor to avoid blocking on a large query don't need
     /// to hop back just to make the call.

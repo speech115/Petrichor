@@ -144,7 +144,7 @@ struct HomeSidebarView: View {
 
         var items: [HomeSidebarItem] = [
             HomeSidebarItem(type: .discover, trackCount: libraryManager.discoverTracks.count),
-            HomeSidebarItem(type: .tracks, trackCount: libraryManager.songsDisplayCount),
+            HomeSidebarItem(type: .tracks, trackCount: libraryManager.totalTrackCount),
             HomeSidebarItem(type: .artists, artistCount: artistCount),
             HomeSidebarItem(type: .albums, albumCount: albumCount)
         ]
@@ -208,7 +208,7 @@ struct HomeSidebarView: View {
 
         var items: [HomeSidebarItem] = [
             HomeSidebarItem(type: .discover, trackCount: libraryManager.discoverTracks.count),
-            HomeSidebarItem(type: .tracks, trackCount: libraryManager.songsDisplayCount),
+            HomeSidebarItem(type: .tracks, trackCount: libraryManager.totalTrackCount),
             HomeSidebarItem(type: .artists, artistCount: artistCount),
             HomeSidebarItem(type: .albums, albumCount: albumCount)
         ]
