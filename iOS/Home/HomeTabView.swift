@@ -99,7 +99,6 @@ struct HomeTabView: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text(TrackCountText.songs(favorites.trackCount))
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
                     }
                     if !dynamicTypeSize.isAccessibilitySize {
                         Spacer(minLength: 0)
@@ -123,34 +122,25 @@ struct HomeTabView: View {
 
     private var librarySection: some View {
         NavigationLink(value: LibraryDestination.allTracks) {
-            libraryRowLabel(
-                title: String(localized: "All Music"),
-                count: libraryManager.countsLoaded ? libraryManager.totalTrackCount : nil
-            )
+            HStack {
+                Text(String(localized: "All Music"))
+                    .font(.body)
+                Spacer()
+                if libraryManager.countsLoaded {
+                    Text("\(libraryManager.totalTrackCount)")
+                        .font(.body)
+                        .foregroundColor(.secondaryText)
+                        .monospacedDigit()
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("library.allMusic")
         .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
         .padding(.horizontal, 16)
-    }
-
-    private func libraryRowLabel(title: String, count: Int?) -> some View {
-        HStack {
-            Text(title)
-                .font(.body)
-            Spacer()
-            if let count {
-                Text("\(count)")
-                    .font(.body)
-                    .foregroundColor(.secondaryText)
-                    .monospacedDigit()
-            }
-        }
-        .padding(.horizontal, 16)
-        // Min, not fixed: the row grows with Dynamic Type instead of
-        // clipping the title at the largest accessibility sizes.
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
     }
 
     private func smartPlaylist(_ name: String) -> Playlist? {

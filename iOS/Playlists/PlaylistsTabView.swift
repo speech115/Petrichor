@@ -2,7 +2,6 @@
 // PlaylistsTabView (iOS)
 //
 // Favorites, personal playlists, then imported collections grouped by source.
-// The built-in Top 25 lists remain on Home.
 //
 // The service's mark rides in the section header, once, next to its name;
 // rows carry a 48 pt cover — the playlist's own artwork when it has one,

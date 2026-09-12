@@ -341,12 +341,14 @@ struct NowPlayingScreen: View {
                 // the only way to keep the style uncapped without clipping.
                 Text(displayedTrack?.title ?? "")
                     .font(.title2.weight(.bold))
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundColor(palette.foreground)
                     // The Dynamic Type audit is scoped to these two elements:
                     // they must stay uncapped, real text styles.
                     .accessibilityIdentifier("NowPlayingTitle")
                 Text(displayedTrack?.displayArtist ?? "")
                     .font(.title2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundColor(palette.secondary)
                     .accessibilityIdentifier("NowPlayingArtist")
             }
