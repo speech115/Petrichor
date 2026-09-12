@@ -201,28 +201,19 @@ extension DatabaseManager {
         }
     }
     
-    /// Batch-compute track counts for many smart playlists in a single read transaction,
-    /// sharing one Artists/Genres fetch (and skipping it entirely when no rule needs it).
-    /// Replaces N separate awaited reads (each of which previously re-fetched the full
-    /// artist and genre tables) with one read for the whole set.
+    /// Count smart playlists in one read transaction.
     func getSmartPlaylistTrackCounts(_ playlists: [Playlist]) async -> [UUID: Int] {
         let smart = playlists.filter { $0.type == .smart && $0.smartCriteria != nil }
         guard !smart.isEmpty else { return [:] }
 
-        let criteriaList = smart.compactMap { $0.smartCriteria }
-        let needArtists = criteriaList.contains { criteriaNeedsArtists($0) }
-        let needGenres = criteriaList.contains { criteriaNeedsGenres($0) }
-
         do {
             return try await dbQueue.read { db in
-                let artists = needArtists ? try Artist.fetchAll(db) : []
-                let genres = needGenres ? try Genre.fetchAll(db) : []
 
                 var counts: [UUID: Int] = [:]
                 for playlist in smart {
                     guard let criteria = playlist.smartCriteria else { continue }
                     counts[playlist.id] = try self.countSmartPlaylistTracks(
-                        criteria, artists: artists, genres: genres, db: db
+                        criteria, db: db
                     )
                 }
                 return counts
