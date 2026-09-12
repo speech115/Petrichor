@@ -14,6 +14,7 @@ struct TrackListView: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
 
     let filterItem: LibraryFilterItem?
+    @State private var loadedTracks: [Track] = []
 
     var body: some View {
         TrackListScreen(
@@ -29,14 +30,18 @@ struct TrackListView: View {
                         $0.title.localizedStandardCompare($1.title) == .orderedAscending
                     }
                 }
-                return libraryManager.getSongsTracks()
+                return libraryManager.getAllTracks()
             },
-            sectioner: { IndexedListSectionFactory.sections(
-                from: $0,
-                key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
-            ) },
+            sectioner: { tracks in
+                return IndexedListSectionFactory.sections(
+                    from: tracks,
+                    key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
+                )
+            },
             isIndexed: true,
+            usesPlainStyle: true,
             showsHeader: false,
+            onRowsChange: { loadedTracks = $0 },
             header: { _ in EmptyView() },
             row: { track, context in
                 TrackRow(
@@ -49,14 +54,24 @@ struct TrackListView: View {
                 .equatable()
             }
         )
+        .safeAreaInset(edge: .top, spacing: 0) {
+            PlayShuffleRow(
+                onPlay: { playlistManager.playLibrary(loadedTracks) },
+                onShuffle: { playlistManager.shuffleLibrary(loadedTracks) },
+                playDisabled: loadedTracks.isEmpty
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.large)
     }
 
     private var navigationTitle: String {
-        guard let filterItem else { return String(localized: "Songs") }
+        guard let filterItem else { return String(localized: "All Music") }
         if filterItem.isAllItem {
-            return String(localized: "Songs")
+            return String(localized: "All Music")
         }
         return filterItem.filterType.localizedDisplay(filterItem.name)
     }

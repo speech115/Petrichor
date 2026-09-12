@@ -47,8 +47,7 @@ struct HomeView: View {
     /// Carries the role behind an album-artist or composer tile into its detail view.
     @State private var detailRoleCarrier: PinnedItem?
     @State private var trackTableSortOrder = [KeyPathComparator(\Track.title)]
-    @State private var songsTracks: [Track] = []
-    @Binding var isShowingEntities: Bool
+    var isActiveTab: Bool = true
     
     var body: some View {
         ZStack {
@@ -149,227 +148,38 @@ struct HomeView: View {
     
     private var tracksView: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             TrackListHeader(
-                title: String(localized: "All tracks"),
+                title: String(localized: "All Music"),
                 sortOrder: $trackTableSortOrder,
                 tableRowSize: $trackTableRowSize
             )
-            
-            Divider()
-            
-            // Show loading or tracks
-            if libraryManager.tracks.isEmpty && libraryManager.songsPlaylistID == nil {
-                VStack {
-                    Spacer()
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(1.2)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .onAppear {
-                    Task {
-                        await libraryManager.loadAllTracks()
-                    }
-            } else {
-                TrackView(
-                    tracks: songsTracks,
-                    selectedTrackID: $selectedTrackID,
-                    playlistID: libraryManager.songsPlaylistID,
-                    entityID: nil,
-                    sortOrder: $trackTableSortOrder,
-                    onPlayTrack: { track in
-                        playlistManager.playTrack(track, fromTracks: songsTracks)
-                        playlistManager.currentQueueSource = .library
-                    },
-                    contextMenuItems: { track, _ in
-                        TrackContextMenu.createMenuItems(
-                            for: track,
-                            playlistManager: playlistManager,
-                            currentContext: .library
-                        )
-                    }
-                )
-                .task(id: libraryManager.songsPlaylistID) {
-                    await refreshSongsTracks()
-                }
-            }
-        }
-    }
 
-    private func refreshSongsTracks() async {
-        let libraryManager = libraryManager
-        let loaded = await Task.detached {
-            libraryManager.getSongsTracks()
-        }.value
-        songsTracks = loaded
-        if songsTracks.isEmpty, libraryManager.songsPlaylistID == nil, libraryManager.tracks.isEmpty {
+            Divider()
+
+            TrackView(
+                tracks: libraryManager.tracks,
+                selectedTrackID: $selectedTrackID,
+                playlistID: nil,
+                entityID: nil,
+                sortOrder: $trackTableSortOrder,
+                onPlayTrack: { track in
+                    playlistManager.playTrack(track, fromTracks: libraryManager.tracks)
+                    playlistManager.currentQueueSource = .library
+                },
+                contextMenuItems: { track, _ in
+                    TrackContextMenu.createMenuItems(
+                        for: track,
+                        playlistManager: playlistManager,
+                        currentContext: .library
+                    )
+                }
+            )
+        }
+        .task {
             await libraryManager.loadAllTracks()
-            songsTracks = libraryManager.tracks
         }
     }
-    
-    // MARK: - Artists View
-    
-    private var artistsView: some View {
-        VStack(spacing: 0) {
-            // Header
-            TrackListHeader(
-                title: String(localized: "All Artists"),
-                trackCount: libraryManager.artistEntities.count
-            ) {
-                Button(action: {
-                    entitySortAscending.toggle()
-                    sortEntities()
-                }, label: {
-                    Image(Icons.sortIcon(for: entitySortAscending))
-                        .renderingMode(.template)
-                        .scaleEffect(0.8)
-                })
-                .buttonStyle(.borderless)
-                .hoverEffect(scale: 1.1)
-                .help(entitySortAscending ? String(localized: "Sort descending") : String(localized: "Sort ascending"))
-            }
-            
-            Divider()
-            
-            // Artists list
-            if libraryManager.artistEntities.isEmpty {
-                NoMusicEmptyStateView(context: .mainWindow)
-            } else {
-                EntityView(
-                    entities: sortedArtistEntities,
-                    onSelectEntity: { artist in
-                        selectedArtistEntity = artist
-                        selectedAlbumEntity = nil
-                        isShowingEntityDetail = true
-                    },
-                    contextMenuItems: { artist in
-                        libraryManager.contextMenuItems(for: artist)
-                    }
-                )
-            }
-        }
-        .onAppear {
-            if sortedArtistEntities.isEmpty {
-                sortArtistEntities()
-            }
-        }
-        .onReceive(libraryManager.$cachedArtistEntities) { artists in
-            // Sort the received value; @Published fires on willSet, so the manager still holds the old array
-            sortArtistEntities(artists)
-        }
-    }
-    
-    // MARK: - Albums View
-    
-    private var albumsView: some View {
-        VStack(spacing: 0) {
-            // Header
-            TrackListHeader(
-                title: String(localized: "All Albums"),
-                trackCount: libraryManager.albumEntities.count
-            ) {
-                Menu {
-                    Section("Sort by") {
-                        Toggle("Album", isOn: Binding(
-                            get: { albumSortBy == .album },
-                            set: { _ in
-                                albumSortBy = .album
-                                sortAlbumEntities()
-                            }
-                        ))
 
-                        Toggle("Album artist", isOn: Binding(
-                            get: { albumSortBy == .artist },
-                            set: { _ in
-                                albumSortBy = .artist
-                                sortAlbumEntities()
-                            }
-                        ))
-                        
-                        Toggle("Year", isOn: Binding(
-                            get: { albumSortBy == .year },
-                            set: { _ in
-                                albumSortBy = .year
-                                sortAlbumEntities()
-                            }
-                        ))
-                        
-                        Toggle("Date added", isOn: Binding(
-                            get: { albumSortBy == .dateAdded },
-                            set: { _ in
-                                albumSortBy = .dateAdded
-                                sortAlbumEntities()
-                            }
-                        ))
-                    }
-
-                    Divider()
-
-                    Section("Sort order") {
-                        Toggle("Ascending", isOn: Binding(
-                            get: { entitySortAscending },
-                            set: { _ in
-                                entitySortAscending = true
-                                sortAlbumEntities()
-                            }
-                        ))
-                        
-                        Toggle("Descending", isOn: Binding(
-                            get: { !entitySortAscending },
-                            set: { _ in
-                                entitySortAscending = false
-                                sortAlbumEntities()
-                            }
-                        ))
-                    }
-                } label: {
-                    Image(systemName: "line.3.horizontal.decrease")
-                        .font(.system(size: 14))
-                        .foregroundColor(.secondary)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .hoverEffect(activeBackgroundColor: Color(platformColor: .windowBackgroundColor))
-                .help("Sort albums")
-            }
-            
-            Divider()
-            
-            // Albums list
-            if libraryManager.albumEntities.isEmpty {
-                NoMusicEmptyStateView(context: .mainWindow)
-            } else {
-                EntityView(
-                    entities: sortedAlbumEntities,
-                    onSelectEntity: { album in
-                        selectedAlbumEntity = album
-                        selectedArtistEntity = nil
-                        isShowingEntityDetail = true
-                    },
-                    contextMenuItems: { album in
-                        libraryManager.contextMenuItems(for: album)
-                    }
-                )
-            }
-        }
-        .onAppear {
-            if sortedAlbumEntities.isEmpty {
-                sortAlbumEntities()
-            }
-        }
-        .onReceive(libraryManager.$cachedAlbumEntities) { albums in
-            // Sort the received value (see artists onReceive); no count guard, artwork updates keep the count
-            sortAlbumEntities(albums)
-        }
-        .onChange(of: albumSortBy) {
-            sortAlbumEntities()
-        }
-    }
-    
     // MARK: - Pinned Item Tracks View
     
     private var pinnedItemTracksView: some View {

@@ -21,6 +21,7 @@ struct PlayerScrubber: View {
 
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
+    @State private var dragStartTime: Double?
     @State private var releaseTask: Task<Void, Never>?
     /// Wall-clock of the last live seek, so a fast drag seeks the engine at a
     /// bounded rate instead of once per touch frame.
@@ -144,15 +145,19 @@ struct PlayerScrubber: View {
     }
 
     private func scrubGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        // The standard movement threshold ignores taps and stationary touches.
+        DragGesture()
             .onChanged { value in
                 releaseTask?.cancel()
-                if !isScrubbing {
+                if dragStartTime == nil {
+                    dragStartTime = elapsed
                     isScrubbing = true
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 }
-                let time = SeekScrub.seekTime(
-                    position: Double(value.location.x),
+                guard let dragStartTime else { return }
+                let time = SeekScrub.dragTime(
+                    startTime: dragStartTime,
+                    translation: Double(value.translation.width),
                     width: Double(width),
                     duration: duration
                 )
@@ -168,13 +173,16 @@ struct PlayerScrubber: View {
                 }
             }
             .onEnded { value in
-                let time = SeekScrub.seekTime(
-                    position: Double(value.location.x),
+                guard let dragStartTime else { return }
+                let time = SeekScrub.dragTime(
+                    startTime: dragStartTime,
+                    translation: Double(value.translation.width),
                     width: Double(width),
                     duration: duration
                 )
                 scrubTime = time
                 playbackManager.seekTo(time: time)
+                self.dragStartTime = nil
                 lastLiveSeekAt = 0
                 // The playhead needs a beat to catch up with the seek; ending
                 // the scrub immediately would snap the bar back to the old

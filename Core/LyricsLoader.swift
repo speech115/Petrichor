@@ -36,7 +36,7 @@ struct LyricsLoader {
         if lines == nil,
            let fullTrack = fullTrack,
            let databaseManager = databaseManager,
-           let onlineText = await LyricsManager.shared.fetchLyrics(for: fullTrack, using: databaseManager) {
+           let onlineText = try await LyricsManager.shared.fetchLyrics(for: fullTrack, using: databaseManager) {
             lines = parseAnyLyrics(onlineText)
             source = .online
         }

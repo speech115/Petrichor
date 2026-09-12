@@ -178,4 +178,134 @@ struct QueueBackendTests {
     #expect((info?[MPNowPlayingInfoPropertyPlaybackRate] as? Double) == 0, "пауза пере-публикует rate 0")
     #expect(info?[MPMediaItemPropertyTitle] as? String == "Now Playing Test", "пере-публикация сохраняет метаданные трека")
 }
+@Test func pausedTrackSwitchPublishesLoadedDurationAndSeekPosition() async throws {
+    let first = try makeSilentWAV(seconds: 4)
+    let second = try makeSilentWAV(seconds: 8)
+    defer {
+        try? FileManager.default.removeItem(at: first)
+        try? FileManager.default.removeItem(at: second)
+    }
+    let backend = AVQueuePlayerBackend()
+    defer { backend.stop(); backend.setNowPlayingMetadata(nil) }
+    backend.setQueue([
+        makeEntry("first", url: first), makeEntry("second", url: second)
+    ], startingAt: 0, startPaused: true)
+    for (index, seconds) in [4.0, 8.0].enumerated() {
+        if index > 0 { backend.playQueueEntry(at: index, startPaused: true) }
+        backend.setNowPlayingMetadata(NowPlayingMetadata(title: "Track \(index)"))
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            let published = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] as? Double ?? 0
+            if abs(published - seconds) < 0.1 { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let published = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyPlaybackDuration] as? Double ?? 0
+        #expect(abs(backend.duration - seconds) < 0.1)
+        #expect(abs(published - seconds) < 0.1, "Lock screen must receive loaded duration after switching tracks")
+        #expect(backend.seek(to: 2))
+        let seekDeadline = ContinuousClock.now + .seconds(3)
+        while ContinuousClock.now < seekDeadline {
+            let elapsed = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
+            if abs(elapsed - 2) < 0.1 { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let elapsed = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
+        #expect(abs(elapsed - 2) < 0.1)
+    }
+}
+
+@Test func editingBeyondLookaheadPreservesPreparedItems() throws {
+    try withFixture { url in
+        let backend = AVQueuePlayerBackend()
+        backend.setQueue(makeManyEntries(10, url: url), startingAt: 0, startPaused: true)
+        let prepared = backend.preloadedItemIdentities
+        backend.append(makeEntry("appended", url: url))
+        backend.insert(makeEntry("inserted", url: url), at: 5)
+        backend.removeQueueEntry(at: 5)
+        #expect(backend.preloadedItemIdentities == prepared)
+        backend.insertNext(makeEntry("next", url: url))
+        #expect(backend.preloadedItemIdentities.first == prepared.first)
+        #expect(backend.preloadedItemIdentities.last != prepared.last)
+        #expect(backend.preloadedItemCount == 2)
+    }
+}
+
+@Test func seekRejectsInvalidPositionsAndEmptyQueue() throws {
+    let backend = AVQueuePlayerBackend()
+    #expect(!backend.seek(to: 0))
+    try withFixture { url in
+        backend.setQueue([makeEntry("a", url: url)], startingAt: 0, startPaused: true)
+        #expect(!backend.seek(to: .infinity))
+        #expect(!backend.seek(to: .nan))
+        #expect(!backend.seek(to: -1))
+    }
+}
+
+@Test func movingForwardUsesTheSharedPreRemovalDestination() throws {
+    try withFixture { url in
+        let backend = AVQueuePlayerBackend()
+        backend.setQueue(makeManyEntries(4, url: url), startingAt: 0, startPaused: true)
+        backend.move(from: 0, to: 3)
+        #expect(backend.queue.map(\.id) == ["t1", "t2", "t0", "t3"])
+        #expect(backend.hasQueuedSuccessor)
+        backend.move(from: 2, to: 0)
+        #expect(backend.queue.map(\.id) == ["t0", "t1", "t2", "t3"])
+    }
+}
+
+@Test func automaticTrackAdvanceKeepsLockScreenSeekable() async throws {
+    let first = try makeSilentWAV(seconds: 1)
+    let second = try makeSilentWAV(seconds: 6)
+    defer {
+        try? FileManager.default.removeItem(at: first)
+        try? FileManager.default.removeItem(at: second)
+    }
+    let backend = AVQueuePlayerBackend()
+    let delegate = NowPlayingTestDelegate()
+    delegate.backend = backend
+    backend.backendDelegate = delegate
+    defer { backend.stop(); backend.setNowPlayingMetadata(nil) }
+    backend.setQueue([
+        makeEntry("first", url: first), makeEntry("second", url: second)
+    ], startingAt: 0, startPaused: false)
+    let deadline = ContinuousClock.now + .seconds(10)
+    while ContinuousClock.now < deadline {
+        let published = MPNowPlayingInfoCenter.default().nowPlayingInfo
+        if delegate.currentID == "second", backend.state == .playing,
+           abs((published?[MPMediaItemPropertyPlaybackDuration] as? Double ?? 0) - 6) < 0.1 { break }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(delegate.currentID == "second")
+    #expect(backend.state == .playing)
+    let info = MPNowPlayingInfoCenter.default().nowPlayingInfo
+    #expect(info?[MPMediaItemPropertyTitle] as? String == "second")
+    #expect(abs((info?[MPMediaItemPropertyPlaybackDuration] as? Double ?? 0) - 6) < 0.1)
+    #expect(backend.seek(to: 3))
+    let seekDeadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < seekDeadline {
+        let published = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
+        if abs(published - 3) < 0.3 { break }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    let elapsed = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
+    #expect(abs(elapsed - 3) < 0.3)
+}
+
+}
+
+
+@MainActor
+private final class NowPlayingTestDelegate: PlaybackBackendDelegate {
+    weak var backend: AVQueuePlayerBackend?
+    var currentID: String?
+
+    func backendDidStartPlaying(with entryId: AudioEntryId) {
+        currentID = entryId.id
+        backend?.setNowPlayingMetadata(NowPlayingMetadata(title: entryId.id))
+    }
+    func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) {}
+    func backendDidFinishPlaying(entryId: AudioEntryId, stopReason: AudioPlayerStopReason, progress: Double, duration: Double) {}
+    func backendUnexpectedError(error: AudioPlayerError) { Issue.record("Unexpected playback error: \(error)") }
+    func backendDidFinishBuffering(with entryId: AudioEntryId) {}
+    func backendDidSkipQueueEntry(entryId: AudioEntryId) { Issue.record("Unexpected skip: \(entryId.id)") }
 }

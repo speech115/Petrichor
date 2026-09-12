@@ -60,3 +60,14 @@ private func line(_ text: String, _ start: TimeInterval, _ end: TimeInterval? = 
     #expect(LyricsTimeline.activeLineIndex(in: lines, at: 4.999) == -1)
     #expect(LyricsTimeline.activeLineIndex(in: [], at: 0) == -1)
 }
+
+
+@Test func lyricsResponseDistinguishesMissingLyricsFromRequestFailures() throws {
+    let manager = LyricsManager.shared
+    #expect(try manager.parseLRCLIBResponse(Data(), statusCode: 404) == nil)
+    #expect(throws: (any Error).self) { try manager.parseLRCLIBResponse(Data(), statusCode: 503) }
+    #expect(throws: (any Error).self) { try manager.parseLRCLIBResponse(Data("broken".utf8), statusCode: 200) }
+    let response = Data(#"{"syncedLyrics":"[00:01]Hello","plainLyrics":"Hello"}"#.utf8)
+    #expect(try manager.parseLRCLIBResponse(response, statusCode: 200) == "[00:01]Hello")
+    #expect(try manager.parseLRCLIBResponse(Data("{}".utf8), statusCode: 200) == nil)
+}

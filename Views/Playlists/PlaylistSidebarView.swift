@@ -8,6 +8,7 @@ struct PlaylistSidebarView: View {
     @State private var selectedSidebarItem: PlaylistSidebarItem?
     @State private var playlistToDelete: Playlist?
     @State private var showingDeleteConfirmation = false
+    @State private var hoveredItemID: UUID?
     @State private var collageArtwork: [UUID: SidebarItemArtwork] = [:]
 
     var body: some View {
@@ -59,9 +60,7 @@ struct PlaylistSidebarView: View {
     // MARK: - Update Selection Helper
 
     private func updateSelectedSidebarItem() {
-        if let playlist = selectedPlaylist {
-            selectedSidebarItem = PlaylistSidebarItem(playlist: playlist)
-        }
+        selectedSidebarItem = selectedPlaylist.map { PlaylistSidebarItem(playlist: $0) }
     }
 
     // MARK: - Sidebar Header
@@ -123,32 +122,77 @@ struct PlaylistSidebarView: View {
 
     // MARK: - Playlists List
 
-    private var nonEditableCount: Int {
-        displayedPlaylists.prefix { !$0.isUserEditable }.count
+    private var playlistsList: some View {
+        List {
+            Section {
+                playlistRows(displayedPlaylists.filter { !$0.isUserEditable })
+            }
+            Section(String(localized: "My Playlists")) {
+                let own = displayedPlaylists.filter { $0.isUserEditable && !PlaylistSource.isImported($0) }
+                if own.isEmpty {
+                    Text("No playlists yet")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                playlistRows(own)
+            }
+            let otherImports = displayedPlaylists.filter {
+                PlaylistSource.isImported($0) && PlaylistSource.of($0) == nil
+            }
+            if !otherImports.isEmpty {
+                Section(String(localized: "Imported from services")) {
+                    playlistRows(otherImports)
+                }
+            }
+            ForEach(PlaylistSource.allCases, id: \.title) { source in
+                let playlists = displayedPlaylists.filter { PlaylistSource.of($0) == source }
+                if !playlists.isEmpty {
+                    Section(source.importTitle) {
+                        playlistRows(playlists)
+                    }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
-    private var playlistsList: some View {
-        SidebarView(
-            items: allPlaylistItems,
-            selectedItem: $selectedSidebarItem,
-            onItemTap: { item in
+    private func playlistRows(_ playlists: [Playlist]) -> some View {
+        let items = playlists.map {
+            PlaylistSidebarItem(playlist: $0, artworkOverride: collageArtwork[$0.id])
+        }
+        return ForEach(items) { item in
+            SidebarItemRow(
+                item: item,
+                isSelected: selectedSidebarItem?.id == item.id,
+                isHovered: hoveredItemID == item.id,
+                showCount: false,
+                trailingContent: { kebabMenu(for: $0) },
+                onTap: {
+                    selectedSidebarItem = item
+                    selectedPlaylist = item.playlist
+                },
+                onHover: { hoveredItemID = $0 ? item.id : nil }
+            )
+            .accessibilityElement(children: .contain)
+            .accessibilityAction {
+                selectedSidebarItem = item
                 selectedPlaylist = item.playlist
-            },
-            contextMenuItems: { item in
-                playlistMenuItems(for: item)
-            },
-            showIcon: true,
-            iconColor: .secondary,
-            showCount: false,
-            trailingContent: { item in
-                kebabMenu(for: item)
-            },
-            reorderableFromIndex: nonEditableCount,
-            // swiftlint:disable:next trailing_closure
-            onReorder: { reorderedItems in
-                handlePlaylistReorder(reorderedItems)
             }
-        )
+            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+            .listRowSeparator(.hidden)
+            .moveDisabled(!item.playlist.isUserEditable)
+            .contextMenu {
+                ForEach(playlistMenuItems(for: item), id: \.id) { menuItem in
+                    ContextMenuItemView(item: menuItem)
+                }
+            }
+        }
+        .onMove { offsets, destination in
+            var reordered = items
+            reordered.move(fromOffsets: offsets, toOffset: destination)
+            handlePlaylistReorder(reordered)
+        }
     }
 
     // MARK: - Kebab Menu
@@ -186,12 +230,6 @@ struct PlaylistSidebarView: View {
         }
     }
 
-    private var allPlaylistItems: [PlaylistSidebarItem] {
-        displayedPlaylists.map {
-            PlaylistSidebarItem(playlist: $0, artworkOverride: collageArtwork[$0.id])
-        }
-    }
-
     private func warmCollageArtwork() async {
         let database = libraryManager.databaseManager
         let playlists = displayedPlaylists.filter {
@@ -219,7 +257,7 @@ struct PlaylistSidebarView: View {
         let visibleIDs = Set(visibleOrder.map(\.id))
         let previous = playlistManager.playlists
 
-        // Keep hidden Top 25s in their prior slots; only reshuffle visible rows.
+        // Only reshuffle this section; all other playlists keep their slots.
         var visibleIterator = visibleOrder.makeIterator()
         var merged: [Playlist] = []
         merged.reserveCapacity(previous.count)

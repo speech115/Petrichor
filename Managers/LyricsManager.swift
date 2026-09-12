@@ -46,7 +46,7 @@ final class LyricsManager: Sendable {
     ///   - fullTrack: The full track to fetch lyrics for
     ///   - databaseManager: Database manager for storing fetched lyrics
     /// - Returns: Lyrics text if found, nil otherwise
-    func fetchLyrics(for fullTrack: FullTrack, using databaseManager: DatabaseManager) async -> String? {
+    func fetchLyrics(for fullTrack: FullTrack, using databaseManager: DatabaseManager) async throws -> String? {
         guard isOnlineLyricsEnabled else {
             Logger.info("LyricsManager: Online lyrics fetching is disabled")
             return nil
@@ -61,7 +61,7 @@ final class LyricsManager: Sendable {
         Logger.info("LyricsManager: Fetching lyrics for '\(fullTrack.title)' by '\(fullTrack.artist)'")
         
         // Try LRCLIB API
-        if let lyrics = await fetchFromLRCLIB(fullTrack: fullTrack) {
+        if let lyrics = try await fetchFromLRCLIB(fullTrack: fullTrack) {
             // Store in database for future use
             await storeLyrics(lyrics, for: fullTrack, using: databaseManager)
             return lyrics
@@ -82,21 +82,21 @@ final class LyricsManager: Sendable {
     }
     
     /// Fetch lyrics from LRCLIB API
-    private func fetchFromLRCLIB(fullTrack: FullTrack) async -> String? {
+    private func fetchFromLRCLIB(fullTrack: FullTrack) async throws -> String? {
         // Try with album first if available
         if !fullTrack.album.isEmpty && fullTrack.album != "Unknown Album" {
-            if let lyrics = await requestLRCLIB(fullTrack: fullTrack, includeAlbum: true) {
+            if let lyrics = try await requestLRCLIB(fullTrack: fullTrack, includeAlbum: true) {
                 return lyrics
             }
             // Retry without album
             Logger.info("LyricsManager: Retrying without album name")
         }
         
-        return await requestLRCLIB(fullTrack: fullTrack, includeAlbum: false)
+        return try await requestLRCLIB(fullTrack: fullTrack, includeAlbum: false)
     }
             
     /// Make a request to LRCLIB API
-    private func requestLRCLIB(fullTrack: FullTrack, includeAlbum: Bool) async -> String? {
+    private func requestLRCLIB(fullTrack: FullTrack, includeAlbum: Bool) async throws -> String? {
         guard var components = URLComponents(string: LRCLIB.baseURL + LRCLIB.getEndpoint) else {
             Logger.error("LyricsManager: Failed to create URL components")
             return nil
@@ -125,61 +125,27 @@ final class LyricsManager: Sendable {
             return nil
         }
         
-        do {
-            var request = URLRequest(url: url)
-            request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
-            
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
-            
-            guard let httpResponse = response as? HTTPURLResponse else {
-                Logger.error("LyricsManager: Invalid response type")
-                return nil
-            }
-            
-            switch httpResponse.statusCode {
-            case 200:
-                return parseLRCLIBResponse(data)
-            case 404:
-                Logger.info("LyricsManager: No lyrics found on LRCLIB (includeAlbum: \(includeAlbum))")
-                return nil
-            default:
-                Logger.error("LyricsManager: LRCLIB API returned status \(httpResponse.statusCode)")
-                return nil
-            }
-        } catch {
-            Logger.error("LyricsManager: Network error - \(error.localizedDescription)")
-            return nil
+        var request = URLRequest(url: url)
+        request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await AppInfo.urlSession.data(for: request)
+        guard let response = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
         }
+        return try parseLRCLIBResponse(data, statusCode: response.statusCode)
     }
-    
-    /// Parse LRCLIB API response
-    private func parseLRCLIBResponse(_ data: Data) -> String? {
-        do {
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                Logger.error("LyricsManager: Failed to parse LRCLIB response as JSON")
-                return nil
-            }
-            
-            // LRCLIB returns both synced (syncedLyrics) and plain lyrics (plainLyrics)
-            // Prefer synced lyrics as they contain timestamps
-            if let syncedLyrics = json["syncedLyrics"] as? String, !syncedLyrics.isEmpty {
-                Logger.info("LyricsManager: Found synced lyrics from LRCLIB")
-                return syncedLyrics
-            }
-            
-            if let plainLyrics = json["plainLyrics"] as? String, !plainLyrics.isEmpty {
-                Logger.info("LyricsManager: Found plain lyrics from LRCLIB")
-                return plainLyrics
-            }
-            
-            Logger.info("LyricsManager: LRCLIB response contained no lyrics")
-            return nil
-        } catch {
-            Logger.error("LyricsManager: JSON parsing error - \(error.localizedDescription)")
-            return nil
+
+    /// A missing match is different from a failed request: callers can offer retry.
+    func parseLRCLIBResponse(_ data: Data, statusCode: Int) throws -> String? {
+        if statusCode == 404 { return nil }
+        guard statusCode == 200 else { throw URLError(.badServerResponse) }
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw URLError(.cannotParseResponse)
         }
+        if let synced = json["syncedLyrics"] as? String, !synced.isEmpty { return synced }
+        if let plain = json["plainLyrics"] as? String, !plain.isEmpty { return plain }
+        return nil
     }
-    
+
     /// Store fetched lyrics in the database
     private func storeLyrics(_ lyrics: String, for fullTrack: FullTrack, using databaseManager: DatabaseManager) async {
         guard fullTrack.trackId != nil else {

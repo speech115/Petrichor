@@ -61,7 +61,7 @@ struct NowPlayingPanel<Content: View>: View {
                     Image(systemName: Icons.chevronDown)
                         .font(.system(size: min(closeIconSize, 20), weight: .semibold))
                         .foregroundColor(.secondary)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(String(localized: "Close"))
@@ -74,7 +74,7 @@ struct NowPlayingPanel<Content: View>: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    /// The close glyph scales with Dynamic Type inside its fixed 32 pt button.
+    /// The close glyph scales with Dynamic Type inside its fixed 44 pt button.
     @ScaledMetric(relativeTo: .subheadline) private var closeIconSize: CGFloat = 14
 
     /// Measured in `.global` for the same reason the player's dismissal is: the
