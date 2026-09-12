@@ -270,7 +270,9 @@ struct QueueBackendTests {
     ], startingAt: 0, startPaused: false)
     let deadline = ContinuousClock.now + .seconds(10)
     while ContinuousClock.now < deadline {
-        if delegate.currentID == "second", backend.state == .playing { break }
+        let published = MPNowPlayingInfoCenter.default().nowPlayingInfo
+        if delegate.currentID == "second", backend.state == .playing,
+           abs((published?[MPMediaItemPropertyPlaybackDuration] as? Double ?? 0) - 6) < 0.1 { break }
         try await Task.sleep(for: .milliseconds(50))
     }
     #expect(delegate.currentID == "second")
@@ -280,7 +282,9 @@ struct QueueBackendTests {
     #expect(abs((info?[MPMediaItemPropertyPlaybackDuration] as? Double ?? 0) - 6) < 0.1)
     #expect(backend.seek(to: 3))
     let seekDeadline = ContinuousClock.now + .seconds(2)
-    while ContinuousClock.now < seekDeadline, backend.currentPlaybackProgress < 2.9 {
+    while ContinuousClock.now < seekDeadline {
+        let published = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
+        if abs(published - 3) < 0.3 { break }
         try await Task.sleep(for: .milliseconds(50))
     }
     let elapsed = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
