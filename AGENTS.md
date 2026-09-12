@@ -112,3 +112,32 @@ xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=i
 Выход на реальный телефон — через скилл `.claude/skills/petrichor-device/`.
 Обычный device destination на этой машине не работает: Xcode 26.6 против iOS 27
 beta на устройстве. Не чините его, читайте скилл.
+
+## Cursor Cloud specific instructions
+
+The Cursor Cloud VM is **Linux x86_64**, not macOS. Petrichor is an Xcode-only
+app (`Petrichor.xcodeproj`, no `Package.swift`) where ~half of the Swift files
+import SwiftUI/AppKit/UIKit/AVFoundation. **The macOS and iOS targets cannot be
+built, tested, run, or opened in a simulator on this VM** — that path needs
+macOS 26 + Xcode 26.6 (see `README-iOS.md` and the `## Сборка` section above) or
+the `.claude/skills/ios-simulator` / `.claude/skills/petrichor-device` skills on
+an Apple host. Do not try to install Xcode, `swift`, or a simulator here, and do
+not treat the missing build as an environment defect.
+
+What *is* runnable on the Linux VM are the two Linux CI gates from
+`.github/workflows/ci.yml` (the `lint` and `actionlint` jobs). The update script
+installs pinned standalone binaries for them:
+
+- `swiftlint lint` — SwiftLint 0.63.3, config in `.swiftlint.yml`. CI gates on
+  error-level violations only (no `--strict`); warnings are advisory. Caveat: the
+  standalone Linux binary runs without SourceKit, so SourceKit-backed rules
+  (`custom_rules`, `statement_position`, `vertical_whitespace_*_braces`, etc.)
+  are **skipped** and print a "requires SourceKit" warning. CI's official
+  `ghcr.io/realm/swiftlint` Docker image bundles SourceKit and does run them, so
+  a clean local `swiftlint lint` is necessary but not fully sufficient for those
+  rules — the macOS build is the real check.
+- `actionlint` — actionlint 1.7.12 with `shellcheck` for the `run:` blocks; lints
+  `.github/workflows/*`.
+
+Both are on `PATH` at `/usr/local/bin`. Run them from the repo root. Everything
+else about building/running the product still requires an Apple host.
