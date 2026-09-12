@@ -162,8 +162,6 @@ extension LibraryManager {
         }
 
         refreshEntities()
-        // Post notification that library is loaded
-        NotificationCenter.default.post(name: NSNotification.Name("LibraryDidLoad"), object: nil)
     }
     
     /// Load all tracks into memory
@@ -226,6 +224,9 @@ extension LibraryManager {
                 artists: counts.artists,
                 albums: counts.albums
             )
+            // Playback restoration needs these counts; announcing earlier can
+            // leave it waiting forever after the initial notification is missed.
+            NotificationCenter.default.post(name: NSNotification.Name("LibraryDidLoad"), object: self)
 
             let loaded = await entityTask.value
             self.cachedArtistEntities = loaded.0
