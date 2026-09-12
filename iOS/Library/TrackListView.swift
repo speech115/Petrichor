@@ -14,20 +14,12 @@ struct TrackListView: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
 
     let filterItem: LibraryFilterItem?
-    var recentlyAdded = false
     @State private var loadedTracks: [Track] = []
 
     var body: some View {
         TrackListScreen(
-            identity: AnyHashable(recentlyAdded ? "recently-added" : filterItem.map { "\($0.id)" } ?? "all-tracks"),
-            load: { [libraryManager, filterItem, recentlyAdded] in
-                if recentlyAdded {
-                    return libraryManager.getAllTracks().sorted {
-                        let lhs = $0.dateAdded ?? .distantPast
-                        let rhs = $1.dateAdded ?? .distantPast
-                        return lhs == rhs ? $0.id < $1.id : lhs > rhs
-                    }
-                }
+            identity: AnyHashable(filterItem.map { "\($0.id)" } ?? "all-tracks"),
+            load: { [libraryManager, filterItem] in
                 if let filterItem, !filterItem.isAllItem {
                     return libraryManager.getTracksBy(
                         filterType: filterItem.filterType,
@@ -41,13 +33,12 @@ struct TrackListView: View {
                 return libraryManager.getSongsTracks()
             },
             sectioner: { tracks in
-                if recentlyAdded { return [IndexedSection(key: "", items: tracks)] }
                 return IndexedListSectionFactory.sections(
                     from: tracks,
                     key: { IndexedListSectionFactory.sectionKey(for: $0.title) }
                 )
             },
-            isIndexed: !recentlyAdded,
+            isIndexed: true,
             usesPlainStyle: true,
             showsHeader: false,
             onRowsChange: { loadedTracks = $0 },
@@ -78,7 +69,6 @@ struct TrackListView: View {
     }
 
     private var navigationTitle: String {
-        if recentlyAdded { return String(localized: "Recently Added") }
         guard let filterItem else { return String(localized: "Songs") }
         if filterItem.isAllItem {
             return String(localized: "Songs")

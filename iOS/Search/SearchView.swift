@@ -94,7 +94,7 @@ struct SearchView: View {
                     case .album(let album):
                         AlbumPage(album: album)
                             .detailZoomDestination(.album(album.id), in: zoomNamespace)
-                    case .category, .tracks, .allTracks, .recentlyAdded, .playlist:
+                    case .category, .tracks, .allTracks, .playlist:
                         EmptyView()
                     }
                 }
