@@ -17,6 +17,14 @@ enum SeekScrub {
         return HelperUtils.sanitizedDuration(duration) * fraction
     }
 
+    /// A drag moves relative to the playhead, regardless of where the finger lands.
+    static func dragTime(startTime: Double, translation: Double, width: Double, duration: Double) -> Double {
+        let duration = HelperUtils.sanitizedDuration(duration)
+        guard duration > 0, width > 0, width.isFinite,
+              startTime.isFinite, translation.isFinite else { return 0 }
+        return seekTime(position: startTime / duration * width + translation, width: width, duration: duration)
+    }
+
     /// Fill fraction of the progress track: the scrub time while the user is
     /// dragging, otherwise the current playhead time. Zero when there is no
     /// track or the duration is not positive.
