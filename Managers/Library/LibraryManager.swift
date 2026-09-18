@@ -268,7 +268,8 @@ class LibraryManager: ObservableObject {
         Logger.info("Loading library categories")
         let startTime = Date()
         
-        Task.detached(priority: .userInitiated) {
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
             let categories = LibraryFilterType.allCases
             let results = await withTaskGroup(
                 of: (LibraryFilterType, [LibraryFilterItem]).self,

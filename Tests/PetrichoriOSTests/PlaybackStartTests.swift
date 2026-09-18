@@ -34,7 +34,7 @@ struct PlaybackStartTests {
         defer {
             for (key, value) in zip(keys, oldValues) { defaults.set(value, forKey: key) }
             try? database.dbQueue.writeWithoutTransaction { db in
-                try db.execute(sql: "DELETE FROM tracks WHERE track_id = ?", arguments: [track.trackId])
+                try db.execute(sql: "DELETE FROM tracks WHERE id = ?", arguments: [track.trackId])
                 try db.execute(sql: "DELETE FROM folders WHERE id = ?", arguments: [track.folderId])
             }
             try? FileManager.default.removeItem(at: folderURL)

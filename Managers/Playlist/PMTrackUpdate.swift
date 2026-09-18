@@ -87,7 +87,8 @@ extension PlaylistManager {
 
     /// Update play count for a track
     func incrementPlayCount(for track: Track) {
-        Task {
+        Task { [weak self] in
+            guard let self else { return }
             guard let trackId = track.trackId else {
                 Logger.error("Cannot update play count - track has no database ID")
                 return
