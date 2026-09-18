@@ -41,7 +41,7 @@ struct SidebarItemRow<Item: SidebarItem>: View {
     private var sidebarItemFont: PlatformFont {
         .systemFont(ofSize: 13)
     }
-    
+
     private func checkIfTruncated(text: String, width: CGFloat) -> Bool {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: sidebarItemFont
@@ -70,7 +70,7 @@ struct SidebarItemRow<Item: SidebarItem>: View {
     }
 
     // MARK: - Icon View
-    
+
     @ViewBuilder private var iconView: some View {
         if showIcon {
             if let artwork = item.artwork {
@@ -112,38 +112,23 @@ struct SidebarItemRow<Item: SidebarItem>: View {
         .font(.system(size: 16))
         .frame(width: 16, height: 16)
     }
-    
+
     // MARK: - Content View
-    
+
     @ViewBuilder private var contentView: some View {
         displayContent
     }
 
-    @ViewBuilder private var displayContent: some View {
-        if showCount, item.subtitle == nil {
-            // Behind the title, not under it, so the row keeps its height and the title centers.
-            ZStack(alignment: .leading) {
-                twoLineHeightReserver.hidden()
-                titleView
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 1) {
-                titleView
-
-                if showCount, let subtitle = item.subtitle {
-                    subtitleView(subtitle: subtitle)
-                }
-            }
-        }
-    }
-
-    private var twoLineHeightReserver: some View {
+    private var displayContent: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(verbatim: " ").font(.system(size: 13))
-            Text(verbatim: " ").font(.system(size: 11))
+            titleView
+
+            if showCount, let subtitle = item.subtitle {
+                subtitleView(subtitle: subtitle)
+            }
         }
     }
-    
+
     private var titleView: some View {
         Text(displayTitle)
             .font(.system(size: 13, weight: isSelected ? .medium : .regular))
@@ -169,7 +154,7 @@ struct SidebarItemRow<Item: SidebarItem>: View {
         }
         return false
     }
-    
+
     private func subtitleView(subtitle: String) -> some View {
         Text(subtitle)
             .font(.system(size: 11))
@@ -178,9 +163,9 @@ struct SidebarItemRow<Item: SidebarItem>: View {
             .help(isSubtitleTruncated ? subtitle : "")
             .background(truncationDetector(for: subtitle, isTruncated: $isSubtitleTruncated, fontSize: 11))
     }
-    
+
     // MARK: - Truncation Detection
-    
+
     private func truncationDetector(for text: String, isTruncated: Binding<Bool>, fontSize: CGFloat = 13) -> some View {
         GeometryReader { geometry in
             Color.clear
@@ -204,9 +189,9 @@ struct SidebarItemRow<Item: SidebarItem>: View {
                 }
         }
     }
-    
+
     // MARK: - Trailing View
-    
+
     @ViewBuilder private var trailingView: some View {
         if let trailing = trailingContent?(item) {
             trailing

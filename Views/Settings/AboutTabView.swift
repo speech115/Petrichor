@@ -46,7 +46,7 @@ struct AboutTabView: View {
             if let appIcon = NSApp.applicationIconImage {
                 Image(nsImage: appIcon)
                     .resizable()
-                    .scaledToFit()
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: 128, height: 128)
             } else {
                 Image(systemName: Icons.musicNote)
@@ -172,7 +172,7 @@ struct AboutTabView: View {
                 Link(destination: url) {
                     Image(imageName)
                         .resizable()
-                        .scaledToFit()
+                        .aspectRatio(contentMode: .fit)
                         .frame(maxHeight: 24)
                 }
             }
@@ -197,7 +197,7 @@ struct AboutTabView: View {
                 url: URL(string: About.appWiki),
                 tooltip: "Visit Help Wiki"
             )
-            
+
             FooterLink(
                 icon: "doc.text",
                 title: "License",
@@ -206,7 +206,7 @@ struct AboutTabView: View {
                 },
                 tooltip: "View third-party licenses and acknowledgements"
             )
-            
+
             #if os(macOS)
             FooterLink(
                 icon: "folder",
@@ -214,7 +214,7 @@ struct AboutTabView: View {
                 action: {
                     let appDataURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
                         .appendingPathComponent(Bundle.main.bundleIdentifier ?? About.bundleIdentifier)
-                    
+
                     if let url = appDataURL {
                         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
                     }
@@ -224,16 +224,16 @@ struct AboutTabView: View {
             #endif
         }
     }
-    
+
     private struct FooterLink: View {
         let icon: String
         let title: LocalizedStringKey
         var url: URL?
         var action: (() -> Void)?
         let tooltip: LocalizedStringKey
-        
+
         @State private var isHovered = false
-        
+
         var body: some View {
             if let url = url {
                 Link(destination: url) {
@@ -249,7 +249,7 @@ struct AboutTabView: View {
                 .help(tooltip)
             }
         }
-        
+
         private var linkContent: some View {
             HStack(spacing: 4) {
                 Image(systemName: icon)

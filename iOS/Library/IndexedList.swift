@@ -78,12 +78,16 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
             List {
                 ForEach(sections) { section in
                     Section {
+                        // Native section headers cap Dynamic Type. A heading row
+                        // keeps the letters scalable without weakening the audit.
+                        Text(section.key)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.secondaryText)
+                            .accessibilityAddTraits(.isHeader)
+                            .listRowSeparator(.hidden)
                         ForEach(section.items) { item in
                             row(item)
                         }
-                    } header: {
-                        Text(section.key)
-                            .foregroundColor(.secondaryText)
                     }
                     .id(section.key)
                 }

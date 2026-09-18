@@ -263,7 +263,7 @@ final actor SpotlightIndexer {
     /// they build items — not in this algorithm. `makeItems` captures whatever
     /// it needs (tracks re-query the database; albums/artists read the
     /// pre-fetched digests they close over).
-    private func syncEntityKind<Key: Hashable>(
+    private func syncEntityKind<Key: Hashable & Sendable>(
         domain: String,
         snapshotKey: String,
         entityName: String,

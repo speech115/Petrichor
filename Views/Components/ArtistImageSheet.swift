@@ -6,108 +6,101 @@ struct ArtistImageSheet: View {
     @Binding var isPresented: Bool
     var onImageSelected: ((Data?) -> Void)?
 
-    @State private var searchQuery: String
-    @State private var imageURL = ""
+    @State private var searchQuery: String = ""
     @State private var images: [ArtistBioManager.ImageResult] = []
+    @State private var isLoading = true
     @State private var selectedIndex: Int?
-    @State private var artworkData: Data?
-    @State private var artworkURL = ""
-    @State private var artworkSource = "manual"
-    @State private var isSearching = false
-    @State private var isLoadingURL = false
-    @State private var isProcessingArtwork = false
-    @State private var isSaving = false
-    @State private var isDeletingImage = false
-    @State private var searchTask: Task<Void, Never>?
-    @State private var artworkTask: Task<Void, Never>?
-    @State private var artworkGeneration = 0
-    @State private var wellInvalidationToken = 0
-
-    init(
-        artistName: String,
-        artistId: Int64?,
-        isPresented: Binding<Bool>,
-        onImageSelected: ((Data?) -> Void)? = nil
-    ) {
-        self.artistName = artistName
-        self.artistId = artistId
-        _isPresented = isPresented
-        self.onImageSelected = onImageSelected
-        _searchQuery = State(initialValue: artistName)
-    }
-
-    private var canSave: Bool {
-        (artworkData != nil || isDeletingImage) && !isProcessingArtwork && !isLoadingURL && !isSaving
-    }
 
     var body: some View {
         VStack(spacing: 0) {
-            PlaylistEditorHeader(title: String(localized: "Choose Artist Image")) {
-                guard !isSaving else { return }
-                isPresented = false
-            }
-
+            sheetHeader
             Divider()
-
-            artworkSection
-
+            imageGrid
             Divider()
-
-            searchSection
-
-            Divider()
-            footer
+            sheetFooter
         }
-        .frame(width: 540, height: 620)
+        .frame(width: 580, height: 520)
         .task {
-            let generation = artworkGeneration
-            await loadCurrentImage(generation: generation)
-            startImageSearch()
-        }
-        .onDisappear {
-            searchTask?.cancel()
-            artworkTask?.cancel()
+            searchQuery = artistName
+            await loadImages()
         }
     }
 
-    private var searchSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ArtworkInputField(
-                text: $searchQuery,
-                placeholder: "Search artist images",
-                leadingIcon: Icons.magnifyingGlass,
-                actionIcon: "arrow.right.circle.fill",
-                actionHelp: "Search",
-                isActionEnabled: !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty,
-                isLoading: isSearching,
-                action: startImageSearch
-            )
+    // MARK: - Header
 
-            imageResults
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
+    private var sheetHeader: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Button(action: { isPresented = false }, label: {
+                    Image(systemName: Icons.xmarkCircleFill)
+                        .font(.system(size: 18))
+                        .foregroundColor(.secondary)
+                })
+                .buttonStyle(.plain)
+                .keyboardShortcut(.escape)
+                .focusable(false)
+                .help("Dismiss")
 
-    @ViewBuilder private var imageResults: some View {
-        if images.isEmpty, !isSearching {
-            Text("No images available")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if !images.isEmpty {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 104, maximum: 116), spacing: 10)], spacing: 10) {
-                    ForEach(Array(images.enumerated()), id: \.offset) { index, result in
-                        imageCell(result: result, index: index)
-                    }
-                }
-                .padding(3)
+                Text("Choose Artist Image")
+                    .font(.headline)
+
+                Spacer()
             }
-        } else {
-            Color.clear
+
+            HStack(spacing: 8) {
+                TextField("Search by artist name or paste image URL", text: $searchQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit {
+                        Task { await loadImages() }
+                    }
+
+                Button("Search") {
+                    Task { await loadImages() }
+                }
+                .disabled(searchQuery.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding()
+    }
+
+    // MARK: - Image Grid
+
+    private var imageGrid: some View {
+        Group {
+            if isLoading {
+                VStack {
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Searching for images...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                    Spacer()
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if images.isEmpty {
+                VStack {
+                    Spacer()
+                    Text("No images available")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 140, maximum: 160), spacing: 12)],
+                        spacing: 12
+                    ) {
+                        ForEach(Array(images.enumerated()), id: \.offset) { index, result in
+                            imageCell(result: result, index: index)
+                        }
+                    }
+                    .padding()
+                }
+            }
         }
     }
 
@@ -118,81 +111,24 @@ struct ArtistImageSheet: View {
             if let platformImage = PlatformImage(data: result.imageData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: 108, height: 108)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 140, height: 140)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(selectedIndex == index ? Color.accentColor : .clear, lineWidth: 3)
+                            .strokeBorder(
+                                isSelected ? Color.accentColor : Color.clear,
+                                lineWidth: 3
+                            )
                     )
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8))
         .onTapGesture {
-            supersedeAllArtworkOperations()
             selectedIndex = index
-            artworkData = result.imageData
-            artworkURL = result.imageUrl
-            artworkSource = result.source.components(separatedBy: " – ").first ?? result.source
-            isDeletingImage = false
         }
     }
 
-    private var artworkSection: some View {
-        VStack(spacing: 10) {
-            ArtworkImageWell(
-                artworkData: $artworkData,
-                isProcessing: $isProcessingArtwork,
-                placeholderIcon: Icons.personFill,
-                onImported: markManualImport,
-                onClear: markImageForDeletion,
-                maxDimension: 960,
-                onArtworkAction: cancelParentArtworkOperation,
-                invalidationToken: wellInvalidationToken
-            )
-
-            ArtworkInputField(
-                text: $imageURL,
-                placeholder: "Load image from URL",
-                leadingIcon: "link",
-                actionIcon: Icons.arrowDownCircleFill,
-                actionHelp: "Load Image",
-                isActionEnabled: parsedImageURL != nil,
-                isLoading: isLoadingURL,
-                action: startURLLoad
-            )
-            .frame(width: 460)
-        }
-        .padding(.vertical, 14)
-        .frame(maxWidth: .infinity)
-    }
-
-    private var footer: some View {
-        HStack {
-            Button {
-                deleteImage()
-            } label: {
-                Text("Delete Image").foregroundColor(.red)
-            }
-            .disabled(artistId == nil || isSaving)
-
-            Spacer()
-
-            Button("Cancel") { isPresented = false }
-                .keyboardShortcut(.cancelAction)
-                .disabled(isSaving)
-
-            Button("Save") { save() }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canSave)
-        }
-        .padding()
-    }
-
-    private var parsedImageURL: URL? {
-        ArtworkImageLoader.httpURL(from: imageURL)
-    }
+    // MARK: - Footer
 
     private var libraryManager: LibraryManager? {
         AppCoordinator.shared?.libraryManager
@@ -219,15 +155,57 @@ struct ArtistImageSheet: View {
                 onImageSelected?(nil)
                 libraryManager.updateArtistEntityArtwork(name: artistName, artworkData: nil)
                 isPresented = false
+            } label: {
+                Text("Delete Image")
+                    .foregroundColor(.red)
             }
+            .disabled(artistId == nil)
+
+            Spacer()
+
+            Button("Cancel") {
+                isPresented = false
+            }
+            .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                guard let index = selectedIndex, index < images.count else { return }
+                let result = images[index]
+                isPresented = false
+                Task(priority: .utility) {
+                    guard let compressed = ImageUtils.compressImage(
+                        from: result.imageData,
+                        source: "ArtistImageSheet/\(result.source)"
+                    ) else { return }
+                    let source = result.source.components(separatedBy: " – ").first ?? result.source
+                    await MainActor.run {
+                        saveArtistImage(compressed, url: result.imageUrl, source: source)
+                    }
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedIndex == nil)
+            .keyboardShortcut(.defaultAction)
         }
+        .padding()
     }
 
-    private func cancelParentArtworkOperation() {
-        artworkTask?.cancel()
-        artworkTask = nil
-        artworkGeneration += 1
-        isLoadingURL = false
+    // MARK: - Data Loading
+
+    private func loadImages() async {
+        let query = searchQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return }
+        isLoading = true
+        selectedIndex = nil
+
+        if let url = URL(string: query), url.scheme == "http" || url.scheme == "https" {
+            // Direct URL — download the image
+            images = await downloadImage(from: url)
+        } else {
+            images = await ArtistBioManager.shared.searchAllImages(for: query)
+        }
+
+        isLoading = false
     }
 
     private func downloadImage(from url: URL) async -> [ArtistBioManager.ImageResult] {
@@ -268,7 +246,7 @@ struct ArtistImageSheet: View {
                 Logger.error("Image is empty or invalid: \(response.expectedContentLength)")
                 return []
             }
-            
+
             return [ArtistBioManager.ImageResult(imageData: data, imageUrl: url.absoluteString, source: "url")]
         } catch {
             return []

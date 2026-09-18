@@ -16,18 +16,9 @@ struct IntegrationsTabView: View {
     @AppStorage("artistInfoFetchEnabled")
     private var artistInfoFetchEnabled: Bool = false
 
-    @AppStorage("artistInfoPeriodicRefreshEnabled")
-    private var artistInfoPeriodicRefreshEnabled: Bool = false
-
-    @AppStorage("internetRadioEnabled")
-    private var internetRadioEnabled: Bool = true
-
     @State private var isAuthenticating = false
     @State private var showLoveSyncInfo = false
-    @State private var showInternetRadioInfo = false
     @State private var showDisconnectConfirmation = false
-
-    private let dependentIndent: CGFloat = 20
 
     private var isConnected: Bool {
         !lastfmUsername.isEmpty
@@ -53,12 +44,6 @@ struct IntegrationsTabView: View {
                 onlineFeaturesSection
             } header: {
                 Text("Lyrics & Metadata")
-            }
-
-            Section {
-                internetRadioSection
-            } header: {
-                Text("Internet Radio")
             }
         }
         .formStyle(.grouped)
@@ -91,7 +76,7 @@ struct IntegrationsTabView: View {
                     if let avatar = cachedLastFMAvatar {
                         Image(platformImage: avatar)
                             .resizable()
-                            .scaledToFill()
+                            .aspectRatio(contentMode: .fill)
                             .frame(width: 32, height: 32)
                             .clipShape(Circle())
                     } else {
@@ -199,39 +184,6 @@ struct IntegrationsTabView: View {
                         ArtistBioManager.shared.fetchMissingArtistImages(using: coordinator.libraryManager)
                     }
                 }
-
-            Toggle("Refresh image and bio periodically", isOn: $artistInfoPeriodicRefreshEnabled)
-                .disabled(!artistInfoFetchEnabled)
-                .padding(.leading, dependentIndent)
-                .onChange(of: artistInfoPeriodicRefreshEnabled) { _, enabled in
-                    if enabled, let coordinator = AppCoordinator.shared {
-                        ArtistBioManager.shared.fetchMissingArtistImages(using: coordinator.libraryManager)
-                    }
-                }
-        }
-    }
-
-    private var internetRadioSection: some View {
-        Toggle(isOn: $internetRadioEnabled) {
-            HStack(spacing: 4) {
-                Text("Enable Internet Radio streaming")
-
-                Button {
-                    showInternetRadioInfo.toggle()
-                } label: {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showInternetRadioInfo, arrowEdge: .trailing) {
-                    // swiftlint:disable:next line_length
-                    Text("Existing station collections, including any pinned to Home, remain available and playable when Internet Radio streaming is disabled.")
-                        .font(.system(size: 12))
-                        .padding(10)
-                        .frame(width: 260)
-                }
-            }
         }
     }
 

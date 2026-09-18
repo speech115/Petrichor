@@ -3,7 +3,7 @@ import SwiftUI
 struct TrackDetailView: View {
     let track: Track
     let onClose: () -> Void
-    
+
     @State private var fullTrack: FullTrack?
     @State private var isLoading = true
     @State private var gradientColors: [Color] = []
@@ -31,7 +31,6 @@ struct TrackDetailView: View {
                     .easeInOut(duration: AnimationDuration.standardDuration),
                     value: gradientColors
                 )
-                .transition(.opacity)
             }
 
             VStack(spacing: 0) {
@@ -114,7 +113,6 @@ struct TrackDetailView: View {
         .onChange(of: useArtworkColors) {
             updateGradientColors()
         }
-        .onDisappear { gradientTask?.cancel() }
     }
 
     private func updateGradientColors() {
@@ -141,12 +139,12 @@ struct TrackDetailView: View {
     }
 
     // MARK: - Load Full Track
-    
+
     private func loadFullTrack() {
         Task {
             do {
                 if let loaded = try await libraryManager.fullTrack(for: track) {
-                    
+
                     await MainActor.run {
                         self.fullTrack = loaded
                         self.isLoading = false
@@ -176,7 +174,7 @@ struct TrackDetailView: View {
                         .foregroundColor(.secondary)
                 }
                 .buttonStyle(.plain)
-                
+
                 Text("Track Info")
                     .headerTitleStyle()
             }
@@ -193,7 +191,7 @@ struct TrackDetailView: View {
                let platformImage = PlatformImage(data: artworkData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: .fill)
                     .frame(width: 250, height: 250)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
@@ -239,7 +237,7 @@ struct TrackDetailView: View {
                     .lineLimit(2)
                     .textSelection(.enabled)
             }
-            
+
             if fullTrack.isLossless {
                 LosslessLabel()
             }
@@ -404,7 +402,7 @@ struct TrackDetailView: View {
             formatter.timeStyle = .short
             return formatter.string(from: date)
         }
-        
+
         return dateString
     }
 
@@ -413,9 +411,9 @@ struct TrackDetailView: View {
         if let date = iso8601Formatter.date(from: dateString) {
             return date
         }
-        
+
         let dateFormatter = DateFormatter()
-        
+
         let formats = ["yyyy-MM-dd", "yyyy-MM", "yyyy"]
         for format in formats {
             dateFormatter.dateFormat = format
@@ -423,7 +421,7 @@ struct TrackDetailView: View {
                 return date
             }
         }
-        
+
         return nil
     }
 }

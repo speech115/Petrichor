@@ -3,7 +3,7 @@ import Foundation
 /// Which tagged gain the engine applies when normalizing loudness. Mirrors the
 /// engine's own mode; `off` is what the settings toggle switches to, so it is not
 /// offered as a gain source.
-public enum ReplayGainMode: String, CaseIterable, Codable {
+public enum ReplayGainMode: String, CaseIterable, Codable, Sendable {
     case off
     case track
     case album

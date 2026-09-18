@@ -225,3 +225,39 @@ import Testing
 private enum PlaybackJournalTestError: Error {
     case missingFolderID
 }
+
+
+@Test @MainActor func journalWriterPreservesOrderAcrossConcurrentFlushesAndFailureRetry() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let journal = JSONLPlaybackJournal(documentsURL: root)
+    let sync = root.appendingPathComponent("Sync")
+    let file = sync.appendingPathComponent("playback-journal.jsonl")
+    let date = Date(timeIntervalSince1970: 1_000)
+
+    // Block the destination with a file, then verify the failed event survives.
+    try Data().write(to: sync)
+    journal.trackPlayed(relativePath: "first.mp3", at: date)
+    await journal.flush()
+    try FileManager.default.removeItem(at: sync)
+    journal.favoriteChanged(relativePath: "first.mp3", value: true, at: date)
+    await journal.flush()
+
+    var expected: [PlaybackJournalEvent] = [
+        .played(path: "first.mp3", at: date),
+        .favorite(path: "first.mp3", value: true, at: date)
+    ]
+    var flushes: [Task<Void, Never>] = []
+    for index in 0..<40 {
+        let path = "\(index).mp3"
+        journal.trackPlayed(relativePath: path, at: date)
+        expected.append(.played(path: path, at: date))
+        flushes.append(Task { await journal.flush() })
+        await Task.yield()
+    }
+    for flush in flushes { await flush.value }
+    #expect(try PlaybackJournalCodec.decodeLines(String(contentsOf: file, encoding: .utf8)) == expected)
+    await journal.flush()
+    #expect(try PlaybackJournalCodec.decodeLines(String(contentsOf: file, encoding: .utf8)) == expected)
+}

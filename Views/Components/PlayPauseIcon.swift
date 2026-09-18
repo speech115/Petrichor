@@ -10,8 +10,6 @@ import SwiftUI
 struct PlayPauseIcon: View {
     let isPlaying: Bool
     var size: CGFloat = 20
-    /// Radio streams stop rather than pause, so the "playing" glyph becomes a stop square.
-    var stopInsteadOfPause: Bool = false
 
     var body: some View {
         ZStack {
@@ -22,7 +20,7 @@ struct PlayPauseIcon: View {
                 .scaleEffect(isPlaying ? 0.8 : 1)
                 .rotationEffect(.degrees(isPlaying ? -90 : 0))
 
-            Image(systemName: stopInsteadOfPause ? Icons.stopFill : Icons.pauseFill)
+            Image(systemName: Icons.pauseFill)
                 .font(.system(size: size, weight: .medium))
                 .foregroundColor(.white)
                 .opacity(isPlaying ? 1 : 0)

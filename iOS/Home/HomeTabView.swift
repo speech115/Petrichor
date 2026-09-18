@@ -1,22 +1,13 @@
 //
 // HomeTabView (iOS)
 //
-// The Home tab, top to bottom:
-//   1. Recently Played - a horizontal shelf of albums (large squares are
-//      containers, not songs), grouped from the recently played tracks.
-//   2. Library - three rows (Songs, Favorites, Top 25 Most Played) with
-//      counts on the right, leading to the all-tracks list and the smart
-//      playlists.
-//
-// Every section title is itself a link - the chevron sits flush against the
-// word, there is no "See All" label. Settings live in the navigation bar;
-// the playlists grid moved to the Playlists tab and Discover became a tab of
-// its own, so Home no longer carries a shelf of it.
+// Favorites is the primary destination; all music and recent albums follow.
 //
 
 import SwiftUI
 
 struct HomeTabView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playlistManager: PlaylistManager
     @EnvironmentObject private var playbackManager: PlaybackManager
@@ -36,6 +27,8 @@ struct HomeTabView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    favoritesButton
+                    librarySection
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
                             albums: recentAlbums,
@@ -43,7 +36,6 @@ struct HomeTabView: View {
                             zoomNamespace: zoomNamespace
                         )
                     }
-                    librarySection
                 }
                 .padding(.vertical, 8)
             }
@@ -87,85 +79,68 @@ struct HomeTabView: View {
         libraryManager.countsLoaded && libraryManager.totalTrackCount == 0
     }
 
-    // MARK: - Library Block
+    // MARK: - Library
 
-    /// The one section without a title link: it has no whole-list
-    /// destination. Rows carry their counts on the right.
-    private var librarySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionTitle(title: String(localized: "Library"))
-
-            VStack(spacing: 0) {
-                libraryRow(
-                    title: String(localized: "Songs"),
-                    count: libraryManager.countsLoaded ? libraryManager.songsDisplayCount : nil,
-                    value: LibraryDestination.allTracks
-                )
-                if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
-                    rowDivider
-                    librarySmartRow(
-                        title: DefaultPlaylists.displayName(for: favorites),
-                        count: favorites.trackCount,
-                        value: LibraryDestination.playlist(favorites.id),
-                        zoomID: .playlist(favorites.id)
-                    )
+    @ViewBuilder
+    private var favoritesButton: some View {
+        if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
+            NavigationLink(value: LibraryDestination.playlist(favorites.id)) {
+                let layout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+                    : AnyLayout(HStackLayout(spacing: 20))
+                layout {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(DefaultPlaylists.displayName(for: favorites))
+                            .font(.title2.bold())
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(TrackCountText.songs(favorites.trackCount))
+                            .font(.subheadline)
+                    }
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                    }
                 }
-                if let mostPlayed = smartPlaylist(DefaultPlaylists.mostPlayed) {
-                    rowDivider
-                    librarySmartRow(
-                        title: DefaultPlaylists.displayName(for: mostPlayed),
-                        count: mostPlayed.trackCount,
-                        value: LibraryDestination.playlist(mostPlayed.id),
-                        zoomID: .playlist(mostPlayed.id)
-                    )
-                }
+                .padding(24)
+                .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 20))
+                .contentShape(RoundedRectangle(cornerRadius: 20))
+                .detailZoomSource(.playlist(favorites.id), in: zoomNamespace, cornerRadius: 20)
             }
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("home.favorites")
             .padding(.horizontal, 16)
         }
     }
 
-    private var rowDivider: some View {
-        Divider().padding(.leading, 16)
-    }
-
-    private func libraryRow(title: String, count: Int?, value: some Hashable) -> some View {
-        NavigationLink(value: value) {
-            libraryRowLabel(title: title, count: count)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// Smart-playlist rows (Favorites / Most Played) zoom into their detail page.
-    /// The source sits on the label, not the `NavigationLink`: on the link itself
-    /// `matchedTransitionSource` swallows the tap and the row stops navigating.
-    private func librarySmartRow(title: String, count: Int?, value: some Hashable, zoomID: DetailZoomID) -> some View {
-        NavigationLink(value: value) {
-            libraryRowLabel(title: title, count: count)
-                // Text rows have no cover; a zero-radius clip keeps the source
-                // rectangular instead of inheriting the cover's rounded clip.
-                .detailZoomSource(zoomID, in: zoomNamespace, cornerRadius: 0)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func libraryRowLabel(title: String, count: Int?) -> some View {
-        HStack {
-            Text(title)
-                .font(.body)
-            Spacer()
-            if let count {
-                Text("\(count)")
+    private var librarySection: some View {
+        NavigationLink(value: LibraryDestination.allTracks) {
+            HStack {
+                Text(String(localized: "All Music"))
                     .font(.body)
-                    .foregroundColor(.secondaryText)
-                    .monospacedDigit()
+                Spacer()
+                if libraryManager.countsLoaded {
+                    Text("\(libraryManager.totalTrackCount)")
+                        .font(.body)
+                        .foregroundColor(.secondaryText)
+                        .monospacedDigit()
+                }
             }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("library.allMusic")
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
         .padding(.horizontal, 16)
-        // Min, not fixed: the row grows with Dynamic Type instead of
-        // clipping the title at the largest accessibility sizes.
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
     }
 
     private func smartPlaylist(_ name: String) -> Playlist? {

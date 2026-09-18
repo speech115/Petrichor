@@ -100,6 +100,9 @@ class AppCoordinator: ObservableObject {
             return
         }
 
+        // The restored tile has no database identity until its real track loads.
+        guard currentTrack.trackId != nil else { return }
+
         persist(playbackStateSnapshot(currentTrack: currentTrack))
     }
 
@@ -114,6 +117,8 @@ class AppCoordinator: ObservableObject {
             clearAllSavedState()
             return
         }
+
+        guard currentTrack.trackId != nil else { return }
 
         let snapshot = playbackStateSnapshot(currentTrack: currentTrack)
         let stateKey = playbackStateKey
@@ -216,7 +221,7 @@ class AppCoordinator: ObservableObject {
             // Use a stored observer reference to ensure proper cleanup
             libraryObserver = NotificationCenter.default.addObserver(
                 forName: NSNotification.Name("LibraryDidLoad"),
-                object: nil,
+                object: libraryManager,
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in

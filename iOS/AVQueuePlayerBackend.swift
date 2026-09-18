@@ -42,6 +42,7 @@ private enum ObservedTimeControlStatus: Sendable {
 
 private enum AVFoundationEvent: Sendable {
     case currentItemChanged(ObjectIdentifier?)
+    case durationChanged(ObjectIdentifier)
     case itemEnded(ObjectIdentifier)
     case itemFailed(ObjectIdentifier, error: NSError?)
     case timeControlChanged(ObservedTimeControlStatus, currentItemKey: ObjectIdentifier?)
@@ -56,6 +57,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var entries: [QueueEntry] = []
     private var currentIndex: Int = 0
     private var currentItemObservation: NSKeyValueObservation?
+    private var durationObservation: NSKeyValueObservation?
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
     /// The last metadata handed to `setNowPlayingMetadata`, so the backend can
@@ -130,6 +132,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     deinit {
         nowPlayingArtworkTask?.cancel()
         currentItemObservation?.invalidate()
+        durationObservation?.invalidate()
         timeControlObservation?.invalidate()
         itemStatusObservations.values.forEach { $0.invalidate() }
         NotificationCenter.default.removeObserver(self)
@@ -193,7 +196,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     func move(from source: Int, to destination: Int) {
         guard entries.indices.contains(source) else { return }
         let entry = entries.remove(at: source)
-        let target = max(0, min(destination, entries.count))
+        // The shared engine contract uses the destination before removal.
+        let target = max(0, min(destination > source ? destination - 1 : destination, entries.count))
         entries.insert(entry, at: target)
 
         if source == currentIndex {
@@ -256,6 +260,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// Сколько `AVPlayerItem` физически стоит в плеере. Тестовый доступ к
     /// lookahead-окну: `player.items()` недоступен извне класса.
     var preloadedItemCount: Int { player.items().count }
+    var preloadedItemIdentities: [ObjectIdentifier] { player.items().map(ObjectIdentifier.init) }
     #endif
 
     /// Ставит текущий трек и до `lookaheadItemCount` следующих: успешник уже
@@ -294,12 +299,17 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
         guard player.currentItem != nil else { return }
 
-        for item in player.items().dropFirst() {
+        let end = min(entries.count, currentIndex + 1 + Self.lookaheadItemCount)
+        let upcoming = entries[(currentIndex + 1)..<end]
+        let preloaded = player.items().dropFirst()
+        // Edits beyond the lookahead window must not reopen its files or
+        // discard the next track's already prepared decoder.
+        guard preloaded.map({ itemEntryMap[ObjectIdentifier($0)] }) != upcoming.map({ Optional($0.entryId) }) else { return }
+        for item in preloaded {
             player.remove(item)
             removeTracking(for: item)
         }
-        let end = min(entries.count, currentIndex + 1 + Self.lookaheadItemCount)
-        for entry in entries[(currentIndex + 1)..<end] {
+        for entry in upcoming {
             player.insert(makePlayerItem(for: entry), after: nil)
         }
     }
@@ -367,9 +377,18 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     }
 
     private func handleCurrentItemChange(key: ObjectIdentifier?) {
+        guard key == player.currentItem.map(ObjectIdentifier.init) else { return }
+        durationObservation?.invalidate()
+        durationObservation = nil
         guard let key,
+              let item = player.currentItem,
               let entryId = itemEntryMap[key],
               let index = queueIndex(of: entryId) else { return }
+        // Duration can become available after the current-item and transport
+        // events. Publish that change even while paused, without a timer.
+        durationObservation = item.observe(\.duration, options: [.initial, .new]) { [weak self] _, _ in
+            self?.enqueueAVFoundationEvent(.durationChanged(key))
+        }
         currentIndex = index
         let started = entries[index].entryId
         backendDelegate?.backendDidStartPlaying(with: started)
@@ -469,6 +488,9 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         switch event {
         case .currentItemChanged(let key):
             handleCurrentItemChange(key: key)
+        case .durationChanged(let key):
+            guard key == player.currentItem.map(ObjectIdentifier.init) else { return }
+            publishNowPlaying()
         case .itemEnded(let key):
             handleItemEnded(key: key)
         case .itemFailed(let key, let error):
@@ -672,7 +694,7 @@ extension AVQueuePlayerBackend {
 
     @discardableResult
     func seek(to time: Double) -> Bool {
-        guard time >= 0 else { return false }
+        guard time.isFinite, time >= 0, player.currentItem != nil else { return false }
         player.seek(to: CMTime(seconds: time, preferredTimescale: 600)) { [weak self] _ in
             // Re-publish once the seek actually lands: publishing before the
             // completion would hand the lock screen the *old* elapsed time as

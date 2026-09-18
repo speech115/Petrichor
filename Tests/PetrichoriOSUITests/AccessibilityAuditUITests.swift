@@ -41,7 +41,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         app.launch()
 
         let songsRow = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Songs'")
+            identifier: "library.allMusic"
         ).firstMatch
         XCTAssertTrue(songsRow.waitForExistence(timeout: 60), "строка Songs не появилась (Documents пуст?)")
 
@@ -79,7 +79,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         let app = launchSeededApp()
 
         let songsRow = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Songs'")
+            identifier: "library.allMusic"
         ).firstMatch
         scrollTo(songsRow, in: app)
         songsRow.tap()
@@ -131,7 +131,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         let app = launchSeededApp()
 
         let songsRow = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Songs'")
+            identifier: "library.allMusic"
         ).firstMatch
         scrollTo(songsRow, in: app)
         songsRow.tap()

@@ -25,9 +25,8 @@ struct NowPlayingControlsView: View {
 
     @State private var playButtonPressed = false
 
-    /// A stream is not part of the queue these act on.
-    private var transportDisabled: Bool {
-        playbackManager.isTransportDisabled
+    private var hasCurrentTrack: Bool {
+        playbackManager.currentTrack != nil
     }
 
     /// A lightened version of the tint, used as the play/pause button's backdrop
@@ -71,8 +70,7 @@ struct NowPlayingControlsView: View {
         })
         .buttonStyle(ControlButtonStyle())
         .hoverEffect(scale: 1.1)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(!hasCurrentTrack)
         .help(playlistManager.isShuffleEnabled ? String(localized: "Disable Shuffle") : String(localized: "Enable Shuffle"))
     }
 
@@ -88,8 +86,7 @@ struct NowPlayingControlsView: View {
         })
         .buttonStyle(ControlButtonStyle())
         .hoverEffect(scale: 1.1)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(!hasCurrentTrack)
         .help("Previous")
     }
 
@@ -100,7 +97,7 @@ struct NowPlayingControlsView: View {
             #endif
             playbackManager.togglePlayPause()
         }, label: {
-            PlayPauseIcon(isPlaying: playbackManager.isPlaying, stopInsteadOfPause: playbackManager.hasStation)
+            PlayPauseIcon(isPlaying: playbackManager.isPlaying)
                 .frame(width: 42 * scale, height: 42 * scale)
                 .background(
                     Circle()
@@ -120,8 +117,8 @@ struct NowPlayingControlsView: View {
             },
             perform: {}
         )
-        .disabled(!playbackManager.hasPlayableContent)
-        .help(playbackManager.playPauseActionTitle)
+        .disabled(!hasCurrentTrack)
+        .help(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
     }
 
     private var nextButton: some View {
@@ -136,8 +133,7 @@ struct NowPlayingControlsView: View {
         })
         .buttonStyle(ControlButtonStyle())
         .hoverEffect(scale: 1.1)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(!hasCurrentTrack)
         .help("Next")
     }
 
@@ -153,8 +149,7 @@ struct NowPlayingControlsView: View {
         })
         .buttonStyle(ControlButtonStyle())
         .hoverEffect(scale: 1.1)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(!hasCurrentTrack)
         .help(playlistManager.repeatMode.tooltip)
     }
 }

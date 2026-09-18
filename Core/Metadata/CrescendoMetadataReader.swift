@@ -12,13 +12,9 @@ import Crescendo
 import Foundation
 
 struct CrescendoMetadataReader: MetadataReader {
-    /// Every format this build's decoder backends can handle, mapped off the
-    /// engine's type so nothing outside `Core/Metadata` has to import Crescendo.
-    /// Extensions are lowercased and carry no leading dot.
-    static var supportedFormats: [SupportedAudioFormat] {
-        Crescendo.CrescendoMetadataReader.supportedFormats.map {
-            SupportedAudioFormat(fileExtension: $0.fileExtension, name: $0.name)
-        }
+    /// Extensions supported by the installed decoder, exposed through the shared metadata seam.
+    static var supportedFileExtensions: [String] {
+        Crescendo.CrescendoMetadataReader.supportedFormats.map(\.fileExtension)
     }
 
     func extractMetadata(
@@ -51,7 +47,6 @@ struct CrescendoMetadataReader: MetadataReader {
         if metadata.artworkData == nil, let externalArtwork = externalArtwork {
             metadata.artworkData = externalArtwork
         }
-        metadata.didInspectArtwork = cover == nil || metadata.artworkData != nil
 
         return metadata
     }

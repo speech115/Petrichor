@@ -15,7 +15,7 @@ struct LibraryTabView: View {
     private var discoverUpdateInterval: DiscoverUpdateInterval = .weekly
 
     @AppStorage("discoverTrackCount")
-    private var discoverTrackCount: Int = DiscoverConfiguration.freshMusicTrackCount
+    private var discoverTrackCount: Int = 50
 
     @State private var isFoldersListExpanded: Bool = false
 
@@ -23,7 +23,6 @@ struct LibraryTabView: View {
     @State private var showRefreshInfo = false
     @State private var showOptimizeInfo = false
     @State private var showResetInfo = false
-    @State private var showFormatsInfo = false
     @State private var selectedFolderIDs: Set<Int64> = []
     @State private var isSelectMode: Bool = false
     @State private var foldersToRemove: [Folder] = []
@@ -51,16 +50,16 @@ struct LibraryTabView: View {
                 .help("Automatically scan for new music in the library on selected interval")
                 .pickerStyle(.menu)
 
-                Picker("Refresh Featured & Fresh Music", selection: $discoverUpdateInterval) {
+                Picker("Refresh Discover tracks", selection: $discoverUpdateInterval) {
                     ForEach(DiscoverUpdateInterval.allCases, id: \.self) { interval in
                         Text(interval.displayName).tag(interval)
                     }
                 }
-                .help("How often Featured picks and Fresh Music are regenerated")
+                .help("How often to refresh the Discover tracks list")
                 .pickerStyle(.menu)
 
                 HStack {
-                    Text("Number of Fresh Music tracks")
+                    Text("Number of Discover tracks")
                     Spacer()
                     HStack(spacing: 4) {
                         Text("\(discoverTrackCount)")
@@ -71,7 +70,7 @@ struct LibraryTabView: View {
                             .labelsHidden()
                             .controlSize(.mini)
                     }
-                    .help("Number of tracks to show in Discover's Fresh Music section (1-200)")
+                    .help("Number of tracks to show in Discover (1-200)")
                 }
             }
 
@@ -120,11 +119,6 @@ struct LibraryTabView: View {
         }
         .onChange(of: libraryManager.isScanning) { _, newValue in
             updateStableScanningState(newValue)
-        }
-        .onChange(of: discoverUpdateInterval) {
-            // Re-arm the expiry timer so a shortened interval takes effect immediately
-            // instead of waiting out the old one.
-            libraryManager.discoverUpdateIntervalDidChange()
         }
         .alert(
             foldersToRemove.count == 1 ? String(localized: "Remove Folder") : String(localized: "Remove Folders"),
@@ -361,7 +355,7 @@ struct LibraryTabView: View {
             infoButton(
                 isPresented: $showResetInfo,
                 text: String(localized: """
-                                    Removes all folders, tracks, playlists, radio stations, station collections, and pinned items. \
+                                    Removes all folders, tracks, playlists, and pinned items. \
                                     Use the checkbox in the confirmation dialog to optionally reset app preferences.
                                     """)
             )
@@ -377,36 +371,19 @@ struct LibraryTabView: View {
         }
     }
 
-    // Sits with the folder controls because that is where the answer matters:
-    // a folder only contributes the file types listed here.
-    private var supportedFormatsButton: some View {
-        infoButton(isPresented: $showFormatsInfo, arrowEdge: .bottom) {
-            SupportedFormatsPopover()
-        }
-        .help("See which audio formats Petrichor imports")
-    }
-
     private func infoButton(isPresented: Binding<Bool>, text: String) -> some View {
-        infoButton(isPresented: isPresented) {
-            Text(text)
-                .font(.system(size: 12))
-                .padding(10)
-                .frame(width: 240)
-        }
-    }
-
-    private func infoButton<Content: View>(
-        isPresented: Binding<Bool>,
-        arrowEdge: Edge = .trailing,
-        @ViewBuilder popover: @escaping () -> Content
-    ) -> some View {
         Button { isPresented.wrappedValue.toggle() } label: {
             Image(systemName: "questionmark.circle")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
         }
         .buttonStyle(.plain)
-        .popover(isPresented: isPresented, arrowEdge: arrowEdge, content: popover)
+        .popover(isPresented: isPresented, arrowEdge: .trailing) {
+            Text(text)
+                .font(.system(size: 12))
+                .padding(10)
+                .frame(width: 240)
+        }
     }
 
     @ViewBuilder private var refreshOverlay: some View {
@@ -514,12 +491,14 @@ struct LibraryTabView: View {
             coordinator.playbackManager.stop()
             coordinator.playlistManager.clearQueue()
         }
+
         UserDefaults.standard.removeObject(forKey: "SavedMusicFolders")
         UserDefaults.standard.removeObject(forKey: "SavedMusicTracks")
         UserDefaults.standard.removeObject(forKey: "SecurityBookmarks")
         UserDefaults.standard.removeObject(forKey: "LastScanDate")
 
-        AppCoordinator.shared?.clearSavedPlaybackSession()
+        UserDefaults.standard.removeObject(forKey: "SavedPlaybackState")
+        UserDefaults.standard.removeObject(forKey: "SavedPlaybackUIState")
 
         if alsoResetPreferences {
             if let bundleID = Bundle.main.bundleIdentifier {
@@ -533,12 +512,9 @@ struct LibraryTabView: View {
 
         Task {
             do {
-                await InternetRadioManager.shared.cancelDownloadsAndWait()
-                await InternetRadioManager.shared.cancelStationLoads()
                 try await libraryManager.resetAllData()
                 await libraryManager.loadPinnedItems()
                 await MainActor.run {
-                    InternetRadioManager.shared.clearLoadedStations()
                     AppCoordinator.shared?.playlistManager.loadPlaylists()
                 }
 
@@ -571,8 +547,8 @@ struct LibraryTabView: View {
         let alert = NSAlert()
         alert.messageText = String(localized: "Reset Library Data")
         alert.informativeText = String(localized: """
-            This will permanently remove all data, including added folders, tracks, playlists, radio stations, \
-            station collections, and pinned items. This action cannot be undone.
+            This will permanently remove all library data, including added folders, tracks, playlists, \
+            and pinned items. This action cannot be undone.
             """)
         alert.alertStyle = .critical
         alert.icon = nil

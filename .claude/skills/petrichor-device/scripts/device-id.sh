@@ -19,6 +19,7 @@ devices = json.load(open(sys.argv[1]))["result"]["devices"]
 connected = [
     d for d in devices
     if d["hardwareProperties"].get("platform") == "iOS"
+    and d["hardwareProperties"].get("reality") == "physical"
     and d["connectionProperties"].get("tunnelState") != "unavailable"
 ]
 

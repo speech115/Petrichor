@@ -1,6 +1,72 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "No playlists yet" : {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Плейлистов пока нет"
+          }
+        }
+      }
+    },
+    "Imported from %@" : {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Импорт из %@"
+          }
+        }
+      }
+    },
+    "Imported from services" : {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Импорт из сервисов"
+          }
+        }
+      }
+    },
+    "My Playlists" : {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Мои плейлисты"
+          }
+        }
+      }
+    },
+    "Petrichor Favorites" : {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Избранное Petrichor"
+          }
+        }
+      }
+    },
+    "All Music" : {
+      "extractionState": "manual",
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вся музыка"
+          }
+        }
+      }
+    },
     "" : {
 
     },

@@ -14,9 +14,13 @@ struct PlayShuffleRow: View {
     let onPlay: () -> Void
     let onShuffle: () -> Void
     var playDisabled = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(spacing: 16) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 16))
+        layout {
             Button(action: onPlay) {
                 Label(String(localized: "Play"), systemImage: Icons.playFill)
                     .font(.headline)

@@ -45,7 +45,7 @@ struct EntityGridView<T: Entity>: View {
 
 // MARK: - Image Cache
 
-final class EntityArtworkCache: @unchecked Sendable {
+private final class EntityArtworkCache: @unchecked Sendable {
     static let shared = EntityArtworkCache()
     private let cache = NSCache<NSString, PlatformImage>()
     private let loadQueue: OperationQueue = {
@@ -63,11 +63,9 @@ final class EntityArtworkCache: @unchecked Sendable {
         cache.totalCostLimit = 80 * 1024 * 1024
     }
 
-    private func cacheKey(for entity: any Entity, isDark: Bool) -> NSString {
-        // `artworkIdentity` defaults to "<id>-<artwork fingerprint>"; types with
-        // lazily-rendered artwork override it. The scheme is in the key because procedural
-        // artwork differs per appearance.
-        "\(entity.artworkIdentity)-rendered-\(isDark ? "d" : "l")" as NSString
+    private func cacheKey(for entity: any Entity) -> NSString {
+        let artworkSize = entity.artworkData?.count ?? 0
+        return "\(entity.id.uuidString)-\(artworkSize)-rendered" as NSString
     }
 
     func getCachedImage(for entity: any Entity) -> PlatformImage? {
@@ -81,11 +79,7 @@ final class EntityArtworkCache: @unchecked Sendable {
             return cached
         }
 
-        // Bail before generating: a flick-scroll recycles tiles faster than they render, and
-        // dead work here queues ahead of the tiles that are actually on screen.
-        guard !Task.isCancelled else { return nil }
-
-        guard let artworkData = await entity.resolvedArtworkData(isDark: isDark) else { return nil }
+        guard let artworkData = entity.artworkData else { return nil }
 
         return await loadQueue.renderArtwork { [self] in
             // Re-check cache, another operation may have loaded it while queued
@@ -102,7 +96,7 @@ final class EntityArtworkCache: @unchecked Sendable {
             return renderedImage
         }
     }
-    
+
     private func createRenderedImage(from data: Data) -> PlatformImage? {
         guard let platformImage = PlatformImage(data: data),
               let cgImage = platformImage.cgImage else {
@@ -166,9 +160,6 @@ private struct EntityGridItem<T: Entity>: View {
 
     @State private var renderedImage: PlatformImage?
 
-    @Environment(\.colorScheme)
-    private var colorScheme
-
     var body: some View {
         VStack(spacing: 8) {
             Group {
@@ -189,8 +180,7 @@ private struct EntityGridItem<T: Entity>: View {
                                         .font(.system(size: 40, weight: .medium, design: .rounded))
                                         .foregroundColor(.gray)
                                 } else {
-                                    // `SymbolImage`: category icons include custom asset symbols.
-                                    SymbolImage(Icons.entityIcon(for: entity))
+                                    Image(systemName: Icons.entityIcon(for: entity))
                                         .font(.system(size: 48))
                                         .foregroundColor(.gray)
                                 }
@@ -203,7 +193,7 @@ private struct EntityGridItem<T: Entity>: View {
             .task(id: artworkTaskID) {
                 await loadArtwork()
             }
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(entity.displayName)
                     .font(.system(size: 13, weight: .semibold))
@@ -219,7 +209,7 @@ private struct EntityGridItem<T: Entity>: View {
                             .lineLimit(1)
                             .help(artistName)
                     }
-                    
+
                     if let year = albumEntity.year {
                         Text(year)
                             .font(.system(size: 11))
@@ -258,42 +248,21 @@ private struct EntityGridItem<T: Entity>: View {
         .onTapGesture(perform: onSelect)
         .onHover(perform: onHover)
     }
-    
-    // Scheme-qualified: procedural artwork has a light and a dark variant.
-    private var artworkTaskID: String { "\(entity.artworkIdentity)-\(colorScheme)" }
+
+    private var artworkTaskID: String {
+        "\(entity.id.uuidString)-\(entity.artworkData?.count ?? 0)"
+    }
 
     private func loadArtwork() async {
-        let isDark = colorScheme == .dark
-
         // Serve cache hits synchronously to avoid placeholder flicker on scroll recycle
-        if let cached = EntityArtworkCache.shared.getCachedImage(for: entity, isDark: isDark) {
+        if let cached = EntityArtworkCache.shared.getCachedImage(for: entity) {
             renderedImage = cached
             return
         }
 
-        let image = await EntityArtworkCache.shared.loadImage(for: entity, isDark: isDark)
+        let image = await EntityArtworkCache.shared.loadImage(for: entity)
 
         guard !Task.isCancelled else { return }
         renderedImage = image
     }
-}
-
-// MARK: - Preview
-
-#Preview("Album Grid") {
-    let albums = [
-        AlbumEntity(name: "Abbey Road", trackCount: 17, year: "1969", duration: 2832),
-        AlbumEntity(name: "The Dark Side of the Moon", trackCount: 10, year: "1973", duration: 2580),
-        AlbumEntity(name: "Led Zeppelin IV", trackCount: 8, year: "1971", duration: 2556),
-        AlbumEntity(name: "A Night at the Opera", trackCount: 12, year: "1975", duration: 2628)
-    ]
-
-    EntityGridView(
-        entities: albums,
-        onSelectEntity: { album in
-            Logger.debugPrint("Selected: \(album.name)")
-        },
-        contextMenuItems: { _ in [] }
-    )
-    .frame(height: 600)
 }

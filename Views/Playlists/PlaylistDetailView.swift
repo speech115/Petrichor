@@ -1,20 +1,13 @@
 import SwiftUI
 
-// swiftlint:disable:next type_body_length
 struct PlaylistDetailView: View {
     let playlistID: UUID
-    /// Set when this is presented as a full-screen overlay (e.g. a Discover
-    /// playlist tile); nil when it's the Playlists tab's own content.
-    let onBack: (() -> Void)?
 
     @EnvironmentObject var playlistManager: PlaylistManager
     @State private var selectedTrackID: String?
     @State private var gradientColors: [Color] = []
     @State private var gradientRevision: UInt64 = 0
     @State private var artworkData: Data?
-    @State private var collageToken = 0
-    @State private var showingArtworkEditor = false
-    @State private var isArtworkHovered = false
 
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
@@ -24,23 +17,17 @@ struct PlaylistDetailView: View {
 
     @Environment(\.colorScheme)
     var colorScheme
-    
+
     @State private var playlistSortOrder = [TrackSortField.dateAdded.getComparator(ascending: true)]
 
-    @State private var stations: [RadioStation] = []
-
-    private var isStationCollection: Bool { playlist?.type == .stations }
-
     // Convenience initializer for when you have a Playlist object
-    init(playlist: Playlist, onBack: (() -> Void)? = nil) {
+    init(playlist: Playlist) {
         self.playlistID = playlist.id
-        self.onBack = onBack
     }
 
     // Standard initializer with playlist ID
-    init(playlistID: UUID, onBack: (() -> Void)? = nil) {
+    init(playlistID: UUID) {
         self.playlistID = playlistID
-        self.onBack = onBack
     }
 
     // Get the current playlist from the manager
@@ -49,13 +36,6 @@ struct PlaylistDetailView: View {
     }
 
     var body: some View {
-        content
-            // Opaque, matching EntityDetailView. Required because Home presents this as a
-            // full-screen ZStack overlay; without it, whatever sits behind shows through.
-            .background(Color(NSColor.windowBackgroundColor))
-    }
-
-    @ViewBuilder private var content: some View {
         if let playlist = playlist {
             VStack(spacing: 0) {
                 playlistHeader
@@ -65,8 +45,6 @@ struct PlaylistDetailView: View {
                 playlistContent
             }
             .task(id: playlistArtworkTaskID) {
-                // Station collections build their cover from stations, not tracks.
-                guard !isStationCollection else { return }
                 let fresh = await playlist.warmArtworkCacheIfNeeded()
                 // nil with empty tracks means "not loaded yet", not "no artwork"
                 if fresh == nil && playlist.tracks.isEmpty { return }
@@ -75,16 +53,10 @@ struct PlaylistDetailView: View {
             }
             .onChange(of: playlistID) {
                 // Fired when this view is reused for a different playlist.
-                stations = []
+                selectedTrackID = nil
                 seedArtworkFromCache()
                 loadPlaylistTracksIfNeeded()
                 loadSortPreference()
-            }
-            // An edit rewrites the station but not the collection, so `dateModified` below
-            // never moves; without this the open collection keeps a stale stream URL.
-            .onChange(of: radioManager.stations) {
-                guard isStationCollection else { return }
-                loadPlaylistTracksIfNeeded()
             }
             .onChange(of: playlist.dateModified) {
                 // Fired after an edit (e.g. smart-playlist rules changed) that cleared tracks.
@@ -103,20 +75,6 @@ struct PlaylistDetailView: View {
             .onChange(of: useArtworkColors) {
                 updateGradientColors()
             }
-            .onDisappear { gradientTask?.cancel() }
-            .sheet(isPresented: $showingArtworkEditor) {
-                PlaylistArtworkSheet(
-                    playlist: playlist,
-                    defaultArtworkData: playlist.coverArtworkData == nil ? artworkData : nil,
-                    stationArtworkSources: stations.compactMap(\.artworkData),
-                    isPresented: $showingArtworkEditor
-                ) { savedArtwork in
-                    collageToken += 1
-                    artworkData = savedArtwork
-                    updateGradientColors()
-                }
-                .environmentObject(playlistManager)
-            }
         } else {
             playlistNotFoundView
         }
@@ -128,10 +86,6 @@ struct PlaylistDetailView: View {
         if playlist != nil {
             PlaylistHeader {
                 HStack(alignment: .top, spacing: 20) {
-                    if let onBack = onBack {
-                        DetailBackButton(action: onBack)
-                    }
-
                     playlistArtwork
 
                     VStack(alignment: .leading, spacing: 12) {
@@ -145,22 +99,17 @@ struct PlaylistDetailView: View {
             .background {
                 if !gradientColors.isEmpty {
                     GradientBackground(colors: gradientColors)
-                        .transition(.opacity)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
                 HStack(spacing: 8) {
-                    if isStationCollection {
-                        StationOptionsDropdown()
-                    } else {
-                        TrackTableOptionsDropdown(
-                            sortOrder: $playlistSortOrder,
-                            tableRowSize: $trackTableRowSize,
-                            playlistID: playlistID,
-                            showCustomSort: playlist?.type == .regular
-                        )
-                        .id(playlistID)
-                    }
+                    TrackTableOptionsDropdown(
+                        sortOrder: $playlistSortOrder,
+                        tableRowSize: $trackTableRowSize,
+                        playlistID: playlistID,
+                        showCustomSort: playlist?.type == .regular
+                    )
+                    .id(playlistID)
                 }
                 .padding([.bottom, .trailing], 12)
             }
@@ -173,7 +122,7 @@ struct PlaylistDetailView: View {
                let platformImage = PlatformImage(data: artworkData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: .fill)
                     .frame(width: 120, height: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
@@ -192,31 +141,6 @@ struct PlaylistDetailView: View {
                     )
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 8))
-        .onTapGesture {
-            guard playlist?.isUserEditable == true else { return }
-            showingArtworkEditor = true
-        }
-        .overlay {
-            if playlist?.isUserEditable == true {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.black.opacity(0.4))
-                    .frame(width: 120, height: 120)
-                    .overlay(
-                        VStack(spacing: 4) {
-                            Image(systemName: "pencil")
-                                .font(.system(size: 20, weight: .medium))
-                            Text(String(localized: "Update artwork"))
-                                .font(.system(size: 10, weight: .medium))
-                        }
-                        .foregroundStyle(.white)
-                    )
-                    .opacity(isArtworkHovered ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.15), value: isArtworkHovered)
-                    .allowsHitTesting(false)
-            }
-        }
-        .onHover { isArtworkHovered = $0 }
     }
 
     private var playlistInfo: some View {
@@ -233,13 +157,11 @@ struct PlaylistDetailView: View {
 
             if let playlist = playlist {
                 HStack {
-                    Text(isStationCollection
-                        ? String(localized: "\(playlist.trackCount) stations")
-                        : String(localized: "\(playlist.trackCount) songs"))
+                    Text(String(localized: "\(playlist.trackCount) songs"))
                         .font(.subheadline)
                         .foregroundColor(.secondary)
 
-                    if playlist.trackCount > 0, !isStationCollection {
+                    if playlist.trackCount > 0 {
                         Text("•")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
@@ -272,40 +194,6 @@ struct PlaylistDetailView: View {
             .adaptiveCircularButtonStyle()
             .help(isPinned ? String(localized: "Remove from Home") : String(localized: "Pin to Home"))
 
-            // Stations have no queue, so there's no collection-level Play/Shuffle.
-            if isStationCollection {
-                Button(action: editStationCollection) {
-                    HStack(spacing: iconTextSpacing) {
-                        Image(systemName: Icons.edit)
-                            .font(.system(size: iconSize))
-                        Text("Edit")
-                            .font(.system(size: textSize, weight: .medium))
-                    }
-                    .frame(width: buttonWidth)
-                    .padding(.vertical, verticalPadding)
-                }
-                .adaptiveButtonStyle()
-            } else {
-                trackPlaylistControls(
-                    buttonWidth: buttonWidth,
-                    verticalPadding: verticalPadding,
-                    iconSize: iconSize,
-                    textSize: textSize,
-                    iconTextSpacing: iconTextSpacing
-                )
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func trackPlaylistControls(
-        buttonWidth: CGFloat,
-        verticalPadding: CGFloat,
-        iconSize: CGFloat,
-        textSize: CGFloat,
-        iconTextSpacing: CGFloat
-    ) -> some View {
-        Group {
             Button(action: { playPlaylist() }, label: {
                 HStack(spacing: iconTextSpacing) {
                     Image(systemName: Icons.playFill)
@@ -364,21 +252,17 @@ struct PlaylistDetailView: View {
 
     private var playlistContent: some View {
         Group {
-            if isStationCollection, let playlist {
-                StationCollectionContentView(
-                    collection: playlist,
-                    stations: stations,
-                    onEdit: editStationCollection
-                )
-            } else if let playlist, !playlist.tracks.isEmpty {
+            if let playlist, !playlist.tracks.isEmpty {
                 TrackView(
                     tracks: playlist.tracks,
+                    selectedTrackID: $selectedTrackID,
                     playlistID: playlistID,
                     entityID: nil,
                     sortOrder: $playlistSortOrder,
                     onPlayTrack: { track in
                         if let index = playlist.tracks.firstIndex(of: track) {
                             playlistManager.playTrackFromPlaylist(playlist, at: index)
+                            selectedTrackID = track.id
                         }
                     },
                     contextMenuItems: { track, _ in
@@ -463,8 +347,6 @@ struct PlaylistDetailView: View {
             return String(localized: "SMART PLAYLIST")
         case .regular:
             return String(localized: "PLAYLIST")
-        case .stations:
-            return String(localized: "STATION COLLECTION")
         }
     }
 
@@ -476,10 +358,10 @@ struct PlaylistDetailView: View {
 
     private var emptyStateMessage: String {
         guard let playlist = playlist else { return "" }
-        
+
         return DefaultPlaylists.emptyStateText(for: playlist)
     }
-    
+
     private var isPinned: Bool {
         playlistManager.isPlaylistPinned(playlist ?? Playlist(name: "", tracks: []))
     }
@@ -489,7 +371,6 @@ struct PlaylistDetailView: View {
     /// Swaps in the selected playlist's cover/cached collage synchronously, so
     /// the reused view never flashes the previous playlist's artwork.
     private func seedArtworkFromCache() {
-        guard !isStationCollection else { return }
         artworkData = playlist?.artworkData
         updateGradientColors()
     }
@@ -584,12 +465,6 @@ struct PlaylistDetailView: View {
     private func loadPlaylistTracksIfNeeded() {
         guard let playlist = playlist else { return }
 
-        if playlist.type == .stations {
-            stations = playlistManager.stations(in: playlist)
-            refreshStationCollage()
-            return
-        }
-
         if playlist.type == .smart && playlist.tracks.isEmpty {
             // Load smart playlist tracks using the optimized query
             Task {
@@ -605,14 +480,14 @@ struct PlaylistDetailView: View {
 
     private func playPlaylist(shuffle: Bool = false) {
         guard let playlist = playlist, !playlist.tracks.isEmpty else { return }
-        
+
         NotificationCenter.default.post(
             name: .playPlaylistTracks,
             object: nil,
             userInfo: ["playlistID": playlist.id, "shuffle": shuffle]
         )
     }
-    
+
     private func pinPlaylist() {
         guard let playlist = playlist else { return }
 
@@ -633,49 +508,6 @@ struct PlaylistDetailView: View {
     private func editRegularPlaylist() {
         guard let playlist = playlist else { return }
         playlistManager.showEditRegularPlaylistModal(playlist)
-    }
-
-    private func editStationCollection() {
-        guard let playlist = playlist else { return }
-        playlistManager.showEditStationCollectionModal(playlist)
-    }
-}
-
-// MARK: - Station Collections
-
-private extension PlaylistDetailView {
-    /// The playlist 2x2 collage, over stations: `Playlist.artworkData` collages tracks.
-    func refreshStationCollage() {
-        // Before the early returns below, not after: selecting a custom cover or clearing
-        // artwork must also invalidate a render already in flight.
-        collageToken += 1
-        let token = collageToken
-
-        guard let playlist, playlist.type == .stations else { return }
-
-        if let customCover = playlist.coverArtworkData {
-            artworkData = customCover
-            updateGradientColors()
-            return
-        }
-
-        // Filter before taking four: otherwise four artwork-less stations at the front
-        // produce a placeholder while later ones have images.
-        let sources: [Data?] = Array(stations.compactMap(\.artworkData).prefix(4))
-        guard !sources.isEmpty else {
-            artworkData = nil
-            updateGradientColors()
-            return
-        }
-
-        Task.detached(priority: .utility) {
-            let collage = Playlist.renderCollageArtwork(fromArtwork: sources)
-            await MainActor.run {
-                guard collageToken == token else { return }
-                artworkData = collage
-                updateGradientColors()
-            }
-        }
     }
 }
 

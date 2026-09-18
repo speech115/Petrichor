@@ -34,6 +34,9 @@ struct PetrichorApp: App {
     // has already kicked off reconciliation; only later transitions back to
     // .active (return from background) are a reconciliation trigger.
     @State private var hasAppearedActiveOnce = false
+    @State private var playbackSaveTask: Task<Void, Never>?
+    @State private var needsPlaybackSave = false
+    @State private var backgroundSaveID = UIBackgroundTaskIdentifier.invalid
 
     init() {
         #if DEBUG
@@ -99,21 +102,34 @@ struct PetrichorApp: App {
                             }
                         }
                     case .background, .inactive:
-                        // Save off-main within a background task: the system
-                        // may otherwise suspend the app mid-write, dropping the
-                        // journal batch or the playback state.
-                        var backgroundTask = UIBackgroundTaskIdentifier.invalid
-                        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Save playback state") {
-                            UIApplication.shared.endBackgroundTask(backgroundTask)
-                        }
-                        Task {
-                            await appCoordinator.savePlaybackStateInBackground()
-                            UIApplication.shared.endBackgroundTask(backgroundTask)
-                        }
+                        saveInBackground()
                     @unknown default:
                         break
                     }
                 }
         }
+    }
+
+    private func saveInBackground() {
+        needsPlaybackSave = true
+        guard playbackSaveTask == nil else { return }
+        backgroundSaveID = UIApplication.shared.beginBackgroundTask(withName: "Save playback state") {
+            endBackgroundSave()
+        }
+        playbackSaveTask = Task {
+            repeat {
+                needsPlaybackSave = false
+                await appCoordinator.savePlaybackStateInBackground()
+            } while needsPlaybackSave
+            endBackgroundSave()
+            playbackSaveTask = nil
+        }
+    }
+
+    private func endBackgroundSave() {
+        guard backgroundSaveID != .invalid else { return }
+        let identifier = backgroundSaveID
+        backgroundSaveID = .invalid
+        UIApplication.shared.endBackgroundTask(identifier)
     }
 }

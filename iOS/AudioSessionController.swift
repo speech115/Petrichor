@@ -10,6 +10,7 @@
 
 import AVFoundation
 
+@MainActor
 final class AudioSessionController {
     private let onPause: () -> Void
     private let onResume: () -> Void
@@ -65,7 +66,7 @@ final class AudioSessionController {
     // backend state. The main-queue FIFO hop mirrors
     // `AVQueuePlayerBackend.enqueueAVFoundationEvent`.
 
-    @objc private func handleInterruption(_ notification: Notification) {
+    @objc nonisolated private func handleInterruption(_ notification: Notification) {
         guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
 
@@ -93,7 +94,7 @@ final class AudioSessionController {
         }
     }
 
-    @objc private func handleRouteChange(_ notification: Notification) {
+    @objc nonisolated private func handleRouteChange(_ notification: Notification) {
         guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 

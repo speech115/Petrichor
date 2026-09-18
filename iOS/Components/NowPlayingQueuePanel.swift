@@ -15,7 +15,6 @@
 //
 
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct NowPlayingQueuePanel: View {
     private struct QueueOccurrence: Identifiable {
@@ -30,7 +29,7 @@ struct NowPlayingQueuePanel: View {
     @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
     @ObservedObject private var playlistQueue: PlaylistQueueObservation
 
-    @State private var draggedIndex: Int?
+    @State private var editMode = EditMode.inactive
 
     init(
         accentColor: Color,
@@ -66,14 +65,34 @@ struct NowPlayingQueuePanel: View {
     // MARK: - Queue List
 
     private var queueList: some View {
-        List {
-            ForEach(queueOccurrences) { occurrence in
-                queueRow(for: occurrence.track, at: occurrence.position)
+        VStack(spacing: 0) {
+            HStack {
+                Text(TrackCountText.songs(playlistQueue.currentQueue.count))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                EditButton()
             }
+            .padding(.horizontal, 20)
+            .frame(minHeight: 44)
+
+            List {
+                ForEach(queueOccurrences) { occurrence in
+                    queueRow(for: occurrence.track, at: occurrence.position)
+                }
+                .onMove { offsets, destination in
+                    // This list has no multi-selection: native dragging moves one row.
+                    guard let source = offsets.first, offsets.count == 1 else { return }
+                    playlistManager.moveInQueue(
+                        from: source,
+                        to: destination > source ? destination - 1 : destination
+                    )
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .listRowSpacing(0)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .listRowSpacing(0)
+        .environment(\.editMode, $editMode)
     }
 
     private var queueOccurrences: [QueueOccurrence] {
@@ -100,6 +119,15 @@ struct NowPlayingQueuePanel: View {
                 positionIndicator(isCurrentTrack: isCurrentTrack, position: position)
 
                 VStack(alignment: .leading, spacing: 2) {
+                    if isCurrentTrack {
+                        Text(String(localized: "Now Playing"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(accentColor)
+                    } else if position == playlistQueue.currentQueueIndex + 1 {
+                        Text(String(localized: "Up Next"))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
                     Text(track.title)
                         .font(.body.weight(isCurrentTrack ? .semibold : .regular))
                         .lineLimit(1)
@@ -122,15 +150,6 @@ struct NowPlayingQueuePanel: View {
         .buttonStyle(.plain)
         .listRowBackground(isCurrentTrack ? accentColor.opacity(0.16) : Color.clear)
         .listRowSeparator(.hidden)
-        .onDrag {
-            draggedIndex = position
-            return NSItemProvider(object: track.id as NSString)
-        }
-        .onDrop(of: [UTType.text], delegate: QueueDropDelegate(
-            destinationIndex: position,
-            draggedIndex: $draggedIndex,
-            playlistManager: playlistManager
-        ))
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if !isCurrentTrack {
                 Button(role: .destructive) {
@@ -140,7 +159,24 @@ struct NowPlayingQueuePanel: View {
                 }
             }
         }
-        .accessibilityLabel(Text(track.title))
+        .accessibilityActions {
+            if position > 0 {
+                Button(String(localized: "Move Up")) {
+                    playlistManager.moveInQueue(from: position, to: position - 1)
+                }
+            }
+            if position + 1 < playlistQueue.currentQueue.count {
+                Button(String(localized: "Move Down")) {
+                    playlistManager.moveInQueue(from: position, to: position + 1)
+                }
+            }
+            if !isCurrentTrack {
+                Button(String(localized: "Remove")) {
+                    playlistManager.removeFromQueue(at: position)
+                }
+            }
+        }
+        .accessibilityLabel(Text("\(track.title), \(track.displayArtist)"))
         .accessibilityValue(isCurrentTrack ? Text(String(localized: "Now Playing")) : Text(""))
     }
 
@@ -164,26 +200,5 @@ struct NowPlayingQueuePanel: View {
             }
         }
         .frame(width: 24)
-    }
-}
-
-// MARK: - Drag and Drop Delegate
-
-private struct QueueDropDelegate: DropDelegate {
-    let destinationIndex: Int
-    @Binding var draggedIndex: Int?
-    let playlistManager: PlaylistManager
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggedIndex = nil
-        return true
-    }
-
-    func dropEntered(info: DropInfo) {
-        guard let from = draggedIndex, from != destinationIndex else { return }
-        withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
-            playlistManager.moveInQueue(from: from, to: destinationIndex)
-        }
-        draggedIndex = destinationIndex
     }
 }

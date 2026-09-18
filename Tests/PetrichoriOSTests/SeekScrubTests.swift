@@ -49,3 +49,13 @@ import Testing
     #expect(SeekScrub.fillFraction(currentTime: 60, duration: -240, scrubbing: false, scrubTime: 0) == 0)
     #expect(SeekScrub.fillFraction(currentTime: 60, duration: .nan, scrubbing: false, scrubTime: 0) == 0)
 }
+
+
+@Test func dragMovesRelativeToPlayheadWithoutJumpingToTheTouch() {
+    #expect(SeekScrub.dragTime(startTime: 60, translation: 0, width: 300, duration: 180) == 60)
+    #expect(SeekScrub.dragTime(startTime: 60, translation: 50, width: 300, duration: 180) == 90)
+    #expect(SeekScrub.dragTime(startTime: 60, translation: -50, width: 300, duration: 180) == 30)
+    #expect(SeekScrub.dragTime(startTime: 60, translation: -500, width: 300, duration: 180) == 0)
+    #expect(SeekScrub.dragTime(startTime: 60, translation: 500, width: 300, duration: 180) == 180)
+    #expect(SeekScrub.dragTime(startTime: 60, translation: 50, width: 300, duration: .nan) == 0)
+}

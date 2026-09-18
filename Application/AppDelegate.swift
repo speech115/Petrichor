@@ -10,7 +10,7 @@ import Sparkle
 
 class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     internal var updaterController: SPUStandardUpdaterController?
-    
+
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             URLSchemeHandler.handle(url)
@@ -20,7 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Register UserDefaults with default settings
         AppDelegate.registerUserDefaultsDefaults()
-        
+
         // Apply color mode very early, before any windows are shown. Compared
         // case-insensitively so registered defaults or any legacy values match.
         let colorMode = (UserDefaults.standard.string(forKey: "colorMode") ?? "auto").lowercased()
@@ -34,15 +34,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             NSApp.appearance = nil // Follow system
         }
     }
-    
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         // Check user preference for background running
         let closeToMenubar = UserDefaults.standard.bool(forKey: "closeToMenubar")
-        
+
         // If closeToMenubar is true, keep running in background, otherwise terminate the app.
         return !closeToMenubar
     }
-    
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard NotificationManager.shared.isActivityInProgress,
               let coordinator = AppCoordinator.shared else {
@@ -104,30 +104,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
     }
 
-    func applicationDidResignActive(_ notification: Notification) {
-        AppCoordinator.shared?.savePlaybackState(synchronous: false)
-    }
-
-    func applicationDidHide(_ notification: Notification) {
-        WindowManager.shared.playbackWindowsDidHide()
-    }
-
-    func applicationDidUnhide(_ notification: Notification) {
-        WindowManager.shared.playbackWindowVisibilityDidChange()
-    }
-    
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Initialize logging system explicitly
         // This ensures the singleton is created and log rotation happens
         _ = Logger.shared  // Force initialization
-        
+
         // Install crash handlers to capture crashes in log file
         Logger.installCrashHandler()
-        
+
         // Log startup information
         Logger.info("Petrichor starting up...")
         Logger.info("Log file location: \(Logger.logFileURL?.path ?? "unknown")")
-        
+
         // For debug builds, you might want more verbose logging
         #if DEBUG
         Logger.setMinimumLogLevel(.info)
@@ -142,17 +130,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
 
         NSWindow.allowsAutomaticWindowTabbing = false
-        
+
         // Remove unwanted menus
         DispatchQueue.main.async {
             self.removeUnwantedMenus()
         }
-        
+
         // Ensure main window is visible
         if let window = NSApp.windows.first {
             window.makeKeyAndOrderFront(nil)
         }
-        
+
         // Observe playback changes
         NotificationCenter.default.addObserver(
             self,
@@ -160,14 +148,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             name: NSNotification.Name("PlaybackStateChanged"),
             object: nil
         )
-        
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(trackChanged),
             name: NSNotification.Name("CurrentTrackChanged"),
             object: nil
         )
-        
+
         // Dev builds run under their own bundle identifier, so the production
         // appcast isn't an update path for them - installing a "newer" release
         // would just leave a second app behind. Don't start the updater at all.
@@ -180,24 +168,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         } else {
             Logger.info("Dev build (\(AppInfo.bundleIdentifier)) - skipping updater setup")
         }
-        
+
         Logger.info("App finished launching")
     }
-    
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         // Always restore dock icon when reopening
         NSApp.setActivationPolicy(.regular)
-        
+
         // If we have a stored window reference, use it
         if let window = WindowManager.shared.mainWindow {
             window.makeKeyAndOrderFront(nil)
             return false // We handled it ourselves
         }
-        
+
         // Otherwise let the system handle it
         return true
     }
-    
+
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         // Prevent creating new windows when clicking dock icon
         if UserDefaults.standard.bool(forKey: "closeToMenubar") {
@@ -210,48 +198,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
         return true
     }
-    
+
     // MARK: - Dock Menu
-    
+
     @objc
     private func trackChanged() {
         // Force dock menu to update by invalidating the dock tile
         NSApp.dockTile.display()
     }
-    
+
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        
+
         guard let coordinator = AppCoordinator.shared else { return menu }
         let playbackManager = coordinator.playbackManager
         let playlistManager = coordinator.playlistManager
-        
+
         // Now Playing header
         let nowPlayingItem = NSMenuItem(title: String(localized: "Now Playing"), action: nil, keyEquivalent: "")
         nowPlayingItem.isEnabled = false
         menu.addItem(nowPlayingItem)
-        
-        if let station = playbackManager.currentStation {
-            // Station name; a stream has no favorite action and nothing to skip to.
-            // swiftlint:disable:next localized_appkit_string - dynamic station name, not localizable
-            let titleItem = NSMenuItem(title: "  \(station.name)", action: nil, keyEquivalent: "")
-            titleItem.isEnabled = false
-            menu.addItem(titleItem)
 
-            if let nowPlaying = playbackManager.streamNowPlayingTitle {
-                // swiftlint:disable:next localized_appkit_string - live stream metadata, not localizable
-                let nowPlayingLine = NSMenuItem(title: "  \(nowPlaying)", action: nil, keyEquivalent: "")
-                nowPlayingLine.isEnabled = false
-                menu.addItem(nowPlayingLine)
-            }
-        } else if let currentTrack = playbackManager.currentTrack {
+        if let currentTrack = playbackManager.currentTrack {
             // Song title
             // swiftlint:disable:next localized_appkit_string - dynamic track title, not localizable
             let titleItem = NSMenuItem(title: "  \(currentTrack.title)", action: nil, keyEquivalent: "")
             titleItem.isEnabled = false
             menu.addItem(titleItem)
-            
+
             // Artist - Album
             var artistAlbumText = "  \(currentTrack.artist)"
             if !currentTrack.album.isEmpty && currentTrack.album != "Unknown Album" {
@@ -260,7 +235,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             let artistAlbumItem = NSMenuItem(title: artistAlbumText, action: nil, keyEquivalent: "")
             artistAlbumItem.isEnabled = false
             menu.addItem(artistAlbumItem)
-            
+
             // Favorite action
             let favoriteTitle = currentTrack.isFavorite
                 ? String(localized: "Remove from Favorites")
@@ -279,13 +254,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             noTrackItem.isEnabled = false
             menu.addItem(noTrackItem)
         }
-        
+
         menu.addItem(NSMenuItem.separator())
-        
+
         // Repeat menu
         let repeatMenu = NSMenu()
         repeatMenu.autoenablesItems = false
-        
+
         let repeatOffItem = NSMenuItem(
             title: String(localized: "Off"),
             action: #selector(setRepeatOff),
@@ -294,7 +269,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         repeatOffItem.target = self
         repeatOffItem.state = playlistManager.repeatMode == .off ? .on : .off
         repeatMenu.addItem(repeatOffItem)
-        
+
         let repeatOneItem = NSMenuItem(
             title: String(localized: "One"),
             action: #selector(setRepeatOne),
@@ -303,7 +278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         repeatOneItem.target = self
         repeatOneItem.state = playlistManager.repeatMode == .one ? .on : .off
         repeatMenu.addItem(repeatOneItem)
-        
+
         let repeatAllItem = NSMenuItem(
             title: String(localized: "All"),
             action: #selector(setRepeatAll),
@@ -312,11 +287,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         repeatAllItem.target = self
         repeatAllItem.state = playlistManager.repeatMode == .all ? .on : .off
         repeatMenu.addItem(repeatAllItem)
-        
+
         let repeatMenuItem = NSMenuItem(title: String(localized: "Repeat"), action: nil, keyEquivalent: "")
         repeatMenuItem.submenu = repeatMenu
         menu.addItem(repeatMenuItem)
-        
+
         // Shuffle toggle
         let shuffleItem = NSMenuItem(
             title: String(localized: "Shuffle"),
@@ -326,27 +301,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         shuffleItem.target = self
         shuffleItem.state = playlistManager.isShuffleEnabled ? .on : .off
         menu.addItem(shuffleItem)
-        
+
         menu.addItem(NSMenuItem.separator())
-        
+
         // Playback controls
-        let playPauseTitle = playbackManager.playPauseActionTitle
+        let playPauseTitle = playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play")
         let playPauseItem = NSMenuItem(
             title: playPauseTitle,
             action: #selector(togglePlayPause),
             keyEquivalent: ""
         )
         playPauseItem.target = self
-        playPauseItem.isEnabled = playbackManager.currentTrack != nil || playbackManager.currentStation != nil
+        playPauseItem.isEnabled = playbackManager.currentTrack != nil
         menu.addItem(playPauseItem)
-        
+
         let nextItem = NSMenuItem(
             title: String(localized: "Next"),
             action: #selector(playNext),
             keyEquivalent: ""
         )
         nextItem.target = self
-        nextItem.isEnabled = playbackManager.currentTrack != nil && playbackManager.currentStation == nil
+        nextItem.isEnabled = playbackManager.currentTrack != nil
         menu.addItem(nextItem)
 
         let previousItem = NSMenuItem(
@@ -355,67 +330,67 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             keyEquivalent: ""
         )
         previousItem.target = self
-        previousItem.isEnabled = playbackManager.currentTrack != nil && playbackManager.currentStation == nil
+        previousItem.isEnabled = playbackManager.currentTrack != nil
         menu.addItem(previousItem)
-        
+
         return menu
     }
-    
+
     // MARK: - Dock Menu Actions
-    
+
     @objc
     private func toggleFavorite() {
         guard let coordinator = AppCoordinator.shared,
               let track = coordinator.playbackManager.currentTrack else { return }
-        
+
         coordinator.playlistManager.toggleFavorite(for: track)
     }
-    
+
     @objc
     private func setRepeatOff() {
         AppCoordinator.shared?.playlistManager.repeatMode = .off
     }
-    
+
     @objc
     private func setRepeatOne() {
         AppCoordinator.shared?.playlistManager.repeatMode = .one
     }
-    
+
     @objc
     private func setRepeatAll() {
         AppCoordinator.shared?.playlistManager.repeatMode = .all
     }
-    
+
     @objc
     private func toggleShuffle() {
         AppCoordinator.shared?.playlistManager.toggleShuffle()
     }
-    
+
     @objc
     private func togglePlayPause() {
         AppCoordinator.shared?.playbackManager.togglePlayPause()
     }
-    
+
     @objc
     private func playNext() {
         AppCoordinator.shared?.playlistManager.playNextTrack()
     }
-    
+
     @objc
     private func playPrevious() {
         AppCoordinator.shared?.playlistManager.playPreviousTrack()
     }
-    
+
     // MARK: - Helper Methods
-    
+
     private func removeUnwantedMenus() {
         guard let mainMenu = NSApp.mainMenu else { return }
-        
+
         // Remove Format menu
         if let formatMenu = mainMenu.item(withTitle: "Format") {
             mainMenu.removeItem(formatMenu)
         }
-        
+
         // Modify View menu
         if let viewMenu = mainMenu.item(withTitle: "View"),
            let viewSubmenu = viewMenu.submenu {
@@ -428,7 +403,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             }
         }
     }
-    
+
     static func registerUserDefaultsDefaults() {
         let defaults: [String: Any] = [
             "closeToMenubar": true,
@@ -439,39 +414,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             "colorMode": "Auto",
             "showFoldersTab": false,
             "showTrackTechnicalInfo": true,
-            "useArtworkColors": true,
             "tintPlaybackControls": true,
             "tintNowPlayingBackground": true,
             "playerBarBackgroundStyle": "Full width",
             "discoverUpdateInterval": "weekly",
-            "discoverTrackCount": DiscoverConfiguration.freshMusicTrackCount,
-            "artistInfoPeriodicRefreshEnabled": false,
-            "internetRadioEnabled": true,
-            "crossfadeEnabled": false,
-            "crossfadeDuration": 3.0,
-            "replayGainEnabled": false,
-            "replayGainMode": "auto",
-            "replayGainPreamp": 0.0
+            "discoverTrackCount": 50
         ]
 
         UserDefaults.standard.register(defaults: defaults)
-
-        normalizeDiscoverUpdateInterval()
-    }
-
-    /// `DiscoverUpdateInterval` used to persist English display strings as its
-    /// rawValues, so a stored "Every week" no longer decodes. Rewrite it once to
-    /// the bare case name; without this, `@AppStorage` silently falls back to
-    /// `.weekly` and leaves the stale string in place forever.
-    private static func normalizeDiscoverUpdateInterval() {
-        let key = "discoverUpdateInterval"
-        guard let stored = UserDefaults.standard.string(forKey: key),
-              DiscoverUpdateInterval(rawValue: stored) == nil,
-              let migrated = DiscoverUpdateInterval(persistedValue: stored) else {
-            return
-        }
-
-        UserDefaults.standard.set(migrated.rawValue, forKey: key)
-        Logger.info("Migrated discoverUpdateInterval '\(stored)' to '\(migrated.rawValue)'")
     }
 }

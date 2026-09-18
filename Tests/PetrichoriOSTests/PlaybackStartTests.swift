@@ -1,15 +1,85 @@
 import AVFoundation
 import Foundation
+import GRDB
 import Testing
 @testable import Petrichor
 
 // The only test that proves audio actually starts: everything else exercises
 // queue bookkeeping, which stays green even when nothing ever reaches the
 // speaker. Playback touches the process-wide `AVAudioSession`, so these run
-// serially and apart from the queue tests.
+// serially, including the queue suites nested under PlaybackTests.
 @Suite(.serialized)
+struct PlaybackTests {}
+
+extension PlaybackTests {
 @MainActor
 struct PlaybackStartTests {
+    @Test func restoredTrackSurvivesAnEarlySaveAndPlaysAfterLibraryLoads() async throws {
+        let defaults = UserDefaults.standard
+        let keys = ["SavedPlaybackState", "SavedPlaybackUIState"]
+        let oldValues = keys.map { defaults.data(forKey: $0) }
+        let database = try DatabaseManager()
+        let wav = try makeSilentWAV(seconds: 12)
+        let folderURL = LibraryPathStore.libraryRoot.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+        let url = folderURL.appendingPathComponent("Restore.wav")
+        try FileManager.default.moveItem(at: wav, to: url)
+        let track = try await database.dbQueue.write { db in
+            try Folder(url: folderURL).insert(db)
+            let folderID = db.lastInsertedRowID
+            var full = FullTrack(url: url)
+            full.folderId = folderID
+            full.title = "Restore"
+            full.duration = 12
+            try full.insert(db)
+            return try #require(try Track.filter(Track.Columns.trackId == db.lastInsertedRowID).fetchOne(db))
+        }
+        defer {
+            for (key, value) in zip(keys, oldValues) { defaults.set(value, forKey: key) }
+            try? database.dbQueue.writeWithoutTransaction { db in
+                try db.execute(sql: "DELETE FROM tracks WHERE id = ?", arguments: [track.trackId])
+                try db.execute(sql: "DELETE FROM folders WHERE id = ?", arguments: [track.folderId])
+            }
+            try? FileManager.default.removeItem(at: folderURL)
+        }
+        let state = PlaybackState(
+            currentTrack: track, playbackPosition: 3, queue: [track], currentQueueIndex: 0,
+            queueSource: .library, volume: 0, isMuted: true, shuffleEnabled: false, repeatMode: .off
+        )
+        let saved = try JSONEncoder().encode(state)
+        defaults.set(saved, forKey: keys[0])
+        defaults.set(try JSONEncoder().encode(state.createUIState(from: track)), forKey: keys[1])
+        let coordinator = AppCoordinator(cacheEntityArtwork: false)
+        let playback = coordinator.playbackManager
+        defer { playback.stop() }
+        // The count query is still in flight, exactly as on a large cold library.
+        #expect(!coordinator.libraryManager.countsLoaded)
+        coordinator.restorePlaybackState()
+        coordinator.savePlaybackState()
+        #expect(defaults.data(forKey: keys[0]) == saved, "temporary UI must not overwrite the saved track")
+        await coordinator.savePlaybackStateInBackground()
+        let backgroundState = try JSONDecoder().decode(
+            PlaybackState.self, from: #require(defaults.data(forKey: keys[0]))
+        )
+        #expect(backgroundState.currentTrackId == track.trackId)
+        #expect(backgroundState.queueTrackIds == state.queueTrackIds)
+        #expect(backgroundState.playbackPosition == 3)
+
+        let deadline = ContinuousClock.now + .seconds(8)
+        while playback.currentFullTrack == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(playback.currentTrack?.trackId == track.trackId, "library completion must finish restoration")
+        #expect(!playback.isPlaying, "restoring must wait for Play")
+        playback.togglePlayPause()
+        let playingDeadline = ContinuousClock.now + .seconds(8)
+        while playback.audioPlayer.state != .playing, ContinuousClock.now < playingDeadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(playback.audioPlayer.state == .playing, "restored track must actually play")
+        #expect(playback.audioPlayer.currentPlaybackProgress >= 3, "resume must retain the saved position")
+    }
+
     @Test func startingAQueueReachesThePlayingState() async throws {
         let url = try makeSilentWAV()
         defer { try? FileManager.default.removeItem(at: url) }
@@ -72,6 +142,8 @@ struct PlaybackStartTests {
     }
 }
 
+}
+
 // MARK: - Regression: false finish and queue refill
 
 /// Records delegate callbacks. `AVQueuePlayerBackend` routes every call
@@ -98,7 +170,7 @@ private final class RecordingDelegate: PlaybackBackendDelegate {
 /// track. That invented an eof, advanced the queue index and bumped play
 /// counts for a track that never finished. Rebooting the queue must not emit
 /// any finish event.
-@Suite(.serialized)
+extension PlaybackTests {
 @MainActor
 struct QueueRebuildRegressionTests {
     private func waitForFinishCount(
@@ -150,10 +222,12 @@ struct QueueRebuildRegressionTests {
     }
 }
 
+}
+
 /// The lookahead window preloads only the current item and its successor, so a long queue must be
 /// refilled while playing or it would silently end after the window. Playing
 /// through 18 one-second tracks proves the whole queue is consumed in order.
-@Suite(.serialized)
+extension PlaybackTests {
 @MainActor
 struct QueueRefillTests {
     @Test func aQueueLongerThanTheLookaheadWindowPlaysThroughToTheEnd() async throws {
@@ -187,6 +261,8 @@ struct QueueRefillTests {
             #expect(delegate.errors.isEmpty)
         }
     }
+}
+
 }
 
 // MARK: - Shared fixtures

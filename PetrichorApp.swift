@@ -10,18 +10,15 @@ struct PetrichorApp: App {
         AppDelegate.registerUserDefaultsDefaults()
         _appCoordinator = StateObject(wrappedValue: AppCoordinator())
     }
-    
+
     @AppStorage("showFoldersTab")
     private var showFoldersTab = false
-    
+
     @AppStorage("closeToMenubar")
     private var closeToMenubar = true
 
     @AppStorage("miniPlayerAlwaysOnTop")
     private var miniPlayerAlwaysOnTop = false
-
-    @AppStorage("internetRadioEnabled")
-    private var internetRadioEnabled = true
 
     @State private var menuUpdateTrigger = UUID()
     @Environment(\.openWindow)
@@ -31,6 +28,7 @@ struct PetrichorApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(appCoordinator.playbackManager)
+                .environmentObject(appCoordinator.playbackManager.playbackProgressState)
                 .environmentObject(appCoordinator.libraryManager)
                 .environmentObject(appCoordinator.playlistManager)
                 .onReceive(appCoordinator.playlistManager.$repeatMode) { _ in
@@ -48,7 +46,7 @@ struct PetrichorApp: App {
         .defaultSize(width: 1200, height: 800)
         .windowResizability(.contentSize)
         .handlesExternalEvents(matching: ["main"])
-        
+
         equalizerWindow
 
         reportProblemWindow
@@ -58,24 +56,24 @@ struct PetrichorApp: App {
         .commands {
             // App Menu Commands
             appMenuCommands()
-            
+
             // File Menu Commands
             fileMenuCommands()
-            
+
             // Playback Menu
             playbackMenuCommands()
-            
+
             // View Menu Commands
             viewMenuCommands()
-            
+
             // Window Menu Commands
             windowMenuCommands()
-            
+
             // Help Menu Commands
             helpMenuCommands()
         }
     }
-    
+
     private var equalizerWindow: some Scene {
         WindowGroup("Equalizer", id: "equalizer") {
             EqualizerView()
@@ -107,25 +105,25 @@ struct PetrichorApp: App {
 
 extension PetrichorApp {
     // MARK: - App Menu Commands
-    
+
     @CommandsBuilder
     private func appMenuCommands() -> some Commands {
         CommandGroup(replacing: .appSettings) {}
-        
+
         CommandGroup(replacing: .appInfo) {
             aboutMenuItem()
         }
-        
+
         CommandGroup(after: .appInfo) {
             settingsMenuItem()
         }
-        
+
         CommandGroup(after: .appInfo) {
             Divider()
             checkForUpdatesMenuItem()
         }
     }
-    
+
     private func aboutMenuItem() -> some View {
         Button {
             NotificationCenter.default.post(
@@ -140,7 +138,7 @@ extension PetrichorApp {
             }
         }
     }
-    
+
     private func settingsMenuItem() -> some View {
         Button {
             NotificationCenter.default.post(
@@ -156,7 +154,7 @@ extension PetrichorApp {
         }
         .keyboardShortcut(",", modifiers: .command)
     }
-    
+
     private func checkForUpdatesMenuItem() -> some View {
         Button {
             if let updater = appDelegate.updaterController?.updater {
@@ -172,7 +170,7 @@ extension PetrichorApp {
         // Dev builds don't run the updater, so leave the item visible but inert
         .disabled(!AppInfo.isProductionBuild)
     }
-    
+
     // MARK: - File Menu Commands
 
     @CommandsBuilder
@@ -184,11 +182,6 @@ extension PetrichorApp {
             Menu {
                 newPlaylistMenuItem()
                 newPlaylistFromSelectionMenuItem()
-
-                if internetRadioEnabled {
-                    Divider()
-                    newRadioStationMenuItem()
-                }
             } label: {
                 if #available(macOS 26.0, *) {
                     Label("New", systemImage: "plus.square")
@@ -196,9 +189,9 @@ extension PetrichorApp {
                     Text("New")
                 }
             }
-            
+
             Divider()
-            
+
             // Library submenu
             Menu {
                 addFolderMenuItem()
@@ -210,7 +203,7 @@ extension PetrichorApp {
                     Text("Library")
                 }
             }
-            
+
             // Playlists submenu
             Menu {
                 importPlaylistsMenuItem()
@@ -222,13 +215,13 @@ extension PetrichorApp {
                     Text("Playlists")
                 }
             }
-            
+
             Divider()
-            
+
             closeWindowMenuItem()
         }
     }
-    
+
     private func closeWindowMenuItem() -> some View {
         Button {
             closeWindow()
@@ -241,18 +234,15 @@ extension PetrichorApp {
         }
         .keyboardShortcut("w", modifiers: .command)
     }
-    
+
     private func closeWindow() {
         guard let window = NSApp.keyWindow else { return }
-        
+
         let isMainWindow = window.identifier?.rawValue == WindowIdentifier.mainWindow
-        
+
         if closeToMenubar && isMainWindow {
             appCoordinator.savePlaybackState()
             window.orderOut(nil)
-            DispatchQueue.main.async {
-                WindowManager.shared.playbackWindowVisibilityDidChange()
-            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NSApp.setActivationPolicy(.accessory)
             }
@@ -274,20 +264,6 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut("n", modifiers: .command)
-        .disabled(!appCoordinator.libraryManager.hasLocalMusic)
-    }
-
-    private func newRadioStationMenuItem() -> some View {
-        Button {
-            InternetRadioManager.shared.showAddStation()
-        } label: {
-            if #available(macOS 26.0, *) {
-                Label("Radio Station", systemImage: Icons.radioFill)
-            } else {
-                Text("Radio Station")
-            }
-        }
-        .keyboardShortcut("n", modifiers: [.command, .option])
     }
 
     private func newPlaylistFromSelectionMenuItem() -> some View {
@@ -359,33 +335,33 @@ extension PetrichorApp {
             }
         }
     }
-    
+
     // MARK: - Playback Menu Commands
-    
+
     @CommandsBuilder
     private func playbackMenuCommands() -> some Commands {
         CommandMenu("Playback") {
             playPauseMenuItem()
             favoriteMenuItem()
-            
+
             Divider()
-            
+
             shuffleMenuItem()
             repeatMenuItem()
-            
+
             Divider()
-            
+
             navigationMenuItems()
-            
+
             Divider()
-            
+
             volumeMenuItems()
         }
     }
-    
+
     private func playPauseMenuItem() -> some View {
         Button {
-            if appCoordinator.playbackManager.hasPlayableContent {
+            if appCoordinator.playbackManager.currentTrack != nil {
                 appCoordinator.playbackManager.togglePlayPause()
             }
         } label: {
@@ -399,9 +375,9 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(" ", modifiers: [])
-        .disabled(!appCoordinator.playbackManager.hasPlayableContent)
+        .disabled(appCoordinator.playbackManager.currentTrack == nil)
     }
-    
+
     private func favoriteMenuItem() -> some View {
         Button {
             if let track = appCoordinator.playbackManager.currentTrack {
@@ -424,7 +400,7 @@ extension PetrichorApp {
         .disabled(appCoordinator.playbackManager.currentTrack == nil)
         .id(menuUpdateTrigger)
     }
-    
+
     private func shuffleMenuItem() -> some View {
         Toggle(isOn: Binding(
             get: { appCoordinator.playlistManager.isShuffleEnabled },
@@ -442,7 +418,7 @@ extension PetrichorApp {
         .keyboardShortcut("s", modifiers: .command)
         .id(menuUpdateTrigger)
     }
-    
+
     private func repeatMenuItem() -> some View {
         Button {
             appCoordinator.playlistManager.toggleRepeatMode()
@@ -460,7 +436,7 @@ extension PetrichorApp {
         .keyboardShortcut("r", modifiers: .command)
         .id(menuUpdateTrigger)
     }
-    
+
     @ViewBuilder
     private func navigationMenuItems() -> some View {
         nextMenuItem()
@@ -468,7 +444,7 @@ extension PetrichorApp {
         seekForwardMenuItem()
         seekBackwardMenuItem()
     }
-    
+
     private func nextMenuItem() -> some View {
         Button {
             appCoordinator.playlistManager.playNextTrack()
@@ -485,7 +461,7 @@ extension PetrichorApp {
         .keyboardShortcut(.rightArrow, modifiers: .command)
         .disabled(appCoordinator.playbackManager.currentTrack == nil)
     }
-    
+
     private func previousMenuItem() -> some View {
         Button {
             appCoordinator.playlistManager.playPreviousTrack()
@@ -502,7 +478,7 @@ extension PetrichorApp {
         .keyboardShortcut(.leftArrow, modifiers: .command)
         .disabled(appCoordinator.playbackManager.currentTrack == nil)
     }
-    
+
     private func seekForwardMenuItem() -> some View {
         Button {
             if let currentTrack = appCoordinator.playbackManager.currentTrack {
@@ -525,7 +501,7 @@ extension PetrichorApp {
         .keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
         .disabled(appCoordinator.playbackManager.currentTrack == nil)
     }
-    
+
     private func seekBackwardMenuItem() -> some View {
         Button {
             if appCoordinator.playbackManager.currentTrack != nil {
@@ -548,13 +524,13 @@ extension PetrichorApp {
         .keyboardShortcut(.leftArrow, modifiers: [.command, .shift])
         .disabled(appCoordinator.playbackManager.currentTrack == nil)
     }
-    
+
     @ViewBuilder
     private func volumeMenuItems() -> some View {
         volumeUpMenuItem()
         volumeDownMenuItem()
     }
-    
+
     private func volumeUpMenuItem() -> some View {
         Button {
             let newVolume = min(appCoordinator.playbackManager.volume + 0.05, 1.0)
@@ -571,7 +547,7 @@ extension PetrichorApp {
         }
         .keyboardShortcut(.upArrow, modifiers: .command)
     }
-    
+
     private func volumeDownMenuItem() -> some View {
         Button {
             let newVolume = max(appCoordinator.playbackManager.volume - 0.05, 0.0)
@@ -588,9 +564,9 @@ extension PetrichorApp {
         }
         .keyboardShortcut(.downArrow, modifiers: .command)
     }
-    
+
     // MARK: - Window Menu Commands
-    
+
     @CommandsBuilder
     private func windowMenuCommands() -> some Commands {
         CommandGroup(before: .windowList) {
@@ -621,7 +597,7 @@ extension PetrichorApp {
                 }
             }
             .keyboardShortcut("m", modifiers: [.command, .option])
-            .disabled(!appCoordinator.playbackManager.hasPlayableContent)
+            .disabled(appCoordinator.playbackManager.currentTrack == nil)
 
             Button {
                 NotificationCenter.default.post(name: .toggleImmersivePlayer, object: nil)
@@ -636,14 +612,14 @@ extension PetrichorApp {
                 }
             }
             .keyboardShortcut("f", modifiers: [.command, .option])
-            .disabled(!appCoordinator.playbackManager.hasPlayableContent)
+            .disabled(appCoordinator.playbackManager.currentTrack == nil)
 
             Divider()
         }
     }
-    
+
     // MARK: - View Menu Commands
-    
+
     @CommandsBuilder
     private func viewMenuCommands() -> some Commands {
         CommandGroup(after: .toolbar) {
@@ -662,7 +638,7 @@ extension PetrichorApp {
             }
         }
     }
-    
+
     private func focusSearchMenuItem() -> some View {
         Button {
             NotificationCenter.default.post(name: .focusSearchField, object: nil)
@@ -678,7 +654,7 @@ extension PetrichorApp {
         }
         .keyboardShortcut("f", modifiers: .command)
     }
-    
+
     private func foldersTabToggle() -> some View {
         Toggle(isOn: $showFoldersTab) {
             if #available(macOS 26.0, *) {
@@ -689,9 +665,9 @@ extension PetrichorApp {
         }
         .keyboardShortcut("f", modifiers: [.command, .option, .shift])
     }
-    
+
     // MARK: - Help Menu Commands
-    
+
     @CommandsBuilder
     private func helpMenuCommands() -> some Commands {
         CommandGroup(replacing: .help) {
@@ -718,7 +694,7 @@ extension PetrichorApp {
             }
         }
     }
-    
+
     private func projectHomepageMenuItem() -> some View {
         Button {
             if let url = URL(string: About.appWebsite) {
@@ -735,7 +711,7 @@ extension PetrichorApp {
             }
         }
     }
-    
+
     private func sponsorProjectMenuItem() -> some View {
         Button {
             if let url = URL(string: About.donate) {
@@ -785,9 +761,9 @@ extension PetrichorApp {
         }
         .keyboardShortcut("?", modifiers: .command)
     }
-    
+
     // MARK: - Helper Properties
-    
+
     private var repeatModeLabel: String {
         switch appCoordinator.playlistManager.repeatMode {
         case .off: return String(localized: "Repeat: Off")

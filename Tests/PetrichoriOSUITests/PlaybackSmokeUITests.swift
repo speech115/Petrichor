@@ -29,7 +29,7 @@ final class PlaybackSmokeUITests: XCTestCase {
         // Home is the default tab; the Songs row lives in the Library section
         // at the bottom of the Home scroll.
         let songsRow = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH 'Songs'")
+            identifier: "library.allMusic"
         ).firstMatch
         XCTAssertTrue(
             songsRow.waitForExistence(timeout: 60),

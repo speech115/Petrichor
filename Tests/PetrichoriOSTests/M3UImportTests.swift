@@ -186,3 +186,14 @@ import Testing
     #expect(resolved[3] == nil)
     #expect(resolved[4] == nil)
 }
+
+@Test func importedPlaylistNamesStaySeparateFromPersonalPlaylists() {
+    for name in ["Все треки", "03 Все треки", "Spotify - Liked Songs", "Любимые треки", "Яндекс Музыка"] {
+        let playlist = Playlist(name: name, tracks: [])
+        #expect(PlaylistSource.isImported(playlist))
+        #expect(playlist.name == name)
+    }
+    #expect(PlaylistDisplay.name(for: Playlist(name: "Все треки", tracks: [])) == "Все треки")
+    #expect(!PlaylistSource.isImported(Playlist(name: "Road Trip", tracks: [])))
+    #expect(!PlaylistSource.isImported(Playlist(name: "Favorites", tracks: [])))
+}

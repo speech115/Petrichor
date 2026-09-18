@@ -18,7 +18,8 @@ struct NowPlayingLyricsPanel: View {
 
     @State private var lyricLines: [LyricLine] = []
     @State private var isLoading = true
-    @State private var fetchFailed = false
+    @State private var fetchError: NSError?
+    @AppStorage("onlineLyricsEnabled") private var onlineLyricsEnabled = false
     @State private var currentLineIndex = -1
     @State private var hasTimedLyrics = false
 
@@ -53,6 +54,9 @@ struct NowPlayingLyricsPanel: View {
         }
         .onChange(of: playbackPresentation.currentTrack?.id) { _, _ in
             loadLyricsForCurrentTrack()
+        }
+        .onChange(of: onlineLyricsEnabled) { _, _ in
+            loadLyricsForCurrentTrack(forceReload: true)
         }
         .onReceive(playbackProgressState.$currentTime) { newTime in
             updateCurrentLine(for: newTime)
@@ -98,24 +102,57 @@ struct NowPlayingLyricsPanel: View {
     @ScaledMetric(relativeTo: .largeTitle) private var emptyStateIconSize: CGFloat = 48
 
     private var emptyLyricsView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: Icons.customLyrics)
-                .font(.system(size: min(emptyStateIconSize, 72)))
-                .foregroundColor(.secondary)
+        ScrollView {
+            VStack(spacing: 16) {
+                Image(systemName: Icons.customLyrics)
+                    .font(.system(size: min(emptyStateIconSize, 72)))
+                    .foregroundColor(.secondary)
 
-            Text(String(localized: "No Lyrics Available"))
-                .font(.headline)
-                .foregroundColor(.secondary)
+                Text(emptyTitle)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
 
-            if fetchFailed {
-                Button {
-                    loadLyricsForCurrentTrack(forceReload: true)
-                } label: {
-                    Label(String(localized: "Retry"), systemImage: Icons.arrowClockwise)
+                Text(emptyDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                if !onlineLyricsEnabled {
+                    Button(String(localized: "Enable Online Lyrics")) {
+                        onlineLyricsEnabled = true
+                    }
+                } else if fetchError != nil {
+                    Button {
+                        loadLyricsForCurrentTrack(forceReload: true)
+                    } label: {
+                        Label(String(localized: "Retry"), systemImage: Icons.arrowClockwise)
+                    }
                 }
             }
+            .padding(24)
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .defaultScrollAnchor(.center, for: .alignment)
+    }
+
+    private var isOffline: Bool {
+        guard let fetchError, fetchError.domain == NSURLErrorDomain else { return false }
+        return [NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost,
+                NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff].contains(fetchError.code)
+    }
+
+    private var emptyTitle: String {
+        if !onlineLyricsEnabled { return String(localized: "Online Lyrics Are Off") }
+        if isOffline { return String(localized: "No Internet Connection") }
+        if fetchError != nil { return String(localized: "Couldn't Load Lyrics") }
+        return String(localized: "No Lyrics Available")
+    }
+
+    private var emptyDescription: String {
+        if !onlineLyricsEnabled { return String(localized: "No lyrics in this file. Enable online search to look for them.") }
+        if isOffline { return String(localized: "Connect to the internet and try again.") }
+        if fetchError != nil { return String(localized: "The lyrics service couldn't be reached. Try again.") }
+        return String(localized: "No lyrics were found for this song.")
     }
 
     // MARK: - Lyrics Content with Conditional Synced Highlight
@@ -172,7 +209,7 @@ struct NowPlayingLyricsPanel: View {
         guard let track = currentTrack else {
             lyricLines = []
             isLoading = false
-            fetchFailed = false
+            fetchError = nil
             return
         }
 
@@ -183,14 +220,14 @@ struct NowPlayingLyricsPanel: View {
             lyricLines = cached.lines
             hasTimedLyrics = cached.hasTimed
             isLoading = false
-            fetchFailed = false
+            fetchError = nil
             updateCurrentLine(for: playbackProgressState.currentTime)
             return
         }
 
         isLoading = true
         lyricLines = []
-        fetchFailed = false
+        fetchError = nil
         hasTimedLyrics = false
 
         Task {
@@ -207,7 +244,7 @@ struct NowPlayingLyricsPanel: View {
                     lyricLines = result.lines
                     hasTimedLyrics = result.hasTimed
                     isLoading = false
-                    fetchFailed = false
+                    fetchError = nil
                 }
             } catch {
                 await MainActor.run {
@@ -215,7 +252,7 @@ struct NowPlayingLyricsPanel: View {
                     lyricLines = []
                     hasTimedLyrics = false
                     isLoading = false
-                    fetchFailed = true
+                    fetchError = error as NSError
                 }
             }
         }

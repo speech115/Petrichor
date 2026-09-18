@@ -269,7 +269,7 @@ struct NowPlayingScreen: View {
             Capsule()
                 .fill(Color.white.opacity(0.35))
                 .frame(width: 36, height: 5)
-                .padding(.vertical, 10)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -341,12 +341,14 @@ struct NowPlayingScreen: View {
                 // the only way to keep the style uncapped without clipping.
                 Text(displayedTrack?.title ?? "")
                     .font(.title2.weight(.bold))
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundColor(palette.foreground)
                     // The Dynamic Type audit is scoped to these two elements:
                     // they must stay uncapped, real text styles.
                     .accessibilityIdentifier("NowPlayingTitle")
                 Text(displayedTrack?.displayArtist ?? "")
                     .font(.title2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundColor(palette.secondary)
                     .accessibilityIdentifier("NowPlayingArtist")
             }

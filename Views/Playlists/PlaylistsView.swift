@@ -6,32 +6,26 @@ struct PlaylistsView: View {
     @Binding var selectedPlaylist: Playlist?
 
     var body: some View {
-        let availablePlaylists = playlistManager.playlists.filter {
-            libraryManager.hasLocalMusic || $0.type == .stations
-        }
-
-        VStack(spacing: 0) {
-            if let playlist = selectedPlaylist {
-                PlaylistDetailView(playlistID: playlist.id)
-            } else {
-                emptySelectionView
+        if !libraryManager.shouldShowMainUI {
+            NoMusicEmptyStateView(context: .mainWindow)
+        } else {
+            VStack(spacing: 0) {
+                if let playlist = selectedPlaylist {
+                    PlaylistDetailView(playlistID: playlist.id)
+                } else {
+                    emptySelectionView
+                }
             }
-        }
-        .onAppear {
-            if selectedPlaylist == nil && !availablePlaylists.isEmpty {
-                selectedPlaylist = availablePlaylists.first
+            .onAppear {
+                if selectedPlaylist == nil && !playlistManager.playlists.isEmpty {
+                    selectedPlaylist = playlistManager.playlists.first
+                }
             }
-        }
-        .onChange(of: playlistManager.playlists.count) {
-            if let selected = selectedPlaylist,
-               !availablePlaylists.contains(where: { $0.id == selected.id }) {
-                selectedPlaylist = availablePlaylists.first
-            }
-        }
-        .onChange(of: libraryManager.hasLocalMusic) {
-            if let selected = selectedPlaylist,
-               !availablePlaylists.contains(where: { $0.id == selected.id }) {
-                selectedPlaylist = availablePlaylists.first
+            .onChange(of: playlistManager.playlists.count) {
+                if let selected = selectedPlaylist,
+                   !playlistManager.playlists.contains(where: { $0.id == selected.id }) {
+                    selectedPlaylist = playlistManager.playlists.first
+                }
             }
         }
     }

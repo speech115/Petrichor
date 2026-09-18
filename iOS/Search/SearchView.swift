@@ -47,14 +47,14 @@ struct SearchView: View {
     private var artistResults: [ArtistEntity] {
         guard isSearching else { return [] }
         return libraryManager.artistEntities.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
+            $0.name.localizedCaseInsensitiveContains(trimmedQuery)
         }
     }
 
     private var albumResults: [AlbumEntity] {
         guard isSearching else { return [] }
         return libraryManager.albumEntities.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
+            $0.name.localizedCaseInsensitiveContains(trimmedQuery)
         }
     }
 
@@ -68,7 +68,7 @@ struct SearchView: View {
     private var topResult: Track? {
         guard isSearching, !trackResults.isEmpty else { return nil }
         return trackResults.first { track in
-            track.title.localizedCaseInsensitiveContains(query)
+            track.title.localizedCaseInsensitiveContains(trimmedQuery)
         } ?? trackResults.first
     }
 
@@ -156,14 +156,20 @@ struct SearchView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if query.isEmpty {
+        if trimmedQuery.isEmpty {
             ContentUnavailableView(
                 String(localized: "Search Library"),
                 systemImage: Icons.magnifyingGlass,
                 description: Text(String(localized: "Find tracks, artists and albums"))
             )
+        } else if !isSearching {
+            ContentUnavailableView(
+                String(localized: "Keep Typing"),
+                systemImage: Icons.magnifyingGlass,
+                description: Text(String(localized: "Enter at least two characters to search your library."))
+            )
         } else {
-            ContentUnavailableView.search(text: query)
+            ContentUnavailableView.search(text: trimmedQuery)
         }
     }
 

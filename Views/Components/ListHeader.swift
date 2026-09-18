@@ -101,62 +101,12 @@ struct EntityHeader<Content: View>: View {
     }
 }
 
-/// Back chevron for full-screen detail overlays (entity + playlist), so the two
-/// headers can't drift apart.
-struct DetailBackButton: View {
-    let action: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        if #available(macOS 26.0, *) {
-            Button(action: action) {
-                Image(systemName: Icons.chevronLeft)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.small)
-            .help("Back")
-        } else {
-            Button(action: action) {
-                Image(systemName: Icons.chevronLeft)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.primary)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(isHovered ? Color(NSColor.controlAccentColor).opacity(0.15) : Color.clear)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(
-                                isHovered ? Color(NSColor.controlAccentColor).opacity(0.3) : Color.clear,
-                                lineWidth: 1
-                            )
-                    )
-            }
-            .buttonStyle(.plain)
-            .onHover { hovering in
-                isHovered = hovering
-            }
-            .help("Back")
-        }
-    }
-}
-
 struct TrackListHeader<Trailing: View>: View {
     let title: String
     let subtitle: String?
     let trackCount: Int?
     let sortOrder: Binding<[KeyPathComparator<Track>]>?
     let tableRowSize: Binding<TableRowSize>?
-    let usesGlobalSortOrder: Bool
-    let showsArtistGroupingOptions: Bool
-    let playAction: (() -> Void)?
-    let isPlayDisabled: Bool
     let trailing: (() -> Trailing)?
 
     // With sort options + trailing content
@@ -165,10 +115,6 @@ struct TrackListHeader<Trailing: View>: View {
         subtitle: String? = nil,
         sortOrder: Binding<[KeyPathComparator<Track>]>,
         tableRowSize: Binding<TableRowSize>,
-        usesGlobalSortOrder: Bool = true,
-        showsArtistGroupingOptions: Bool = false,
-        playAction: (() -> Void)? = nil,
-        isPlayDisabled: Bool = false,
         @ViewBuilder trailingContent: @escaping () -> Trailing
     ) {
         self.title = title
@@ -176,10 +122,6 @@ struct TrackListHeader<Trailing: View>: View {
         self.trackCount = nil
         self.sortOrder = sortOrder
         self.tableRowSize = tableRowSize
-        self.usesGlobalSortOrder = usesGlobalSortOrder
-        self.showsArtistGroupingOptions = showsArtistGroupingOptions
-        self.playAction = playAction
-        self.isPlayDisabled = isPlayDisabled
         self.trailing = trailingContent
     }
 
@@ -188,21 +130,13 @@ struct TrackListHeader<Trailing: View>: View {
         title: String,
         subtitle: String? = nil,
         sortOrder: Binding<[KeyPathComparator<Track>]>,
-        tableRowSize: Binding<TableRowSize>,
-        usesGlobalSortOrder: Bool = true,
-        showsArtistGroupingOptions: Bool = false,
-        playAction: (() -> Void)? = nil,
-        isPlayDisabled: Bool = false
+        tableRowSize: Binding<TableRowSize>
     ) where Trailing == EmptyView {
         self.title = title
         self.subtitle = subtitle
         self.trackCount = nil
         self.sortOrder = sortOrder
         self.tableRowSize = tableRowSize
-        self.usesGlobalSortOrder = usesGlobalSortOrder
-        self.showsArtistGroupingOptions = showsArtistGroupingOptions
-        self.playAction = playAction
-        self.isPlayDisabled = isPlayDisabled
         self.trailing = nil
     }
 
@@ -218,10 +152,6 @@ struct TrackListHeader<Trailing: View>: View {
         self.trackCount = trackCount
         self.sortOrder = nil
         self.tableRowSize = nil
-        self.usesGlobalSortOrder = true
-        self.showsArtistGroupingOptions = false
-        self.playAction = nil
-        self.isPlayDisabled = false
         self.trailing = trailing
     }
 
@@ -236,27 +166,11 @@ struct TrackListHeader<Trailing: View>: View {
         self.trackCount = trackCount
         self.sortOrder = nil
         self.tableRowSize = nil
-        self.usesGlobalSortOrder = true
-        self.showsArtistGroupingOptions = false
-        self.playAction = nil
-        self.isPlayDisabled = false
         self.trailing = nil
     }
 
     var body: some View {
         ListHeader(opaque: true) {
-            if let playAction {
-                Button(action: playAction) {
-                    Image(systemName: "play.circle")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.tint)
-                }
-                .buttonStyle(.plain)
-                .disabled(isPlayDisabled)
-                .help("Play all visible tracks")
-                .accessibilityLabel("Play all visible tracks")
-            }
-
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .headerTitleStyle()
@@ -279,9 +193,7 @@ struct TrackListHeader<Trailing: View>: View {
             if let sortOrder = sortOrder, let tableRowSize = tableRowSize {
                 TrackTableOptionsDropdown(
                     sortOrder: sortOrder,
-                    tableRowSize: tableRowSize,
-                    usesGlobalSortOrder: usesGlobalSortOrder,
-                    showsArtistGroupingOptions: showsArtistGroupingOptions
+                    tableRowSize: tableRowSize
                 )
             }
         }
