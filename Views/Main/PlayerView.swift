@@ -177,7 +177,7 @@ struct PlayerView: View {
     @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var playlistManager: PlaylistManager
     @Binding var rightSidebarContent: RightSidebarContent
-    
+
     @Environment(\.scenePhase)
     var scenePhase
     @Environment(\.colorScheme)
@@ -235,9 +235,6 @@ struct PlayerView: View {
         .onChange(of: playbackManager.currentTrack?.id) {
             updateGradientColors()
         }
-        .onChange(of: playbackManager.currentStation?.artworkCacheID) {
-            updateGradientColors()
-        }
         .onChange(of: colorScheme) {
             updateGradientColors()
         }
@@ -256,15 +253,12 @@ struct PlayerView: View {
         .frame(width: 320, alignment: .leading)
     }
 
-    /// Sized so the progress bar keeps its full width; narrower windows still compress
-    /// it, but never state-by-state. See `PlayerProgressBar.preferredWidth`.
     private var centerSection: some View {
         VStack(spacing: 8) {
             playbackControls
             PlayerProgressBar(accent: controlAccent)
-                .frame(height: 14)
         }
-        .frame(maxWidth: PlayerProgressBar.preferredWidth)
+        .frame(maxWidth: 500)
     }
 
     private var rightSection: some View {
@@ -282,50 +276,34 @@ struct PlayerView: View {
 
     // MARK: - Left Section Components
 
-    @ViewBuilder private var albumArtwork: some View {
-        if let station = playbackManager.currentStation {
-            PlayerStationArtView(artworkID: station.artworkCacheID, artworkData: station.artworkData)
-                .equatable()
-        } else {
-            let trackArtworkInfo = playbackManager.currentTrack.map { track in
-                TrackArtworkInfo(id: track.id, artworkData: track.artworkData)
-            }
-
-            PlayerAlbumArtView(
-                trackInfo: trackArtworkInfo,
-                contextMenuItems: currentTrackContextMenuItems
-            ) {
-                if let currentTrack = playbackManager.currentTrack {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("ShowTrackInfo"),
-                        object: nil,
-                        userInfo: ["track": currentTrack]
-                    )
-                }
-            }
-            .equatable()
+    private var albumArtwork: some View {
+        let trackArtworkInfo = playbackManager.currentTrack.map { track in
+            TrackArtworkInfo(id: track.id, artworkData: track.artworkData)
         }
+
+        return PlayerAlbumArtView(
+            trackInfo: trackArtworkInfo,
+            contextMenuItems: currentTrackContextMenuItems
+        ) {
+            if let currentTrack = playbackManager.currentTrack {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ShowTrackInfo"),
+                    object: nil,
+                    userInfo: ["track": currentTrack]
+                )
+            }
+        }
+        .equatable()
     }
 
-    @ViewBuilder private var trackDetails: some View {
-        if let station = playbackManager.currentStation {
-            PlayerStationDetailsView(
-                stationName: station.name,
-                nowPlaying: playbackManager.streamNowPlayingTitle,
-                description: station.description,
-                format: playbackManager.streamFormat,
-                showTechnicalInfo: showTrackTechnicalInfo
-            )
-            .equatable()
-        } else {
-            PlayerTrackDetailsView(
-                track: playbackManager.currentTrack,
-                contextMenuItems: currentTrackContextMenuItems,
-                playlistManager: playlistManager,
-                showTechnicalInfo: showTrackTechnicalInfo
-            )
-            .equatable()
-        }
+    private var trackDetails: some View {
+        PlayerTrackDetailsView(
+            track: playbackManager.currentTrack,
+            contextMenuItems: currentTrackContextMenuItems,
+            playlistManager: playlistManager,
+            showTechnicalInfo: showTrackTechnicalInfo
+        )
+        .equatable()
     }
 
     // MARK: - Center Section Components
@@ -352,13 +330,8 @@ struct PlayerView: View {
         })
         .buttonStyle(ControlButtonStyle())
         .hoverEffect(scale: 1.1)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(playbackManager.currentTrack == nil)
         .help(playlistManager.isShuffleEnabled ? String(localized: "Disable Shuffle") : String(localized: "Enable Shuffle"))
-    }
-
-    private var transportDisabled: Bool {
-        playbackManager.isTransportDisabled
     }
 
     private var previousButton: some View {
@@ -373,8 +346,7 @@ struct PlayerView: View {
         .buttonStyle(ControlButtonStyle())
         .tint(controlsTinted ? controlAccent : .primary)
         .hoverEffect(scale: 1.1)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(playbackManager.currentTrack == nil)
         .help("Previous")
     }
 
@@ -382,10 +354,7 @@ struct PlayerView: View {
         Button(action: {
             playbackManager.togglePlayPause()
         }, label: {
-            PlayPauseIcon(
-                isPlaying: playbackManager.isPlaying,
-                stopInsteadOfPause: playbackManager.hasStation
-            )
+            PlayPauseIcon(isPlaying: playbackManager.isPlaying)
                 .frame(width: 42, height: 42)
                 .background(
                     Circle()
@@ -405,8 +374,8 @@ struct PlayerView: View {
             },
             perform: {}
         )
-        .disabled(playbackManager.currentTrack == nil && playbackManager.currentStation == nil)
-        .help(playbackManager.playPauseActionTitle)
+        .disabled(playbackManager.currentTrack == nil)
+        .help(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
         .id("playPause")
     }
 
@@ -423,8 +392,7 @@ struct PlayerView: View {
         .tint(controlsTinted ? controlAccent : .primary)
         .hoverEffect(scale: 1.1)
         .help("Next")
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(playbackManager.currentTrack == nil)
     }
 
     private var repeatButton: some View {
@@ -440,8 +408,7 @@ struct PlayerView: View {
         .buttonStyle(ControlButtonStyle())
         .hoverEffect(scale: 1.1)
         .help(playlistManager.repeatMode.tooltip)
-        .opacity(transportDisabled ? ViewDefaults.disabledControlOpacity : 1)
-        .disabled(transportDisabled)
+        .disabled(playbackManager.currentTrack == nil)
     }
 
     // MARK: - Right Section Components
@@ -475,9 +442,9 @@ struct PlayerView: View {
                     if playbackManager.volume > 0.01 {
                         previousVolume = playbackManager.volume
                     }
-                    
+
                     playbackManager.setVolume(newVolume)
-                    
+
                     // Update mute state
                     if newVolume < 0.01 {
                         isMuted = true
@@ -492,7 +459,7 @@ struct PlayerView: View {
         }
         .frame(width: 100)
         .controlSize(.small)
-        .tint(volumeAccent)
+        .tint(controlAccent)
         .overlay(alignment: .leading) {
             if isDraggingVolume {
                 Text(playbackManager.volume.formatted(.percent.precision(.fractionLength(0))))
@@ -528,7 +495,7 @@ struct PlayerView: View {
         .hoverEffect(scale: 1.1)
         .help(rightSidebarContent == .queue ? String(localized: "Hide Queue") : String(localized: "Show Queue"))
     }
-    
+
     private var immersiveButton: some View {
         Button(action: {
             // Routed through ContentView to centralize the open animation + toolbar handling.
@@ -544,9 +511,9 @@ struct PlayerView: View {
                 )
         })
         .buttonStyle(PlainButtonStyle())
-        .disabled(!playbackManager.hasPlayableContent)
-        .opacity(playbackManager.hasPlayableContent ? 1.0 : 0.5)
-        .hoverEffect(scale: playbackManager.hasPlayableContent ? 1.1 : 1.0)
+        .disabled(!hasCurrentTrack)
+        .opacity(hasCurrentTrack ? 1.0 : 0.5)
+        .hoverEffect(scale: hasCurrentTrack ? 1.1 : 1.0)
         .help("Open Immersive Mode")
     }
 
@@ -565,9 +532,9 @@ struct PlayerView: View {
                 )
         })
         .buttonStyle(PlainButtonStyle())
-        .disabled(!playbackManager.hasPlayableContent)
-        .opacity(playbackManager.hasPlayableContent ? 1.0 : 0.5)
-        .hoverEffect(scale: playbackManager.hasPlayableContent ? 1.1 : 1.0)
+        .disabled(!hasCurrentTrack)
+        .opacity(hasCurrentTrack ? 1.0 : 0.5)
+        .hoverEffect(scale: hasCurrentTrack ? 1.1 : 1.0)
         .help("Open Mini Player")
     }
     #endif
@@ -592,12 +559,11 @@ struct PlayerView: View {
     }
 
     // MARK: - Computed Properties
-    
+
     private var hasCurrentTrack: Bool {
         playbackManager.currentTrack != nil
     }
 
-    /// `currentTrack` is nil for radio, so these key off "is anything loaded".
     private var controlsTinted: Bool {
         useArtworkColors && tintPlaybackControls
     }
@@ -606,24 +572,14 @@ struct PlayerView: View {
     /// player and immersive mode via `NowPlayingArtwork`), or the accent color when
     /// tinting is disabled.
     private var controlTint: Color {
-        NowPlayingArtwork.tint(for: playbackManager.nowPlayingSource, useArtworkTint: controlsTinted)
+        NowPlayingArtwork.tint(for: playbackManager.currentTrack, useArtworkTint: controlsTinted)
     }
 
     /// Legible, mode-adjusted dominant color for the secondary controls (shuffle/
     /// repeat active, prev/next, progress, and volume), or the accent color when
     /// tinting is disabled.
     private var controlAccent: Color {
-        NowPlayingArtwork.controlColor(
-            for: playbackManager.nowPlayingSource,
-            useArtworkTint: controlsTinted,
-            isDarkBackground: colorScheme == .dark
-        )
-    }
-
-    private var volumeAccent: Color {
-        playbackManager.nowPlayingSource == nil
-            ? Color(nsColor: .controlAccentColor)
-            : controlAccent
+        NowPlayingArtwork.controlColor(for: playbackManager.currentTrack, useArtworkTint: controlsTinted, isDarkBackground: colorScheme == .dark)
     }
 
     private var volumeIcon: String {
@@ -637,10 +593,10 @@ struct PlayerView: View {
             return "speaker.wave.2.fill"
         }
     }
-    
+
     private var currentTrackContextMenuItems: [ContextMenuItem] {
         guard let track = playbackManager.currentTrack else { return [] }
-        
+
         return TrackContextMenu.createPlayerViewMenuItems(
             for: track,
             playlistManager: playlistManager
@@ -805,7 +761,7 @@ struct PlayerTrackDetailsView: View, Equatable {
 
 // MARK: - Format Badge
 
-struct FormatBadge: View {
+private struct FormatBadge: View {
     let text: String
 
     var body: some View {
@@ -866,7 +822,7 @@ struct PlayerAlbumArtView: View, Equatable {
     }
 
     var body: some View {
-        AlbumArtworkImage(artworkData: trackInfo?.artworkData)
+        AlbumArtworkImage(trackInfo: trackInfo)
             .onTapGesture {
                 onTap?()
             }
@@ -876,55 +832,47 @@ struct PlayerAlbumArtView: View, Equatable {
     }
 }
 
-struct AlbumArtworkImage: View {
-    let artworkData: Data?
-    var placeholderIcon: String = Icons.musicNote
-    /// No detail view behind a station, so no hover or click.
-    var interactive: Bool = true
-
+private struct AlbumArtworkImage: View {
+    let trackInfo: TrackArtworkInfo?
     @State private var isHovered = false
-
-    private var hovering: Bool { interactive && isHovered }
 
     var body: some View {
         ZStack {
             // Static image content
-            AlbumArtworkContent(artworkData: artworkData, placeholderIcon: placeholderIcon)
+            AlbumArtworkContent(trackInfo: trackInfo)
         }
         .frame(width: 76, height: 76)
         .shadow(
-            color: .black.opacity(hovering ? 0.4 : 0.2),
-            radius: hovering ? 6 : 2,
+            color: .black.opacity(isHovered ? 0.4 : 0.2),
+            radius: isHovered ? 6 : 2,
             x: 0,
-            y: hovering ? 3 : 1
+            y: isHovered ? 3 : 1
         )
-        .scaleEffect(hovering ? 1.05 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: hovering)
+        .scaleEffect(isHovered ? 1.05 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
         .contentShape(Rectangle())
-        .onHover { newValue in
-            guard interactive else { return }
-            isHovered = newValue
+        .onHover { hovering in
+            isHovered = hovering
         }
     }
 }
 
-struct AlbumArtworkContent: View {
-    let artworkData: Data?
-    let placeholderIcon: String
+private struct AlbumArtworkContent: View {
+    let trackInfo: TrackArtworkInfo?
 
     var body: some View {
         if let artworkData = trackInfo?.artworkData,
            let platformImage = PlatformImage(data: artworkData) {
             Image(platformImage: platformImage)
                 .resizable()
-                .scaledToFill()
+                .aspectRatio(contentMode: .fill)
                 .frame(width: 76, height: 76)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         } else {
             RoundedRectangle(cornerRadius: 5)
                 .fill(Color.secondary.opacity(0.15))
                 .overlay(
-                    Image(systemName: placeholderIcon)
+                    Image(systemName: Icons.musicNote)
                         .font(.system(size: 22, weight: .light))
                         .foregroundColor(.secondary)
                 )
@@ -954,6 +902,7 @@ struct ControlButtonStyle: ButtonStyle {
             )
             .environmentObject(coordinator.playbackManager)
             .environmentObject(coordinator.playlistManager)
+            .environmentObject(coordinator.playbackManager.playbackProgressState)
             .frame(height: 200)
         }
     }

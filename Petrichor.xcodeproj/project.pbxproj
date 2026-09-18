@@ -64,7 +64,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppDelegate.swift,
-				PlaybackSessionStore.swift,
 				WindowDelegate.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
@@ -79,13 +78,7 @@
 				Automation/AutomationIntents.swift,
 				Automation/AutomationManager.swift,
 				Automation/AutomationShortcuts.swift,
-				Database/DMInternetRadio.swift,
-				InternetRadioManager.swift,
 				MenuBarManager.swift,
-				Library/LMDiscoverArtwork.swift,
-				Library/LMDiscoverSelection.swift,
-				PlaybackRadio.swift,
-				Playlist/PMStationCollections.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};
@@ -95,8 +88,6 @@
 				Components/ActivityAnimation.swift,
 				Components/ArtistImageSheet.swift,
 				Components/EntityGridView.swift,
-				Components/EntityListView.swift,
-				Components/SupportedFormatsPopover.swift,
 				Components/FloatingControlCluster.swift,
 				Components/FocusStableMaterial.swift,
 				Components/HoverEffect.swift,
@@ -111,9 +102,6 @@
 				Components/Sidebar/SidebarProtocol.swift,
 				Components/SidebarView.swift,
 				Components/TrackView.swift,
-				Components/TrackViews/StationTableView.swift,
-				Components/TrackViews/ArtistTrackGrouper.swift,
-				Components/TrackViews/TrackListView.swift,
 				Components/TrackViews/TrackTableOptionsDropdown.swift,
 				Components/TrackViews/TrackTableView.swift,
 				Components/ViewExtensions.swift,
@@ -125,21 +113,13 @@
 				Folders/FolderSidebarView.swift,
 				Folders/FoldersView.swift,
 				Home/EntityDetailView.swift,
-				Home/DiscoverView.swift,
-				Home/EntityTypeView.swift,
 				Home/HomeSidebarView.swift,
 				Home/HomeView.swift,
 				Immersive/ImmersiveView.swift,
 				Library/LibrarySidebarView.swift,
-				Library/LibraryTypeSidebarView.swift,
 				Library/LibraryView.swift,
 				Main/ContentView.swift,
 				Main/PlayQueueView.swift,
-				Main/PlayerProgressBar.swift,
-				Main/PlayerStreamViews.swift,
-				Components/Widgets/AirPlayRoutePicker.swift,
-				Components/Widgets/ArtworkImageWell.swift,
-				Components/Widgets/ArtworkInputField.swift,
 				Main/PlayerView.swift,
 				Main/TrackDetailView.swift,
 				Main/TrackLyricsView.swift,
@@ -152,13 +132,8 @@
 				Playlists/PlaylistsView.swift,
 				Playlists/Sheets/ExportPlaylistsSheet.swift,
 				Playlists/Sheets/PlaylistNameField.swift,
-				Playlists/Sheets/PlaylistArtworkSheet.swift,
 				Playlists/Sheets/RegularPlaylistEditorSheet.swift,
 				Playlists/Sheets/SmartPlaylistEditorSheet.swift,
-				Playlists/Sheets/StationCollectionEditorSheet.swift,
-				Playlists/StationCollectionContentView.swift,
-				Radio/InternetRadioView.swift,
-				Radio/StationEditorSheet.swift,
 				Settings/AboutTabView.swift,
 				Settings/AppearanceTabView.swift,
 				Settings/EqualizerView.swift,
@@ -168,6 +143,9 @@
 				Settings/SettingsView.swift,
 				Support/AcknowledgementsView.swift,
 				Support/ReportProblemView.swift,
+				Components/EntityView.swift,
+				Components/NowPlaying/NowPlayingProgressBar.swift,
+				Components/Widgets/IconOnlyDropdown.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};

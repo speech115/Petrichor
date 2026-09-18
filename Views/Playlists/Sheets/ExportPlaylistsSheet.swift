@@ -3,19 +3,18 @@ import SwiftUI
 struct ExportPlaylistsSheet: View {
     @EnvironmentObject var playlistManager: PlaylistManager
     @Binding var isPresented: Bool
-    
+
     @State private var selectedPlaylistIds: Set<UUID> = []
     @State private var selectAll: Bool = false
-    
+
     private var exportablePlaylists: [Playlist] {
-        // M3U carries file paths, which station collections have none of.
-        playlistManager.playlists.filter { $0.type != .stations }
+        playlistManager.playlists
     }
-    
+
     private var selectedCount: Int {
         selectedPlaylistIds.count
     }
-    
+
     var body: some View {
         VStack(spacing: 0) {
             sheetHeader
@@ -29,9 +28,9 @@ struct ExportPlaylistsSheet: View {
             selectAllPlaylists()
         }
     }
-    
+
     // MARK: - Header
-    
+
     private var sheetHeader: some View {
         HStack {
             Button(action: { isPresented = false }, label: {
@@ -44,17 +43,17 @@ struct ExportPlaylistsSheet: View {
             .buttonStyle(.plain)
             .keyboardShortcut(.escape)
             .focusable(false)
-            
+
             Text("Export Playlists")
                 .font(.headline)
-            
+
             Spacer()
         }
         .padding()
     }
-    
+
     // MARK: - Playlist List
-    
+
     private var playlistList: some View {
         VStack(spacing: 0) {
             Text("Select playlists to export:")
@@ -64,7 +63,7 @@ struct ExportPlaylistsSheet: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
                 .padding(.bottom, 8)
-            
+
             HStack {
                 Toggle(isOn: Binding(
                     get: { selectAll },
@@ -82,9 +81,9 @@ struct ExportPlaylistsSheet: View {
             }
             .padding(.horizontal)
             .padding(.vertical, 8)
-            
+
             Divider()
-            
+
             if exportablePlaylists.isEmpty {
                 emptyState
             } else {
@@ -92,17 +91,17 @@ struct ExportPlaylistsSheet: View {
             }
         }
     }
-    
+
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "music.note.list")
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            
+
             Text("No playlists to export")
                 .font(.headline)
                 .foregroundColor(.secondary)
-            
+
             Text("Create some playlists first")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
@@ -110,13 +109,13 @@ struct ExportPlaylistsSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
-    
+
     private var playlistScrollView: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(exportablePlaylists) { playlist in
                     playlistRow(playlist)
-                    
+
                     if playlist.id != exportablePlaylists.last?.id {
                         Divider()
                             .padding(.leading, 44)
@@ -125,7 +124,7 @@ struct ExportPlaylistsSheet: View {
             }
         }
     }
-    
+
     private func playlistRow(_ playlist: Playlist) -> some View {
         HStack(spacing: 12) {
             Toggle(isOn: Binding(
@@ -143,17 +142,17 @@ struct ExportPlaylistsSheet: View {
                 EmptyView()
             }
             .toggleStyle(.checkbox)
-            
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(DefaultPlaylists.displayName(for: playlist))
                     .font(.body)
                     .lineLimit(1)
-                
+
                 Text("\(playlist.trackCount) tracks")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
         }
         .padding(.horizontal)
@@ -163,18 +162,18 @@ struct ExportPlaylistsSheet: View {
             toggleSelection(for: playlist.id)
         }
     }
-    
+
     // MARK: - Footer
-    
+
     private var sheetFooter: some View {
         HStack {
             Spacer()
-            
+
             Button("Cancel") {
                 isPresented = false
             }
             .keyboardShortcut(.cancelAction)
-            
+
             Button(action: exportSelectedPlaylists) {
                 Text("Export (\(selectedCount))")
             }
@@ -183,19 +182,19 @@ struct ExportPlaylistsSheet: View {
         }
         .padding()
     }
-    
+
     // MARK: - Actions
-    
+
     private func selectAllPlaylists() {
         selectedPlaylistIds = Set(exportablePlaylists.map { $0.id })
         selectAll = true
     }
-    
+
     private func deselectAllPlaylists() {
         selectedPlaylistIds.removeAll()
         selectAll = false
     }
-    
+
     private func toggleSelection(for playlistId: UUID) {
         if selectedPlaylistIds.contains(playlistId) {
             selectedPlaylistIds.remove(playlistId)
@@ -205,16 +204,16 @@ struct ExportPlaylistsSheet: View {
         }
         updateSelectAllState()
     }
-    
+
     private func updateSelectAllState() {
         selectAll = selectedPlaylistIds.count == exportablePlaylists.count
     }
-    
+
     private func exportSelectedPlaylists() {
         guard !selectedPlaylistIds.isEmpty else { return }
-        
+
         let playlistsToExport = exportablePlaylists.filter { selectedPlaylistIds.contains($0.id) }
-        
+
         let panel = NSOpenPanel()
         panel.title = String(localized: "Export Playlists")
         panel.message = String(localized: "Choose where to save \(playlistsToExport.count) playlist files")
@@ -223,16 +222,16 @@ struct ExportPlaylistsSheet: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        
+
         panel.begin { response in
             guard response == .OK, let directoryURL = panel.url else { return }
-            
+
             isPresented = false
             NotificationManager.shared.startActivity(String(localized: "Exporting playlists..."))
-            
+
             Task {
                 let result = await playlistManager.exportPlaylists(playlistsToExport, to: directoryURL)
-                
+
                 await MainActor.run {
                     NotificationManager.shared.stopActivity()
                     showExportNotifications(result: result, directory: directoryURL)
@@ -241,24 +240,24 @@ struct ExportPlaylistsSheet: View {
         }
 
     }
-    
+
     private func showExportNotifications(result: BulkExportResult, directory: URL) {
         var notifications: [(type: NotificationType, message: String)] = []
-        
+
         for (playlistName, error) in result.failed {
             notifications.append((.error, String(localized: "Failed to export '\(playlistName)': \(error.localizedDescription)")))
         }
-        
+
         if result.successful > 0 {
             let message = String(localized: "Exported \(result.successful) playlists to \(directory.lastPathComponent)")
             notifications.append((.info, message))
         }
-        
+
         if result.totalPlaylists > 0 && result.successful == 0 {
             let message = String(localized: "Failed to export all \(result.totalPlaylists) playlists")
             notifications.append((.error, message))
         }
-        
+
         for notification in notifications {
             NotificationManager.shared.addMessage(notification.type, notification.message)
         }
@@ -269,16 +268,16 @@ struct ExportPlaylistsSheet: View {
 
 #Preview("Export Playlists Sheet") {
     @Previewable @State var isPresented = true
-    
+
     let previewManager = {
         let manager = PlaylistManager()
-        
+
         var track1 = Track(url: URL(fileURLWithPath: "/sample1.mp3"))
         track1.title = "Sample Song 1"
-        
+
         var track2 = Track(url: URL(fileURLWithPath: "/sample2.mp3"))
         track2.title = "Sample Song 2"
-        
+
         manager.playlists = [
             Playlist(name: "Summer Mix", tracks: [track1, track2]),
             Playlist(name: "Workout Beats", tracks: [track1]),
@@ -301,19 +300,19 @@ struct ExportPlaylistsSheet: View {
                 isUserEditable: false
             )
         ]
-        
+
         return manager
     }()
-    
+
     return ExportPlaylistsSheet(isPresented: $isPresented)
         .environmentObject(previewManager)
 }
 
 #Preview("Empty State") {
     @Previewable @State var isPresented = true
-    
+
     let emptyManager = PlaylistManager()
-    
+
     return ExportPlaylistsSheet(isPresented: $isPresented)
         .environmentObject(emptyManager)
 }

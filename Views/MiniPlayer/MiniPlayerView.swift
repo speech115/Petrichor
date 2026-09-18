@@ -107,13 +107,6 @@ struct MiniPlayerView: View {
         playbackManager.currentTrack != nil
     }
 
-    private var hasStation: Bool { playbackManager.hasStation }
-
-    private var effectivePanel: MiniPlayerPanel {
-        if panel == .queue && !playbackManager.canShowCompactPlaybackQueue { return .none }
-        return hasStation && panel == .lyrics ? .none : panel
-    }
-
     /// Artwork's primary dominant color, used to tint the play/pause button,
     /// progress bar, and the queue's current-track highlight. Falls back to the
     /// accent color when artwork colors are unavailable or disabled.
@@ -127,7 +120,7 @@ struct MiniPlayerView: View {
     }
 
     private var artworkTint: Color {
-        NowPlayingArtwork.tint(for: playbackManager.nowPlayingSource, useArtworkTint: controlsUseArtworkTint)
+        NowPlayingArtwork.tint(for: playbackManager.currentTrack, useArtworkTint: controlsUseArtworkTint)
     }
 
     /// Legible, mode-adjusted dominant color for the secondary controls, keyed off
@@ -135,7 +128,7 @@ struct MiniPlayerView: View {
     /// when an artwork-tinted scrim is darker/lighter than the mode would suggest.
     private var controlColor: Color {
         NowPlayingArtwork.controlColor(
-            for: playbackManager.nowPlayingSource,
+            for: playbackManager.currentTrack,
             useArtworkTint: controlsUseArtworkTint,
             isDarkBackground: overlayIsDark
         )
@@ -177,7 +170,7 @@ struct MiniPlayerView: View {
             VStack(spacing: 0) {
                 artwork(side: geo.size.width)
 
-                if effectivePanel != .none {
+                if panel != .none {
                     expandedPanel
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
@@ -200,18 +193,7 @@ struct MiniPlayerView: View {
         .onChange(of: miniPlayerAlwaysOnTop) {
             applyWindowLevel()
         }
-        .onChange(of: hasStation) {
-            // `effectivePanel` can suppress the drawer; the window still has to resize.
-            // Not `collapsePanel()`, which would erase the saved preference.
-            applyWindowSizing(animated: true)
-        }
-        .onChange(of: playbackManager.canShowCompactPlaybackQueue) {
-            applyWindowSizing(animated: true)
-        }
-        .onChange(of: playbackManager.hasPlayableContent) { _, hasPlayableContent in
-            if !hasPlayableContent { miniWindow?.close() }
-        }
-        .onChange(of: playbackManager.nowPlayingSource?.id) {
+        .onChange(of: playbackManager.currentTrack?.id) {
             refreshArtwork()
             updateGradientColors()
         }
@@ -266,7 +248,7 @@ struct MiniPlayerView: View {
             if let image = cachedArtwork {
                 Image(nsImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .aspectRatio(contentMode: .fill)
                     .frame(width: side, height: side)
                     .clipped()
             } else {
@@ -300,8 +282,8 @@ struct MiniPlayerView: View {
                 Spacer()
                 HStack(spacing: 4) {
                     PanelToolbarButton(
-                        isActive: effectivePanel == .queue,
-                        isEnabled: playbackManager.canShowCompactPlaybackQueue,
+                        isActive: panel == .queue,
+                        isEnabled: true,
                         activeTint: artworkTint,
                         activeHelp: String(localized: "Hide Queue"),
                         inactiveHelp: String(localized: "Show Queue"),
@@ -313,8 +295,8 @@ struct MiniPlayerView: View {
                     )
 
                     PanelToolbarButton(
-                        isActive: effectivePanel == .lyrics,
-                        isEnabled: hasCurrentTrack && !hasStation,
+                        isActive: panel == .lyrics,
+                        isEnabled: hasCurrentTrack,
                         activeTint: artworkTint,
                         activeHelp: String(localized: "Hide Lyrics"),
                         inactiveHelp: String(localized: "Show Lyrics"),
@@ -337,12 +319,12 @@ struct MiniPlayerView: View {
             Spacer()
             VStack(spacing: 10) {
                 VStack(spacing: 2) {
-                    Text(playbackManager.nowPlayingSource?.title ?? String(localized: "Not Playing"))
+                    Text(playbackManager.currentTrack?.title ?? String(localized: "Not Playing"))
                         .font(.system(size: 13, weight: .bold))
                         .foregroundColor(overlayTextColor)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Text(playbackManager.nowPlayingSource?.subtitle ?? "")
+                    Text(playbackManager.currentTrack?.displayArtist ?? "")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundColor(overlayTextColor.opacity(0.75))
                         .lineLimit(1)
@@ -360,12 +342,7 @@ struct MiniPlayerView: View {
                     neutral: overlayTextColor
                 )
 
-                PlayerProgressBar(
-                    accent: controlColor,
-                    neutral: overlayTextColor,
-                    compactStreamIndicator: true
-                )
-                .frame(height: 14)
+                NowPlayingProgressBar(accent: controlColor, neutral: overlayTextColor)
             }
             .padding(.horizontal, 16)
             .padding(.top, 120)
@@ -402,7 +379,7 @@ struct MiniPlayerView: View {
     }
 
     @ViewBuilder private var panelContent: some View {
-        switch effectivePanel {
+        switch panel {
         case .queue:
             PlayQueueContent(accentColor: artworkTint)
         case .lyrics:
@@ -423,12 +400,12 @@ struct MiniPlayerView: View {
             }
             .buttonStyle(.plain)
 
-            Text(effectivePanel == .queue ? String(localized: "Play Queue") : String(localized: "Lyrics"))
+            Text(panel == .queue ? String(localized: "Play Queue") : String(localized: "Lyrics"))
                 .font(.headline)
 
             Spacer()
 
-            if effectivePanel == .queue {
+            if panel == .queue {
                 Text("\(playlistManager.currentQueue.count) tracks")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -530,7 +507,7 @@ struct MiniPlayerView: View {
 
     private func updateGradientColors() {
         gradientColors = NowPlayingArtwork.gradient(
-            for: playbackManager.nowPlayingSource,
+            for: playbackManager.currentTrack,
             isDark: colorScheme == .dark,
             enabled: backgroundUsesArtwork
         )
@@ -548,7 +525,7 @@ struct MiniPlayerView: View {
     private func applyWindowSizing(animated: Bool, expanded: Bool? = nil) -> TimeInterval {
         guard let window = miniWindow else { return 0 }
 
-        let isExpanded = expanded ?? (effectivePanel != .none)
+        let isExpanded = expanded ?? (panel != .none)
         let ratioH = isExpanded ? (1 + panelRatio) : 1
         let width = min(max(window.contentLayoutRect.width, minSide), maxSide)
         let contentSize = NSSize(width: width, height: width * ratioH)

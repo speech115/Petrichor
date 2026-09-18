@@ -246,7 +246,7 @@ extension DatabaseManager {
                     var skipped = 0
 
                     while true {
-                        let rows = try dbQueue.read { [offset] db in try ops.fetchBatch(db, batchSize, offset) }
+                        let rows = try await dbQueue.read { [offset] db in try ops.fetchBatch(db, batchSize, offset) }
                         if rows.isEmpty { break }
 
                         let batchConverted = try ops.compressAndUpdate(dbQueue, rows)
@@ -704,7 +704,7 @@ extension DatabaseManager {
                     var skipped = 0
 
                     while true {
-                        let rows = try dbQueue.read { [offset] db in try ops.fetchBatch(db, batchSize, offset) }
+                        let rows = try await dbQueue.read { [offset] db in try ops.fetchBatch(db, batchSize, offset) }
                         if rows.isEmpty { break }
 
                         let batchGenerated = try ops.generateAndUpdate(dbQueue, rows)

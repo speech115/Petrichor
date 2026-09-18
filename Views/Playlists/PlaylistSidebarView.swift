@@ -76,17 +76,9 @@ struct PlaylistSidebarView: View {
                 Button("New Playlist") {
                     playlistManager.showCreateRegularPlaylistModal()
                 }
-                .disabled(!libraryManager.hasLocalMusic)
 
                 Button("New Smart Playlist") {
                     playlistManager.showCreateSmartPlaylistModal()
-                }
-                .disabled(!libraryManager.hasLocalMusic)
-
-                if internetRadioEnabled {
-                    Button("New Station Collection") {
-                        playlistManager.showCreateStationCollectionEditor()
-                    }
                 }
             } label: {
                 Image(systemName: "plus")
@@ -104,7 +96,7 @@ struct PlaylistSidebarView: View {
                 Button("Import Playlists...") {
                     NotificationCenter.default.post(name: .importPlaylists, object: nil)
                 }
-                
+
                 Button("Export Playlists...") {
                     NotificationCenter.default.post(name: .exportPlaylists, object: nil)
                 }

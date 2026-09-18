@@ -9,7 +9,7 @@ struct HoverEffect: ViewModifier {
     let activeBackgroundColor: Color?
     let cornerRadius: CGFloat
     let padding: CGFloat
-    
+
     @State private var isHovered = false
 
     init(
@@ -78,18 +78,5 @@ extension View {
             cornerRadius: cornerRadius,
             padding: padding
         ))
-    }
-}
-
-extension View {
-    /// Chrome for a borderless sort/display menu in a list header.
-    func sortMenuChrome(help: String) -> some View {
-        self
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize(horizontal: true, vertical: false)
-            .frame(height: 14)
-            .hoverEffect(activeBackgroundColor: Color(NSColor.controlColor))
-            .help(help)
     }
 }
