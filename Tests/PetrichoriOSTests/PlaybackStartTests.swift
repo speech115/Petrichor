@@ -7,8 +7,11 @@ import Testing
 // The only test that proves audio actually starts: everything else exercises
 // queue bookkeeping, which stays green even when nothing ever reaches the
 // speaker. Playback touches the process-wide `AVAudioSession`, so these run
-// serially and apart from the queue tests.
+// serially, including the queue suites nested under PlaybackTests.
 @Suite(.serialized)
+struct PlaybackTests {}
+
+extension PlaybackTests {
 @MainActor
 struct PlaybackStartTests {
     @Test func restoredTrackSurvivesAnEarlySaveAndPlaysAfterLibraryLoads() async throws {
@@ -139,6 +142,8 @@ struct PlaybackStartTests {
     }
 }
 
+}
+
 // MARK: - Regression: false finish and queue refill
 
 /// Records delegate callbacks. `AVQueuePlayerBackend` routes every call
@@ -165,7 +170,7 @@ private final class RecordingDelegate: PlaybackBackendDelegate {
 /// track. That invented an eof, advanced the queue index and bumped play
 /// counts for a track that never finished. Rebooting the queue must not emit
 /// any finish event.
-@Suite(.serialized)
+extension PlaybackTests {
 @MainActor
 struct QueueRebuildRegressionTests {
     private func waitForFinishCount(
@@ -217,10 +222,12 @@ struct QueueRebuildRegressionTests {
     }
 }
 
+}
+
 /// The lookahead window preloads only the current item and its successor, so a long queue must be
 /// refilled while playing or it would silently end after the window. Playing
 /// through 18 one-second tracks proves the whole queue is consumed in order.
-@Suite(.serialized)
+extension PlaybackTests {
 @MainActor
 struct QueueRefillTests {
     @Test func aQueueLongerThanTheLookaheadWindowPlaysThroughToTheEnd() async throws {
@@ -254,6 +261,8 @@ struct QueueRefillTests {
             #expect(delegate.errors.isEmpty)
         }
     }
+}
+
 }
 
 // MARK: - Shared fixtures

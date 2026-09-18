@@ -10,7 +10,7 @@ import Testing
 // The suite is serialized: these tests construct real AVQueuePlayers with
 // dozens of items, and several at once overload the simulator's media
 // service, which starts dropping items.
-@Suite(.serialized)
+extension PlaybackTests {
 @MainActor
 struct QueueBackendTests {
     private func makeEntry(_ name: String, url: URL) -> QueueEntry {
@@ -293,6 +293,8 @@ struct QueueBackendTests {
 
 }
 
+
+}
 
 @MainActor
 private final class NowPlayingTestDelegate: PlaybackBackendDelegate {
