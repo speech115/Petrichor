@@ -93,7 +93,6 @@ struct ArtistPage: View {
             playDisabled: tracks.isEmpty,
             title: LibraryFilterType.artists.localizedDisplay(artistName),
             subtitle: bio,
-            tint: headerTint,
             artwork: { photo.frame(width: 180, height: 180) }
         )
     }

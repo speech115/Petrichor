@@ -173,7 +173,6 @@ struct PlaylistDetailScreen: View {
             playDisabled: tracks.isEmpty,
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
-            tint: headerTint,
             artwork: {
                 PlaylistArtworkView(playlist: playlist, tracks: tracks, cornerRadius: 12, iconSize: 56)
                     .frame(width: 280, height: 280)

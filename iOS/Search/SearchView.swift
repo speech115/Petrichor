@@ -3,8 +3,8 @@
 //
 // The Search tab: one query, results grouped by type — tracks, artists,
 // albums. Tracks reuse the shared TrackRow; artist and album rows get their
-// page navigation in ticket 06 (TODO below). An empty query explains what
-// can be searched; a query without matches falls back to the system
+// page navigation. An empty query offers the library catalogs;
+// a query without matches falls back to the system
 // "No Results for ..." state.
 //
 // Tracks come from the FTS5-backed `LibraryManager.searchResults`; artists
@@ -99,17 +99,8 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(SearchScope.allCases, id: \.self) { item in
-                            Button(item.title) { scope = item }
-                                .buttonStyle(.bordered)
-                                .tint(scope == item ? .accentColor : .secondary)
-                                .accessibilityAddTraits(scope == item ? .isSelected : [])
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                if !trimmedQuery.isEmpty {
+                    scopePicker
                 }
                 resultsList
             }
@@ -132,7 +123,13 @@ struct SearchView: View {
                     case .album(let album):
                         AlbumPage(album: album)
                             .detailZoomDestination(.album(album.id), in: zoomNamespace)
-                    case .category, .tracks, .allTracks, .playlist:
+                    case .category(let filterType):
+                        CategoryItemsView(filterType: filterType, zoomNamespace: zoomNamespace)
+                    case .allTracks:
+                        TrackListView(filterItem: nil)
+                    case .tracks(let item):
+                        TrackListView(filterItem: item)
+                    case .playlist:
                         EmptyView()
                     }
                 }
@@ -145,8 +142,37 @@ struct SearchView: View {
         }
     }
 
+    private var scopePicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(SearchScope.allCases, id: \.self) { item in
+                    Button(item.title) { scope = item }
+                        .buttonStyle(.bordered)
+                        .tint(scope == item ? .accentColor : .secondary)
+                        .accessibilityAddTraits(scope == item ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+        }
+    }
+
     private var resultsList: some View {
         List {
+            if trimmedQuery.isEmpty {
+                Section("Library") {
+                    NavigationLink(value: LibraryDestination.allTracks) {
+                        Label("All Music", systemImage: "music.note")
+                    }
+                    .accessibilityIdentifier("library.allMusic")
+                    NavigationLink(value: LibraryDestination.category(.albums)) {
+                        Label("Albums", systemImage: "square.stack")
+                    }
+                    NavigationLink(value: LibraryDestination.category(.artists)) {
+                        Label("Artists", systemImage: "person.2")
+                    }
+                }
+            }
             if let topArtist {
                 Section("Top Result") { artistRow(topArtist) }
             } else if let topAlbum {
@@ -188,7 +214,7 @@ struct SearchView: View {
         }
         .listStyle(.plain)
         .overlay {
-            if !hasResults {
+            if !trimmedQuery.isEmpty, !hasResults {
                 emptyState
             }
         }
@@ -200,13 +226,7 @@ struct SearchView: View {
 
     @ViewBuilder
     private var emptyState: some View {
-        if trimmedQuery.isEmpty {
-            ContentUnavailableView(
-                String(localized: "Search Library"),
-                systemImage: Icons.magnifyingGlass,
-                description: Text(String(localized: "Find tracks, artists and albums"))
-            )
-        } else if !isSearching {
+        if !isSearching {
             ContentUnavailableView(
                 String(localized: "Keep Typing"),
                 systemImage: Icons.magnifyingGlass,

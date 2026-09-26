@@ -5,10 +5,7 @@
 // Play/Shuffle row. Replaces the three per-screen copies (artist photo +
 // bio, album artwork + year, playlist mosaic + count).
 //
-// The background picks up the artwork's dominant color as a vertical
-// gradient from the top of the header deep into the page so the cover
-// reads continuous with the track list (Music iOS 26.4). The screen
-// resolves the color and passes it in (nil renders a plain background).
+// The screen owns the continuous artwork tint through detailPageWash.
 // The title lives here, under the artwork, not in the navigation bar.
 //
 
@@ -20,10 +17,6 @@ struct DetailHeader<Artwork: View>: View {
     var playDisabled = false
     var title: String? = nil
     var subtitle: String? = nil
-    /// Artwork-derived tint; nil when artwork colors are disabled or the
-    /// artwork has no dominant color.
-    var tint: Color? = nil
-
     @ViewBuilder var artwork: () -> Artwork
 
     var body: some View {
@@ -41,7 +34,7 @@ struct DetailHeader<Artwork: View>: View {
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.secondaryText)
                     .multilineTextAlignment(.center)
             }
 
@@ -54,15 +47,5 @@ struct DetailHeader<Artwork: View>: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-        .background(alignment: .top) {
-            if let tint {
-                LinearGradient(
-                    colors: [tint.opacity(0.35), tint.opacity(0.12), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .allowsHitTesting(false)
-            }
-        }
     }
 }

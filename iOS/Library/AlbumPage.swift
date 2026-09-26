@@ -68,7 +68,6 @@ struct AlbumPage: View {
             playDisabled: tracks.isEmpty,
             title: album.displayName,
             subtitle: subtitle,
-            tint: headerTint,
             artwork: { artwork.frame(width: 280, height: 280) }
         )
     }
@@ -106,28 +105,16 @@ struct AlbumPage: View {
     // MARK: - Track Sections
 
     private func trackRow(_ track: Track, context: [Track]) -> some View {
-        HStack(spacing: 12) {
-            trackNumber(track)
-                .frame(width: 28, alignment: .trailing)
-
-            TrackRow(
-                track: track,
-                onPlay: { play(track, in: context) },
-                playlistManager: playlistManager,
-                libraryManager: libraryManager,
-                playbackManager: playbackManager
-            )
-            .equatable()
-        }
-    }
-
-    private func trackNumber(_ track: Track) -> some View {
-        Text(track.trackNumber.map(String.init) ?? "")
-            .font(.body)
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .foregroundColor(.secondary)
+        TrackRow(
+            track: track,
+            onPlay: { play(track, in: context) },
+            playlistManager: playlistManager,
+            libraryManager: libraryManager,
+            playbackManager: playbackManager,
+            showsTrackNumber: true
+        )
+        .equatable()
+        .listRowBackground(Color.clear)
     }
 
     // MARK: - Playback

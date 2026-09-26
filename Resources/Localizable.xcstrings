@@ -45,17 +45,6 @@
         }
       }
     },
-    "Petrichor Favorites" : {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Избранное Petrichor"
-          }
-        }
-      }
-    },
     "All Music" : {
       "extractionState": "manual",
       "localizations": {

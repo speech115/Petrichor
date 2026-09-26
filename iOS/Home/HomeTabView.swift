@@ -1,7 +1,7 @@
 //
 // HomeTabView (iOS)
 //
-// Favorites is the primary destination; all music and recent albums follow.
+// Favorites and recently played albums.
 //
 
 import SwiftUI
@@ -30,7 +30,6 @@ struct HomeTabView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     if !isEmpty {
                         favoritesButton
-                        librarySection
                     }
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
@@ -126,41 +125,6 @@ struct HomeTabView: View {
             .accessibilityIdentifier("home.favorites")
             .padding(.horizontal, 16)
         }
-    }
-
-    private var librarySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Library").font(.title2.bold())
-            VStack(spacing: 0) {
-                libraryLink("All Music", icon: "music.note", destination: .allTracks,
-                            count: libraryManager.totalTrackCount)
-                    .accessibilityIdentifier("library.allMusic")
-                Divider().padding(.leading, 44)
-                libraryLink("Albums", icon: "square.stack", destination: .category(.albums),
-                            count: libraryManager.albumEntities.count)
-                Divider().padding(.leading, 44)
-                libraryLink("Artists", icon: "person.2", destination: .category(.artists),
-                            count: libraryManager.artistEntities.count)
-            }
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-        }
-        .padding(.horizontal, 16)
-    }
-
-    private func libraryLink(_ title: LocalizedStringKey, icon: String, destination: LibraryDestination, count: Int) -> some View {
-        NavigationLink(value: destination) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).foregroundStyle(.tint).frame(width: 24)
-                Text(title)
-                Spacer()
-                Text("\(count)").monospacedDigit().foregroundStyle(Color.secondaryText)
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private func smartPlaylist(_ name: String) -> Playlist? {
