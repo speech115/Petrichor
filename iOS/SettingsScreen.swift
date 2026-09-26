@@ -32,8 +32,6 @@ struct SettingsScreen: View {
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
 
-    @State private var showingAddMusic = false
-
     @StateObject private var notificationManager = NotificationManager.shared
 
     var body: some View {
@@ -45,7 +43,6 @@ struct SettingsScreen: View {
         }
         .navigationTitle(String(localized: "Settings"))
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showingAddMusic) { AddMusicSheet() }
         .onChange(of: colorMode) { _, newValue in
             newValue.apply()
         }
@@ -67,7 +64,6 @@ struct SettingsScreen: View {
 
     private var librarySection: some View {
         Section {
-            Button("Add Music", systemImage: "plus") { showingAddMusic = true }
             Button {
                 rescanLibrary()
             } label: {
@@ -120,11 +116,7 @@ struct SettingsScreen: View {
 
             Toggle(String(localized: "Fetch lyrics from the internet"), isOn: $onlineLyricsEnabled)
 
-            Toggle(isOn: $artistInfoFetchEnabled) {
-                Text("Fetch artist photos and bios from the internet")
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Toggle(String(localized: "Fetch artist photos and bios from the internet"), isOn: $artistInfoFetchEnabled)
                 .onChange(of: artistInfoFetchEnabled) { _, enabled in
                     if enabled {
                         ArtistBioManager.shared.fetchMissingArtistImages(using: libraryManager)
