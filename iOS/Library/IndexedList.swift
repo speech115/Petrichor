@@ -125,8 +125,7 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                     )
 
                 if showLetters {
-                    // Letters at slot centers, natural size — stretching them
-                    // into the slot makes the contrast audit sample empty space.
+                    // Keep sampled letters centered on their drag targets.
                     let slotCount = max(1, min(keys.count, Int(geometry.size.height / 20)))
                     ForEach(0..<slotCount, id: \.self) { slot in
                         let index = slotCount == 1 ? 0 : slot * (keys.count - 1) / (slotCount - 1)
@@ -138,8 +137,8 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
                             .allowsHitTesting(false)
                             .position(
                                 x: geometry.size.width / 2,
-                                y: geometry.size.height * (CGFloat(slot) + 0.5)
-                                    / CGFloat(slotCount)
+                                y: geometry.size.height * (CGFloat(index) + 0.5)
+                                    / CGFloat(keys.count)
                             )
                     }
                 }

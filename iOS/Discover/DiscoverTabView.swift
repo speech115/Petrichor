@@ -29,8 +29,6 @@ struct DiscoverTabView: View {
                 sectioner: { [IndexedSection(key: "", items: $0)] },
                 usesPlainStyle: true,
                 showEmptyState: false,
-                emptyTitle: String(localized: "No Tracks"),
-                emptyIcon: Icons.sparkles,
                 header: { tracks in
                     VStack(spacing: 12) {
                         if tracks.isEmpty {

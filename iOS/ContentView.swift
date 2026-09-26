@@ -236,13 +236,6 @@ struct ContentView: View {
         )
     }
 
-    /// Where a "Go to..." context-menu item lands in the Home stack, resolved
-    /// by the shared `LibraryNavigation` (artists/albums get detail pages,
-    /// everything else a filtered track list).
-    private func destination(for filterType: LibraryFilterType, item: LibraryFilterItem) -> LibraryDestination {
-        LibraryNavigation.destination(for: filterType, item: item, libraryManager: libraryManager)
-    }
-
     // MARK: - Import Summary
 
     /// One-line digest of a playlist import, mirroring the macOS notification.

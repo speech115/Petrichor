@@ -220,9 +220,20 @@ struct SearchView: View {
         }
     }
 
-    private var remainingTracks: [Track] { trackResults.filter { $0.id != topTrack?.id } }
-    private var remainingArtists: [ArtistEntity] { artistResults.filter { $0.id != topArtist?.id } }
-    private var remainingAlbums: [AlbumEntity] { albumResults.filter { $0.id != topAlbum?.id } }
+    private var remainingTracks: [Track] {
+        let topID = topTrack?.id
+        return trackResults.filter { $0.id != topID }
+    }
+
+    private var remainingArtists: [ArtistEntity] {
+        let topID = topArtist?.id
+        return artistResults.filter { $0.id != topID }
+    }
+
+    private var remainingAlbums: [AlbumEntity] {
+        let topID = topAlbum?.id
+        return albumResults.filter { $0.id != topID }
+    }
 
     @ViewBuilder
     private var emptyState: some View {

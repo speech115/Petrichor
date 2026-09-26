@@ -41,8 +41,6 @@ struct PlaylistDetailScreen: View {
                     sectioner: { [IndexedSection(key: "", items: $0)] },
                     usesPlainStyle: true,
                     showEmptyState: false,
-                    emptyTitle: DefaultPlaylists.noSongsText(for: playlist),
-                    emptyIcon: Icons.musicNoteList,
                     header: { tracks in
                         VStack(spacing: 16) {
                             header(playlist, tracks: tracks)
@@ -81,7 +79,9 @@ struct PlaylistDetailScreen: View {
             if let playlist, playlist.isUserEditable {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        Button("Add Songs", systemImage: "plus") { showingAddSongs = true }
+                        if playlist.type == .regular && playlist.isContentEditable {
+                            Button("Add Songs", systemImage: "plus") { showingAddSongs = true }
+                        }
                         Button {
                             beginRename(playlist)
                         } label: {

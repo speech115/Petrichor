@@ -7,9 +7,8 @@ struct AddToPlaylistSheet: View {
     @Environment(\.dismiss)
     private var dismiss
     @State private var query = ""
-    @State private var added: Set<UUID> = []
     @State private var saving = false
-    @State private var errorMessage: String?
+    @State private var failed = false
     @State private var showingCreate = false
     @State private var name = ""
 
@@ -35,8 +34,9 @@ struct AddToPlaylistSheet: View {
                 } label: {
                     Label("New Playlist", systemImage: "plus")
                 }
+                .disabled(saving)
                 ForEach(playlists) { playlist in
-                    let contains = added.contains(playlist.id) || playlistManager.playlistContainsTrack(track, in: playlist)
+                    let contains = playlistManager.playlistContainsTrack(track, in: playlist)
                     Button {
                         add(to: playlist)
                     } label: {
@@ -65,6 +65,7 @@ struct AddToPlaylistSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .disabled(saving)
                 }
             }
             .alert("New Playlist", isPresented: $showingCreate) {
@@ -76,22 +77,20 @@ struct AddToPlaylistSheet: View {
                 }
                 .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            .alert("Unable to Add Songs", isPresented: Binding(
-                get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { errorMessage = nil }
-            } message: { Text(errorMessage ?? "") }
+            .alert("Unable to Add Songs", isPresented: $failed) {
+                Button("OK", role: .cancel) {}
+            } message: { Text("The playlist could not be saved. Try again.") }
         }
+        .interactiveDismissDisabled(saving)
     }
 
     private func add(to playlist: Playlist) {
         saving = true
         Task {
             if await playlistManager.addTracksToPlaylist(tracks: [track], playlistID: playlist.id) {
-                added.insert(playlist.id)
                 UIAccessibility.post(notification: .announcement, argument: String(localized: "Added to \(PlaylistDisplay.name(for: playlist))"))
             } else {
-                errorMessage = String(localized: "The playlist could not be saved. Try again.")
+                failed = true
             }
             saving = false
         }
