@@ -187,7 +187,7 @@ struct NowPlayingScreen: View {
         // significantly more height (a real, uncapped text style), so the
         // cover gives back some of its share to keep the controls on screen.
         let artworkRatio: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.30 : 0.44
-        let artworkSide = min(size.width - 56, size.height * artworkRatio)
+        let artworkSide = max(0, min(size.width - 56, size.height * artworkRatio))
         let controlSpacing: CGFloat = dynamicTypeSize.isAccessibilitySize ? 14 : 22
 
         return VStack(spacing: 0) {
