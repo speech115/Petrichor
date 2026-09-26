@@ -26,7 +26,6 @@ struct ContentView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     let playlistManager: PlaylistManager
     let playbackManager: PlaybackManager
-    @ObservedObject private var createPlaylistPresentation: PlaylistCreatePresentationObservation
     @ObservedObject private var playbackAvailability: PlaybackAvailabilityObservation
 
     @State private var selectedTab: IOSSection = .home
@@ -36,7 +35,6 @@ struct ContentView: View {
     @State private var showingNowPlaying = false
     @State private var showingPlaylistImporter = false
     @State private var importSummary: String?
-    @State private var trackInfoTrack: Track?
     /// Incremented every time the Search tab is tapped while Search is already
     /// open. SearchView watches it and raises the keyboard.
     @State private var searchFocusRequest = 0
@@ -46,7 +44,6 @@ struct ContentView: View {
     init(playlistManager: PlaylistManager, playbackManager: PlaybackManager) {
         self.playlistManager = playlistManager
         self.playbackManager = playbackManager
-        createPlaylistPresentation = playlistManager.createPresentationObservation
         playbackAvailability = playbackManager.availabilityObservation
     }
 
@@ -59,18 +56,6 @@ struct ContentView: View {
             }
             .settingsZoomDestination()
             .environment(\.settingsZoomNamespace, settingsZoomNamespace)
-        }
-        // The create-playlist sheet lives here, not in a tab: TrackRow's
-        // "New Playlist..." and the Playlists tab's menu both open it.
-        .sheet(isPresented: createPlaylistPresentedBinding) {
-            CreatePlaylistSheet(
-                isPresented: createPlaylistPresentedBinding,
-                playlistName: createPlaylistNameBinding,
-                tracksToAdd: createPlaylistPresentation.tracksToAdd
-            ) {
-                playlistManager.createPlaylistFromModal()
-            }
-            .environmentObject(playlistManager)
         }
         // Mini-player artwork zooms into the full player (Music-style). The
         // earlier slide overlay was faster (~120 vs ~212 ms) but never read as
@@ -92,13 +77,7 @@ struct ContentView: View {
                     .environmentObject(libraryManager)
             }
         }
-        // Presented from here, not from the row or the player, so "Show Info"
-        // reaches the same sheet from a list deep in a NavigationStack and from
-        // the player surface that covers it.
-        .sheet(item: $trackInfoTrack) { track in
-            TrackInfoSheet(track: track)
-                .environmentObject(libraryManager)
-        }
+        .trackActionSheets(isActive: !showingNowPlaying, playlistManager: playlistManager)
         .fileImporter(
             isPresented: $showingPlaylistImporter,
             allowedContentTypes: ["m3u", "m3u8"].compactMap { UTType(filenameExtension: $0) },
@@ -135,6 +114,7 @@ struct ContentView: View {
                let filterValue = notification.userInfo?["filterValue"] as? String {
                 let items = libraryManager.getLibraryFilterItems(for: filterType)
                 guard let item = items.first(where: { $0.name == filterValue }) else { return }
+                showingNowPlaying = false
                 selectedTab = .home
                 homePath = [LibraryNavigation.destination(for: filterType, item: item, libraryManager: libraryManager)]
             }
@@ -150,11 +130,7 @@ struct ContentView: View {
             selectedTab = .home
             homePath = [destination]
         }
-        .onReceive(NotificationCenter.default.publisher(for: .showTrackInfo)) { notification in
-            if let track = notification.userInfo?["track"] as? Track {
-                trackInfoTrack = track
-            }
-        }
+
     }
 
     private var mainInterface: some View {
@@ -251,20 +227,6 @@ struct ContentView: View {
         )
     }
 
-    private var createPlaylistPresentedBinding: Binding<Bool> {
-        Binding(
-            get: { createPlaylistPresentation.isPresented },
-            set: { playlistManager.showingCreatePlaylistModal = $0 }
-        )
-    }
-
-    private var createPlaylistNameBinding: Binding<String> {
-        Binding(
-            get: { createPlaylistPresentation.playlistName },
-            set: { playlistManager.newPlaylistName = $0 }
-        )
-    }
-
     // MARK: - Search Tab
 
     private var searchTab: some View {
@@ -272,13 +234,6 @@ struct ContentView: View {
             showingSettings: $showingSettings,
             focusRequest: searchFocusRequest
         )
-    }
-
-    /// Where a "Go to..." context-menu item lands in the Home stack, resolved
-    /// by the shared `LibraryNavigation` (artists/albums get detail pages,
-    /// everything else a filtered track list).
-    private func destination(for filterType: LibraryFilterType, item: LibraryFilterItem) -> LibraryDestination {
-        LibraryNavigation.destination(for: filterType, item: item, libraryManager: libraryManager)
     }
 
     // MARK: - Import Summary

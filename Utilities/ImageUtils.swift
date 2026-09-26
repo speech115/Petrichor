@@ -14,23 +14,20 @@ enum ImageUtils {
         let saturation: Double
         let brightness: Double
     }
-    /// Compress image data to HEIC format, downscaling to fit within maxDimension while preserving aspect ratio.
+    /// Compress image data to HEIC or JPEG format, downscaling to fit within maxDimension while preserving aspect ratio.
     /// Never upscales images smaller than maxDimension.
     /// - Parameters:
     ///   - imageData: Original image data in any supported format (JPEG, PNG, HEIC, etc.)
     ///   - maxDimension: Maximum width or height in pixels (default: 960)
-    ///   - quality: HEIC compression quality (0.0 to 1.0, default: 0.8)
+    ///   - quality: Compression quality (0.0 to 1.0, default: 0.8)
     ///   - source: Optional source identifier (e.g. file path) included in failure logs
-    /// - Returns: Compressed HEIC data, or nil if compression fails
+    /// - Returns: Compressed image data, or nil if compression fails
     static func compressImage(
         from imageData: Data,
         maxDimension: CGFloat = 960,
         quality: CGFloat = 0.8,
         source: String? = nil
     ) -> Data? {
-        #if arch(x86_64)
-        return compressImageIntel(from: imageData, maxDimension: maxDimension, quality: quality, source: source)
-        #else
         guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
               let props = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
               let srcWidth = props[kCGImagePropertyPixelWidth] as? CGFloat,
@@ -81,25 +78,24 @@ enum ImageUtils {
             return resizeImage(from: imageData, to: targetSize)
         }
 
-        if let heicData = encodeHEIC(finalCGImage, quality: quality) {
-            return heicData
+        if let encoded = encodeArtwork(finalCGImage, quality: quality) {
+            return encoded
         }
 
         // Fall back to JPEG if HEIC encoding fails
         let logContext = source.map { " from \($0)" } ?? ""
         Logger.warning("HEIC encoding failed\(logContext), falling back to JPEG")
         return resizeImage(from: imageData, to: targetSize)
-        #endif
     }
 
     /// Generate a display thumbnail from artwork data, downscaling to fit within
     /// maxDimension while preserving aspect ratio. Same pipeline as compressImage
-    /// (HEIC encode + resize); thumbnails are stored alongside full-size artwork.
+    /// (platform encoding + resize); thumbnails are stored alongside full-size artwork.
     /// - Parameters:
     ///   - imageData: Original image data in any supported format (JPEG, PNG, HEIC, etc.)
     ///   - maxDimension: Maximum width or height in pixels (default: 420)
     ///   - source: Optional source identifier (e.g. file path) included in failure logs
-    /// - Returns: Thumbnail HEIC data, or nil if compression fails
+    /// - Returns: Thumbnail image data, or nil if compression fails
     static func makeThumbnail(
         from imageData: Data,
         maxDimension: CGFloat = 420,
@@ -108,8 +104,13 @@ enum ImageUtils {
         compressImage(from: imageData, maxDimension: maxDimension, source: source)
     }
 
-    /// Encode a CGImage as HEIC data.
-    static func encodeHEIC(_ cgImage: CGImage, quality: CGFloat = 0.8) -> Data? {
+    /// Encode artwork as HEIC on devices, JPEG where software HEVC can deadlock.
+    static func encodeArtwork(_ cgImage: CGImage, quality: CGFloat = 0.8) -> Data? {
+        // Software HEVC hangs in the simulator as well as on Intel, blocking
+        // scan workers and subsequent artwork loads. Keep encoding in this seam.
+        #if arch(x86_64) || targetEnvironment(simulator)
+        return encodeJPEG(cgImage, quality: quality)
+        #else
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data as CFMutableData,
@@ -125,6 +126,7 @@ enum ImageUtils {
             return nil
         }
         return data as Data
+        #endif
     }
 
     /// Encode a CGImage as JPEG data.
@@ -600,48 +602,7 @@ enum ImageUtils {
         PlatformImage.jpegData(from: cgImage, quality: quality)
     }
 
-    // MARK: - Intel x86_64 fallback
-    // Software HEVC encode (VCPHEVC) on Intel deadlocks under concurrent scans (issue #265).
-    // Resize-and-JPEG bypasses the encoder entirely. Remove this block when Intel support is dropped.
 
-    #if arch(x86_64)
-    private static func compressImageIntel(
-        from imageData: Data,
-        maxDimension: CGFloat,
-        quality: CGFloat,
-        source: String?
-    ) -> Data? {
-        guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
-              let width = props[kCGImagePropertyPixelWidth] as? CGFloat,
-              let height = props[kCGImagePropertyPixelHeight] as? CGFloat else {
-            let context = source.map { " from \($0)" } ?? ""
-            Logger.warning("Failed to read image properties\(context) (\(imageData.count) bytes)")
-            return nil
-        }
-
-        let pixelLimit = CGFloat(AlbumArtFormat.maxArtworkPixelDimension)
-        if width > pixelLimit || height > pixelLimit {
-            let context = source.map { " from \($0)" } ?? ""
-            Logger.warning("Skipping oversized artwork \(Int(width))x\(Int(height))\(context)")
-            return nil
-        }
-
-        var destWidth = width
-        var destHeight = height
-        if width > maxDimension || height > maxDimension {
-            let scale = min(maxDimension / width, maxDimension / height)
-            destWidth = (width * scale).rounded(.down)
-            destHeight = (height * scale).rounded(.down)
-        }
-
-        return resizeImage(
-            from: imageData,
-            to: CGSize(width: destWidth, height: destHeight),
-            compressionFactor: Float(quality)
-        )
-    }
-    #endif
 }
 
 // MARK: - Color Cache Objects

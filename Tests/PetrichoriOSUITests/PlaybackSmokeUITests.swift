@@ -23,23 +23,14 @@ final class PlaybackSmokeUITests: XCTestCase {
     /// WAV fixtures will never appear in the library.
     func testLaunchingATrackFromSongsReachesThePlayer() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-seed-fixtures"]
+        app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
-        // Home is the default tab; the Songs row lives in the Library section
-        // at the bottom of the Home scroll.
-        let songsRow = app.buttons.matching(
-            identifier: "library.allMusic"
-        ).firstMatch
-        XCTAssertTrue(
-            songsRow.waitForExistence(timeout: 60),
-            "строка Songs не появилась (Documents пуст?)"
-        )
-        var scrollAttempts = 0
-        while !songsRow.isHittable && scrollAttempts < 6 {
-            app.swipeUp()
-            scrollAttempts += 1
-        }
+        let favorites = app.buttons["home.favorites"]
+        XCTAssertTrue(favorites.waitForExistence(timeout: 60), "библиотека не загрузилась")
+        app.tabBars.buttons["Search"].tap()
+        let songsRow = app.buttons["library.allMusic"]
+        XCTAssertTrue(songsRow.waitForExistence(timeout: 10), "каталог песен не появился в поиске")
         songsRow.tap()
 
         // The track list is alphabet-indexed; tap the seeded "Alpha One" row

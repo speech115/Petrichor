@@ -85,13 +85,25 @@ private func imageType(of data: Data) -> String? {
     #expect(size == (420, 315))
 }
 
-@Test func thumbnailIsEncodedAsHEIC() {
+@Test func thumbnailUsesSupportedEncoding() {
     let thumbnail = ImageUtils.makeThumbnail(from: makeTestImage(width: 1200, height: 900))
 
     guard let thumbnail else {
         Issue.record("Thumbnail is missing")
         return
     }
-    #expect(imageType(of: thumbnail) == UTType.heic.identifier)
+    #expect([UTType.heic.identifier, UTType.jpeg.identifier].contains(imageType(of: thumbnail) ?? ""))
 }
 
+
+@Test func concurrentThumbnailsComplete() async {
+    let original = makeTestImage(width: 800, height: 600)
+    await withTaskGroup(of: Data?.self) { group in
+        for _ in 0..<12 {
+            group.addTask { ImageUtils.makeThumbnail(from: original) }
+        }
+        for await thumbnail in group {
+            #expect(thumbnail.flatMap(imageSize) != nil)
+        }
+    }
+}

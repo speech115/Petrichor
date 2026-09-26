@@ -27,15 +27,28 @@ struct TrackRow: View {
     let libraryManager: LibraryManager
     let playbackManager: PlaybackManager
     var menuContext: TrackContextMenu.MenuContext = .library
+    var showsTrackNumber = false
+
+    @ScaledMetric(relativeTo: .body) private var trackNumberWidth: CGFloat = 40
 
     var body: some View {
         Button(action: onPlay) {
             HStack(spacing: 12) {
-                artworkView
-                    .frame(width: 44, height: 44)
+                if showsTrackNumber {
+                    Text(track.trackNumber.map(String.init) ?? "")
+                        .font(.body.monospacedDigit())
+                        .foregroundStyle(Color.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .frame(width: trackNumberWidth, alignment: .trailing)
+                } else {
+                    artworkView
+                        .frame(width: 44, height: 44)
+                }
 
                 TrackPlaybackStatus(track: track, playbackManager: playbackManager)
             }
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(TrackRowPressStyle())
@@ -142,6 +155,8 @@ extension TrackRow: Equatable {
                 && lhs.track.artist == rhs.track.artist
                 && lhs.track.isFavorite == rhs.track.isFavorite
                 && lhs.track.albumId == rhs.track.albumId
+                && lhs.track.trackNumber == rhs.track.trackNumber
+                && lhs.showsTrackNumber == rhs.showsTrackNumber
                 && lhs.track.displayArtwork?.count == rhs.track.displayArtwork?.count
                 && lhs.playlistManager === rhs.playlistManager
                 && lhs.libraryManager === rhs.libraryManager

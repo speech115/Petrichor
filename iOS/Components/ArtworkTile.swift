@@ -166,9 +166,14 @@ struct ArtworkTile: View {
     private func decode(_ data: Data, cacheKey: String?) async {
         guard !Task.isCancelled else { return }
         let maxPixelSize = maxPixelSize
-        let image = await Task.detached(priority: .utility) {
-            Self.downsample(data, maxPixelSize: maxPixelSize)
-        }.value
+        // ImageIO's software HEVC decoder waits for its own dispatch work.
+        // Blocking every cooperative executor thread here prevents that work
+        // from running. GCD can provide the extra workers the codec needs.
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                continuation.resume(returning: Self.downsample(data, maxPixelSize: maxPixelSize))
+            }
+        }
         guard !Task.isCancelled, let image else { return }
         if let cacheKey {
             RowArtworkCache.shared.setImage(image, forKey: cacheKey)

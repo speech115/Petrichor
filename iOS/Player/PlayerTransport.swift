@@ -38,11 +38,11 @@ struct PlayerTransport: View {
     var body: some View {
         HStack(spacing: 0) {
             shuffleButton
-                .frame(width: 56)
+                .frame(width: 44)
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 34) {
+            HStack(spacing: 12) {
                 transportButton(Icons.backwardFill, size: min(transportIconSize, 44)) {
                     playlistManager.playPreviousTrack()
                 }
@@ -59,12 +59,12 @@ struct PlayerTransport: View {
             Spacer(minLength: 0)
 
             repeatButton
-                .frame(width: 56)
+                .frame(width: 44)
         }
     }
 
     /// The transport is a fixed composition: the glyphs scale with Dynamic
-    /// Type but each stays inside the frame its button owns (62/56/34 pt).
+    /// Type but each stays inside the frame its button owns (62/44 pt).
     /// The caps below are those frames minus a small margin.
     @ScaledMetric(relativeTo: .title) private var playPauseIconSize: CGFloat = 42
     @ScaledMetric(relativeTo: .title) private var transportIconSize: CGFloat = 32
@@ -99,7 +99,7 @@ struct PlayerTransport: View {
             Image(systemName: icon)
                 .font(.system(size: size))
                 .foregroundColor(palette.foreground)
-                .frame(width: 56, height: 56)
+                .frame(width: 44, height: 56)
                 .contentShape(Rectangle())
         }
         .buttonStyle(TransportButtonStyle())

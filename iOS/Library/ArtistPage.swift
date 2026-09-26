@@ -32,6 +32,7 @@ struct ArtistPage: View {
                     .frame(maxWidth: .infinity)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
 
             if !albums.isEmpty {
@@ -60,7 +61,8 @@ struct ArtistPage: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .detailPageWash(headerTint)
         .navigationBarTitleDisplayMode(.inline)
         .detailHeaderTint(cacheID: artistName, imageData: photoData, tint: $headerTint)
         .task(id: artistName) {
@@ -91,7 +93,6 @@ struct ArtistPage: View {
             playDisabled: tracks.isEmpty,
             title: LibraryFilterType.artists.localizedDisplay(artistName),
             subtitle: bio,
-            tint: headerTint,
             artwork: { photo.frame(width: 180, height: 180) }
         )
     }

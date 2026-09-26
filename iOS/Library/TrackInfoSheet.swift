@@ -87,7 +87,7 @@ struct TrackInfoSheet: View {
     }
 
     private func header(for fullTrack: FullTrack) -> some View {
-        VStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 16) {
             ArtworkTile(
                 data: fullTrack.artworkData,
                 cacheKey: fullTrack.trackId.map(ArtworkCacheKey.trackInfo),
@@ -96,10 +96,10 @@ struct TrackInfoSheet: View {
                 maxPixelSize: 600,
                 // The names under the cover say what this is.
             )
-            .frame(width: 180, height: 180)
+            .frame(width: 72, height: 72)
             .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
 
-            VStack(spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(fullTrack.title)
                     .font(.headline)
                 Text(LibraryFilterType.artists.localizedDisplay(fullTrack.artist))
@@ -111,7 +111,8 @@ struct TrackInfoSheet: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .multilineTextAlignment(.center)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)
         }
         .padding(.vertical, 8)

@@ -12,8 +12,7 @@
 // all: the grabber dismisses on tap, a downward drag dismisses on release,
 // and the track menu lives next to the title.
 //
-// Lyrics and the queue rise as panels over the artwork; the cover stays the
-// screen's primary element, as the design spec requires.
+// Queue and lyrics replace the large artwork while transport remains visible.
 //
 
 import SwiftUI
@@ -30,15 +29,6 @@ struct NowPlayingScreen: View {
                 String(localized: "Queue")
             case .lyrics:
                 String(localized: "Lyrics")
-            }
-        }
-
-        var heightRatio: CGFloat {
-            switch self {
-            case .queue:
-                0.70
-            case .lyrics:
-                0.72
             }
         }
     }
@@ -70,10 +60,6 @@ struct NowPlayingScreen: View {
     @State private var paletteTask: Task<Void, Never>?
     @State private var fineSamplingTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
-    @State private var panelMounted = false
-    @State private var panelVisible = false
-    @State private var panelDragOffset: CGFloat = 0
-    @State private var panelLifecycleTask: Task<Void, Never>?
     /// What the cover and the title row are showing. One update behind
     /// `track`, on purpose: the swap has to happen *inside* the animation that
     /// carries it, and `onChange` only fires once the new track has already
@@ -113,33 +99,12 @@ struct NowPlayingScreen: View {
                 background
 
                 content(in: geometry.size)
-
-                if panelMounted {
-                    panelDismissLayer
-                        .opacity(panelVisible ? 1 : 0)
-                        .allowsHitTesting(panelVisible)
-                }
-
-                if panelMounted, let panelKind {
-                    NowPlayingPanel(
-                        title: panelKind.title,
-                        onDismiss: dismissPanel,
-                        onDragChanged: updatePanelDrag,
-                        onDragEnded: finishPanelDrag
-                    ) {
-                        panelContent(for: panelKind)
-                    }
-                    .frame(height: geometry.size.height * panelKind.heightRatio)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .offset(y: reduceMotion ? 0 : panelOffset(height: geometry.size.height * panelKind.heightRatio))
-                    .opacity(reduceMotion && !panelVisible ? 0 : 1)
-                    .allowsHitTesting(panelVisible)
-                }
             }
         }
         // Keep the player's controls legible on its dark artwork surface
         // without changing the color scheme of the playlist underneath it.
         .environment(\.colorScheme, .dark)
+        .trackActionSheets(isActive: true, playlistManager: playlistManager)
         .onAppear {
             displayedTrack = track
             lastQueueIndex = playlistManager.currentQueueIndex
@@ -161,7 +126,6 @@ struct NowPlayingScreen: View {
         }
         .onDisappear {
             paletteTask?.cancel()
-            panelLifecycleTask?.cancel()
             fineSamplingTask?.cancel()
             playbackManager.setFineProgressSampling(false)
         }
@@ -223,23 +187,39 @@ struct NowPlayingScreen: View {
         // significantly more height (a real, uncapped text style), so the
         // cover gives back some of its share to keep the controls on screen.
         let artworkRatio: CGFloat = dynamicTypeSize.isAccessibilitySize ? 0.30 : 0.44
-        let artworkSide = min(size.width - 56, size.height * artworkRatio)
+        let artworkSide = max(0, min(size.width - 56, size.height * artworkRatio))
         let controlSpacing: CGFloat = dynamicTypeSize.isAccessibilitySize ? 14 : 22
 
         return VStack(spacing: 0) {
             grabber
 
-            Spacer(minLength: 12)
+            if let panelKind {
+                HStack(spacing: 12) {
+                    artwork.frame(width: 48, height: 48)
+                    titleRow
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
 
-            artwork
-                .frame(width: artworkSide, height: artworkSide)
-                .id(displayedTrack?.id)
-                .transition(coverTransition)
+                NowPlayingPanel(
+                    title: panelKind.title,
+                    onDismiss: dismissPanel
+                ) {
+                    panelContent(for: panelKind)
+                }
+                .frame(maxHeight: .infinity)
+                .padding(.bottom, 12)
+            } else {
+                Spacer(minLength: 12)
+                artwork
+                    .frame(width: artworkSide, height: artworkSide)
+                    .id(displayedTrack?.id)
+                    .transition(coverTransition)
+                Spacer(minLength: 12)
+            }
 
-            Spacer(minLength: 12)
-
-            VStack(spacing: controlSpacing) {
-                titleRow
+            VStack(spacing: panelKind == nil ? controlSpacing : 10) {
+                if panelKind == nil { titleRow }
                 PlayerScrubber(
                     palette: palette,
                     playbackManager: playbackManager
@@ -249,7 +229,7 @@ struct NowPlayingScreen: View {
                     playbackManager: playbackManager,
                     playlistManager: playlistManager
                 )
-                volumeRow
+                if panelKind == nil { volumeRow }
                 accessoryRow
             }
             .padding(.horizontal, 28)
@@ -340,17 +320,30 @@ struct NowPlayingScreen: View {
                 // title/artist wrap at the largest accessibility sizes is
                 // the only way to keep the style uncapped without clipping.
                 Text(displayedTrack?.title ?? "")
-                    .font(.title2.weight(.bold))
+                    .font(panelKind == nil ? .title2.weight(.bold) : .headline)
                     .fixedSize(horizontal: false, vertical: true)
                     .foregroundColor(palette.foreground)
                     // The Dynamic Type audit is scoped to these two elements:
                     // they must stay uncapped, real text styles.
                     .accessibilityIdentifier("NowPlayingTitle")
-                Text(displayedTrack?.displayArtist ?? "")
-                    .font(.title2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .foregroundColor(palette.secondary)
-                    .accessibilityIdentifier("NowPlayingArtist")
+                Menu {
+                    if let track = displayedTrack {
+                        ForEach(ArtistParser.parse(
+                            track.artist,
+                            unknownPlaceholder: LibraryFilterType.artists.unknownPlaceholder,
+                            role: LibraryFilterType.artists.artistRole
+                        ), id: \.self) { artist in
+                            Button(artist) { navigate(to: .artists, value: artist) }
+                        }
+                        Button("Show Album") { navigate(to: .albums, value: track.album) }
+                    }
+                } label: {
+                    Text(displayedTrack?.displayArtist ?? "")
+                        .font(panelKind == nil ? .title2 : .subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundColor(palette.secondary)
+                }
+                .accessibilityIdentifier("NowPlayingArtist")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             // Travels with the cover but half as far — the names sit in a
@@ -465,15 +458,6 @@ struct NowPlayingScreen: View {
 
     // MARK: - Panels
 
-    /// A tap on the artwork area puts a raised panel back down.
-    private var panelDismissLayer: some View {
-        Color.black.opacity(0.0001)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                dismissPanel()
-            }
-    }
-
     @ViewBuilder
     private func panelContent(for kind: PanelKind) -> some View {
         switch kind {
@@ -488,75 +472,24 @@ struct NowPlayingScreen: View {
         }
     }
 
-    private func panelOffset(height: CGFloat) -> CGFloat {
-        panelVisible ? max(0, panelDragOffset) : height
-    }
-
     private func presentPanel(_ kind: PanelKind) {
-        panelLifecycleTask?.cancel()
-
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            panelKind = kind
-            panelMounted = true
-            panelVisible = false
-            panelDragOffset = 0
-        }
-
-        panelLifecycleTask = Task { @MainActor in
-            await Task.yield()
-            guard !Task.isCancelled,
-                  panelMounted,
-                  panelKind == kind else { return }
-
-            let animation: Animation = reduceMotion
-                ? .easeOut(duration: 0.20)
-                : .spring(response: 0.28, dampingFraction: 0.90)
-            withAnimation(animation) {
-                panelVisible = true
-            }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+            panelKind = panelKind == kind ? nil : kind
         }
     }
 
     private func dismissPanel() {
-        panelLifecycleTask?.cancel()
-        guard panelMounted else { return }
-
-        let duration = 0.20
-        withAnimation(.easeOut(duration: duration)) {
-            panelVisible = false
-        }
-
-        panelLifecycleTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            guard !Task.isCancelled, !panelVisible else { return }
-
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                panelMounted = false
-                panelKind = nil
-                panelDragOffset = 0
-            }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+            panelKind = nil
         }
     }
 
-    private func updatePanelDrag(_ translation: CGFloat) {
-        panelDragOffset = max(0, translation)
-    }
-
-    private func finishPanelDrag(_ translation: CGFloat, _ predictedTranslation: CGFloat) {
-        let shouldDismiss = translation > 80 || predictedTranslation > 160
-        if shouldDismiss {
-            dismissPanel()
-        } else if reduceMotion {
-            panelDragOffset = 0
-        } else {
-            withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
-                panelDragOffset = 0
-            }
-        }
+    private func navigate(to filter: LibraryFilterType, value: String) {
+        NotificationCenter.default.post(
+            name: .goToLibraryFilter,
+            object: nil,
+            userInfo: ["filterType": filter, "filterValue": value]
+        )
     }
 
     // MARK: - Dismissal

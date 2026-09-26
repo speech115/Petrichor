@@ -176,3 +176,40 @@ extension LibraryManager {
         userDefaults.set(importedMtimes, forKey: Self.m3uImportMtimesKey)
     }
 }
+
+extension LibraryManager {
+    /// External picker URLs are copied into Documents; only the scan writes
+    /// relative paths to the database. A separate directory avoids overwriting
+    /// existing music with an identically named file.
+    func importMusicFiles(_ urls: [URL]) async throws -> Int {
+        let destination = LibraryPathStore.libraryRoot
+            .appendingPathComponent("Imports", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let skipped = try await Task.detached(priority: .utility) {
+            try Self.copyMusicFiles(urls, to: destination)
+        }.value
+        try await scanLibraryRoot()
+        return skipped
+    }
+
+    nonisolated static func copyMusicFiles(_ urls: [URL], to destination: URL) throws -> Int {
+        let files = FileManager.default
+        try files.createDirectory(at: destination, withIntermediateDirectories: true)
+        var skipped = 0
+        for url in urls {
+            guard AudioFormat.supportedExtensions.contains(url.pathExtension.lowercased()) else {
+                skipped += 1
+                continue
+            }
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            do {
+                try files.copyItem(at: url, to: destination.appendingPathComponent(url.lastPathComponent))
+            } catch {
+                skipped += 1
+                Logger.error("Could not copy selected audio: \(error)")
+            }
+        }
+        return skipped
+    }
+}

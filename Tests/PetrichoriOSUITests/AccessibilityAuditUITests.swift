@@ -32,18 +32,14 @@ final class AccessibilityAuditUITests: XCTestCase {
     }
 
     /// Home is the default tab; wait until the seeded library is actually
-    /// loaded. The Songs row appears with count 0 while "No Music" is still
-    /// up — auditing that empty overlay fails contrast on the system
-    /// description text ("Contrast nearly passed" on CI).
+    /// loaded and the Favorites card replaces the empty-library overlay.
     private func launchSeededApp() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-seed-fixtures"]
+        app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
-        let songsRow = app.buttons.matching(
-            identifier: "library.allMusic"
-        ).firstMatch
-        XCTAssertTrue(songsRow.waitForExistence(timeout: 60), "строка Songs не появилась (Documents пуст?)")
+        let favorites = app.buttons["home.favorites"]
+        XCTAssertTrue(favorites.waitForExistence(timeout: 60), "избранное не появилось (Documents пуст?)")
 
         let noMusic = app.staticTexts["No Music"]
         if noMusic.exists {
@@ -55,14 +51,13 @@ final class AccessibilityAuditUITests: XCTestCase {
         return app
     }
 
-    /// Scrolls the Home scroll view until `element` is hittable, like the
-    /// smoke test does.
-    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
-        var attempts = 0
-        while !element.isHittable && attempts < 6 {
-            app.swipeUp()
-            attempts += 1
-        }
+    private func openAllMusic(in app: XCUIApplication) {
+        let searchTab = app.tabBars.buttons["Search"]
+        XCTAssertTrue(searchTab.waitForExistence(timeout: 10))
+        searchTab.tap()
+        let songsRow = app.buttons["library.allMusic"]
+        XCTAssertTrue(songsRow.waitForExistence(timeout: 10), "каталог песен не появился в поиске")
+        songsRow.tap()
     }
 
     // MARK: - Audits
@@ -78,11 +73,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testTrackListPassesAccessibilityAudit() async throws {
         let app = launchSeededApp()
 
-        let songsRow = app.buttons.matching(
-            identifier: "library.allMusic"
-        ).firstMatch
-        scrollTo(songsRow, in: app)
-        songsRow.tap()
+        openAllMusic(in: app)
 
         let alphaRow = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] 'Alpha One'")
@@ -130,11 +121,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testNowPlayingPassesAccessibilityAudit() async throws {
         let app = launchSeededApp()
 
-        let songsRow = app.buttons.matching(
-            identifier: "library.allMusic"
-        ).firstMatch
-        scrollTo(songsRow, in: app)
-        songsRow.tap()
+        openAllMusic(in: app)
 
         let alphaRow = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] 'Alpha One'")

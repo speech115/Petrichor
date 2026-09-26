@@ -28,10 +28,33 @@ struct DiscoverTabView: View {
                 load: { await loadTracks() },
                 sectioner: { [IndexedSection(key: "", items: $0)] },
                 usesPlainStyle: true,
-                emptyTitle: String(localized: "No Tracks"),
-                emptyIcon: Icons.sparkles,
+                showEmptyState: false,
                 header: { tracks in
-                    header(tracks)
+                    VStack(spacing: 12) {
+                        if tracks.isEmpty {
+                            ContentUnavailableView {
+                                Label("No Discoveries Yet", systemImage: Icons.sparkles)
+                            } description: {
+                                Text("This collection contains songs you haven't played yet. Add more music to discover something new.")
+                            }
+                        } else {
+                            header(tracks)
+                            Text("Unplayed songs from your library. A new selection every week.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                            if let updated = libraryManager.discoverLastUpdated {
+                                Text("Updated \(updated.formatted(date: .abbreviated, time: .omitted))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Button("Refresh Selection", systemImage: Icons.arrowClockwise) {
+                            libraryManager.refreshDiscoverTracks(populateArtwork: false)
+                        }
+                    }
+                        .padding(.bottom, 16)
                         .frame(maxWidth: .infinity)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
@@ -49,15 +72,6 @@ struct DiscoverTabView: View {
             )
             .rootTitle(String(localized: "Discover"))
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        libraryManager.refreshDiscoverTracks(populateArtwork: false)
-                    } label: {
-                        Image(systemName: Icons.arrowClockwise)
-                    }
-                    .accessibilityLabel(String(localized: "Refresh"))
-                }
                 SettingsToolbarItem(showingSettings: $showingSettings)
             }
         }

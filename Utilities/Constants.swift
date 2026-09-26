@@ -250,7 +250,7 @@ extension DefaultPlaylists {
     static func displayName(forStoredName name: String) -> String {
         switch name {
         case DefaultPlaylists.favorites:
-            return String(localized: "Petrichor Favorites")
+            return String(localized: "Favorites")
         case DefaultPlaylists.mostPlayed:
             return String(localized: "Top 25 Most Played")
         case DefaultPlaylists.recentlyPlayed:
@@ -314,6 +314,7 @@ extension Notification.Name {
     /// longer means anything".
     static let libraryDataDidReset = Notification.Name("LibraryDataDidReset")
     static let goToLibraryFilter = Notification.Name("GoToLibraryFilter")
+    static let addTrackToPlaylist = Notification.Name("AddTrackToPlaylist")
     static let showTrackInfo = Notification.Name("ShowTrackInfo")
 
     static let selectPlaylist = Notification.Name("SelectPlaylist")

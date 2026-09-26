@@ -45,17 +45,6 @@
         }
       }
     },
-    "Petrichor Favorites" : {
-      "extractionState": "manual",
-      "localizations": {
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Избранное Petrichor"
-          }
-        }
-      }
-    },
     "All Music" : {
       "extractionState": "manual",
       "localizations": {
@@ -152,6 +141,36 @@
             }
           }
         },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld альбома"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld альбомов"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld альбом"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld альбома"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
           "variations" : {
             "plural" : {
@@ -182,6 +201,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld artists"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld исполнителя"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld исполнителей"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld исполнитель"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld исполнителя"
                 }
               }
             }
@@ -429,6 +478,12 @@
             "state" : "translated",
             "value" : "%1$lld / %2$lld"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld из %2$lld"
+          }
         }
       }
     },
@@ -478,6 +533,36 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld songs"
+                }
+              }
+            }
+          }
+        },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песни"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песен"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песня"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песни"
                 }
               }
             }
@@ -590,6 +675,36 @@
             }
           }
         },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песни"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песен"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песня"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld песни"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
           "variations" : {
             "plural" : {
@@ -681,6 +796,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld-bit"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld бит"
           }
         }
       }
@@ -833,6 +954,12 @@
     "About" : {
       "comment" : "Settings tab title.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "О приложении"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1071,6 +1198,12 @@
             "state" : "translated",
             "value" : "添加一些歌曲到此播放列表"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте песни в этот плейлист."
+          }
         }
       }
     },
@@ -1078,6 +1211,12 @@
       "comment" : "A label for the section of a playlist editor that lets the user",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить песни"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1090,6 +1229,12 @@
       "comment" : "Text for a menu item that adds a track to the user's favorites.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В избранное"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1114,6 +1259,12 @@
       "comment" : "Context menu item title for adding a track to a playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В плейлист"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1126,6 +1277,12 @@
       "comment" : "Context menu item title.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В очередь"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1203,6 +1360,12 @@
     },
     "Album" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Альбом"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1225,6 +1388,12 @@
     },
     "Album Artist" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исполнитель альбома"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1235,6 +1404,12 @@
     },
     "Album Artists" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исполнители альбомов"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1257,6 +1432,12 @@
     },
     "Albums" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Альбомы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1279,6 +1460,12 @@
       "comment" : "Repeat mode option to repeat the entire playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1289,6 +1476,12 @@
     },
     "All Album Artists" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все исполнители альбомов"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1301,6 +1494,12 @@
       "comment" : "Title of the albums view.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все альбомы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1313,6 +1512,12 @@
       "comment" : "Title of the view that shows a list of all artists.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все исполнители"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1323,6 +1528,12 @@
     },
     "All Composers" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все композиторы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1333,6 +1544,12 @@
     },
     "All Decades" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все десятилетия"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1343,6 +1560,12 @@
     },
     "All Genres" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все жанры"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1377,6 +1600,12 @@
     "Songs" : {
       "comment" : "Title for the all-tracks list. Renamed from \"All Tracks\" to avoid confusion with the \"Все треки\" user playlist.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Песни"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1387,6 +1616,12 @@
     },
     "All Years" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Все годы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1465,6 +1700,12 @@
       "comment" : "A section in the app's settings that allows the user to change the app's appearance.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оформление"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1535,6 +1776,12 @@
     },
     "Artist" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исполнитель"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1545,6 +1792,12 @@
     },
     "Artists" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исполнители"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1579,6 +1832,12 @@
     },
     "Auto" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системная"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1706,6 +1965,12 @@
     "Bit Depth" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Разрядность"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1717,6 +1982,12 @@
     "Bitrate" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Битрейт"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1732,6 +2003,12 @@
       "comment" : "Button title for canceling the current operation.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отмена"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1768,6 +2045,12 @@
     "Channels" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Каналы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1931,6 +2214,12 @@
       "comment" : "A label that closes the current window.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Закрыть"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1954,6 +2243,12 @@
     "Codec" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кодек"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2009,6 +2304,12 @@
     },
     "Composer" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Композитор"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2019,6 +2320,12 @@
     },
     "Composers" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Композиторы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2030,6 +2337,12 @@
     "Conductor" : {
       "comment" : "Metadata label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дирижёр"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2124,6 +2437,12 @@
       "comment" : "A button that creates a playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создать"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2214,6 +2533,12 @@
     },
     "Dark" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тёмная"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2272,6 +2597,12 @@
     },
     "Date Added" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата добавления"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2293,6 +2624,12 @@
     },
     "Decade" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Десятилетие"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2303,6 +2640,12 @@
     },
     "Decades" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Десятилетия"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2325,6 +2668,12 @@
       "comment" : "A destructive button that deletes the currently selected playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2349,6 +2698,12 @@
       "comment" : "A confirmation dialog that lets the user delete a playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить плейлист"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2383,6 +2738,12 @@
       "comment" : "A heading for the details of a track.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Метаданные"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2415,6 +2776,12 @@
     },
     "Disc" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диск"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2483,6 +2850,12 @@
       "comment" : "Title of the discover section in the home view.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открытия"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2531,6 +2904,12 @@
       "comment" : "A button that closes a sheet.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2553,6 +2932,12 @@
     },
     "Duration" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Длительность"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2577,6 +2962,12 @@
       "comment" : "A button to edit a playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изменить"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2635,6 +3026,12 @@
             "state" : "translated",
             "value" : "播放列表为空"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Плейлист пуст"
+          }
         }
       }
     },
@@ -2645,6 +3042,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "智能播放列表为空"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смарт-плейлист пуст"
           }
         }
       }
@@ -3144,6 +3547,12 @@
     "Favorite" : {
       "comment" : "Metadata label indicating a favorite track.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Избранное"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3155,6 +3564,12 @@
     "Favorites" : {
       "comment" : "Display name for the built-in Favorites smart playlist.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Избранное"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3215,6 +3630,12 @@
       "comment" : "A label displayed above a list of file details.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свойства файла"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3226,6 +3647,12 @@
     "File Path" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Путь к файлу"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3237,6 +3664,12 @@
     "File Size" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Размер файла"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3258,6 +3691,12 @@
     "Filter Album Artists..." : {
       "comment" : "Search placeholder for filtering album artists.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск исполнителей альбомов…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3269,6 +3708,12 @@
     "Filter Albums..." : {
       "comment" : "Search placeholder for filtering albums.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск альбомов…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3280,6 +3725,12 @@
     "Filter Artists..." : {
       "comment" : "Search placeholder for filtering artists.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск исполнителей…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3291,6 +3742,12 @@
     "Filter Composers..." : {
       "comment" : "Search placeholder for filtering composers.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск композиторов…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3302,6 +3759,12 @@
     "Filter Decades..." : {
       "comment" : "Search placeholder for filtering decades.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск десятилетий…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3313,6 +3776,12 @@
     "Filter Genres..." : {
       "comment" : "Search placeholder for filtering genres.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск жанров…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3336,6 +3805,12 @@
     "Filter Years..." : {
       "comment" : "Search placeholder for filtering years.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск годов…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3483,6 +3958,12 @@
     "Format" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Формат"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3527,6 +4008,12 @@
     },
     "Genre" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жанр"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3537,6 +4024,12 @@
     },
     "Genres" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Жанры"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3561,6 +4054,12 @@
       "comment" : "Title of a context menu that allows the user to filter the library for a specific track.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перейти к"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3589,6 +4088,12 @@
       "comment" : "A toggle that hides duplicate songs.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скрывать дубликаты песен"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3645,6 +4150,12 @@
       "comment" : "The title of the main view.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Главная"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3693,6 +4204,12 @@
       "comment" : "A system icon that looks like a square with an arrow pointing downwards.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импорт плейлистов"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3726,6 +4243,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已导入 %1$lld 个播放列表，其中 %2$lld 首歌曲缺失"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировано плейлистов: %lld, не найдено песен: %lld"
           }
         }
       }
@@ -4028,6 +4551,12 @@
     "Label" : {
       "comment" : "Metadata label for a record label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лейбл"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4049,6 +4578,12 @@
     "Last Played" : {
       "comment" : "Metadata label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Последнее прослушивание"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4133,6 +4668,12 @@
       "comment" : "A label for the \"Library\" menu item.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Медиатека"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4227,6 +4768,12 @@
     },
     "Light" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Светлая"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4263,6 +4810,12 @@
       "comment" : "A label that describes the lyrics loading.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка текста песни"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4331,6 +4884,12 @@
       "comment" : "A title for a screen that displays lyrics.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст песни"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4368,6 +4927,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "标记为喜爱的歌曲将在此显示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавляйте песни в избранное, чтобы видеть их здесь."
           }
         }
       }
@@ -4573,6 +5138,12 @@
       "comment" : "A label displayed above a text field for creating a new playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый плейлист"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4585,6 +5156,12 @@
       "comment" : "Context menu item to create a new playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Новый плейлист…"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4609,6 +5186,12 @@
       "comment" : "Title of a menu item that plays the next track.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующая песня"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4643,6 +5226,12 @@
     },
     "No album artists found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет исполнителей альбомов"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4653,6 +5242,12 @@
     },
     "No albums found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет альбомов"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4663,6 +5258,12 @@
     },
     "No artists found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет исполнителей"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4673,6 +5274,12 @@
     },
     "No composers found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет композиторов"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4683,6 +5290,12 @@
     },
     "No decades found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет десятилетий"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4698,6 +5311,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暂无喜爱歌曲"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет избранных песен"
           }
         }
       }
@@ -4734,11 +5353,23 @@
             "state" : "translated",
             "value" : "暂无常听歌曲"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока нет часто прослушиваемых песен"
+          }
         }
       }
     },
     "No genres found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет жанров"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4775,6 +5406,12 @@
       "comment" : "A message displayed when a track has no lyrics.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст не найден"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4886,6 +5523,12 @@
     "No Recently Played Songs" : {
       "comment" : "Empty-state title for the recently-played smart playlist.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока нет прослушанных песен"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4896,6 +5539,12 @@
     },
     "No release years found in your library" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В медиатеке нет годов выпуска"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5108,6 +5757,12 @@
       "comment" : "Title of a menu item that displays the currently playing track.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сейчас играет"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5309,6 +5964,12 @@
       "comment" : "Title of a menu item to pause playback.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пауза"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5367,6 +6028,12 @@
       "comment" : "Title of a menu item to play/pause music.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слушать"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5379,6 +6046,12 @@
       "comment" : "A description of what to do to start building a queue.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включите песню, чтобы начать воспроизведение."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5460,6 +6133,12 @@
     "Play Count" : {
       "comment" : "Metadata label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Прослушивания"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5496,6 +6175,12 @@
       "comment" : "Menu item title to play the track that was right-clicked on after the currently playing track ends.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слушать далее"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5663,6 +6348,12 @@
       "comment" : "A label for the playlist name field.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название плейлиста"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5699,6 +6390,12 @@
       "comment" : "A system icon of a list of music notes.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Плейлисты"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5839,6 +6536,12 @@
       "comment" : "Title of a menu item to play the previous track.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Предыдущая песня"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5874,6 +6577,12 @@
     "Producer" : {
       "comment" : "Metadata label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продюсер"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5897,6 +6606,12 @@
     "Publisher" : {
       "comment" : "Metadata label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Издатель"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5921,6 +6636,12 @@
       "comment" : "A message displayed when the queue is empty.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очередь пуста"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6053,6 +6774,12 @@
       "comment" : "A button that refreshes the library.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6194,6 +6921,12 @@
     "Release Date" : {
       "comment" : "Metadata label in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата выпуска"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6206,6 +6939,12 @@
       "comment" : "A button that removes a selection of folders.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Убрать"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6302,6 +7041,12 @@
       "comment" : "Title of a menu item to remove a track from the user's favorites.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Убрать из избранного"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6338,6 +7083,12 @@
       "comment" : "Context menu item title for removing tracks from a playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Убрать из плейлиста"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6508,6 +7259,12 @@
       "comment" : "Title of a menu item that allows the user to change the repeat mode of the playlist.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повтор"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6714,6 +7471,12 @@
       "comment" : "A button that retries fetching lyrics.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить попытку"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6781,6 +7544,12 @@
     "Sample Rate" : {
       "comment" : "Metadata label in track file details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Частота дискретизации"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6876,6 +7645,12 @@
       "comment" : "A button that triggers a search for images.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6900,6 +7675,12 @@
       "comment" : "A menu item that opens the search field.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск в медиатеке"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7239,6 +8020,12 @@
       "comment" : "A system icon for app settings.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Настройки"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7299,6 +8086,12 @@
       "comment" : "Action to show detailed information about a track.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сведения"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7395,6 +8188,12 @@
       "comment" : "Title of a menu item to toggle shuffle mode on or off.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перемешать"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7504,6 +8303,12 @@
             "state" : "translated",
             "value" : "播放 5 次或以上的歌曲将在此显示"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появятся песни, прослушанные не менее пяти раз."
+          }
         }
       }
     },
@@ -7514,6 +8319,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "过去一周播放的歌曲将在此显示"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появятся песни, прослушанные за последнюю неделю."
           }
         }
       }
@@ -7674,6 +8485,12 @@
             "state" : "translated",
             "value" : "已成功导入 %1$lld 个播放列表（%2$lld 首歌曲）"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Импортировано плейлистов: %lld, песен: %lld"
+          }
         }
       }
     },
@@ -7823,6 +8640,12 @@
             "state" : "translated",
             "value" : "此智能播放列表将根据其准则自动更新"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этот смарт-плейлист обновляется автоматически по своим правилам."
+          }
         }
       }
     },
@@ -7864,6 +8687,12 @@
       "comment" : "A toggle that lets the user choose whether the app should use the album artwork's colors for the background.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Использовать цвета обложки в интерфейсе"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7926,6 +8755,12 @@
             "state" : "translated",
             "value" : "最常播放 Top 25"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "25 самых прослушиваемых"
+          }
         }
       }
     },
@@ -7937,12 +8772,24 @@
             "state" : "translated",
             "value" : "最近播放 Top 25"
           }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "25 недавно прослушанных"
+          }
         }
       }
     },
     "Track" : {
       "comment" : "Metadata label for track number in track details.",
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Песня"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7955,6 +8802,12 @@
       "comment" : "A title for the track information section.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сведения о треке"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8021,6 +8874,12 @@
     },
     "Tracks" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Песни"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8121,6 +8980,12 @@
       "comment" : "Localized label shown in place of the stored English \"Unknown Album\" at display sites.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный альбом"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8133,6 +8998,12 @@
       "comment" : "Displayed in place of \"Unknown Album Artist\" in the UI.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный исполнитель альбома"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8145,6 +9016,12 @@
       "comment" : "Localized label shown in place of the English \"Unknown Artist\" placeholder at display sites.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный исполнитель"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8157,6 +9034,12 @@
       "comment" : "Localized label shown in place of the stored English \"Unknown Composer\" at display sites.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный композитор"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8169,6 +9052,12 @@
       "comment" : "Displayed in the UI when a decade is unknown.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестное десятилетие"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8181,6 +9070,12 @@
       "comment" : "Displayed in the UI when an album's genre is unknown.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный жанр"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8193,6 +9088,12 @@
       "comment" : "Localized label shown in place of the stored English \"Unknown Year\" at display sites.",
       "isCommentAutoGenerated" : true,
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Неизвестный год"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8521,6 +9422,36 @@
             }
           }
         },
+        "ru" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Будут добавлены %lld песни"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Будут добавлены %lld песен"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Будет добавлена %lld песня"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Будут добавлены %lld песни"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans" : {
           "variations" : {
             "plural" : {
@@ -8540,6 +9471,12 @@
     },
     "Year" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Год"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8550,6 +9487,12 @@
     },
     "Years" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Годы"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8641,6 +9584,842 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "同时会附上你最近的应用日志，以便我们了解问题发生前后的情况。"
+          }
+        }
+      }
+    }
+  ,
+    "A fork of kushalpandya/Petrichor, MIT License © Kushal Pandya." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Форк kushalpandya/Petrichor. Лицензия MIT, © Kushal Pandya."
+          }
+        }
+      }
+    },
+    "Add (%lld)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить (%lld)"
+          }
+        }
+      }
+    },
+    "Add Music" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить музыку"
+          }
+        }
+      }
+    },
+    "Add music files to the Petrichor folder in the Files app" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите аудиофайлы или скопируйте музыку в папку Petrichor через приложение «Файлы»."
+          }
+        }
+      }
+    },
+    "Add music to your library first, or try another search." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте музыку в медиатеку или измените поисковый запрос."
+          }
+        }
+      }
+    },
+    "Added" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавлено"
+          }
+        }
+      }
+    },
+    "Added to %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавлено в «%@»"
+          }
+        }
+      }
+    },
+    "Adding music…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавляем музыку…"
+          }
+        }
+      }
+    },
+    "Are you sure you want to delete \"%@\"?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Удалить плейлист «%@»?"
+          }
+        }
+      }
+    },
+    "Automatic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системная"
+          }
+        }
+      }
+    },
+    "Choose Files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выбрать файлы"
+          }
+        }
+      }
+    },
+    "Choose audio files to copy into Petrichor. The originals stay where they are." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите аудиофайлы для копирования в Petrichor. Оригиналы останутся на месте."
+          }
+        }
+      }
+    },
+    "Choose songs from your library to start this playlist." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите песни из медиатеки для этого плейлиста."
+          }
+        }
+      }
+    },
+    "Color Scheme" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Тема"
+          }
+        }
+      }
+    },
+    "Connect to the internet and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключитесь к интернету и попробуйте снова."
+          }
+        }
+      }
+    },
+    "Couldn't Load Lyrics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить текст"
+          }
+        }
+      }
+    },
+    "Create a playlist to add this song." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Создайте плейлист, чтобы добавить эту песню."
+          }
+        }
+      }
+    },
+    "Disc %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Диск %lld"
+          }
+        }
+      }
+    },
+    "Enable Online Lyrics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить поиск в интернете"
+          }
+        }
+      }
+    },
+    "Enter at least two characters to search your library." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Введите хотя бы два символа для поиска."
+          }
+        }
+      }
+    },
+    "Failed to rescan the library" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось пересканировать медиатеку"
+          }
+        }
+      }
+    },
+    "Fetch artist photos and bios from the internet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загружать фото и биографии исполнителей"
+          }
+        }
+      }
+    },
+    "Fetch lyrics from the internet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Искать тексты песен в интернете"
+          }
+        }
+      }
+    },
+    "File not found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файл не найден"
+          }
+        }
+      }
+    },
+    "Find tracks, artists and albums" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Найдите песню, исполнителя или альбом."
+          }
+        }
+      }
+    },
+    "Import a Folder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавить папку"
+          }
+        }
+      }
+    },
+    "In Files, copy your music folder to On My iPhone → Petrichor. Return here and the library will update automatically." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В приложении «Файлы» скопируйте папку с музыкой в «На iPhone» → Petrichor. Вернитесь сюда — медиатека обновится автоматически."
+          }
+        }
+      }
+    },
+    "Index" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Алфавитный указатель"
+          }
+        }
+      }
+    },
+    "Keep Typing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Продолжайте ввод"
+          }
+        }
+      }
+    },
+    "Move Down" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместить ниже"
+          }
+        }
+      }
+    },
+    "Move Up" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переместить выше"
+          }
+        }
+      }
+    },
+    "Music" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Музыка"
+          }
+        }
+      }
+    },
+    "No Discoveries Yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пока нет новых песен"
+          }
+        }
+      }
+    },
+    "No Favorites" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет избранных песен"
+          }
+        }
+      }
+    },
+    "No Internet Connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет подключения к интернету"
+          }
+        }
+      }
+    },
+    "No Music" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет музыки"
+          }
+        }
+      }
+    },
+    "No Playlists Found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Плейлисты не найдены"
+          }
+        }
+      }
+    },
+    "No Songs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет песен"
+          }
+        }
+      }
+    },
+    "No Songs in Playlist" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В плейлисте нет песен"
+          }
+        }
+      }
+    },
+    "No Tracks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет песен"
+          }
+        }
+      }
+    },
+    "No lyrics in this file. Enable online search to look for them." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В файле нет текста песни. Включите поиск в интернете."
+          }
+        }
+      }
+    },
+    "No lyrics were found for this song." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Текст этой песни не найден."
+          }
+        }
+      }
+    },
+    "OK" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ОК"
+          }
+        }
+      }
+    },
+    "Online Lyrics Are Off" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск текстов выключен"
+          }
+        }
+      }
+    },
+    "Petrichor for iPhone — a port of the macOS music player." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Petrichor для iPhone — версия музыкального плеера для macOS."
+          }
+        }
+      }
+    },
+    "Playback position" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позиция воспроизведения"
+          }
+        }
+      }
+    },
+    "Playlist Not Found" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Плейлист не найден"
+          }
+        }
+      }
+    },
+    "Playlist menu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меню плейлиста"
+          }
+        }
+      }
+    },
+    "Queue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Очередь"
+          }
+        }
+      }
+    },
+    "Recently Played" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Недавно прослушано"
+          }
+        }
+      }
+    },
+    "Refresh Selection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновить подборку"
+          }
+        }
+      }
+    },
+    "Rename" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименовать"
+          }
+        }
+      }
+    },
+    "Rename Playlist" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переименовать плейлист"
+          }
+        }
+      }
+    },
+    "Rescan Library" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пересканировать медиатеку"
+          }
+        }
+      }
+    },
+    "Search Playlists" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поиск плейлистов"
+          }
+        }
+      }
+    },
+    "Show Album" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть альбом"
+          }
+        }
+      }
+    },
+    "Show Artist" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть исполнителя"
+          }
+        }
+      }
+    },
+    "Songs will appear here as you listen or add favorites." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Песни появятся здесь по мере прослушивания или добавления в избранное."
+          }
+        }
+      }
+    },
+    "Source Repository" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исходный код"
+          }
+        }
+      }
+    },
+    "The lyrics service couldn't be reached. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сервис текстов недоступен. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "The playlist could not be saved. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось сохранить плейлист. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "This collection contains songs you haven't played yet. Add more music to discover something new." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Здесь появляются песни, которые вы ещё не слушали. Добавьте музыку в медиатеку, чтобы открыть что-то новое."
+          }
+        }
+      }
+    },
+    "Top Result" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лучший результат"
+          }
+        }
+      }
+    },
+    "Track menu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меню песни"
+          }
+        }
+      }
+    },
+    "Unable to Add Songs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось добавить песни"
+          }
+        }
+      }
+    },
+    "Unable to Load Track Details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось загрузить сведения"
+          }
+        }
+      }
+    },
+    "Unable to add music. Check the files and available storage, then try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось добавить музыку. Проверьте файлы и свободное место, затем повторите попытку."
+          }
+        }
+      }
+    },
+    "Unable to read the selected files. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось прочитать выбранные файлы. Попробуйте ещё раз."
+          }
+        }
+      }
+    },
+    "Unplayed songs from your library. A new selection every week." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Непрослушанные песни из вашей медиатеки. Новая подборка каждую неделю."
+          }
+        }
+      }
+    },
+    "Up Next" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Далее"
+          }
+        }
+      }
+    },
+    "Updated %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Обновлено %@"
+          }
+        }
+      }
+    },
+    "Volume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Громкость"
+          }
+        }
+      }
+    },
+    "Failed to import %lld playlists" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось импортировать плейлистов: %lld"
+          }
+        }
+      }
+    },
+    "No files were added. Choose supported audio files and check available storage." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлы не добавлены. Выберите аудиофайлы поддерживаемого формата и проверьте свободное место."
+          }
+        }
+      }
+    },
+    "Files copied to Petrichor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Файлы скопированы в Petrichor."
+          }
+        }
+      }
+    },
+    "Some files could not be copied. The remaining files are in Petrichor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Часть файлов не удалось скопировать. Остальные находятся в Petrichor."
           }
         }
       }
