@@ -15,6 +15,7 @@ struct HomeTabView: View {
     @Binding var path: [LibraryDestination]
     @Binding var showingSettings: Bool
 
+    @State private var showingAddMusic = false
     @State private var recentAlbums: [AlbumEntity] = []
     @State private var loadTask: Task<Void, Never>?
     @Namespace private var zoomNamespace
@@ -27,8 +28,10 @@ struct HomeTabView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    favoritesButton
-                    librarySection
+                    if !isEmpty {
+                        favoritesButton
+                        librarySection
+                    }
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
                             albums: recentAlbums,
@@ -39,6 +42,7 @@ struct HomeTabView: View {
                 }
                 .padding(.vertical, 8)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .rootTitle(String(localized: "Home"))
             .toolbar {
                 SettingsToolbarItem(showingSettings: $showingSettings)
@@ -56,9 +60,13 @@ struct HomeTabView: View {
                         // enforces.
                         Text(String(localized: "Add music files to the Petrichor folder in the Files app"))
                             .foregroundStyle(Color.secondaryText)
+                    } actions: {
+                        Button("Add Music") { showingAddMusic = true }
+                            .buttonStyle(.borderedProminent)
                     }
                 }
             }
+            .sheet(isPresented: $showingAddMusic) { AddMusicSheet() }
             .onAppear(perform: scheduleLoad)
             .onChange(of: libraryManager.libraryRevision) { _, _ in
                 scheduleLoad()
@@ -121,26 +129,38 @@ struct HomeTabView: View {
     }
 
     private var librarySection: some View {
-        NavigationLink(value: LibraryDestination.allTracks) {
-            HStack {
-                Text(String(localized: "All Music"))
-                    .font(.body)
-                Spacer()
-                if libraryManager.countsLoaded {
-                    Text("\(libraryManager.totalTrackCount)")
-                        .font(.body)
-                        .foregroundColor(.secondaryText)
-                        .monospacedDigit()
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Library").font(.title2.bold())
+            VStack(spacing: 0) {
+                libraryLink("All Music", icon: "music.note", destination: .allTracks,
+                            count: libraryManager.totalTrackCount)
+                    .accessibilityIdentifier("library.allMusic")
+                Divider().padding(.leading, 44)
+                libraryLink("Albums", icon: "square.stack", destination: .category(.albums),
+                            count: libraryManager.albumEntities.count)
+                Divider().padding(.leading, 44)
+                libraryLink("Artists", icon: "person.2", destination: .category(.artists),
+                            count: libraryManager.artistEntities.count)
             }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private func libraryLink(_ title: LocalizedStringKey, icon: String, destination: LibraryDestination, count: Int) -> some View {
+        NavigationLink(value: destination) {
+            HStack(spacing: 12) {
+                Image(systemName: icon).foregroundStyle(.tint).frame(width: 24)
+                Text(title)
+                Spacer()
+                Text("\(count)").monospacedDigit().foregroundStyle(Color.secondaryText)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 52)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("library.allMusic")
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemGroupedBackground)))
-        .padding(.horizontal, 16)
     }
 
     private func smartPlaylist(_ name: String) -> Playlist? {

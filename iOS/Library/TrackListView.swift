@@ -65,7 +65,7 @@ struct TrackListView: View {
             .background(.bar)
         }
         .navigationTitle(navigationTitle)
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inline)
     }
 
     private var navigationTitle: String {

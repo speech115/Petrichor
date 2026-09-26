@@ -172,8 +172,8 @@ struct NowPlayingLyricsPanel: View {
                         Text(line.text.isEmpty ? " " : line.text)
                             // Content text in a scrolling panel: a real text
                             // style, free to grow with Dynamic Type.
-                            .font(.subheadline.weight(.semibold))
-                            .opacity(isActive ? 1 : 0.45)
+                            .font(.title2.weight(.semibold))
+                            .opacity(!hasTimedLyrics || isActive ? 1 : 0.60)
                             .scaleEffect(isActive ? 1.06 : 1.0)
                             .multilineTextAlignment(.center)
                             .lineSpacing(6)

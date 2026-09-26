@@ -179,3 +179,23 @@ import Testing
         "Jeune Ras - Hidden Gem.mp3"
     ])
 }
+
+@Test func fileImportKeepsOriginalsAndNeverOverwritesExistingAudio() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let audio = root.appendingPathComponent("song.MP3")
+    let unsupported = root.appendingPathComponent("notes.txt")
+    let imported = root.appendingPathComponent("Imports")
+    let original = Data([1, 2, 3])
+    try original.write(to: audio)
+    try Data([4]).write(to: unsupported)
+
+    #expect(try LibraryManager.copyMusicFiles([audio, unsupported], to: imported) == 1)
+    #expect(try Data(contentsOf: audio) == original)
+    #expect(try Data(contentsOf: imported.appendingPathComponent("song.MP3")) == original)
+    #expect(!FileManager.default.fileExists(atPath: imported.appendingPathComponent("notes.txt").path))
+    try Data([9]).write(to: audio)
+    #expect(try LibraryManager.copyMusicFiles([audio], to: imported) == 1)
+    #expect(try Data(contentsOf: imported.appendingPathComponent("song.MP3")) == original)
+}

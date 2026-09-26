@@ -314,6 +314,7 @@ extension Notification.Name {
     /// longer means anything".
     static let libraryDataDidReset = Notification.Name("LibraryDataDidReset")
     static let goToLibraryFilter = Notification.Name("GoToLibraryFilter")
+    static let addTrackToPlaylist = Notification.Name("AddTrackToPlaylist")
     static let showTrackInfo = Notification.Name("ShowTrackInfo")
 
     static let selectPlaylist = Notification.Name("SelectPlaylist")

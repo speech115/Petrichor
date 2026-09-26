@@ -1,9 +1,10 @@
 # Localization
 
 Petrichor uses Apple's **String Catalog** (`Resources/Localizable.xcstrings`) for
-localization. The app ships in English and automatically follows the user's macOS
-system language when a matching localization is available, falling back to English
-otherwise. Adding a new language requires **no Swift code changes**.
+localization. The app follows the user's system language on macOS and iOS, falling back to
+English for untranslated strings. The iOS screens include Russian translations
+for navigation, actions, empty states and plural counts; the macOS-only catalog
+is not fully translated. Adding a new language requires **no Swift code changes**.
 
 ## Adding a translation
 

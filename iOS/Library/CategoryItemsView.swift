@@ -34,7 +34,7 @@ struct CategoryItemsView: View {
             }
         }
         .navigationTitle(filterType.pluralDisplayName)
-        .navigationBarTitleDisplayMode(.large)
+        .toolbarTitleDisplayMode(.inline)
         .onAppear(perform: reload)
         .onChange(of: libraryManager.libraryRevision) { _, _ in
             reload()

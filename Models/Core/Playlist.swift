@@ -453,7 +453,7 @@ struct Playlist: Identifiable, FetchableRecord, PersistableRecord {
         #if arch(x86_64)
         return ImageUtils.encodeJPEG(collageImage)
         #else
-        return ImageUtils.encodeHEIC(collageImage)
+        return ImageUtils.encodeArtwork(collageImage)
         #endif
     }
 }

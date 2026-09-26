@@ -352,6 +352,20 @@ extension DatabaseManager {
         }
     }
 
+    /// Membership without decoding track metadata or artwork for unopened playlists.
+    func loadPlaylistTrackIDs(_ playlistID: UUID) -> Set<Int64> {
+        do {
+            return try dbQueue.read { db in
+                Set(try Int64.fetchAll(db,
+                    sql: "SELECT track_id FROM playlist_tracks WHERE playlist_id = ?",
+                    arguments: [playlistID.uuidString]))
+            }
+        } catch {
+            Logger.error("Failed to load playlist membership: \(error)")
+            return []
+        }
+    }
+
     /// First `limit` tracks of a playlist with album thumbnails, for Home card
     /// previews. Regular playlists read the stored order; smart playlists
     /// evaluate their rules. Only the preview rows are fetched with artwork.

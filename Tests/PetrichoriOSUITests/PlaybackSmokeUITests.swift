@@ -23,7 +23,7 @@ final class PlaybackSmokeUITests: XCTestCase {
     /// WAV fixtures will never appear in the library.
     func testLaunchingATrackFromSongsReachesThePlayer() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-seed-fixtures"]
+        app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
         // Home is the default tab; the Songs row lives in the Library section

@@ -206,7 +206,9 @@ class PlaylistManager: ObservableObject {
             return cached?.trackIDs.contains(trackID) ?? false
         }
 
-        let trackIDs = Set(playlist.tracks.compactMap(\.trackId))
+        let trackIDs = playlist.type == .regular
+            ? libraryManager?.databaseManager.loadPlaylistTrackIDs(playlist.id) ?? []
+            : Set(playlist.tracks.compactMap(\.trackId))
         playlistMembershipCache[playlist.id] = PlaylistMembershipCacheEntry(
             dateModified: playlist.dateModified,
             loadedTrackCount: loadedTrackCount,

@@ -27,49 +27,42 @@ struct DetailHeader<Artwork: View>: View {
     @ViewBuilder var artwork: () -> Artwork
 
     var body: some View {
-        ZStack(alignment: .top) {
-            if let tint {
-                LinearGradient(
-                    colors: [
-                        tint.opacity(0.55),
-                        tint.opacity(0.28),
-                        tint.opacity(0.08),
-                        .clear
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 520)
-                .allowsHitTesting(false)
+        VStack(spacing: 12) {
+            artwork()
+                .padding(.top, 8)
+
+            if let title, !title.isEmpty {
+                Text(title)
+                    .font(.title2.weight(.bold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
             }
 
-            VStack(spacing: 12) {
-                artwork()
-                    .padding(.top, 8)
-
-                if let title, !title.isEmpty {
-                    Text(title)
-                        .font(.title2.weight(.bold))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                }
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-
-                PlayShuffleRow(
-                    onPlay: onPlay,
-                    onShuffle: onShuffle,
-                    playDisabled: playDisabled
-                )
-                .padding(.top, 4)
+            if let subtitle, !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
+
+            PlayShuffleRow(
+                onPlay: onPlay,
+                onShuffle: onShuffle,
+                playDisabled: playDisabled
+            )
+            .padding(.top, 4)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
+        .background(alignment: .top) {
+            if let tint {
+                LinearGradient(
+                    colors: [tint.opacity(0.35), tint.opacity(0.12), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+            }
+        }
     }
 }

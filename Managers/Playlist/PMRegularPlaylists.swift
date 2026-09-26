@@ -215,15 +215,16 @@ extension PlaylistManager {
     }
     
     /// Add multiple tracks to a playlist
-    func addTracksToPlaylist(tracks: [Track], playlistID: UUID) async {
+    @discardableResult
+    func addTracksToPlaylist(tracks: [Track], playlistID: UUID) async -> Bool {
         guard let index = playlists.firstIndex(where: { $0.id == playlistID }),
               playlists[index].type == .regular,
               playlists[index].isContentEditable else {
             Logger.warning("Cannot add tracks to this playlist")
-            return
+            return false
         }
 
-        guard let dbManager = libraryManager?.databaseManager else { return }
+        guard let dbManager = libraryManager?.databaseManager else { return false }
 
         do {
             // Incremental append (never deletes), so this is correct even if the in-memory
@@ -253,8 +254,10 @@ extension PlaylistManager {
                 self.playlists[index].dateModified = Date()
                 Logger.info("Added \(inserted) tracks to playlist '\(self.playlists[index].name)'")
             }
+            return true
         } catch {
             Logger.error("Failed to add tracks to playlist: \(error)")
+            return false
         }
     }
     

@@ -22,6 +22,7 @@ struct AlbumPage: View {
             identity: AnyHashable(album.id),
             load: { [libraryManager, album] in libraryManager.getTracksForAlbum(album) },
             sectioner: Self.discSections,
+            usesPlainStyle: true,
             header: { tracks in
                 header(tracks: tracks)
                     .frame(maxWidth: .infinity)
@@ -124,6 +125,8 @@ struct AlbumPage: View {
         Text(track.trackNumber.map(String.init) ?? "")
             .font(.body)
             .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .foregroundColor(.secondary)
     }
 

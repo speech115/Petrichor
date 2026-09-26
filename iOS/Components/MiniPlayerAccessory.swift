@@ -108,6 +108,16 @@ struct MiniPlayerAccessory: View {
                 )
 
                 playPauseButton
+                Button {
+                    playlistManager.playNextTrack()
+                } label: {
+                    Image(systemName: Icons.forwardFill)
+                        .font(.title3)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Next"))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, isCompact ? 8 : 10)

@@ -21,6 +21,7 @@ struct PlaylistDetailScreen: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
 
+    @State private var showingAddSongs = false
     @State private var missingPaths: Set<String> = []
     @State private var showingRenameAlert = false
     @State private var renameText = ""
@@ -39,10 +40,26 @@ struct PlaylistDetailScreen: View {
                     load: { await loadTracks(playlist) },
                     sectioner: { [IndexedSection(key: "", items: $0)] },
                     usesPlainStyle: true,
+                    showEmptyState: false,
                     emptyTitle: DefaultPlaylists.noSongsText(for: playlist),
                     emptyIcon: Icons.musicNoteList,
                     header: { tracks in
-                        header(playlist, tracks: tracks)
+                        VStack(spacing: 16) {
+                            header(playlist, tracks: tracks)
+                            if tracks.isEmpty {
+                                ContentUnavailableView {
+                                    Label(DefaultPlaylists.noSongsText(for: playlist), systemImage: Icons.musicNoteList)
+                                } description: {
+                                    Text(playlist.type == .regular
+                                         ? String(localized: "Choose songs from your library to start this playlist.")
+                                         : String(localized: "Songs will appear here as you listen or add favorites."))
+                                } actions: {
+                                    if playlist.type == .regular && playlist.isContentEditable {
+                                        Button("Add Songs") { showingAddSongs = true }.buttonStyle(.borderedProminent)
+                                    }
+                                }
+                            }
+                        }
                             .frame(maxWidth: .infinity)
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
@@ -64,6 +81,7 @@ struct PlaylistDetailScreen: View {
             if let playlist, playlist.isUserEditable {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button("Add Songs", systemImage: "plus") { showingAddSongs = true }
                         Button {
                             beginRename(playlist)
                         } label: {
@@ -102,6 +120,9 @@ struct PlaylistDetailScreen: View {
                     localized: "Are you sure you want to delete \"\(PlaylistDisplay.name(for: playlist))\"?"
                 ))
             }
+        }
+        .sheet(isPresented: $showingAddSongs) {
+            AddSongsSheet(playlistID: playlistID, playlistManager: playlistManager)
         }
         .task(id: playlistID) {
             await refreshMissingFiles()

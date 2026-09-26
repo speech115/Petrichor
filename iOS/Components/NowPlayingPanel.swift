@@ -1,11 +1,8 @@
 //
 // NowPlayingPanel (iOS)
 //
-// Bottom panel that lifts over the Now Playing artwork: translucent material,
-// rounded top corners and a grabber header. The artwork stays the screen's
-// primary element — the panel covers only the lower part. Dismissed by
-// swiping down on the header, tapping the artwork area above the panel, or
-// the close button; the list content inside scrolls with its own gesture.
+// Queue/lyrics surface between the compact track header and player controls.
+// Its content scrolls independently; the header closes on a downward swipe.
 //
 
 import SwiftUI
@@ -13,21 +10,15 @@ import SwiftUI
 struct NowPlayingPanel<Content: View>: View {
     let title: String
     let onDismiss: () -> Void
-    let onDragChanged: (CGFloat) -> Void
-    let onDragEnded: (_ translation: CGFloat, _ predictedTranslation: CGFloat) -> Void
     private let content: Content
 
     init(
         title: String,
         onDismiss: @escaping () -> Void,
-        onDragChanged: @escaping (CGFloat) -> Void,
-        onDragEnded: @escaping (_ translation: CGFloat, _ predictedTranslation: CGFloat) -> Void,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.onDismiss = onDismiss
-        self.onDragChanged = onDragChanged
-        self.onDragEnded = onDragEnded
         self.content = content()
     }
 
@@ -77,19 +68,12 @@ struct NowPlayingPanel<Content: View>: View {
     /// The close glyph scales with Dynamic Type inside its fixed 44 pt button.
     @ScaledMetric(relativeTo: .subheadline) private var closeIconSize: CGFloat = 14
 
-    /// Measured in `.global` for the same reason the player's dismissal is: the
-    /// header rides on the surface this drag offsets, so a local translation
-    /// would cancel itself out frame by frame.
     private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .global)
-            .onChanged { value in
-                onDragChanged(value.translation.height)
-            }
+        DragGesture(minimumDistance: 12)
             .onEnded { value in
-                onDragEnded(
-                    value.translation.height,
-                    value.predictedEndTranslation.height
-                )
+                if value.translation.height > 80 || value.predictedEndTranslation.height > 160 {
+                    onDismiss()
+                }
             }
     }
 }

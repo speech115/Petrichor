@@ -37,7 +37,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     /// description text ("Contrast nearly passed" on CI).
     private func launchSeededApp() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["--uitest-seed-fixtures"]
+        app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
         let songsRow = app.buttons.matching(

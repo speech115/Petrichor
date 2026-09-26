@@ -1,7 +1,7 @@
 //
 // TrackMenuContent (iOS)
 //
-// The track actions that every iOS menu shares: info, file path, "Go to",
+// The track actions that every iOS menu shares: info, "Go to",
 // playlists and favorites. The row's long-press menu puts the playback actions
 // above these; the player's ellipsis button shows them on their own.
 //
@@ -31,12 +31,6 @@ struct TrackMenuContent: View {
             Label(String(localized: "Show Info"), systemImage: Icons.infoCircle)
         }
 
-        Button {
-            UIPasteboard.general.string = LibraryPathStore.storedPath(for: track.url)
-        } label: {
-            Label(String(localized: "Copy File Path"), systemImage: "doc.on.doc")
-        }
-
         Menu {
             ForEach(goToDestinations) { destination in
                 Button(destination.title) {
@@ -54,28 +48,8 @@ struct TrackMenuContent: View {
             Label(String(localized: "Go to"), systemImage: "arrow.up.right.square")
         }
 
-        Menu {
-            Button {
-                playlistManager.showCreatePlaylistModal(with: [track])
-            } label: {
-                Label(String(localized: "New Playlist..."), systemImage: "plus")
-            }
-
-            ForEach(regularPlaylists) { playlist in
-                let isInPlaylist = playlistManager.playlistContainsTrack(track, in: playlist)
-                Button {
-                    playlistManager.updateTrackInPlaylist(
-                        track: track,
-                        playlist: playlist,
-                        add: !isInPlaylist
-                    )
-                } label: {
-                    Label(
-                        DefaultPlaylists.displayName(for: playlist),
-                        systemImage: isInPlaylist ? "checkmark" : "plus"
-                    )
-                }
-            }
+        Button {
+            NotificationCenter.default.post(name: .addTrackToPlaylist, object: nil, userInfo: ["track": track])
         } label: {
             Label(String(localized: "Add to Playlist"), systemImage: "text.badge.plus")
         }
@@ -92,10 +66,6 @@ struct TrackMenuContent: View {
         }
     }
 
-    private var regularPlaylists: [Playlist] {
-        playlistManager.playlists.filter { $0.type == .regular }
-    }
-
     private var goToDestinations: [TrackFilterDestination] {
         LibraryFilterType.allCases.flatMap { filterType in
             let value = filterType.getValue(from: track)
@@ -109,7 +79,7 @@ struct TrackMenuContent: View {
             } else {
                 values = [value.isEmpty ? filterType.unknownPlaceholder : value]
             }
-            return values.map { filterValue in
+            return values.filter { !$0.isEmpty && $0 != filterType.unknownPlaceholder }.map { filterValue in
                 TrackFilterDestination(
                     filterType: filterType,
                     value: filterValue,

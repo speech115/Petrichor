@@ -32,6 +32,7 @@ struct ArtistPage: View {
                     .frame(maxWidth: .infinity)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
             }
 
             if !albums.isEmpty {
@@ -60,7 +61,8 @@ struct ArtistPage: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .detailPageWash(headerTint)
         .navigationBarTitleDisplayMode(.inline)
         .detailHeaderTint(cacheID: artistName, imageData: photoData, tint: $headerTint)
         .task(id: artistName) {
