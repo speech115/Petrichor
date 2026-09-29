@@ -109,9 +109,6 @@ struct SearchView: View {
                 }
                 resultsList
             }
-                // A tap on empty space puts the keyboard away. On the container,
-                // not the list: a gesture on the list itself swallowed the rows'
-                // own taps and results stopped opening.
                 .searchable(
                     text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
@@ -175,9 +172,10 @@ struct SearchView: View {
         let kept = recentSearches.filter {
             !trimmedQuery.localizedCaseInsensitiveContains($0)
         }
-        recentSearchesRaw = ([trimmedQuery] + kept)
+        let updated = ([trimmedQuery] + kept)
             .prefix(Self.recentSearchLimit)
             .joined(separator: "\n")
+        if updated != recentSearchesRaw { recentSearchesRaw = updated }
     }
 
     private func forgetRecentSearch(_ text: String) {

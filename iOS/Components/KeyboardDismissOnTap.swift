@@ -15,7 +15,7 @@ extension View {
     /// Dismisses the keyboard on any tap outside a text input while `isActive`.
     /// `onDismiss` clears the view's own focus state, which would otherwise put
     /// focus back on the field right after UIKit resigns it.
-    func dismissKeyboardOnTap(isActive: Bool, onDismiss: @escaping () -> Void = {}) -> some View {
+    func dismissKeyboardOnTap(isActive: Bool, onDismiss: @escaping () -> Void) -> some View {
         background(KeyboardDismissOnTap(isActive: isActive, onDismiss: onDismiss))
     }
 }
@@ -42,7 +42,6 @@ private struct KeyboardDismissOnTap: UIViewRepresentable {
 
     static func dismantleUIView(_ view: WindowObserverView, coordinator: Coordinator) {
         coordinator.isActive = false
-        coordinator.window = nil
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {

@@ -7,7 +7,8 @@
 // around every time the track changes.
 //
 // Text that fits is drawn plainly. With Reduce Motion the line truncates with
-// an ellipsis instead of moving. VoiceOver sees one plain `Text` with the
+// an ellipsis instead of moving; at accessibility text sizes it wraps, since a
+// moving line is unreadable there. VoiceOver sees one plain `Text` with the
 // full string either way.
 //
 
@@ -19,6 +20,8 @@ struct MarqueeText: View {
 
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
+    @Environment(\.dynamicTypeSize)
+    private var dynamicTypeSize
 
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
@@ -33,36 +36,34 @@ struct MarqueeText: View {
     private var scrolls: Bool { overflow > 1 && !reduceMotion }
 
     var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(text).font(font).fixedSize(horizontal: false, vertical: true)
+        } else {
+            marquee
+        }
+    }
+
+    private var marquee: some View {
         Text(text)
             .font(font)
             .lineLimit(1)
             .opacity(scrolls ? 0 : 1)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(widthReader($containerWidth))
-            .background(
-                Text(text).font(font).fixedSize().hidden().background(widthReader($textWidth))
-            )
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { containerWidth = $0 })
             .overlay(alignment: .leading) {
-                if scrolls {
-                    Text(text)
-                        .font(font)
-                        .fixedSize()
-                        .offset(x: offset)
-                }
+                // Measures the full width while resting, then is the moving copy.
+                Text(text)
+                    .font(font)
+                    .fixedSize()
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { textWidth = $0 })
+                    .offset(x: offset)
+                    .opacity(scrolls ? 1 : 0)
             }
             .clipped()
             .mask(fadeMask)
             .task(id: "\(text)|\(textWidth)|\(containerWidth)|\(reduceMotion)") { await scroll() }
             // One plain text element however many copies are drawn.
             .accessibilityRepresentation { Text(text).font(font) }
-    }
-
-    private func widthReader(_ width: Binding<CGFloat>) -> some View {
-        GeometryReader { proxy in
-            Color.clear.onChange(of: proxy.size.width, initial: true) { _, newWidth in
-                width.wrappedValue = newWidth
-            }
-        }
     }
 
     /// The trailing edge fades while it overflows; the leading edge only once
