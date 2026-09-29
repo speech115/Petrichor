@@ -47,12 +47,10 @@ struct PlaylistsTabView: View {
                 Section {
                     playlistRows(favorites)
                 }
-                Section {
-                    if ownPlaylists.isEmpty {
-                        Text("No playlists yet")
-                            .foregroundStyle(.secondary)
+                if !ownPlaylists.isEmpty {
+                    Section {
+                        playlistRows(ownPlaylists)
                     }
-                    playlistRows(ownPlaylists)
                 }
                 if !otherImports.isEmpty {
                     Section {
