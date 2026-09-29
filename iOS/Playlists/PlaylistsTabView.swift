@@ -47,7 +47,7 @@ struct PlaylistsTabView: View {
                 Section {
                     playlistRows(favorites)
                 }
-                Section(String(localized: "My Playlists")) {
+                Section {
                     if ownPlaylists.isEmpty {
                         Text("No playlists yet")
                             .foregroundStyle(.secondary)
@@ -55,7 +55,7 @@ struct PlaylistsTabView: View {
                     playlistRows(ownPlaylists)
                 }
                 if !otherImports.isEmpty {
-                    Section(String(localized: "Imported from services")) {
+                    Section {
                         playlistRows(otherImports)
                     }
                 }
@@ -183,7 +183,7 @@ struct PlaylistsTabView: View {
         HStack(spacing: 7) {
             PlaylistSourceLogo(source: source, cornerRadius: 5)
                 .frame(width: 20, height: 20)
-            Text(source.importTitle)
+            Text(source.title)
         }
         .accessibilityElement(children: .combine)
     }

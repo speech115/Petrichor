@@ -55,7 +55,7 @@ struct TrackMenuContent: View {
         }
 
         Button {
-            playlistManager.toggleFavorite(for: track)
+            ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
         } label: {
             Label(
                 track.isFavorite

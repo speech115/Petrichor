@@ -24,6 +24,10 @@ struct PlayerPalette: Equatable {
     /// Titles' secondary line, inactive controls.
     var secondary: Color { .white.opacity(0.55) }
 
+    /// The lyrics / AirPlay / queue row: brighter than `secondary`, which is
+    /// too faint for glyphs that are the only way into those panels.
+    var accessory: Color { .white.opacity(0.75) }
+
     /// Filled tracks (scrubber, volume) and the active shuffle/repeat state.
     var control: Color { .white.opacity(0.85) }
 

@@ -105,6 +105,7 @@ struct NowPlayingScreen: View {
         // without changing the color scheme of the playlist underneath it.
         .environment(\.colorScheme, .dark)
         .trackActionSheets(isActive: true, playlistManager: playlistManager)
+        .toastHost()
         .onAppear {
             displayedTrack = track
             lastQueueIndex = playlistManager.currentQueueIndex
@@ -362,7 +363,7 @@ struct NowPlayingScreen: View {
                     isActive: track.isFavorite
                 ) {
                     UISelectionFeedbackGenerator().selectionChanged()
-                    playlistManager.toggleFavorite(for: track)
+                    ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
                 }
 
                 Menu {
@@ -426,7 +427,7 @@ struct NowPlayingScreen: View {
             } label: {
                 SymbolImage(Icons.customLyrics)
                     .font(.system(size: min(accessoryIconSize, 24)))
-                    .foregroundColor(palette.secondary)
+                    .foregroundColor(panelKind == .lyrics ? palette.foreground : palette.accessory)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .contentShape(Rectangle())
@@ -435,7 +436,7 @@ struct NowPlayingScreen: View {
             .disabled(track == nil)
             .accessibilityLabel(String(localized: "Lyrics"))
 
-            AirPlayButton(tint: UIColor.white.withAlphaComponent(0.55))
+            AirPlayButton(tint: UIColor.white.withAlphaComponent(0.75))
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
 
@@ -445,7 +446,7 @@ struct NowPlayingScreen: View {
             } label: {
                 Image(systemName: Icons.queueList)
                     .font(.system(size: min(accessoryIconSize, 24)))
-                    .foregroundColor(palette.secondary)
+                    .foregroundColor(panelKind == .queue ? palette.foreground : palette.accessory)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .contentShape(Rectangle())

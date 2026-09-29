@@ -49,6 +49,7 @@ struct ContentView: View {
 
     var body: some View {
         mainInterface
+        .toastHost(isActive: !showingNowPlaying)
         .environment(\.settingsZoomNamespace, settingsZoomNamespace)
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
