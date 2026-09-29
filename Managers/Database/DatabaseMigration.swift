@@ -293,7 +293,6 @@ enum DatabaseMigrator {
 
         Logger.info("Database migrations completed")
     }
-
 }
 
 // MARK: - Migration Helpers
@@ -362,5 +361,4 @@ extension Database {
     ) throws {
         try self.create(table: name, ifNotExists: true, body: body)
     }
-    
 }

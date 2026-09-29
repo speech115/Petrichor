@@ -285,7 +285,7 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    }
+}
 
 // MARK: - Audio Format
 

@@ -500,5 +500,4 @@ extension LibraryManager {
         Logger.info("Refresh check complete: \(foldersToRefresh.count)/\(folders.count) folders need refresh")
         return foldersToRefresh
     }
-
 }

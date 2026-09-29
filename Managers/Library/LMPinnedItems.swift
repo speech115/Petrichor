@@ -272,7 +272,7 @@ extension LibraryManager {
             } else if let album = entity as? AlbumEntity {
                 await self.pinAlbumEntity(album)
             } else if let category = entity as? CategoryEntity {
-                // Discover category tiles have no PinnedItem to route through.
+                // Library category rows have no PinnedItem to route through.
                 await self.pinLibraryItem(filterType: category.filterType, filterValue: category.name)
             }
         }

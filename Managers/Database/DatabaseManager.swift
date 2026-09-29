@@ -61,8 +61,6 @@ final class DatabaseManager: Sendable {
         }
     }
 
-    // MARK: - Migration Status
-    
     // MARK: - Helper Methods
     
 /// Clean up database file and recreate schema

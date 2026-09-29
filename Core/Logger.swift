@@ -46,12 +46,14 @@ struct LogEntry {
     private static let fileDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = StringFormat.logEntryFormat
+        formatter.timeZone = .autoupdatingCurrent
         return formatter
     }()
 
     private static let consoleDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss.SSS"
+        formatter.timeZone = .autoupdatingCurrent
         return formatter
     }()
 

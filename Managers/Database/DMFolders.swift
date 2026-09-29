@@ -211,7 +211,7 @@ extension DatabaseManager {
                 }
 
                 // Log the current state
-                let trackCountBefore = trackCount(inFolder: folder.id ?? -1)
+                let trackCountBefore = getTrackCountForFolder(folder.id ?? -1)
                 Logger.info("Starting refresh for folder \(folder.name) with \(trackCountBefore) tracks")
 
                 ArtistParser.loadKnownArtists()
@@ -233,7 +233,7 @@ extension DatabaseManager {
                 }
 
                 // Log the result
-                let trackCountAfter = trackCount(inFolder: folder.id ?? -1)
+                let trackCountAfter = getTrackCountForFolder(folder.id ?? -1)
                 Logger.info("Completed refresh for folder \(folder.name) with \(trackCountAfter) tracks (was \(trackCountBefore))")
 
                 // Post-scan cleanup. Stats count non-duplicate tracks, so run after duplicate marking.

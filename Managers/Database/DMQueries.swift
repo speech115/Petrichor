@@ -691,10 +691,16 @@ extension DatabaseManager {
         }
     }
 
-    func trackCount(inFolder folderId: Int64) -> Int {
-        (try? dbQueue.read { db in
-            try Track.filter(Track.Columns.folderId == folderId).fetchCount(db)
-        }) ?? 0
+    /// Number of tracks in a folder, duplicates included. Counts in SQL; no rows or artwork are loaded.
+    func getTrackCountForFolder(_ folderId: Int64) -> Int {
+        do {
+            return try dbQueue.read { db in
+                try Track.filter(Track.Columns.folderId == folderId).fetchCount(db)
+            }
+        } catch {
+            Logger.error("Failed to count tracks for folder: \(error)")
+            return 0
+        }
     }
 
     func getTracksForFolder(_ folderId: Int64) -> [Track] {

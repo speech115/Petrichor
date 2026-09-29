@@ -269,5 +269,3 @@ enum PlaylistSidebarArtwork {
         return .data(data)
     }
 }
-
-// MARK: - Folder Node Sidebar Item

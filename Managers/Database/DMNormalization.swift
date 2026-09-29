@@ -448,8 +448,6 @@ extension DatabaseManager {
             """, arguments: [Date()])
     }
 
-    // MARK: - Query Methods for Normalized Data
-
     // MARK: - Compilation Albums
 
     /// Group tracks that share a parent directory and album title under a single album.
