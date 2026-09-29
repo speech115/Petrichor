@@ -500,12 +500,4 @@ extension LibraryManager {
         Logger.info("Refresh check complete: \(foldersToRefresh.count)/\(folders.count) folders need refresh")
         return foldersToRefresh
     }
-
-    /// Hand `ArtistParser` the names this library already resolved, so views parsing a raw artist
-    /// tag on demand don't re-split "Hunters & Collectors" once the bundled file is unloaded.
-    internal func refreshArtistNameLookup() {
-        // A failed read keeps the last good lookup rather than wiping it.
-        guard let namesByRole = databaseManager.getArtistNamesByRole() else { return }
-        ArtistParser.setLibraryArtists(namesByRole)
-    }
 }

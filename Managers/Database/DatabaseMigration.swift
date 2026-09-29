@@ -293,25 +293,6 @@ enum DatabaseMigrator {
 
         Logger.info("Database migrations completed")
     }
-
-    /// Check if there are unapplied migrations
-    static func hasUnappliedMigrations(_ dbQueue: any DatabaseReader) -> Bool {
-        do {
-            let migrator = setupMigrator()
-            return try dbQueue.read { db in
-                try migrator.hasBeenSuperseded(db)
-            }
-        } catch {
-            Logger.error("Failed to check migration status: \(error)")
-            return false
-        }
-    }
-    
-    /// Get list of applied migrations
-    static func appliedMigrations(_ dbQueue: any DatabaseReader) -> [String] {
-        // Return empty array for now - can be implemented if needed
-        []
-    }
 }
 
 // MARK: - Migration Helpers
@@ -373,53 +354,11 @@ extension Database {
         }
     }
     
-    /// Helper to drop an index if it exists
-    func dropIndexIfExists(_ name: String) throws {
-        // Note: We need to find which table the index belongs to
-        // For now, we'll try to drop it and ignore errors if it doesn't exist
-        do {
-            try self.drop(index: name)
-        } catch {
-            // Index might not exist, which is fine
-        }
-    }
-    
-    /// Helper to rename a table if it exists
-    func renameTableIfExists(from oldName: String, to newName: String) throws {
-        if try self.tableExists(oldName) && !self.tableExists(newName) {
-            try self.rename(table: oldName, to: newName)
-        }
-    }
-    
     /// Helper to create a table only if it doesn't exist
     func createTableIfNotExists(
         _ name: String,
         body: (TableDefinition) throws -> Void
     ) throws {
         try self.create(table: name, ifNotExists: true, body: body)
-    }
-    
-    /// Helper to drop a table if it exists
-    func dropTableIfExists(_ name: String) throws {
-        if try self.tableExists(name) {
-            try self.drop(table: name)
-        }
-    }
-    
-    /// Helper to rename a column if it exists
-    func renameColumnIfExists(
-        table: String,
-        from oldName: String,
-        to newName: String
-    ) throws {
-        let columns = try self.columns(in: table)
-        let oldExists = columns.contains { $0.name == oldName }
-        let newExists = columns.contains { $0.name == newName }
-        
-        if oldExists && !newExists {
-            try self.alter(table: table) { t in
-                t.rename(column: oldName, to: newName)
-            }
-        }
     }
 }

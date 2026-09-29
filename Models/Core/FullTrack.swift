@@ -285,22 +285,6 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
-    
-    // MARK: - Duplicate Detection
-    
-    /// Generate a normalized key for duplicate detection
-    var duplicateKey: String {
-        let normalizedTitle = title.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedArtist = artist.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedAlbum = album.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedYear = year.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Round duration to nearest 2 seconds to handle slight variations
-        let safeDuration = HelperUtils.sanitizedDuration(duration)
-        let roundedDuration = Int((safeDuration / 2.0).rounded()) * 2
-        
-        return "\(normalizedTitle)|\(normalizedArtist)|\(normalizedAlbum)|\(normalizedYear)|\(roundedDuration)"
-    }
 }
 
 // MARK: - Audio Format

@@ -46,35 +46,6 @@ extension LibraryManager {
         }
     }
     
-    /// Pin a whole entity type, browsed on Home as a grid
-    func pinCategory(_ filterType: LibraryFilterType) async {
-        do {
-            try await databaseManager.savePinnedItem(PinnedItem(categoryType: filterType))
-            await loadPinnedItems()
-        } catch {
-            Logger.error("Failed to pin category: \(error)")
-        }
-    }
-
-    func unpinCategory(_ filterType: LibraryFilterType) async {
-        guard let pinnedItem = pinnedItems.first(where: {
-            $0.itemType == .category && $0.filterType == filterType
-        }) else {
-            return
-        }
-
-        do {
-            try await databaseManager.removePinnedItem(pinnedItem)
-            await loadPinnedItems()
-        } catch {
-            Logger.error("Failed to unpin category: \(error)")
-        }
-    }
-
-    func isCategoryPinned(_ filterType: LibraryFilterType) -> Bool {
-        pinnedItems.contains { $0.itemType == .category && $0.filterType == filterType }
-    }
-
     /// Pin an artist entity (from entity view)
     func pinArtistEntity(_ artist: ArtistEntity) async {
         // Try to find the artist in the database to get its ID
@@ -289,18 +260,6 @@ extension LibraryManager {
         }
     }
     
-    func createCategoryPinContextMenuItem(for filterType: LibraryFilterType) -> ContextMenuItem {
-        let isPinned = isCategoryPinned(filterType)
-
-        return pinToggleMenuItem(isPinned: isPinned) {
-            if isPinned {
-                await self.unpinCategory(filterType)
-            } else {
-                await self.pinCategory(filterType)
-            }
-        }
-    }
-
     /// Create context menu items for entity views
     func createPinContextMenuItem(for entity: any Entity) -> ContextMenuItem {
         let isPinned = isEntityPinned(entity)
@@ -313,7 +272,7 @@ extension LibraryManager {
             } else if let album = entity as? AlbumEntity {
                 await self.pinAlbumEntity(album)
             } else if let category = entity as? CategoryEntity {
-                // Discover category tiles have no PinnedItem to route through.
+                // Library category rows have no PinnedItem to route through.
                 await self.pinLibraryItem(filterType: category.filterType, filterValue: category.name)
             }
         }

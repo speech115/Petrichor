@@ -13,17 +13,9 @@ enum MetadataMapping {
     /// present. Returning nil (rather than "") lets callers assign the result
     /// straight to the optional `year` without an empty-string guard at each site.
     static func year(fromDateString dateString: String) -> String? {
-        let yearPattern = #"\b(19|20)\d{2}\b"#
-
-        if let regex = try? NSRegularExpression(pattern: yearPattern),
-           let match = regex.firstMatch(
-            in: dateString,
-            range: NSRange(dateString.startIndex..., in: dateString)
-           ) {
-            if let range = Range(match.range, in: dateString) { return String(dateString[range]) }
-        }
-
-        return nil
+        dateString
+            .range(of: #"\b(19|20)\d{2}\b"#, options: .regularExpression)
+            .map { String(dateString[$0]) }
     }
 
     /// Normalize a raw rating value onto a 0-5 scale. Handles both a plain 1-5

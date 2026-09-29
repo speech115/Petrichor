@@ -67,8 +67,6 @@ class PlaybackManager: NSObject, ObservableObject {
         get { playbackProgressState.currentTime }
         set { playbackProgressState.currentTime = newValue }
     }
-    // The real-time lyrics display need this to get the current time.
-    // We can not use the currentTime because it is a computed property
     @Published var volume: Float = 0.7 {
         didSet {
             audioPlayer.volume = volume
@@ -77,13 +75,6 @@ class PlaybackManager: NSObject, ObservableObject {
     @Published var restoredUITrack: Track?
     lazy var availabilityObservation = PlaybackAvailabilityObservation(manager: self)
     lazy var presentationObservation = PlaybackPresentationObservation(manager: self)
-
-    // MARK: - Computed Properties
-    
-    /// Alias for currentTime for backwards compatibility
-    var actualCurrentTime: Double {
-        currentTime
-    }
 
     // MARK: - Private Properties
     
@@ -509,11 +500,6 @@ class PlaybackManager: NSObject, ObservableObject {
         startProgressUpdateTimer()
     }
 
-    private func stopProgressUpdateTimer() {
-        progressUpdateTimer?.cancel()
-        progressUpdateTimer = nil
-    }
-    
     /// Restore audio effects settings from UserDefaults
     private func restoreAudioEffectsSettings() {
         // Restore stereo widening

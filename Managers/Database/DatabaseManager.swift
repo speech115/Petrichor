@@ -61,18 +61,6 @@ final class DatabaseManager: Sendable {
         }
     }
 
-    // MARK: - Migration Status
-    
-    /// Check if database needs migration
-    func needsMigration() -> Bool {
-        DatabaseMigrator.hasUnappliedMigrations(dbQueue)
-    }
-    
-    /// Get list of applied migrations
-    func getAppliedMigrations() -> [String] {
-        DatabaseMigrator.appliedMigrations(dbQueue)
-    }
-
     // MARK: - Helper Methods
     
 /// Clean up database file and recreate schema

@@ -181,28 +181,20 @@ extension DatabaseManager {
     }
     
     /// Get tracks for the Discover feature
-    func getDiscoverTracks(limit: Int = 50, excludeTrackIds: Set<Int64> = [], populateArtwork: Bool = true) -> [Track] {
+    func getDiscoverTracks(limit: Int = 50, populateArtwork: Bool = true) -> [Track] {
         do {
             return try dbQueue.read { db in
-                var query = Track.all()
+                var tracks = try Track.all()
                     .filter(Track.Columns.isDuplicate == false)  // Always exclude duplicates
                     .filter(Track.Columns.playCount == 0)
-                
-                if !excludeTrackIds.isEmpty {
-                    query = query.filter(!excludeTrackIds.contains(Track.Columns.trackId))
-                }
-                
-                // Order randomly
-                query = query.order(sql: "RANDOM()")
+                    .order(sql: "RANDOM()")
                     .limit(limit)
-                
-                var tracks = try query.fetchAll(db)
+                    .fetchAll(db)
                 
                 // If we don't have enough unplayed tracks, fill with least recently played
                 if tracks.count < limit {
                     let remaining = limit - tracks.count
                     let existingIds = Set(tracks.compactMap { $0.trackId })
-                        .union(excludeTrackIds)
                     
                     let additionalTracks = try Track.all()
                         .filter(Track.Columns.isDuplicate == false)
@@ -291,94 +283,6 @@ extension DatabaseManager {
         } catch {
             Logger.error("Failed to get total duration: \(error)")
             return 0.0
-        }
-    }
-
-    /// Get distinct values for a filter type using normalized tables
-    func getDistinctValues(for filterType: LibraryFilterType) -> [String] {
-        do {
-            return try dbQueue.read { db in
-                switch filterType {
-                case .artists, .albumArtists, .composers:
-                    // Get from normalized artists table
-                    let artists = try Artist
-                        .select(Artist.Columns.name, as: String.self)
-                        .order(Artist.Columns.sortName)
-                        .fetchAll(db)
-
-                    // Add "Unknown" placeholder if there are tracks without artists
-                    var results = artists
-                    if try applyDuplicateFilter(Track.all()).filter(Track.Columns.artist == filterType.unknownPlaceholder).fetchCount(db) > 0 {
-                        results.append(filterType.unknownPlaceholder)
-                    }
-                    return results
-
-                case .albums:
-                    // Get from normalized albums table
-                    let albums = try Album
-                        .select(Album.Columns.title, as: String.self)
-                        .order(Album.Columns.sortTitle)
-                        .fetchAll(db)
-
-                    // Add "Unknown Album" if needed
-                    var results = albums
-                    if try applyDuplicateFilter(Track.all()).filter(Track.Columns.album == "Unknown Album").fetchCount(db) > 0 {
-                        results.append("Unknown Album")
-                    }
-                    return results
-
-                case .genres:
-                    // Get from normalized genres table
-                    let genres = try Genre
-                        .select(Genre.Columns.name, as: String.self)
-                        .order(Genre.Columns.name)
-                        .fetchAll(db)
-
-                    // Add "Unknown Genre" if needed
-                    var results = genres
-                    if try applyDuplicateFilter(Track.all()).filter(Track.Columns.genre == "Unknown Genre").fetchCount(db) > 0 {
-                        results.append("Unknown Genre")
-                    }
-                    return results
-                    
-                case .decades:
-                    // Get all years and convert to decades
-                    let years = try applyDuplicateFilter(Track.all())
-                        .select(Track.Columns.year, as: String.self)
-                        .filter(Track.Columns.year != "")
-                        .filter(Track.Columns.year != "Unknown Year")
-                        .distinct()
-                        .fetchAll(db)
-                    
-                    // Convert years to decades
-                    var decadesSet = Set<String>()
-                    for year in years {
-                        if let yearInt = Int(year.prefix(4)) {
-                            let decade = (yearInt / 10) * 10
-                            decadesSet.insert("\(decade)s")
-                        }
-                    }
-                    
-                    // Sort decades in descending order
-                    return decadesSet.sorted { decade1, decade2 in
-                        let d1 = Int(decade1.dropLast()) ?? 0
-                        let d2 = Int(decade2.dropLast()) ?? 0
-                        return d1 > d2
-                    }
-
-                case .years:
-                    // Years don't have a normalized table, use tracks directly
-                    return try applyDuplicateFilter(Track.all())
-                        .select(Track.Columns.year, as: String.self)
-                        .filter(Track.Columns.year != "")
-                        .distinct()
-                        .order(Track.Columns.year.desc)
-                        .fetchAll(db)
-                }
-            }
-        } catch {
-            Logger.error("Failed to get distinct values for \(filterType): \(error)")
-            return []
         }
     }
 
@@ -787,6 +691,18 @@ extension DatabaseManager {
         }
     }
 
+    /// Number of tracks in a folder, duplicates included. Counts in SQL; no rows or artwork are loaded.
+    func getTrackCountForFolder(_ folderId: Int64) -> Int {
+        do {
+            return try dbQueue.read { db in
+                try Track.filter(Track.Columns.folderId == folderId).fetchCount(db)
+            }
+        } catch {
+            Logger.error("Failed to count tracks for folder: \(error)")
+            return 0
+        }
+    }
+
     func getTracksForFolder(_ folderId: Int64) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
@@ -896,20 +812,6 @@ extension DatabaseManager {
         }
     }
 
-    /// Get album by title
-    func getAlbumByTitle(_ title: String) -> Album? {
-        do {
-            return try dbQueue.read { db in
-                try Album
-                    .filter(Album.Columns.title == title)
-                    .fetchOne(db)
-            }
-        } catch {
-            Logger.error("Failed to get album by title: \(error)")
-            return nil
-        }
-    }
-    
     // MARK: - Helper Methods
     
     /// Get the current play count for a track from the database

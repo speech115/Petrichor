@@ -14,7 +14,6 @@ class ScanLookupCache {
     var artists: [String: Artist] = [:]        // normalizedName -> Artist
     var albums: [String: Album] = [:]          // compositeKey -> Album
     var genres: [String: Genre] = [:]          // name -> Genre
-    var albumsWithSelectedArtwork: Set<Int64> = []
 
     static func albumKey(_ normalizedTitle: String, _ normalizedArtist: String?) -> String {
         "\(normalizedTitle)|\(normalizedArtist ?? "")"
@@ -447,98 +446,6 @@ extension DatabaseManager {
                 ),
                 updated_at = ?
             """, arguments: [Date()])
-    }
-
-    // MARK: - Query Methods for Normalized Data
-
-    /// Get all artists with track counts
-    func getAllArtists() throws -> [Artist] {
-        try dbQueue.read { db in
-            try Artist
-                .order(Artist.Columns.sortName)
-                .fetchAll(db)
-        }
-    }
-
-    /// Get all genres with track counts
-    func getAllGenres() throws -> [Genre] {
-        try dbQueue.read { db in
-            try Genre
-                .order(Genre.Columns.name)
-                .fetchAll(db)
-        }
-    }
-
-    /// Get tracks by album
-    func getTracksByAlbum(_ albumId: Int64) throws -> [Track] {
-        try dbQueue.read { db in
-            try Track
-                .filter(Track.Columns.albumId == albumId)
-                .order(Track.Columns.discNumber, Track.Columns.trackNumber)
-                .fetchAll(db)
-        }
-    }
-
-    /// Get tracks by genre
-    func getTracksByGenre(_ genreId: Int64) throws -> [Track] {
-        try dbQueue.read { db in
-            let trackIds = try TrackGenre
-                .filter(TrackGenre.Columns.genreId == genreId)
-                .select(TrackGenre.Columns.trackId, as: Int64.self)
-                .fetchAll(db)
-
-            return try Track
-                .filter(trackIds.contains(Track.Columns.trackId))
-                .fetchAll(db)
-        }
-    }
-
-    /// Get tracks by decade
-    func getTracksByDecade(_ decade: Int) throws -> [Track] {
-        try dbQueue.read { db in
-            let startYear = String(decade)
-            let endYear = String(decade + 9)
-
-            return try Track
-                .filter(Track.Columns.year >= startYear)
-                .filter(Track.Columns.year <= endYear)
-                .filter(Track.Columns.year != "")
-                .filter(Track.Columns.year != "Unknown Year")
-                .order(Track.Columns.year, Track.Columns.album)
-                .fetchAll(db)
-        }
-    }
-
-    /// Get decade statistics
-    func getDecadeStats() throws -> [(decade: Int, count: Int)] {
-        try dbQueue.read { db in
-            // First, get all valid years
-            let validYears = try Track
-                .select(Track.Columns.year, as: String.self)
-                .filter(Track.Columns.year != "")
-                .filter(Track.Columns.year != "Unknown Year")
-                .distinct()
-                .fetchAll(db)
-
-            // Group by decade
-            var decadeStats: [Int: Int] = [:]
-
-            for yearString in validYears {
-                guard let year = Int(yearString), year > 0 else { continue }
-                let decade = (year / 10) * 10
-
-                let count = try Track
-                    .filter(Track.Columns.year == yearString)
-                    .fetchCount(db)
-
-                decadeStats[decade, default: 0] += count
-            }
-
-            // Convert to array and sort
-            return decadeStats
-                .map { (decade: $0.key, count: $0.value) }
-                .sorted { $0.decade > $1.decade }
-        }
     }
 
     // MARK: - Compilation Albums

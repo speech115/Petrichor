@@ -219,8 +219,8 @@ struct PinnedItem: Identifiable, FetchableRecord, PersistableRecord {
                 }
                 return false
             case .genres, .decades, .years:
-                // Discover surfaces these as CategoryEntity with no PinnedItem behind
-                // them, so the pin state has to be resolved by type + raw value.
+                // The Library filter list surfaces these as CategoryEntity with no
+                // PinnedItem behind them, so the pin state has to be resolved by type + raw value.
                 guard let category = entity as? CategoryEntity else { return false }
                 return category.filterType == filterType && filterValue == entity.name
             default:

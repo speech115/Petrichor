@@ -46,60 +46,6 @@ extension DatabaseManager {
         }
     }
 
-    /// Search tracks for playlist addition with exclusions
-    func searchTracksForPlaylist(_ searchText: String, excludingTrackIds: Set<Int64> = []) -> [Track] {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return []
-        }
-        
-        do {
-            var tracks = try dbQueue.read { db in
-                let prefixQuery = buildFTS5Query(searchText)
-                
-                // Respect the "hide duplicate songs" setting so playlist search results
-                // match what the rest of the library shows.
-                let duplicateClause = UserDefaults.standard.bool(forKey: "hideDuplicateTracks") ? " AND t.is_duplicate = 0" : ""
-
-                // Build the WHERE clause based on exclusions
-                let whereClause: String
-                let arguments: StatementArguments
-
-                if excludingTrackIds.isEmpty {
-                    whereClause = "WHERE tracks_fts MATCH ?\(duplicateClause)"
-                    arguments = [prefixQuery]
-                } else {
-                    let excludedIds = Array(excludingTrackIds)
-                    let placeholders = databaseQuestionMarks(count: excludedIds.count)
-                    whereClause = "WHERE tracks_fts MATCH ? AND t.id NOT IN (\(placeholders))\(duplicateClause)"
-
-                    var args: [DatabaseValueConvertible] = [prefixQuery]
-                    args.append(contentsOf: excludedIds)
-                    arguments = StatementArguments(args)
-                }
-                
-                return try Track.fetchAll(
-                    db,
-                    sql: """
-                    SELECT t.*
-                    FROM tracks t
-                    JOIN tracks_fts fts ON t.id = fts.track_id
-                    \(whereClause)
-                    ORDER BY rank
-                    LIMIT 200
-                    """,
-                    arguments: arguments
-                )
-            }
-            
-            populateAlbumArtworkForTracks(&tracks)
-            
-            return tracks
-        } catch {
-            Logger.error("FTS playlist search failed: \(error)")
-            return []
-        }
-    }
-
     // MARK: - Helper Methods
     
     /// FTS query builder with support for handling special characters

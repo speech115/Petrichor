@@ -172,7 +172,7 @@
 - Вместо них — `do/catch`, `guard`, условное приведение. Сбой, который можно
   проигнорировать, закрывается `try?`.
 - Метод, чей результат вызывающий вправе не использовать, помечается
-  `@discardableResult` (`seek(to:)`, `seekForward(_:)`).
+  `@discardableResult` (`seek(to:)`).
 - Сбой плеера нормализуется в общий `AudioPlayerError` чистой функцией
   (`AVQueuePlayerBackend.mapPlaybackError`), а не разбросан по месту вызова.
 

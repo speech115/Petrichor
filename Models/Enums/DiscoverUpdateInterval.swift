@@ -23,23 +23,4 @@ enum DiscoverUpdateInterval: String, CaseIterable, Codable {
         case .monthly: return 2592000 // 30 days
         }
     }
-
-    /// Parses either the current bare-case rawValue or the English display strings
-    /// that used to be the rawValues. Persisting a display string was a localization
-    /// hazard, so stored values are normalized on launch; this keeps existing
-    /// preferences readable in the meantime.
-    init?(persistedValue: String) {
-        if let interval = DiscoverUpdateInterval(rawValue: persistedValue) {
-            self = interval
-            return
-        }
-
-        switch persistedValue {
-        case "Daily": self = .daily
-        case "Every week": self = .weekly
-        case "Every 2 weeks": self = .biweekly
-        case "Every month": self = .monthly
-        default: return nil
-        }
-    }
 }
