@@ -105,6 +105,7 @@ struct NowPlayingScreen: View {
         // without changing the color scheme of the playlist underneath it.
         .environment(\.colorScheme, .dark)
         .trackActionSheets(isActive: true, playlistManager: playlistManager)
+        .toastHost()
         .onAppear {
             displayedTrack = track
             lastQueueIndex = playlistManager.currentQueueIndex
@@ -319,9 +320,7 @@ struct NowPlayingScreen: View {
                 // either: the audit flags any clipping risk, and letting the
                 // title/artist wrap at the largest accessibility sizes is
                 // the only way to keep the style uncapped without clipping.
-                Text(displayedTrack?.title ?? "")
-                    .font(panelKind == nil ? .title2.weight(.bold) : .headline)
-                    .fixedSize(horizontal: false, vertical: true)
+                nameLine(displayedTrack?.title ?? "", font: panelKind == nil ? .title2.weight(.bold) : .headline)
                     .foregroundColor(palette.foreground)
                     // The Dynamic Type audit is scoped to these two elements:
                     // they must stay uncapped, real text styles.
@@ -338,9 +337,7 @@ struct NowPlayingScreen: View {
                         Button("Show Album") { navigate(to: .albums, value: track.album) }
                     }
                 } label: {
-                    Text(displayedTrack?.displayArtist ?? "")
-                        .font(panelKind == nil ? .title2 : .subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
+                    nameLine(displayedTrack?.displayArtist ?? "", font: panelKind == nil ? .title2 : .subheadline)
                         .foregroundColor(palette.secondary)
                 }
                 .accessibilityIdentifier("NowPlayingArtist")
@@ -362,7 +359,7 @@ struct NowPlayingScreen: View {
                     isActive: track.isFavorite
                 ) {
                     UISelectionFeedbackGenerator().selectionChanged()
-                    playlistManager.toggleFavorite(for: track)
+                    ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
                 }
 
                 Menu {
@@ -372,6 +369,20 @@ struct NowPlayingScreen: View {
                 }
                 .accessibilityLabel(String(localized: "Track menu"))
             }
+        }
+    }
+
+    /// One line that scrolls when the name is long, like Apple Music and
+    /// Spotify; a wrapped title would move the whole player. At accessibility
+    /// text sizes a moving line is unreadable, so there it wraps instead.
+    @ViewBuilder
+    private func nameLine(_ text: String, font: Font) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(text)
+                .font(font)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            MarqueeText(text: text, font: font)
         }
     }
 
@@ -426,7 +437,7 @@ struct NowPlayingScreen: View {
             } label: {
                 SymbolImage(Icons.customLyrics)
                     .font(.system(size: min(accessoryIconSize, 24)))
-                    .foregroundColor(palette.secondary)
+                    .foregroundColor(panelKind == .lyrics ? palette.foreground : palette.accessory)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .contentShape(Rectangle())
@@ -435,7 +446,7 @@ struct NowPlayingScreen: View {
             .disabled(track == nil)
             .accessibilityLabel(String(localized: "Lyrics"))
 
-            AirPlayButton(tint: UIColor.white.withAlphaComponent(0.55))
+            AirPlayButton(tint: UIColor.white.withAlphaComponent(0.75))
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
 
@@ -445,7 +456,7 @@ struct NowPlayingScreen: View {
             } label: {
                 Image(systemName: Icons.queueList)
                     .font(.system(size: min(accessoryIconSize, 24)))
-                    .foregroundColor(palette.secondary)
+                    .foregroundColor(panelKind == .queue ? palette.foreground : palette.accessory)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .contentShape(Rectangle())

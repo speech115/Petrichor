@@ -39,6 +39,11 @@ struct SearchView: View {
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
 
+    /// Newline-joined, newest first. Queries never contain a newline: the
+    /// search field is single-line.
+    @AppStorage("recentSearches")
+    private var recentSearchesRaw = ""
+    @State private var isTabVisible = false
     @State private var query = ""
     @State private var scope = SearchScope.all
     @FocusState private var isSearchFieldFocused: Bool
@@ -104,11 +109,17 @@ struct SearchView: View {
                 }
                 resultsList
             }
+                // A tap on empty space puts the keyboard away. On the container,
+                // not the list: a gesture on the list itself swallowed the rows'
+                // own taps and results stopped opening.
                 .searchable(
                     text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Search Library")
                 )
+                .dismissKeyboardOnTap(isActive: isTabVisible) { isSearchFieldFocused = false }
+                .onAppear { isTabVisible = true }
+                .onDisappear { isTabVisible = false }
                 .searchFocused($isSearchFieldFocused)
                 .searchToolbarBehavior(.minimize)
                 .autocorrectionDisabled()
@@ -136,10 +147,41 @@ struct SearchView: View {
                 .onChange(of: focusRequest) { _, _ in
                     isSearchFieldFocused = true
                 }
+                .onSubmit(of: .search) { rememberQuery() }
                 .task(id: query) {
                     await libraryManager.search(query: query)
+                    // A query that stood still for a moment and found something
+                    // is one worth coming back to; keystrokes on the way there
+                    // are not, and `remember` folds them into it.
+                    try? await Task.sleep(for: .seconds(1.5))
+                    guard !Task.isCancelled else { return }
+                    rememberQuery()
                 }
         }
+    }
+
+    // MARK: - Recent Searches
+
+    private static let recentSearchLimit = 8
+
+    private var recentSearches: [String] {
+        recentSearchesRaw.split(separator: "\n").map(String.init)
+    }
+
+    /// Stores the current query when it found something. Older entries the new
+    /// one extends ("10" before "104") or repeats are dropped.
+    private func rememberQuery() {
+        guard isSearching, hasResults else { return }
+        let kept = recentSearches.filter {
+            !trimmedQuery.localizedCaseInsensitiveContains($0)
+        }
+        recentSearchesRaw = ([trimmedQuery] + kept)
+            .prefix(Self.recentSearchLimit)
+            .joined(separator: "\n")
+    }
+
+    private func forgetRecentSearch(_ text: String) {
+        recentSearchesRaw = recentSearches.filter { $0 != text }.joined(separator: "\n")
     }
 
     private var scopePicker: some View {
@@ -170,6 +212,35 @@ struct SearchView: View {
                     }
                     NavigationLink(value: LibraryDestination.category(.artists)) {
                         Label("Artists", systemImage: "person.2")
+                    }
+                }
+                if !recentSearches.isEmpty {
+                    Section {
+                        ForEach(recentSearches, id: \.self) { text in
+                            Button {
+                                query = text
+                            } label: {
+                                Label {
+                                    Text(text).foregroundStyle(.primary)
+                                } icon: {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                }
+                            }
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    forgetRecentSearch(text)
+                                } label: {
+                                    Label(String(localized: "Delete"), systemImage: Icons.trash)
+                                }
+                            }
+                        }
+                    } header: {
+                        HStack {
+                            Text("Recent Searches")
+                            Spacer()
+                            Button("Clear") { recentSearchesRaw = "" }
+                                .textCase(nil)
+                        }
                     }
                 }
             }

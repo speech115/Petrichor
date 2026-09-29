@@ -35,12 +35,9 @@ struct NowPlayingPanel<Content: View>: View {
     // MARK: - Header
 
     private var header: some View {
+        // No grabber of its own: the player's grabber sits right above this
+        // panel and two handles in a row read as one broken control.
         VStack(spacing: 10) {
-            Capsule()
-                .fill(Color.secondary.opacity(0.4))
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-
             HStack(spacing: 12) {
                 Text(title)
                     .font(.headline)
@@ -58,6 +55,7 @@ struct NowPlayingPanel<Content: View>: View {
                 .accessibilityLabel(String(localized: "Close"))
             }
             .padding(.horizontal, 20)
+            .padding(.top, 6)
             .padding(.bottom, 12)
         }
         .contentShape(Rectangle())

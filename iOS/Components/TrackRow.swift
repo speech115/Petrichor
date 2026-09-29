@@ -75,7 +75,7 @@ struct TrackRow: View {
     // MARK: - Gesture Actions
 
     private func playNextWithConfirmation() {
-        playlistManager.playNext(track)
+        ToastCenter.shared.enqueue(track, playNext: true, playlistManager: playlistManager)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
@@ -85,12 +85,12 @@ struct TrackRow: View {
             Label(String(localized: "Play"), systemImage: Icons.playFill)
         }
         Button {
-            playlistManager.playNext(track)
+            ToastCenter.shared.enqueue(track, playNext: true, playlistManager: playlistManager)
         } label: {
             Label(String(localized: "Play Next"), systemImage: "text.line.first.and.arrowtriangle.forward")
         }
         Button {
-            playlistManager.addToQueue(track)
+            ToastCenter.shared.enqueue(track, playNext: false, playlistManager: playlistManager)
         } label: {
             Label(String(localized: "Add to Queue"), systemImage: "text.append")
         }

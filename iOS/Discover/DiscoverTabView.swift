@@ -7,7 +7,7 @@
 // a mosaic of the rotation's own covers, Play and Shuffle, then the tracks in
 // the order the rotation picked them.
 //
-// The refresh button carries the Mac's icon and calls the Mac's
+// The refresh button, beside the settings gear, carries the Mac's icon and calls the Mac's
 // `refreshDiscoverTracks()`, which drops the saved rotation and draws a new
 // one instead of waiting out the weekly interval.
 //
@@ -39,19 +39,6 @@ struct DiscoverTabView: View {
                             }
                         } else {
                             header(tracks)
-                            Text("Unplayed songs from your library. A new selection every week.")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 20)
-                            if let updated = libraryManager.discoverLastUpdated {
-                                Text("Updated \(updated.formatted(date: .abbreviated, time: .omitted))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Button("Refresh Selection", systemImage: Icons.arrowClockwise) {
-                            libraryManager.refreshDiscoverTracks(populateArtwork: false)
                         }
                     }
                         .padding(.bottom, 16)
@@ -72,6 +59,14 @@ struct DiscoverTabView: View {
             )
             .rootTitle(String(localized: "Discover"))
             .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        libraryManager.refreshDiscoverTracks(populateArtwork: false)
+                    } label: {
+                        Image(systemName: Icons.arrowClockwise)
+                    }
+                    .accessibilityLabel(String(localized: "Refresh Selection"))
+                }
                 SettingsToolbarItem(showingSettings: $showingSettings)
             }
         }

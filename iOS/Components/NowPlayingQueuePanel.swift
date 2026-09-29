@@ -71,6 +71,7 @@ struct NowPlayingQueuePanel: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 EditButton()
+                    .tint(accentColor)
             }
             .padding(.horizontal, 20)
             .frame(minHeight: 44)
