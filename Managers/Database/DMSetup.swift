@@ -654,10 +654,4 @@ extension DatabaseManager {
         }
     }
     
-    // MARK: - Instance Methods
-    func setupDatabase() throws {
-        try dbQueue.write { db in
-            try DatabaseManager.setupDatabaseSchema(in: db)
-        }
-    }
 }

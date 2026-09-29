@@ -271,37 +271,3 @@ enum PlaylistSidebarArtwork {
 }
 
 // MARK: - Folder Node Sidebar Item
-
-struct FolderNodeSidebarItem: SidebarItem {
-    let id: UUID
-    let title: String
-    let subtitle: String?
-    let icon: String?
-    let count: Int?
-    let folderNode: FolderNode
-
-    init(folderNode: FolderNode) {
-        self.id = folderNode.id
-        self.title = folderNode.name
-        self.folderNode = folderNode
-
-        if folderNode.children.isEmpty {
-            self.icon = Icons.folderFill
-        } else {
-            self.icon = folderNode.isExpanded ? Icons.folderFillBadgeMinus : Icons.folderFillBadgePlus
-        }
-
-        let trackCount = folderNode.displayTrackCount
-        if folderNode.immediateFolderCount > 0 && trackCount > 0 {
-            self.subtitle = String(localized: "\(folderNode.immediateFolderCount) folders, \(trackCount) tracks")
-        } else if folderNode.immediateFolderCount > 0 {
-            self.subtitle = String(localized: "\(folderNode.immediateFolderCount) folders")
-        } else if trackCount > 0 {
-            self.subtitle = String(localized: "\(trackCount) tracks")
-        } else {
-            self.subtitle = nil
-        }
-
-        self.count = nil
-    }
-}

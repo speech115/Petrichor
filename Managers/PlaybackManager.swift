@@ -80,11 +80,6 @@ class PlaybackManager: NSObject, ObservableObject {
 
     // MARK: - Computed Properties
     
-    /// Alias for currentTime for backwards compatibility
-    var actualCurrentTime: Double {
-        currentTime
-    }
-
     // MARK: - Private Properties
     
     let audioPlayer: PlaybackEngine
@@ -509,11 +504,6 @@ class PlaybackManager: NSObject, ObservableObject {
         startProgressUpdateTimer()
     }
 
-    private func stopProgressUpdateTimer() {
-        progressUpdateTimer?.cancel()
-        progressUpdateTimer = nil
-    }
-    
     /// Restore audio effects settings from UserDefaults
     private func restoreAudioEffectsSettings() {
         // Restore stereo widening

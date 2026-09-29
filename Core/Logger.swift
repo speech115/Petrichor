@@ -43,24 +43,30 @@ struct LogEntry {
     let line: Int
     let function: String
     
+    private static let fileDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = StringFormat.logEntryFormat
+        return formatter
+    }()
+
+    private static let consoleDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter
+    }()
+
     var formattedMessage: String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = StringFormat.logEntryFormat
-        
         let context = extractContext(from: file)
         let funcName = extractFunctionName(from: function)
-        let timestamp = dateFormatter.string(from: timestamp)
+        let timestamp = Self.fileDateFormatter.string(from: timestamp)
         
         return "[\(timestamp)] [\(level.prefix)] [\(context) > \(funcName):\(line)] \(message)"
     }
     
     var consoleMessage: String {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "HH:mm:ss.SSS"
-
         let context = extractContext(from: file)
         let funcName = extractFunctionName(from: function)
-        let timestamp = dateFormatter.string(from: timestamp)
+        let timestamp = Self.consoleDateFormatter.string(from: timestamp)
         
         return "[\(timestamp)] \(level.emoji) [\(level.prefix)] [\(context) > \(funcName):\(line)] \(message)"
     }

@@ -483,7 +483,7 @@ extension PetrichorApp {
         Button {
             if let currentTrack = appCoordinator.playbackManager.currentTrack {
                 let newTime = min(
-                    appCoordinator.playbackManager.actualCurrentTime + 10,
+                    appCoordinator.playbackManager.currentTime + 10,
                     currentTrack.duration
                 )
                 appCoordinator.playbackManager.seekTo(time: newTime)
@@ -506,7 +506,7 @@ extension PetrichorApp {
         Button {
             if appCoordinator.playbackManager.currentTrack != nil {
                 let newTime = max(
-                    appCoordinator.playbackManager.actualCurrentTime - 10,
+                    appCoordinator.playbackManager.currentTime - 10,
                     0
                 )
                 appCoordinator.playbackManager.seekTo(time: newTime)

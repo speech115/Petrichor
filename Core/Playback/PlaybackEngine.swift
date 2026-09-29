@@ -177,10 +177,6 @@ protocol PlaybackBackend: AnyObject {
     func togglePlayPause()
     @discardableResult
     func seek(to time: Double) -> Bool
-    @discardableResult
-    func seekForward(_ seconds: Double) -> Bool
-    @discardableResult
-    func seekBackward(_ seconds: Double) -> Bool
 
     // MARK: Queue
 
@@ -379,16 +375,6 @@ public class PlaybackEngine: NSObject {
     @discardableResult
     public func seek(to time: Double) -> Bool {
         backend.seek(to: time)
-    }
-
-    @discardableResult
-    public func seekForward(_ seconds: Double) -> Bool {
-        backend.seekForward(seconds)
-    }
-
-    @discardableResult
-    public func seekBackward(_ seconds: Double) -> Bool {
-        backend.seekBackward(seconds)
     }
 
     // MARK: - Audio Effects

@@ -207,16 +207,6 @@ enum ArtistParser {
         }
     }
 
-    /// Check if a name matches a known artist in the currently available data.
-    static func isKnownArtist(_ name: String) -> Bool {
-        let normalized = normalizeArtistName(name)
-        guard !normalized.isEmpty else { return false }
-
-        return knownArtistsState.withLock { state in
-            state.knownArtists.contains(normalized) || state.libraryArtists.values.contains { $0[normalized] != nil }
-        }
-    }
-
     /// Reclaims entries stranded by a generation bump; correctness comes from the generation.
     private static func clearParseCache() {
         caches.withLock { $0.parse.removeAll() }

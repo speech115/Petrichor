@@ -149,16 +149,6 @@ final class CrescendoPlaybackBackend: PlaybackBackend, CrescendoPlayerDelegate {
         return player.seek(to: time)
     }
 
-    @discardableResult
-    func seekForward(_ seconds: Double) -> Bool {
-        player.seekForward(seconds)
-    }
-
-    @discardableResult
-    func seekBackward(_ seconds: Double) -> Bool {
-        player.seekBackward(seconds)
-    }
-
     // MARK: - Audio Effects
 
     func setStereoWidening(enabled: Bool) {

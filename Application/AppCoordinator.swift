@@ -151,7 +151,7 @@ class AppCoordinator: ObservableObject {
 
         let state = PlaybackState(
             currentTrack: currentTrack,
-            playbackPosition: playbackManager.actualCurrentTime,
+            playbackPosition: playbackManager.currentTime,
             queue: playlistManager.currentQueue,
             currentQueueIndex: playlistManager.currentQueueIndex,
             queueSource: playlistManager.currentQueueSource,

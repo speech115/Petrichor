@@ -16,7 +16,7 @@ extension AutomationManager {
             artist: track.displayArtist,
             album: track.displayAlbum,
             duration: track.duration,
-            position: playback.actualCurrentTime,
+            position: playback.currentTime,
             isPlaying: playback.isPlaying,
             isFavorite: track.isFavorite
         )

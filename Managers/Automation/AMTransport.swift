@@ -39,7 +39,7 @@ extension AutomationManager {
 
     func skip(bySeconds delta: Double) {
         guard let playback else { return }
-        playback.seekTo(time: max(0, playback.actualCurrentTime + delta))
+        playback.seekTo(time: max(0, playback.currentTime + delta))
     }
 
     /// Accepts a 0-100 percentage; PlaybackManager clamps the 0-1 value internally.

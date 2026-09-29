@@ -16,12 +16,6 @@ enum CategorySQL {
         return "\(column) IS NOT NULL AND \(column) != '' AND \(column) != '\(sentinel(.genres))'"
     }
 
-    /// The Unknown bucket: NULL, empty, or the stored sentinel.
-    static func unknownGenre(alias: String = "") -> String {
-        let column = qualified("genre", alias)
-        return "\(column) IS NULL OR \(column) = '' OR \(column) = '\(sentinel(.genres))'"
-    }
-
     static func knownYear(alias: String = "") -> String {
         let column = qualified("year", alias)
         return "\(column) IS NOT NULL AND \(column) != '' AND \(column) != '\(sentinel(.years))'"
@@ -36,16 +30,6 @@ enum CategorySQL {
     /// open its own tracks.
     static func decadeExpression(alias: String = "") -> String {
         "SUBSTR(\(qualified("year", alias)), 1, 3) || '0s'"
-    }
-
-    /// Including the Unknown bucket, for the Library sidebar's full list.
-    static func decadeExpressionWithUnknown(alias: String = "") -> String {
-        """
-        CASE
-            WHEN \(unknownYear(alias: alias)) THEN '\(sentinel(.decades))'
-            ELSE \(decadeExpression(alias: alias))
-        END
-        """
     }
 
     static func sentinel(_ filterType: LibraryFilterType) -> String {

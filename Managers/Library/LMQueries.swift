@@ -146,11 +146,6 @@ extension LibraryManager {
         return items
     }
 
-    /// Cache read with no query behind it, for callers that must not block the main actor.
-    func cachedLibraryFilterItems(for filterType: LibraryFilterType) -> [LibraryFilterItem]? {
-        cachedLibraryCategories[filterType]
-    }
-
     /// Serves the cache when warm and otherwise queries off-main. `getLibraryFilterItems`
     /// runs a full GROUP BY aggregation on a miss, which is a visible stall on a large library.
     func libraryFilterItems(for filterType: LibraryFilterType) async -> [LibraryFilterItem] {

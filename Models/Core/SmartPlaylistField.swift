@@ -184,18 +184,6 @@ extension SmartPlaylistCriteria.Condition {
     }
 }
 
-enum SmartPlaylistRegex {
-    static func isValid(_ pattern: String) -> Bool {
-        (try? NSRegularExpression(pattern: pattern)) != nil
-    }
-
-    static func matches(_ value: String, pattern: String) -> Bool {
-        guard let expression = try? NSRegularExpression(pattern: pattern) else { return false }
-        let range = NSRange(value.startIndex..., in: value)
-        return expression.firstMatch(in: value, range: range) != nil
-    }
-}
-
 /// Shared encoding for absolute date rule values ("yyyy-MM-dd"). The editor and the
 /// query backend both use this so a date picked in the UI matches the same calendar
 /// day at evaluation time.

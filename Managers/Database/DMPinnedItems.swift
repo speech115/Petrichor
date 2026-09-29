@@ -104,25 +104,6 @@ extension DatabaseManager {
         }
     }
     
-    /// Check if an item is pinned
-    func isItemPinned(filterType: LibraryFilterType?, filterValue: String?, entityId: UUID?, playlistId: UUID?) async throws -> Bool {
-        try await dbQueue.read { db in
-            var request = PinnedItem.all()
-            
-            if let playlistId = playlistId {
-                request = request.filter(PinnedItem.Columns.playlistId == playlistId.uuidString)
-            } else if let filterType = filterType, let filterValue = filterValue {
-                request = request
-                    .filter(PinnedItem.Columns.filterType == filterType.rawValue)
-                    .filter(PinnedItem.Columns.filterValue == filterValue)
-            } else if let entityId = entityId {
-                request = request.filter(PinnedItem.Columns.entityId == entityId.uuidString)
-            }
-            
-            return try request.fetchCount(db) > 0
-        }
-    }
-    
     /// Get tracks for a pinned item
     func getTracksForPinnedItem(_ item: PinnedItem) -> [Track] {
         switch item.itemType {

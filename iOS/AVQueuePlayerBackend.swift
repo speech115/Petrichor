@@ -704,16 +704,6 @@ extension AVQueuePlayerBackend {
         return true
     }
 
-    @discardableResult
-    func seekForward(_ seconds: Double) -> Bool {
-        seek(to: player.currentTime().seconds + seconds)
-    }
-
-    @discardableResult
-    func seekBackward(_ seconds: Double) -> Bool {
-        seek(to: max(0, player.currentTime().seconds - seconds))
-    }
-
     // MARK: - Now Playing
 
     func setNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {

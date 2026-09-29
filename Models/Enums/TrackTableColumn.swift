@@ -114,36 +114,3 @@ enum TrackTableColumn: Codable, Hashable {
         }
     }
 }
-
-struct TrackTableColumnVisibility: Codable {
-    private var hiddenColumns: Set<String> // Store identifiers of hidden columns
-
-    init() {
-        self.hiddenColumns = []
-
-        // Hide non-default columns
-        for column in TrackTableColumn.allColumns {
-            if !column.defaultVisibility && !column.isRequired {
-                hiddenColumns.insert(column.identifier)
-            }
-        }
-    }
-
-    func isVisible(_ column: TrackTableColumn) -> Bool {
-        column.isRequired || !hiddenColumns.contains(column.identifier)
-    }
-
-    mutating func setVisibility(_ column: TrackTableColumn, isVisible: Bool) {
-        guard !column.isRequired else { return }
-
-        if isVisible {
-            hiddenColumns.remove(column.identifier)
-        } else {
-            hiddenColumns.insert(column.identifier)
-        }
-    }
-
-    mutating func toggleVisibility(_ column: TrackTableColumn) {
-        setVisibility(column, isVisible: !isVisible(column))
-    }
-}

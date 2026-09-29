@@ -80,19 +80,19 @@ enum PlaybackJournalCodec {
 
     private static let decoder = JSONDecoder()
 
-    private static func makeISOFormatter() -> ISO8601DateFormatter {
+    private static let isoFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
-    }
+    }()
 
     static func encodeLine(_ event: PlaybackJournalEvent) throws -> String {
         let dto: LineDTO
         switch event {
         case .played(let path, let at):
-            dto = LineDTO(ts: makeISOFormatter().string(from: at), type: "played", path: path, value: nil)
+            dto = LineDTO(ts: isoFormatter.string(from: at), type: "played", path: path, value: nil)
         case .favorite(let path, let value, let at):
-            dto = LineDTO(ts: makeISOFormatter().string(from: at), type: "favorite", path: path, value: value)
+            dto = LineDTO(ts: isoFormatter.string(from: at), type: "favorite", path: path, value: value)
         }
         let data = try encoder.encode(dto)
         guard let line = String(data: data, encoding: .utf8) else {
@@ -113,7 +113,7 @@ enum PlaybackJournalCodec {
             throw CodecError.malformed(trimmed)
         }
 
-        guard let timestamp = makeISOFormatter().date(from: dto.ts),
+        guard let timestamp = isoFormatter.date(from: dto.ts),
               !dto.path.isEmpty
         else {
             throw CodecError.malformed(trimmed)
