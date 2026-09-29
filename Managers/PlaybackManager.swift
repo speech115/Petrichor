@@ -205,6 +205,7 @@ class PlaybackManager: NSObject, ObservableObject {
                     self.currentFullTrack = fullTrack
                     self.restoredPosition = position
                     self.currentTime = position
+                    self.enrichCurrentTrackArtwork(track, publishingMetadata: false)
 
                     if self.pendingPlayOnRestore {
                         // Play was pressed while this fetch was in flight; honor it now
@@ -315,9 +316,15 @@ class PlaybackManager: NSObject, ObservableObject {
     /// Feeds the engine the metadata for its system Now Playing tile. Called only
     /// when the engine adopts a new entry; it keeps elapsed and rate current itself.
     func publishNowPlayingMetadata(for track: Track) {
-        artworkEnrichmentTask?.cancel()
         setNowPlayingMetadata(for: track, artworkData: track.artworkData)
+        enrichCurrentTrackArtwork(track, publishingMetadata: true)
+    }
 
+    /// Queue entries are stored without artwork. Loads the cover for the light
+    /// `track` and attaches it to `currentTrack`; restoration needs it too,
+    /// because a restored track sits paused with no engine entry to trigger it.
+    private func enrichCurrentTrackArtwork(_ track: Track, publishingMetadata: Bool) {
+        artworkEnrichmentTask?.cancel()
         guard track.artworkData == nil else { return }
         let database = libraryManager.databaseManager
         let albumId = track.albumId
@@ -336,7 +343,9 @@ class PlaybackManager: NSObject, ObservableObject {
             var enriched = self.currentTrack ?? track
             enriched.albumArtworkData = artwork
             self.currentTrack = enriched
-            self.setNowPlayingMetadata(for: enriched, artworkData: artwork)
+            if publishingMetadata {
+                self.setNowPlayingMetadata(for: enriched, artworkData: artwork)
+            }
         }
     }
 

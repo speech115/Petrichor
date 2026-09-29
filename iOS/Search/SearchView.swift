@@ -43,6 +43,7 @@ struct SearchView: View {
     /// search field is single-line.
     @AppStorage("recentSearches")
     private var recentSearchesRaw = ""
+    @State private var isTabVisible = false
     @State private var query = ""
     @State private var scope = SearchScope.all
     @FocusState private var isSearchFieldFocused: Bool
@@ -108,11 +109,17 @@ struct SearchView: View {
                 }
                 resultsList
             }
+                // A tap on empty space puts the keyboard away. On the container,
+                // not the list: a gesture on the list itself swallowed the rows'
+                // own taps and results stopped opening.
                 .searchable(
                     text: $query,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Search Library")
                 )
+                .dismissKeyboardOnTap(isActive: isTabVisible) { isSearchFieldFocused = false }
+                .onAppear { isTabVisible = true }
+                .onDisappear { isTabVisible = false }
                 .searchFocused($isSearchFieldFocused)
                 .searchToolbarBehavior(.minimize)
                 .autocorrectionDisabled()

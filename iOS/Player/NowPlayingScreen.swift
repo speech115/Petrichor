@@ -320,9 +320,7 @@ struct NowPlayingScreen: View {
                 // either: the audit flags any clipping risk, and letting the
                 // title/artist wrap at the largest accessibility sizes is
                 // the only way to keep the style uncapped without clipping.
-                Text(displayedTrack?.title ?? "")
-                    .font(panelKind == nil ? .title2.weight(.bold) : .headline)
-                    .fixedSize(horizontal: false, vertical: true)
+                nameLine(displayedTrack?.title ?? "", font: panelKind == nil ? .title2.weight(.bold) : .headline)
                     .foregroundColor(palette.foreground)
                     // The Dynamic Type audit is scoped to these two elements:
                     // they must stay uncapped, real text styles.
@@ -339,9 +337,7 @@ struct NowPlayingScreen: View {
                         Button("Show Album") { navigate(to: .albums, value: track.album) }
                     }
                 } label: {
-                    Text(displayedTrack?.displayArtist ?? "")
-                        .font(panelKind == nil ? .title2 : .subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
+                    nameLine(displayedTrack?.displayArtist ?? "", font: panelKind == nil ? .title2 : .subheadline)
                         .foregroundColor(palette.secondary)
                 }
                 .accessibilityIdentifier("NowPlayingArtist")
@@ -373,6 +369,20 @@ struct NowPlayingScreen: View {
                 }
                 .accessibilityLabel(String(localized: "Track menu"))
             }
+        }
+    }
+
+    /// One line that scrolls when the name is long, like Apple Music and
+    /// Spotify; a wrapped title would move the whole player. At accessibility
+    /// text sizes a moving line is unreadable, so there it wraps instead.
+    @ViewBuilder
+    private func nameLine(_ text: String, font: Font) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(text)
+                .font(font)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            MarqueeText(text: text, font: font)
         }
     }
 

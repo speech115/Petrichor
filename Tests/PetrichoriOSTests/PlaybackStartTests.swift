@@ -19,6 +19,7 @@ struct PlaybackStartTests {
         let keys = ["SavedPlaybackState", "SavedPlaybackUIState"]
         let oldValues = keys.map { defaults.data(forKey: $0) }
         let database = try DatabaseManager()
+        let artwork = Data([0xFF, 0xD8, 0xFF, 0xD9])
         let wav = try makeSilentWAV(seconds: 12)
         let folderURL = LibraryPathStore.libraryRoot.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
@@ -31,6 +32,7 @@ struct PlaybackStartTests {
             full.folderId = folderID
             full.title = "Restore"
             full.duration = 12
+            full.trackArtworkData = artwork
             try full.insert(db)
             return try #require(try Track.filter(Track.Columns.trackId == db.lastInsertedRowID).fetchOne(db))
         }
@@ -71,6 +73,11 @@ struct PlaybackStartTests {
         }
         #expect(playback.currentTrack?.trackId == track.trackId, "library completion must finish restoration")
         #expect(!playback.isPlaying, "restoring must wait for Play")
+        let artworkDeadline = ContinuousClock.now + .seconds(8)
+        while playback.currentTrack?.albumArtworkData == nil, ContinuousClock.now < artworkDeadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(playback.currentTrack?.albumArtworkData == artwork, "restored track must show its cover before Play")
         playback.togglePlayPause()
         let playingDeadline = ContinuousClock.now + .seconds(8)
         while playback.audioPlayer.state != .playing, ContinuousClock.now < playingDeadline {
