@@ -35,6 +35,11 @@ extension DatabaseManager {
         // Skip migrations on a fresh/empty database — nothing to migrate
         let trackCount = (try? await dbQueue.read { db in try Track.fetchCount(db) }) ?? 0
         if trackCount == 0 {
+            // Column order is schema, not data: a fresh database still gets it,
+            // and the rebuild of empty tables is instant.
+            if pending.contains(where: { $0.identifier == Self.artworkColumnsLastIdentifier }) {
+                await moveArtworkColumnsLast()
+            }
             for (identifier, _) in pending {
                 completeBackgroundMigration(identifier)
             }
@@ -52,6 +57,10 @@ extension DatabaseManager {
                 await backfillAlbumArtists(progress: progress)
             case Self.thumbnailBackfillIdentifier:
                 await fillArtworkThumbnails(progress: progress)
+            case Self.jpegThumbnailIdentifier:
+                await convertThumbnailsToJPEG(progress: progress)
+            case Self.artworkColumnsLastIdentifier:
+                await moveArtworkColumnsLast()
             default:
                 Logger.warning("Unknown background migration: \(identifier)")
             }
@@ -735,6 +744,118 @@ extension DatabaseManager {
             // from the saved offset on next launch. Never rethrow - don't crash launch.
             await NotificationManager.shared.stopActivity()
             Logger.error("Thumbnail backfill failed (will resume next launch): \(error)")
+        }
+    }
+
+    // MARK: - v16: JPEG Thumbnails
+
+    private static let jpegThumbnailIdentifier = "v16_background_jpeg_thumbnails"
+
+    private struct JPEGThumbnailProgress: Codable {
+        let table: String
+        let lastID: Int64
+    }
+
+    /// Re-encodes HEIC thumbnails as JPEG (see `ImageUtils.makeThumbnail`),
+    /// from the full artwork when it is stored, else from the old thumbnail.
+    private func convertThumbnailsToJPEG(progress: String?) async {
+        let identifier = Self.jpegThumbnailIdentifier
+        let tables: [(name: String, label: String)] = [("albums", "title"), ("artists", "name")]
+        var resume = JPEGThumbnailProgress(table: tables[0].name, lastID: 0)
+        if let data = progress?.data(using: .utf8),
+           let state = try? JSONDecoder().decode(JPEGThumbnailProgress.self, from: data) {
+            resume = state
+        }
+        let startIndex = tables.firstIndex { $0.name == resume.table } ?? 0
+
+        await NotificationManager.shared.startActivity(String(localized: "Generating Thumbnails..."))
+        do {
+            try await Task.detached(priority: .utility) { [weak self] in
+                guard let self else { return }
+                for table in tables[startIndex...] {
+                    var lastID = table.name == resume.table ? resume.lastID : 0
+                    var converted = 0
+                    while true {
+                        let rows = try self.readMigrationRows { db in
+                            try Row.fetchAll(
+                                db,
+                                sql: """
+                                    SELECT id, \(table.label) AS label, artwork_thumbnail, artwork_data
+                                    FROM \(table.name)
+                                    WHERE id > ? AND artwork_thumbnail IS NOT NULL
+                                    ORDER BY id LIMIT 50
+                                    """,
+                                arguments: [lastID]
+                            )
+                        }
+                        guard let last = rows.last else { break }
+                        var updates: [(Int64, Data)] = []
+                        for row in rows {
+                            let thumbnail: Data = row["artwork_thumbnail"]
+                            guard !ImageUtils.isJPEG(thumbnail) else { continue }
+                            let original: Data = row["artwork_data"] ?? thumbnail
+                            let label: String? = row["label"]
+                            guard let jpeg = ImageUtils.makeThumbnail(
+                                from: original,
+                                source: "\(table.name): \(label ?? "?")"
+                            ) else { continue }
+                            updates.append((row["id"], jpeg))
+                        }
+                        try self.dbQueue.write { db in
+                            for (id, data) in updates {
+                                try db.execute(
+                                    sql: "UPDATE \(table.name) SET artwork_thumbnail = ? WHERE id = ?",
+                                    arguments: [data, id]
+                                )
+                            }
+                        }
+                        converted += updates.count
+                        lastID = last["id"]
+                        if let data = try? JSONEncoder().encode(JPEGThumbnailProgress(table: table.name, lastID: lastID)),
+                           let json = String(data: data, encoding: .utf8) {
+                            self.updateMigrationProgress(identifier, progress: json)
+                        }
+                    }
+                    Logger.info("Re-encoded \(converted) \(table.name) thumbnails as JPEG")
+                }
+            }.value
+            completeBackgroundMigration(identifier)
+        } catch {
+            Logger.error("JPEG thumbnail conversion failed (will resume next launch): \(error)")
+        }
+        await NotificationManager.shared.stopActivity()
+    }
+
+    // MARK: - v16: Artwork Columns Last
+
+    private static let artworkColumnsLastIdentifier = "v16_background_move_artwork_columns_last"
+
+    /// Rebuilds the three artwork-carrying tables with their BLOBs last (see
+    /// `Database.moveColumnsToEnd`). One transaction per table, with foreign
+    /// keys off so the batched deletes do not cascade into junction rows.
+    private func moveArtworkColumnsLast() async {
+        let moves: [(table: String, columns: [String])] = [
+            ("albums", ["artwork_thumbnail", "artwork_data"]),
+            ("artists", ["artwork_thumbnail", "artwork_data"]),
+            ("tracks", ["track_artwork_data"])
+        ]
+        do {
+            for move in moves {
+                try await dbQueue.writeWithoutTransaction { db in
+                    try db.execute(sql: "PRAGMA foreign_keys = OFF")
+                    defer { try? db.execute(sql: "PRAGMA foreign_keys = ON") }
+                    try db.inTransaction {
+                        try db.moveColumnsToEnd(move.columns, of: move.table)
+                        return .commit
+                    }
+                }
+            }
+            // The rebuild passed every artwork page through the WAL.
+            checkpoint()
+            completeBackgroundMigration(Self.artworkColumnsLastIdentifier)
+            Logger.info("Moved artwork columns to the end of their rows")
+        } catch {
+            Logger.error("Artwork column move failed (will retry next launch): \(error)")
         }
     }
 
