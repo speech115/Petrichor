@@ -149,7 +149,9 @@ struct PlaybackState: Codable, Sendable {
             trackTitle: track.title,
             trackArtist: track.artist,
             trackAlbum: track.album,
-            artworkData: track.artworkData,
+            // The launch placeholder needs a mini-player cover, not the full
+            // artwork: UserDefaults is read whole at every launch.
+            artworkData: track.artworkData.flatMap { ImageUtils.makeThumbnail(from: $0) },
             playbackPosition: playbackPosition,
             trackDuration: trackDuration,
             volume: volume

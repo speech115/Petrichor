@@ -39,6 +39,9 @@ class LibraryManager: ObservableObject {
     @Published private(set) var albumCount: Int = 0
     @Published private(set) var countsLoaded = false
     @Published internal var entitiesLoaded = false
+    /// Set by `startLaunchWork(watchFolders:)`; screens hold back their own
+    /// background warming until then.
+    @Published private(set) var launchWorkStarted = false
     
     static let initialScanTrackThreshold = 100
 
@@ -108,7 +111,10 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: - Initialization
-    init(cacheEntityArtwork: Bool = true) {
+    /// - Parameter deferLaunchWork: The caller starts the category cache,
+    ///   background migrations and artist images itself, via
+    ///   `startLaunchWork(watchFolders:)`, once its first screen is up.
+    init(cacheEntityArtwork: Bool = true, deferLaunchWork: Bool = false) {
         self.cacheEntityArtwork = cacheEntityArtwork
         do {
             // Initialize database manager
@@ -131,30 +137,9 @@ class LibraryManager: ObservableObject {
         loadMusicLibrary()
 
         pinnedItems = databaseManager.getPinnedItemsSync()
-        
-        Task {
-            try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
-            
-            await MainActor.run {
-                startFileWatcher()
-            }
-        }
 
-        Task {
-            try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
-            let didRunMigration = await databaseManager.runPendingBackgroundMigrations()
-            await MainActor.run {
-                // `loadMusicLibrary()` in init already refreshed the entity caches;
-                // only redo it here when a background migration actually changed the
-                // data (e.g. the v12 album-artist backfill), so a normal launch does
-                // not pay for a second full artwork fetch.
-                if didRunMigration {
-                    refreshEntities()
-                    refreshLibraryCategories()
-                    NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
-                }
-            }
-            ArtistBioManager.shared.fetchMissingArtistImages(using: self)
+        if !deferLaunchWork {
+            startLaunchWork(watchFolders: true)
         }
 
         // Observe auto-scan interval changes
@@ -347,6 +332,41 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: - File Watching
+
+    /// Launch work no first frame depends on. It competes with first-screen
+    /// preparation for the database's reader connections and the CPU, so a
+    /// caller that defers it runs it only after that screen is presented.
+    /// `watchFolders: false` skips the periodic folder refresh for a platform
+    /// that reconciles its library on its own.
+    func startLaunchWork(watchFolders: Bool) {
+        guard !launchWorkStarted else { return }
+        launchWorkStarted = true
+        loadLibraryCategories()
+
+        if watchFolders {
+            Task {
+                try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
+                startFileWatcher()
+            }
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
+            let didRunMigration = await databaseManager.runPendingBackgroundMigrations()
+            await MainActor.run {
+                // `loadMusicLibrary()` in init already refreshed the entity caches;
+                // only redo it here when a background migration actually changed the
+                // data (e.g. the v12 album-artist backfill), so a normal launch does
+                // not pay for a second full artwork fetch.
+                if didRunMigration {
+                    refreshEntities()
+                    refreshLibraryCategories()
+                    NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
+                }
+            }
+            ArtistBioManager.shared.fetchMissingArtistImages(using: self)
+        }
+    }
 
     private func startFileWatcher() {
         // Cancel any existing timer
