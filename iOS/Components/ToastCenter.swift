@@ -127,8 +127,9 @@ private struct ToastCapsule: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
-        .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+        // The same glass as the tab bar and the system's own floating
+        // capsules; it carries its own edge and depth, so no extra shadow.
+        .glassEffect(.regular.interactive(), in: .capsule)
     }
 }
 

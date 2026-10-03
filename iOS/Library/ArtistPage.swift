@@ -150,10 +150,14 @@ struct ArtistPage: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .albumContextMenu(album)
                 }
             }
-            .padding(.horizontal, 16)
+            .scrollTargetLayout()
         }
+        // Cards rest on the leading margin instead of half off screen.
+        .contentMargins(.horizontal, 16, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
     }
 
     private static let albumCardSide: CGFloat = 170

@@ -71,3 +71,13 @@ private func line(_ text: String, _ start: TimeInterval, _ end: TimeInterval? = 
     #expect(try manager.parseLRCLIBResponse(response, statusCode: 200) == "[00:01]Hello")
     #expect(try manager.parseLRCLIBResponse(Data("{}".utf8), statusCode: 200) == nil)
 }
+
+@Test func lineProgressRunsAcrossTheLineWindow() {
+    let lines = [line("a", 10, 20), line("b", 20)]
+    #expect(LyricsTimeline.lineProgress(in: lines, index: 0, at: 15) == 0.5)
+    #expect(LyricsTimeline.lineProgress(in: lines, index: 0, at: 5) == 0)
+    #expect(LyricsTimeline.lineProgress(in: lines, index: 0, at: 25) == 1)
+    // The open-ended last line fills over the fallback duration.
+    #expect(LyricsTimeline.lineProgress(in: lines, index: 1, at: 22, lastLineDuration: 4) == 0.5)
+    #expect(LyricsTimeline.lineProgress(in: lines, index: 5, at: 15) == 0)
+}

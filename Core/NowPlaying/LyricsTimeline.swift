@@ -23,4 +23,20 @@ enum LyricsTimeline {
             }
         } ?? -1
     }
+
+    /// How far through line `index` the playhead is at `time`, 0...1 — what
+    /// the active line's fill follows. A last line without an `endTime` is
+    /// given `lastLineDuration`, since the track's end is no sung boundary.
+    static func lineProgress(
+        in lines: [LyricLine],
+        index: Int,
+        at time: TimeInterval,
+        lastLineDuration: TimeInterval = 4
+    ) -> Double {
+        guard lines.indices.contains(index) else { return 0 }
+        let line = lines[index]
+        let end = line.endTime ?? line.startTime + lastLineDuration
+        guard end > line.startTime else { return 1 }
+        return min(1, max(0, (time - line.startTime) / (end - line.startTime)))
+    }
 }

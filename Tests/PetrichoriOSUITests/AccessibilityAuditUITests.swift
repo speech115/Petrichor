@@ -113,7 +113,13 @@ final class AccessibilityAuditUITests: XCTestCase {
             "строка Songs пересекает floating tab bar на первом экране"
         )
 
-        try app.performAccessibilityAudit(for: .all.subtracting(.contrast))
+        // The A-Z strip is the system section index (`sectionIndexLabel`),
+        // the same 15pt control Contacts and Music draw; the audit flags its
+        // width. Only that element's hit-area issue is waived — VoiceOver
+        // reaches it as an adjustable control, and every other check stays.
+        try app.performAccessibilityAudit(for: .all.subtracting(.contrast)) { issue in
+            issue.auditType == .hitRegion && issue.element?.label == "Section index"
+        }
 
         attachBestEffortScreenshot(of: app, named: "AX-TrackList")
     }

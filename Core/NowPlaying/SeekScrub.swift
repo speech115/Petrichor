@@ -32,4 +32,12 @@ enum SeekScrub {
         guard duration > 0 else { return 0 }
         return min(1, max(0, (scrubbing ? scrubTime : currentTime) / duration))
     }
+
+    /// Whether a playhead move is one ordinary playback sample: forward, by
+    /// about one sampling interval. Only such moves tween; a seek, a skip or a
+    /// new track jumps, so the bar never slides back across the track while
+    /// the times under it already show the new position.
+    static func isPlaybackTick(from oldTime: Double, to newTime: Double, sampleInterval: Double) -> Bool {
+        newTime >= oldTime && newTime - oldTime <= sampleInterval * 2
+    }
 }

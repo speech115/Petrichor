@@ -54,11 +54,21 @@ struct PetrichorApp: App {
         }
         #endif
 
+        GestureTips.configure()
+
         // iPhone rows load artwork only as they become visible. Keeping every
         // album and artist BLOB in the shared entity cache costs hundreds of
         // megabytes on a real library and makes launch contend with the UI.
         let coordinator = AppCoordinator(cacheEntityArtwork: false)
         _appCoordinator = StateObject(wrappedValue: coordinator)
+
+        // Control Center buttons run their intents here, in the app's process.
+        PlaybackControlActions.playPause = { [playbackManager = coordinator.playbackManager] in
+            playbackManager.togglePlayPause()
+        }
+        PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
+            playlistManager.playNextTrack()
+        }
 
         // The iOS library is the app's own Documents folder, so it must be
         // registered on every launch (no picker step). Fire-and-forget; the

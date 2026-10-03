@@ -127,10 +127,7 @@ struct NowPlayingQueuePanel: View {
         label: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button {
-            UISelectionFeedbackGenerator().selectionChanged()
-            action()
-        } label: {
+        Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: min(modeIconSize, 22), weight: .semibold))
                 .foregroundColor(isActive ? Color.black.opacity(0.8) : palette.accessory)
@@ -148,6 +145,8 @@ struct NowPlayingQueuePanel: View {
         .disabled(playbackPresentation.currentTrack == nil)
         .accessibilityLabel(label)
         .accessibilityAddTraits(isActive ? .isSelected : [])
+        // Shuffle and repeat change only from here while the panel is up.
+        .sensoryFeedback(.selection, trigger: "\(icon)|\(isActive)")
     }
 
     private var queueOccurrences: [QueueOccurrence] {

@@ -64,14 +64,16 @@ struct CategoryItemsView: View {
                 spacing: 16
             ) {
                 ForEach(items) { item in
+                    let album = albumEntity(for: item) ?? AlbumEntity(name: item.name, trackCount: item.count)
                     NavigationLink(value: destination(for: item)) {
                         AlbumGridCard(
                             item: item,
                             artworkLoader: albumArtworkLoader(for: item.albumId)
                         )
-                        .detailZoomSource(albumZoomID(for: item), in: zoomNamespace, cornerRadius: 10)
+                        .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 10)
                     }
                     .buttonStyle(.plain)
+                    .albumContextMenu(album)
                 }
             }
             .padding(.horizontal, 16)
@@ -98,11 +100,6 @@ struct CategoryItemsView: View {
 
     private func albumEntity(for item: LibraryFilterItem) -> AlbumEntity? {
         LibraryNavigation.albumEntity(for: item, libraryManager: libraryManager)
-    }
-
-    private func albumZoomID(for item: LibraryFilterItem) -> DetailZoomID {
-        let entity = albumEntity(for: item) ?? AlbumEntity(name: item.name, trackCount: item.count)
-        return .album(entity.id)
     }
 
     // MARK: - Rows

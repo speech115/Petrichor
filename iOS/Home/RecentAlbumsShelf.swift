@@ -85,10 +85,15 @@ struct RecentAlbumsShelf: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .albumContextMenu(album)
                     }
                 }
-                .padding(.horizontal, 16)
+                .scrollTargetLayout()
             }
+            // Cards come to rest on the leading margin, as Apple Music's
+            // shelves do, never cut in half by the screen edge.
+            .contentMargins(.horizontal, 16, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
         }
     }
 }

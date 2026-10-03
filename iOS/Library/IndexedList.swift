@@ -55,14 +55,6 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
     /// Host-owned inset so rows clear floating chrome (tab bar).
     var bottomClearance: CGFloat = 0
 
-    /// Current section for VoiceOver's value / adjustable action. Updated by
-    /// drag and adjustable steps — not by mirroring plain scroll position.
-    @State private var indexSelection: String?
-    /// Visual letters stay below accessibility Dynamic Type: a fixed 24pt
-    /// column cannot absorb `.body` growth (Contacts/Music drop theirs too).
-    /// VoiceOver still gets Index (label/value/adjustable) at AX sizes.
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     init(
         sections: [IndexedSection<Item>],
         bottomClearance: CGFloat = 0,
@@ -73,111 +65,30 @@ struct IndexedList<Item: Identifiable, Row: View>: View {
         self.row = row
     }
 
+    // The index bar is the system one (iOS 26 `sectionIndexLabel`), the same
+    // control Contacts and Music use: haptic ticks while scrubbing, the
+    // magnified letter, VoiceOver's adjustable index and the letter sampling
+    // on short screens all come with it.
     var body: some View {
-        ScrollViewReader { proxy in
-            List {
-                ForEach(sections) { section in
-                    Section {
-                        // Native section headers cap Dynamic Type. A heading row
-                        // keeps the letters scalable without weakening the audit.
-                        Text(section.key)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.secondaryText)
-                            .accessibilityAddTraits(.isHeader)
-                            .listRowSeparator(.hidden)
-                        ForEach(section.items) { item in
-                            row(item)
-                        }
+        List {
+            ForEach(sections) { section in
+                Section {
+                    // Native section headers cap Dynamic Type. A heading row
+                    // keeps the letters scalable without weakening the audit.
+                    Text(section.key)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.secondaryText)
+                        .accessibilityAddTraits(.isHeader)
+                        .listRowSeparator(.hidden)
+                    ForEach(section.items) { item in
+                        row(item)
                     }
-                    .id(section.key)
                 }
-            }
-            .listStyle(.plain)
-            .overlay(alignment: .trailing) {
-                if sections.count > 1 {
-                    indexControl(proxy: proxy)
-                }
+                .sectionIndexLabel(section.key)
             }
         }
+        .listStyle(.plain)
+        .listSectionIndexVisibility(sections.count > 1 ? .visible : .hidden)
         .padding(.bottom, bottomClearance)
-    }
-
-    /// One control: AX traits always; letter glyphs only when they fit.
-    private func indexControl(proxy: ScrollViewProxy) -> some View {
-        let keys = sections.map(\.key)
-        let showLetters = !dynamicTypeSize.isAccessibilitySize
-        let width: CGFloat = showLetters ? 24 : 44
-
-        return GeometryReader { geometry in
-            ZStack {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let index = Int(
-                                    (value.location.y / max(geometry.size.height, 1))
-                                        * CGFloat(keys.count)
-                                )
-                                guard keys.indices.contains(index) else { return }
-                                selectSection(keys[index], proxy: proxy)
-                            }
-                    )
-
-                if showLetters {
-                    // Keep sampled letters centered on their drag targets.
-                    let slotCount = max(1, min(keys.count, Int(geometry.size.height / 20)))
-                    ForEach(0..<slotCount, id: \.self) { slot in
-                        let index = slotCount == 1 ? 0 : slot * (keys.count - 1) / (slotCount - 1)
-                        let abbreviated = slotCount < keys.count && slot % 2 == 1 && slot != slotCount - 1
-                        Text(abbreviated ? "•" : keys[index])
-                            .font(.caption2.weight(.semibold))
-                            .foregroundColor(.secondaryText)
-                            .frame(width: 24)
-                            .allowsHitTesting(false)
-                            .position(
-                                x: geometry.size.width / 2,
-                                y: geometry.size.height * (CGFloat(index) + 0.5)
-                                    / CGFloat(keys.count)
-                            )
-                    }
-                }
-            }
-            .frame(width: width)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(String(localized: "Index"))
-            .accessibilityValue(indexSelection ?? keys.first ?? "")
-            .accessibilityAdjustableAction { direction in
-                adjustIndex(direction: direction, keys: keys, proxy: proxy)
-            }
-        }
-        .frame(width: width)
-        .padding(.trailing, 2)
-    }
-
-    private func adjustIndex(
-        direction: AccessibilityAdjustmentDirection,
-        keys: [String],
-        proxy: ScrollViewProxy
-    ) {
-        guard let current = indexSelection ?? keys.first,
-              let currentIndex = keys.firstIndex(of: current) else { return }
-        switch direction {
-        case .increment:
-            if currentIndex + 1 < keys.count {
-                selectSection(keys[currentIndex + 1], proxy: proxy)
-            }
-        case .decrement:
-            if currentIndex > 0 {
-                selectSection(keys[currentIndex - 1], proxy: proxy)
-            }
-        @unknown default:
-            break
-        }
-    }
-
-    private func selectSection(_ key: String, proxy: ScrollViewProxy) {
-        indexSelection = key
-        proxy.scrollTo(key, anchor: .top)
     }
 }

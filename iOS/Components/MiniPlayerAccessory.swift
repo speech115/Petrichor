@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import TipKit
 import UIKit
 
 /// The zoom source id shared by the mini-player accessory (source) and the full
@@ -26,6 +27,9 @@ struct MiniPlayerAccessory: View {
     private let playbackProgressState: PlaybackProgressState
     @Binding var showingNowPlaying: Bool
     let zoomNamespace: Namespace.ID
+    /// Play state also changes from the lock screen; the haptic answers taps.
+    @State private var playPauseTaps = 0
+    private let swipeTip = MiniPlayerSwipeTip()
 
     init(
         playbackManager: PlaybackManager,
@@ -89,14 +93,17 @@ struct MiniPlayerAccessory: View {
             }
             .accessibilityIdentifier("MiniPlayer")
             .buttonStyle(.plain)
+            .popoverTip(swipeTip, arrowEdge: .bottom)
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24)
                     .onEnded { value in
                         let dx = value.translation.width
                         let dy = value.translation.height
                         if abs(dy) > abs(dx), dy < -36 {
+                            swipeTip.invalidate(reason: .actionPerformed)
                             showingNowPlaying = true
                         } else if abs(dx) > abs(dy) * 1.2, abs(dx) > 28 {
+                            swipeTip.invalidate(reason: .actionPerformed)
                             if dx < 0 {
                                 playlistManager.playNextTrack()
                             } else {
@@ -123,9 +130,10 @@ struct MiniPlayerAccessory: View {
             playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill,
             label: playbackPresentation.isPlaying ? String(localized: "Pause") : String(localized: "Play")
         ) {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            playPauseTaps += 1
             playbackManager.togglePlayPause()
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: playPauseTaps)
     }
 
     /// One glyph style for both buttons. The symbol morph on play/pause
