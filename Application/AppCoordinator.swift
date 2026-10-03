@@ -31,9 +31,9 @@ class AppCoordinator: ObservableObject {
     
     // MARK: - Initialization
     
-    init(cacheEntityArtwork: Bool = true) {
+    init(cacheEntityArtwork: Bool = true, deferLaunchWork: Bool = false) {
         // Initialize managers
-        libraryManager = LibraryManager(cacheEntityArtwork: cacheEntityArtwork)
+        libraryManager = LibraryManager(cacheEntityArtwork: cacheEntityArtwork, deferLaunchWork: deferLaunchWork)
         playlistManager = PlaylistManager()
         
         // Create audio player with dependencies
@@ -103,13 +103,14 @@ class AppCoordinator: ObservableObject {
         // The restored tile has no database identity until its real track loads.
         guard currentTrack.trackId != nil else { return }
 
-        persist(playbackStateSnapshot(currentTrack: currentTrack))
+        persist(Self.snapshot(from: snapshotInput(currentTrack: currentTrack)))
     }
 
-    /// iOS backgrounding path: the same snapshot, but the encode and write run
-    /// off the main actor, so the brief background-transition window is not
-    /// spent pinning the UI thread on a large queue/artwork encode. The caller
-    /// holds a `beginBackgroundTask` open until this returns.
+    /// iOS backgrounding path: the same snapshot, but building, encoding and
+    /// writing it run off the main actor. Matching every queued track to its
+    /// stored path resolves symlinks file by file, and the brief background
+    /// transition must not pin the UI thread on that. The caller holds a
+    /// `beginBackgroundTask` open until this returns.
     func savePlaybackStateInBackground() async {
         await playbackJournal?.flush()
 
@@ -120,11 +121,11 @@ class AppCoordinator: ObservableObject {
 
         guard currentTrack.trackId != nil else { return }
 
-        let snapshot = playbackStateSnapshot(currentTrack: currentTrack)
+        let input = snapshotInput(currentTrack: currentTrack)
         let stateKey = playbackStateKey
         let uiStateKey = playbackUIStateKey
         await Task.detached(priority: .userInitiated) {
-            Self.write(snapshot, stateKey: stateKey, uiStateKey: uiStateKey)
+            Self.write(Self.snapshot(from: input), stateKey: stateKey, uiStateKey: uiStateKey)
         }.value
     }
 
@@ -133,37 +134,66 @@ class AppCoordinator: ObservableObject {
         let uiState: PlaybackUIState?
     }
 
-    private func playbackStateSnapshot(currentTrack: Track) -> PlaybackStateSnapshot {
-        // Determine source identifier. A folder stores its path relative to
-        // the library root, like every other persisted path.
-        var sourceIdentifier: String?
-        switch playlistManager.currentQueueSource {
-        case .folder:
-            if let folderId = currentTrack.folderId,
-               let folder = libraryManager.folders.first(where: { $0.id == folderId }) {
-                sourceIdentifier = LibraryPathStore.storedPath(for: folder.url)
-            }
-        case .playlist:
-            sourceIdentifier = playlistManager.currentPlaylist?.id.uuidString
-        default:
-            break
-        }
+    /// Main-actor state a snapshot needs, captured as plain values.
+    private struct SnapshotInput: Sendable {
+        let currentTrack: Track
+        let position: Double
+        let queue: [Track]
+        let queueIndex: Int
+        let queueSource: PlaylistManager.QueueSource
+        let folderURL: URL?
+        let playlistID: String?
+        let volume: Float
+        let shuffleEnabled: Bool
+        let repeatMode: RepeatMode
+    }
 
-        let state = PlaybackState(
+    private func snapshotInput(currentTrack: Track) -> SnapshotInput {
+        // A folder stores its path relative to the library root, like every
+        // other persisted path; the playlist by its id.
+        let folderURL = currentTrack.folderId.flatMap { folderId in
+            libraryManager.folders.first { $0.id == folderId }?.url
+        }
+        return SnapshotInput(
             currentTrack: currentTrack,
-            playbackPosition: playbackManager.currentTime,
+            position: playbackManager.currentTime,
             queue: playlistManager.currentQueue,
-            currentQueueIndex: playlistManager.currentQueueIndex,
+            queueIndex: playlistManager.currentQueueIndex,
             queueSource: playlistManager.currentQueueSource,
-            sourceIdentifier: sourceIdentifier,
+            folderURL: folderURL,
+            playlistID: playlistManager.currentPlaylist?.id.uuidString,
             volume: playbackManager.volume,
-            isMuted: playbackManager.volume < 0.01,
             shuffleEnabled: playlistManager.isShuffleEnabled,
             repeatMode: playlistManager.repeatMode
         )
+    }
+
+    nonisolated private static func snapshot(from input: SnapshotInput) -> PlaybackStateSnapshot {
+        let sourceIdentifier: String?
+        switch input.queueSource {
+        case .folder:
+            sourceIdentifier = input.folderURL.map(LibraryPathStore.storedPath(for:))
+        case .playlist:
+            sourceIdentifier = input.playlistID
+        default:
+            sourceIdentifier = nil
+        }
+
+        let state = PlaybackState(
+            currentTrack: input.currentTrack,
+            playbackPosition: input.position,
+            queue: input.queue,
+            currentQueueIndex: input.queueIndex,
+            queueSource: input.queueSource,
+            sourceIdentifier: sourceIdentifier,
+            volume: input.volume,
+            isMuted: input.volume < 0.01,
+            shuffleEnabled: input.shuffleEnabled,
+            repeatMode: input.repeatMode
+        )
         return PlaybackStateSnapshot(
             state: state,
-            uiState: state.createUIState(from: currentTrack)
+            uiState: state.createUIState(from: input.currentTrack)
         )
     }
 
@@ -260,95 +290,120 @@ class AppCoordinator: ObservableObject {
     }
     
     private func performActualRestoration() {
-        defer { isRestoringPlayback = false }
-        
         guard let data = UserDefaults.standard.data(forKey: playbackStateKey) else {
+            isRestoringPlayback = false
             return
         }
-        
-        do {
-            let decoder = JSONDecoder()
-            let state = try decoder.decode(PlaybackState.self, from: data)
-            let stateAge = Date().timeIntervalSince(state.savedDate)
-            
-            // Clear saved state if older than 7 days
-            if stateAge > 7 * 24 * 60 * 60 {
+        let database = libraryManager.databaseManager
+        Task {
+            defer { isRestoringPlayback = false }
+            // Decoding the saved queue, fetching its rows and matching their
+            // paths touch thousands of tracks and filesystem entries; none of
+            // it runs on the main actor while the first screens appear.
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Self.loadRestoration(from: data, database: database)
+            }.value
+            switch outcome {
+            case .discard:
                 clearAllSavedState()
-                return
+            case .restore(let restoration):
+                apply(restoration)
             }
-            
-            // Perform state restoration
-            performStateRestoration(state)
-        } catch {
-            Logger.warning("Failed to restore playback state: \(error)")
-            clearAllSavedState()
         }
     }
-    
-    private func performStateRestoration(_ state: PlaybackState) {
+
+    private struct Restoration: Sendable {
+        let state: PlaybackState
+        let queue: [Track]
+        let currentTrack: Track?
+        let isCurrentTrackReadable: Bool
+    }
+
+    private enum RestorationOutcome: Sendable {
+        case discard
+        case restore(Restoration)
+    }
+
+    nonisolated private static func loadRestoration(from data: Data, database: DatabaseManager) -> RestorationOutcome {
+        let state: PlaybackState
+        do {
+            state = try JSONDecoder().decode(PlaybackState.self, from: data)
+        } catch {
+            Logger.warning("Failed to restore playback state: \(error)")
+            return .discard
+        }
+
+        // Clear saved state if older than 7 days
+        guard Date().timeIntervalSince(state.savedDate) <= 7 * 24 * 60 * 60 else { return .discard }
+
         // Load only the tracks we need for restoration — no artwork payloads.
         // Now Playing enrichment and FullTrack load fill art for the current
         // entry; the queue itself stays payload-light.
         let trackIdsNeeded = Set(state.queueTrackIds + [state.currentTrackId].compactMap { $0 })
-        let relevantTracks = libraryManager.databaseManager.getTracks(byIds: Array(trackIdsNeeded))
+        let relevantTracks = database.getTracks(byIds: Array(trackIdsNeeded))
 
-        // Create a track ID to track map for efficient lookup
         let trackIdMap: [Int64: Track] = Dictionary(
             relevantTracks.compactMap { track in
                 guard let trackId = track.trackId else { return nil }
                 return (trackId, track)
             }
         ) { first, _ in first }
-        
-        // Create a path to track map as fallback. Both sides use the
+
+        // Path fallback, built only when an id is missing. Both sides use the
         // Documents-relative path now that `PlaybackState` persists relative
         // paths (the same seam the database uses).
-        let trackPathMap: [String: Track] = Dictionary(
-            relevantTracks.map { track in
-                (LibraryPathStore.storedPath(for: track.url), track)
+        var trackPathMap: [String: Track]?
+        func track(atPath path: String) -> Track? {
+            if trackPathMap == nil {
+                trackPathMap = Dictionary(
+                    relevantTracks.map { (LibraryPathStore.storedPath(for: $0.url), $0) }
+                ) { first, _ in first }
             }
-        ) { first, _ in first }
-        
-        // Restore the play queue
+            return trackPathMap?[path]
+        }
+
         var restoredQueue: [Track] = []
         restoredQueue.reserveCapacity(state.queueTrackIds.count)
-        
         for (index, trackId) in state.queueTrackIds.enumerated() {
             if let track = trackIdMap[trackId] {
                 restoredQueue.append(track)
-            } else if index < state.queueTrackPaths.count {
-                // Fallback to path matching
-                let path = state.queueTrackPaths[index]
-                if let track = trackPathMap[path] {
-                    restoredQueue.append(track)
-                }
+            } else if index < state.queueTrackPaths.count, let track = track(atPath: state.queueTrackPaths[index]) {
+                restoredQueue.append(track)
             }
         }
-        
+
         // Check if we restored at least 50% queue (songs may have been removed)
         let restorationRatio = Double(restoredQueue.count) / Double(state.queueTrackPaths.count)
-        if restorationRatio < 0.5 {
-            clearAllSavedState()
-            return
-        }
-        
-        // Only proceed if we found at least some tracks
-        guard !restoredQueue.isEmpty else {
-            clearAllSavedState()
-            return
-        }
-        
+        guard restorationRatio >= 0.5, !restoredQueue.isEmpty else { return .discard }
+
+        let currentTrack = state.currentTrackId.flatMap { id in restoredQueue.first { $0.trackId == id } }
+        let isReadable = currentTrack.map { track in
+            FileManager.default.fileExists(atPath: track.url.path)
+                && FileManager.default.isReadableFile(atPath: track.url.path)
+        } ?? false
+        return .restore(Restoration(
+            state: state,
+            queue: restoredQueue,
+            currentTrack: currentTrack,
+            isCurrentTrackReadable: isReadable
+        ))
+    }
+
+    private func apply(_ restoration: Restoration) {
+        let state = restoration.state
+        let restoredQueue = restoration.queue
+
         // Restore playback settings first
         playlistManager.isShuffleEnabled = state.shuffleEnabled
         playlistManager.repeatMode = state.repeatModeEnum
         playbackManager.setVolume(state.isMuted ? 0 : state.volume)
-        
+
         playlistManager.replaceCurrentQueue(
             restoredQueue,
             index: min(state.currentQueueIndex, restoredQueue.count - 1)
         )
         playlistManager.currentQueueSource = state.queueSourceEnum
-        
+
         // Try to restore the source context
         switch state.queueSourceEnum {
         case .playlist:
@@ -360,23 +415,14 @@ class AppCoordinator: ObservableObject {
         default:
             break
         }
-        
-        // Find and prepare the current track
-        if let currentTrackId = state.currentTrackId,
-           let currentTrack = restoredQueue.first(where: { $0.trackId == currentTrackId }) {
-            // Verify the file exists and is accessible
-            let fileManager = FileManager.default
-            guard fileManager.fileExists(atPath: currentTrack.url.path) else {
+
+        // Prepare the current track if its file is still there
+        if let currentTrack = restoration.currentTrack {
+            guard restoration.isCurrentTrackReadable else {
                 clearAllSavedState()
                 return
             }
-            
-            // Try to access the file
-            guard fileManager.isReadableFile(atPath: currentTrack.url.path) else {
-                clearAllSavedState()
-                return
-            }
-            
+
             // Clear the temporary UI track before setting the real one
             playbackManager.restoredUITrack = nil
             playbackManager.prepareTrackForRestoration(currentTrack, at: state.playbackPosition)

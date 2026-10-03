@@ -57,8 +57,10 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { _ in
             screenCache.invalidateTrackLists()
         }
-        .task(id: "\(libraryManager.libraryRevision)-\(libraryManager.entitiesLoaded)-\(screenCache.trackRevision)") {
-            guard libraryManager.entitiesLoaded else { return }
+        .task(id: "\(libraryManager.libraryRevision)-\(libraryManager.entitiesLoaded)-"
+            + "\(libraryManager.launchWorkStarted)-\(screenCache.trackRevision)") {
+            // Warming whole-library lists waits for launch preparation to finish.
+            guard libraryManager.entitiesLoaded, libraryManager.launchWorkStarted else { return }
             await screenCache.prepareDiscover(libraryManager)
             if let favorites = playlistManager.playlists.first(where: { $0.name == DefaultPlaylists.favorites }) {
                 await LibraryScreenCache.shared.preparePlaylist(favorites, library: libraryManager, manager: playlistManager)

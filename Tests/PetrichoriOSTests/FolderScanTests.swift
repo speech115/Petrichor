@@ -199,3 +199,58 @@ import Testing
     #expect(try LibraryManager.copyMusicFiles([audio], to: imported) == 1)
     #expect(try Data(contentsOf: imported.appendingPathComponent("song.MP3")) == original)
 }
+
+/// Seam test «сборка библиотеки из папки»: the cheap check that decides
+/// whether launch reconciliation runs a full scan. Only a new audio file or a
+/// changed mtime counts; hidden entries, other extensions and files gone from
+/// disk (ADR-0001) do not.
+@Test func libraryContentsDifferOnlyForNewOrModifiedAudio() async throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("petrichor-differ-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let album = root.appendingPathComponent("Альбом", isDirectory: true)
+    try FileManager.default.createDirectory(at: album, withIntermediateDirectories: true)
+    let track = album.appendingPathComponent("Ёлка.mp3")
+    try Data([1]).write(to: track)
+
+    let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
+    let mtime = try #require(
+        try FileManager.default.attributesOfItem(atPath: track.path)[.modificationDate] as? Date
+    )
+    try await databaseManager.dbQueue.write { db in
+        try db.execute(
+            sql: "INSERT INTO folders (name, path, date_added, date_updated) VALUES ('Test', 'test-root', ?, ?)",
+            arguments: [Date(), Date()]
+        )
+        for (path, modified) in [("Альбом/Ёлка.mp3", mtime), ("Gone.mp3", Date.distantPast)] {
+            try db.execute(
+                sql: """
+                    INSERT INTO tracks (folder_id, path, filename, date_added, date_modified)
+                    VALUES (1, ?, ?, ?, ?)
+                    """,
+                arguments: [path, (path as NSString).lastPathComponent, Date(), modified]
+            )
+        }
+    }
+
+    // Unchanged library, plus entries the check must ignore.
+    try Data([2]).write(to: root.appendingPathComponent("notes.txt"))
+    try Data([3]).write(to: root.appendingPathComponent(".hidden.mp3"))
+    let hiddenFolder = root.appendingPathComponent(".cache", isDirectory: true)
+    try FileManager.default.createDirectory(at: hiddenFolder, withIntermediateDirectories: true)
+    try Data([4]).write(to: hiddenFolder.appendingPathComponent("inside.mp3"))
+    #expect(await !databaseManager.libraryContentsDiffer(from: root))
+
+    // A changed mtime needs a scan.
+    try FileManager.default.setAttributes(
+        [.modificationDate: mtime.addingTimeInterval(60)],
+        ofItemAtPath: track.path
+    )
+    #expect(await databaseManager.libraryContentsDiffer(from: root))
+    try FileManager.default.setAttributes([.modificationDate: mtime], ofItemAtPath: track.path)
+    #expect(await !databaseManager.libraryContentsDiffer(from: root))
+
+    // So does a new audio file.
+    try Data([5]).write(to: album.appendingPathComponent("New.mp3"))
+    #expect(await databaseManager.libraryContentsDiffer(from: root))
+}

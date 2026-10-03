@@ -21,12 +21,14 @@ enum ImageUtils {
     ///   - maxDimension: Maximum width or height in pixels (default: 960)
     ///   - quality: Compression quality (0.0 to 1.0, default: 0.8)
     ///   - source: Optional source identifier (e.g. file path) included in failure logs
+    ///   - forceJPEG: Encode JPEG even where HEIC is available
     /// - Returns: Compressed image data, or nil if compression fails
     static func compressImage(
         from imageData: Data,
         maxDimension: CGFloat = 960,
         quality: CGFloat = 0.8,
-        source: String? = nil
+        source: String? = nil,
+        forceJPEG: Bool = false
     ) -> Data? {
         guard let imageSource = CGImageSourceCreateWithData(imageData as CFData, nil),
               let props = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
@@ -78,7 +80,10 @@ enum ImageUtils {
             return resizeImage(from: imageData, to: targetSize)
         }
 
-        if let encoded = encodeArtwork(finalCGImage, quality: quality) {
+        let encoded = forceJPEG
+            ? encodeJPEG(finalCGImage, quality: quality)
+            : encodeArtwork(finalCGImage, quality: quality)
+        if let encoded {
             return encoded
         }
 
@@ -89,8 +94,9 @@ enum ImageUtils {
     }
 
     /// Generate a display thumbnail from artwork data, downscaling to fit within
-    /// maxDimension while preserving aspect ratio. Same pipeline as compressImage
-    /// (platform encoding + resize); thumbnails are stored alongside full-size artwork.
+    /// maxDimension while preserving aspect ratio. Thumbnails are always JPEG:
+    /// lists decode dozens of them per screen, and a small HEIC takes about
+    /// seven times longer to decode than the equivalent JPEG.
     /// - Parameters:
     ///   - imageData: Original image data in any supported format (JPEG, PNG, HEIC, etc.)
     ///   - maxDimension: Maximum width or height in pixels (default: 420)
@@ -101,7 +107,12 @@ enum ImageUtils {
         maxDimension: CGFloat = 420,
         source: String? = nil
     ) -> Data? {
-        compressImage(from: imageData, maxDimension: maxDimension, source: source)
+        compressImage(from: imageData, maxDimension: maxDimension, source: source, forceJPEG: true)
+    }
+
+    /// True when `data` starts with the JPEG SOI marker.
+    static func isJPEG(_ data: Data) -> Bool {
+        data.count > 2 && data[data.startIndex] == 0xFF && data[data.startIndex + 1] == 0xD8
     }
 
     /// Encode artwork as HEIC on devices, JPEG where software HEVC can deadlock.

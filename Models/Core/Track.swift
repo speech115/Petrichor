@@ -133,6 +133,10 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     // MARK: - DB Configuration
     
     static let databaseTableName = "tracks"
+
+    /// `Track` decodes only these columns. Without this, every `Track` request
+    /// is `SELECT *` and drags each row's embedded cover BLOB through SQLite.
+    static var databaseSelection: [any SQLSelectable] { lightweightSelection }
     
     enum Columns {
         static let trackId = Column("id")
@@ -335,7 +339,7 @@ extension Track {
     
     /// Request for fetching lightweight tracks
     static func lightweightRequest() -> QueryInterfaceRequest<Track> {
-        let request = Track.select(lightweightSelection)
+        let request = Track.all()
         if UserDefaults.standard.bool(forKey: "hideDuplicateTracks") {
             return request.filter(Columns.isDuplicate == false)
         }

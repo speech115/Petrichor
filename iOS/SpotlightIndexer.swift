@@ -5,7 +5,8 @@
 // (tracks, albums, artists; playlists are intentionally not indexed - their
 // export names like "05 Spotify - Shazam" are noise in a system search).
 //
-// Sync model: three fingerprints live in UserDefaults and double as the
+// Sync model: three fingerprints live in files under Application Support
+// (not UserDefaults, which is parsed whole at every launch) and double as the
 // full-pass cursor. Every sync diffs the current database against them and
 // touches only what changed:
 //
@@ -54,10 +55,7 @@ final actor SpotlightIndexer {
     // MARK: - Snapshot Storage (also the full-pass cursor)
 
     private enum Keys {
-        /// [String: String] - "trackId" -> `String(date_modified)` at index
-        /// time. A pre-refactor build wrote `[String: Double]` here; that value
-        /// fails the `as? [String: String]` cast cleanly and reads as an empty
-        /// snapshot, triggering a one-time full reindex on first upgrade.
+        /// [String: String] - "trackId" -> `String(date_modified)` at index time.
         static let trackSnapshot = "spotlight.indexedTracks"
         /// [String: String] - "albumId" -> "title|trackCount|thumbnailBytes".
         static let albumSnapshot = "spotlight.indexedAlbums"
@@ -65,7 +63,7 @@ final actor SpotlightIndexer {
         static let artistSnapshot = "spotlight.indexedArtists"
     }
 
-    private let userDefaults: UserDefaults
+    private let snapshotDirectory = URL.applicationSupportDirectory.appending(path: "Spotlight", directoryHint: .isDirectory)
     private var isSyncing = false
     /// Set by `resetIndex` when a database reset lands while a sync is
     /// mid-flight. The in-flight pass is allowed to finish, then a fresh pass
@@ -85,8 +83,29 @@ final actor SpotlightIndexer {
 
     private let index = CSSearchableIndex.default()
 
-    init(userDefaults: UserDefaults = .standard) {
-        self.userDefaults = userDefaults
+    init() {
+        // Earlier builds kept the snapshots in UserDefaults.
+        for key in [Keys.trackSnapshot, Keys.albumSnapshot, Keys.artistSnapshot] {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    private func snapshotURL(_ key: String) -> URL {
+        snapshotDirectory.appending(path: "\(key).plist")
+    }
+
+    private func loadSnapshot(_ key: String) -> [String: String] {
+        guard let data = try? Data(contentsOf: snapshotURL(key)) else { return [:] }
+        return (try? PropertyListDecoder().decode([String: String].self, from: data)) ?? [:]
+    }
+
+    private func saveSnapshot(_ snapshot: [String: String], _ key: String) {
+        do {
+            try FileManager.default.createDirectory(at: snapshotDirectory, withIntermediateDirectories: true)
+            try PropertyListEncoder().encode(snapshot).write(to: snapshotURL(key), options: .atomic)
+        } catch {
+            Logger.error("Spotlight: failed to save the \(key) snapshot: \(error)")
+        }
     }
 
     /// Entry point, called from `LibraryManager`'s iOS reconciliation and
@@ -205,9 +224,9 @@ final actor SpotlightIndexer {
         } catch {
             Logger.error("Spotlight: failed to clear the index on reset: \(error)")
         }
-        userDefaults.removeObject(forKey: Keys.trackSnapshot)
-        userDefaults.removeObject(forKey: Keys.albumSnapshot)
-        userDefaults.removeObject(forKey: Keys.artistSnapshot)
+        for key in [Keys.trackSnapshot, Keys.albumSnapshot, Keys.artistSnapshot] {
+            try? FileManager.default.removeItem(at: snapshotURL(key))
+        }
         Logger.info("Spotlight: cleared the index and snapshot after a database reset")
 
         // A sync already in flight holds pre-reset reads; its own snapshot
@@ -273,7 +292,7 @@ final actor SpotlightIndexer {
     ) async throws -> Changes {
         let generation = resetGeneration
 
-        var snapshot = userDefaults.dictionary(forKey: snapshotKey) as? [String: String] ?? [:]
+        var snapshot = loadSnapshot(snapshotKey)
 
         var toIndex: [Key] = []
         for (key, fingerprint) in current where snapshot[keyString(key)] != fingerprint {
@@ -300,7 +319,7 @@ final actor SpotlightIndexer {
             for key in stale {
                 snapshot.removeValue(forKey: key)
             }
-            userDefaults.set(snapshot, forKey: snapshotKey)
+            saveSnapshot(snapshot, snapshotKey)
             Logger.info("Spotlight: deleted \(stale.count) stale \(entityName) entries from the index")
         }
         changes.deleted = stale.count
@@ -315,7 +334,7 @@ final actor SpotlightIndexer {
             for key in keys {
                 snapshot[keyString(key)] = current[key] ?? ""
             }
-            userDefaults.set(snapshot, forKey: snapshotKey)
+            saveSnapshot(snapshot, snapshotKey)
         }
 
         return changes
