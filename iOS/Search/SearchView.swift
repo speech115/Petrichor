@@ -107,20 +107,19 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             resultsList
-                // A bar, not a stacked view or `safeAreaInset`: the list
-                // scrolls under it and the system's soft edge effect fades
-                // the rows out behind both it and the search field.
-                .safeAreaBar(edge: .top) {
-                    if !trimmedQuery.isEmpty {
-                        scopePicker
-                    }
-                }
                 .searchable(
                     text: $query,
                     isPresented: $isSearchPresented,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Search Library")
                 )
+                // The system scope bar under the field, as in Apple Music's
+                // search: it appears with the first character typed.
+                .searchScopes($scope, activation: .onTextEntry) {
+                    ForEach(SearchScope.allCases, id: \.self) { item in
+                        Text(item.title).tag(item)
+                    }
+                }
                 .dismissKeyboardOnTap(isActive: isTabVisible) { isSearchFieldFocused = false }
                 .onAppear { isTabVisible = true }
                 .onDisappear { isTabVisible = false }
@@ -196,21 +195,6 @@ struct SearchView: View {
 
     private func forgetRecentSearch(_ text: String) {
         recentSearchesRaw = recentSearches.filter { $0 != text }.joined(separator: "\n")
-    }
-
-    private var scopePicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(SearchScope.allCases, id: \.self) { item in
-                    Button(item.title) { scope = item }
-                        .buttonStyle(.bordered)
-                        .tint(scope == item ? .accentColor : .secondary)
-                        .accessibilityAddTraits(scope == item ? .isSelected : [])
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
     }
 
     private var resultsList: some View {

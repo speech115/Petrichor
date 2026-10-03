@@ -59,3 +59,12 @@ import Testing
     #expect(SeekScrub.dragTime(startTime: 60, translation: 500, width: 300, duration: 180) == 180)
     #expect(SeekScrub.dragTime(startTime: 60, translation: 50, width: 300, duration: .nan) == 0)
 }
+
+@Test func onlyOrdinaryPlaybackSamplesTween() {
+    #expect(SeekScrub.isPlaybackTick(from: 60, to: 60.5, sampleInterval: 0.5))
+    #expect(SeekScrub.isPlaybackTick(from: 60, to: 61, sampleInterval: 1))
+    // Skip to the next track, seek back, seek far ahead: jump, don't slide.
+    #expect(!SeekScrub.isPlaybackTick(from: 150, to: 0, sampleInterval: 1))
+    #expect(!SeekScrub.isPlaybackTick(from: 60, to: 45, sampleInterval: 1))
+    #expect(!SeekScrub.isPlaybackTick(from: 60, to: 75, sampleInterval: 1))
+}

@@ -1,6 +1,50 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Swipe to Change Tracks" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Свайп переключает треки"
+          }
+        }
+      }
+    },
+    "Swipe left or right on the player to skip, or up to open it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смахните плеер влево или вправо, чтобы сменить трек, или вверх, чтобы открыть его."
+          }
+        }
+      }
+    },
+    "Tap a Line" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите на строку"
+          }
+        }
+      }
+    },
+    "Playback jumps to that line of the song." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Песня продолжится с этой строки."
+          }
+        }
+      }
+    },
     "Recent Searches" : {
       "extractionState" : "manual",
       "localizations" : {

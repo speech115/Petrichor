@@ -14,6 +14,11 @@ struct PlayerTransport: View {
     let playbackManager: PlaybackManager
     let playlistManager: PlaylistManager
     @ObservedObject private var playbackPresentation: PlaybackPresentationObservation
+    /// Tap counters for the haptics: play state and the current track also
+    /// change from the lock screen and at the end of a song, with no finger
+    /// on the button.
+    @State private var playPauseTaps = 0
+    @State private var skipTaps = 0
 
     init(
         palette: PlayerPalette,
@@ -47,6 +52,8 @@ struct PlayerTransport: View {
             .accessibilityLabel(String(localized: "Next"))
             .frame(maxWidth: .infinity)
         }
+        // Once for both skip buttons: they share the counter.
+        .sensoryFeedback(.impact(weight: .light), trigger: skipTaps)
     }
 
     /// The transport is a fixed composition: the glyphs scale with Dynamic
@@ -59,7 +66,7 @@ struct PlayerTransport: View {
 
     private var playPauseButton: some View {
         Button {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            playPauseTaps += 1
             playbackManager.togglePlayPause()
         } label: {
             Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
@@ -71,6 +78,7 @@ struct PlayerTransport: View {
         }
         .buttonStyle(TransportButtonStyle())
         .disabled(!hasTrack)
+        .sensoryFeedback(.impact(weight: .medium), trigger: playPauseTaps)
         .accessibilityLabel(
             playbackPresentation.isPlaying ? String(localized: "Pause") : String(localized: "Play")
         )
@@ -78,7 +86,7 @@ struct PlayerTransport: View {
 
     private func transportButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
         Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            skipTaps += 1
             action()
         } label: {
             Image(systemName: icon)

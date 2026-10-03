@@ -26,6 +26,9 @@ struct PlayerScrubber: View {
     /// Wall-clock of the last live seek, so a fast drag seeks the engine at a
     /// bounded rate instead of once per touch frame.
     @State private var lastLiveSeekAt: TimeInterval = 0
+    /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
+    /// playback samples (see `followFraction`).
+    @State private var shownFraction: Double = 0
 
     init(palette: PlayerPalette, playbackManager: PlaybackManager) {
         self.palette = palette
@@ -106,14 +109,17 @@ struct PlayerScrubber: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(Color.white.opacity(0.22))
-                Capsule()
+                // A plain rectangle clipped by the track's capsule, the way
+                // the system's linear ProgressView draws its fill: near 0:00
+                // the sliver follows the track's rounded end instead of being
+                // a capsule of its own, which at a few points wide was a hard
+                // square stub at the start of a round bar.
+                Rectangle()
                     .fill(palette.control)
-                    // No minimum width: a floor here left a stub of fill sitting
-                    // at 0:00, so the bar never read as being at the very start.
-                    .frame(width: geometry.size.width * fraction)
-                    .animation(fillAnimation, value: fraction)
+                    .frame(width: geometry.size.width * shownFraction)
             }
             .frame(height: 12)
+            .clipShape(Capsule())
             .scaleEffect(y: isScrubbing ? 1 : 7 / 12)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -124,15 +130,27 @@ struct PlayerScrubber: View {
             )
         }
         .frame(height: 20)
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: isScrubbing) { _, scrubbing in scrubbing }
+        .onAppear { shownFraction = fraction }
+        .onChange(of: fraction) { old, new in followFraction(from: old, to: new) }
     }
 
     /// The playhead arrives once per sample, not once per frame, so the fill
     /// would step half a second at a time. Tweening linearly across exactly one
     /// sampling interval lands each new value just as the next one arrives,
-    /// which is what makes the bar move continuously. Off while scrubbing: there
-    /// the fill must sit under the finger, not chase it.
-    private var fillAnimation: Animation? {
-        isScrubbing ? nil : .linear(duration: playbackProgressState.sampleInterval)
+    /// which is what makes the bar move continuously. Everything else lands at
+    /// once: under the finger while scrubbing, and on a skip or a seek — a
+    /// one-second slide back to 0:00 there kept the bar a beat behind the tap.
+    private func followFraction(from old: Double, to new: Double) {
+        let interval = playbackProgressState.sampleInterval
+        guard !isScrubbing,
+              SeekScrub.isPlaybackTick(from: old * duration, to: new * duration, sampleInterval: interval) else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { shownFraction = new }
+            return
+        }
+        withAnimation(.linear(duration: interval)) { shownFraction = new }
     }
 
     private var fraction: Double {
@@ -152,7 +170,6 @@ struct PlayerScrubber: View {
                 if dragStartTime == nil {
                     dragStartTime = elapsed
                     isScrubbing = true
-                    UIImpactFeedbackGenerator(style: .soft).impactOccurred()
                 }
                 guard let dragStartTime else { return }
                 let time = SeekScrub.dragTime(

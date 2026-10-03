@@ -23,15 +23,6 @@ struct NowPlayingScreen: View {
     private enum PanelKind: Equatable {
         case queue
         case lyrics
-
-        var title: String {
-            switch self {
-            case .queue:
-                String(localized: "Queue")
-            case .lyrics:
-                String(localized: "Lyrics")
-            }
-        }
     }
 
     @Binding var isPresented: Bool
@@ -61,6 +52,9 @@ struct NowPlayingScreen: View {
     @State private var paletteTask: Task<Void, Never>?
     @State private var fineSamplingTask: Task<Void, Never>?
     @State private var panelKind: PanelKind?
+    /// The cover shrinks into the panel header and grows back out of it,
+    /// instead of one copy fading while another fades in elsewhere.
+    @Namespace private var artworkNamespace
     /// What the cover and the title row are showing. One update behind
     /// `track`, on purpose: the swap has to happen *inside* the animation that
     /// carries it, and `onChange` only fires once the new track has already
@@ -70,6 +64,9 @@ struct NowPlayingScreen: View {
     /// the side the new one arrives from.
     @State private var slidesForward = true
     @State private var lastQueueIndex: Int?
+    /// Counts taps on the star, so its bounce and haptic answer the tap and
+    /// not a skip to a track that happens to differ in favorite state.
+    @State private var favoriteTaps = 0
 
     // The player is a fixed composition: title, scrubber, transport, volume
     // and accessory share the space the artwork leaves. Glyphs scale with
@@ -150,8 +147,7 @@ struct NowPlayingScreen: View {
     // MARK: - Background
 
     private var background: some View {
-        LinearGradient(colors: palette.gradient, startPoint: .top, endPoint: .bottom)
-            .ignoresSafeArea()
+        PlayerBackground(palette: palette, isPlaying: playbackPresentation.isPlaying)
     }
 
     private func updatePalette() {
@@ -197,26 +193,36 @@ struct NowPlayingScreen: View {
 
             if let panelKind {
                 HStack(spacing: 12) {
-                    artwork.frame(width: 48, height: 48)
+                    // Apple Music's way back to the big cover: tap the small one.
+                    Button(action: dismissPanel) {
+                        artwork
+                            .matchedGeometryEffect(id: "artwork", in: artworkNamespace)
+                            .frame(width: 48, height: 48)
+                    }
+                    .buttonStyle(TransportButtonStyle())
+                    .accessibilityLabel(String(localized: "Close"))
                     titleRow
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
 
-                NowPlayingPanel(
-                    title: panelKind.title,
-                    onDismiss: dismissPanel
-                ) {
+                NowPlayingPanel {
                     panelContent(for: panelKind)
                 }
                 .frame(maxHeight: .infinity)
                 .padding(.bottom, 12)
+                .transition(.opacity.combined(with: .offset(y: 24)))
             } else {
                 Spacer(minLength: 12)
-                artwork
-                    .frame(width: artworkSide, height: artworkSide)
-                    .id(displayedTrack?.id)
-                    .transition(coverTransition)
+                // The track swap happens inside a stable container, so the
+                // cover's slide and the shrink into the panel stay separate.
+                ZStack {
+                    artwork
+                        .id(displayedTrack?.id)
+                        .transition(coverTransition)
+                }
+                .matchedGeometryEffect(id: "artwork", in: artworkNamespace)
+                .frame(width: artworkSide, height: artworkSide)
                 Spacer(minLength: 12)
             }
 
@@ -357,14 +363,19 @@ struct NowPlayingScreen: View {
                 // A pair, as in Apple Music: the 44 pt hit targets overlap so
                 // the visible 30 pt circles sit 10 pt apart instead of 26.
                 HStack(spacing: -4) {
-                    chipButton(
-                        icon: track.isFavorite ? Icons.starFill : Icons.star,
-                        label: String(localized: "Favorite"),
-                        isActive: track.isFavorite
-                    ) {
-                        UISelectionFeedbackGenerator().selectionChanged()
+                    Button {
+                        favoriteTaps += 1
                         ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
+                    } label: {
+                        chipLabel(
+                            icon: track.isFavorite ? Icons.starFill : Icons.star,
+                            isActive: track.isFavorite
+                        )
+                        .symbolEffect(.bounce, value: favoriteTaps)
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "Favorite"))
+                    .sensoryFeedback(.selection, trigger: favoriteTaps)
 
                     Menu {
                         TrackMenuContent(track: track, playlistManager: playlistManager)
@@ -381,19 +392,6 @@ struct NowPlayingScreen: View {
         }
     }
 
-    private func chipButton(
-        icon: String,
-        label: String,
-        isActive: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            chipLabel(icon: icon, isActive: isActive)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-
     private func chipLabel(icon: String, isActive: Bool) -> some View {
         Image(systemName: icon)
             .font(.system(size: min(chipIconSize, 20), weight: .semibold))
@@ -402,7 +400,9 @@ struct NowPlayingScreen: View {
             // The label is a 44pt hit target around the 30pt chip circle, so
             // the visual stays put while the touch area clears the HIG floor.
             .frame(width: 44, height: 44)
-            .background(Circle().fill(palette.chip).frame(width: 30, height: 30))
+            // Liquid Glass, as the system draws its own round controls in
+            // iOS 26; interactive, so the bubble answers the press itself.
+            .background(Color.clear.frame(width: 30, height: 30).glassEffect(.regular.interactive(), in: Circle()))
             .contentShape(Circle())
     }
 
@@ -426,40 +426,55 @@ struct NowPlayingScreen: View {
 
     private var accessoryRow: some View {
         HStack(spacing: 0) {
-            Button {
-                UISelectionFeedbackGenerator().selectionChanged()
-                presentPanel(.lyrics)
-            } label: {
+            accessoryButton(.lyrics, label: String(localized: "Lyrics")) {
                 SymbolImage(Icons.customLyrics)
-                    .font(.system(size: min(accessoryIconSize, 24)))
-                    .foregroundColor(panelKind == .lyrics ? palette.foreground : palette.accessory)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             .disabled(track == nil)
-            .accessibilityLabel(String(localized: "Lyrics"))
 
             AirPlayButton(tint: UIColor.white.withAlphaComponent(0.75))
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
 
-            Button {
-                UISelectionFeedbackGenerator().selectionChanged()
-                presentPanel(.queue)
-            } label: {
+            accessoryButton(.queue, label: String(localized: "Queue")) {
                 Image(systemName: Icons.queueList)
-                    .font(.system(size: min(accessoryIconSize, 24)))
-                    .foregroundColor(panelKind == .queue ? palette.foreground : palette.accessory)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "Queue"))
         }
         .padding(.horizontal, 24)
+        // Only these buttons open and close the panels, so the change itself
+        // is the tap.
+        .sensoryFeedback(.selection, trigger: panelKind)
+    }
+
+    /// Lit while its panel is open, the way Apple Music lights these and the
+    /// queue's shuffle/repeat: a solid light capsule behind a dark glyph. The
+    /// lit button is also how the panel closes, so its state has to read at
+    /// a glance rather than as a slightly brighter icon.
+    private func accessoryButton<Glyph: View>(
+        _ kind: PanelKind,
+        label: String,
+        @ViewBuilder glyph: () -> Glyph
+    ) -> some View {
+        let isActive = panelKind == kind
+        return Button {
+            presentPanel(kind)
+        } label: {
+            glyph()
+                .font(.system(size: min(accessoryIconSize, 24)))
+                .foregroundColor(isActive ? Color.black.opacity(0.8) : palette.accessory)
+                .frame(width: 52, height: 36)
+                .background {
+                    Capsule()
+                        .fill(palette.control)
+                        .opacity(isActive ? 1 : 0)
+                        .scaleEffect(isActive ? 1 : 0.7)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(TransportButtonStyle())
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
     // MARK: - Panels
@@ -478,14 +493,21 @@ struct NowPlayingScreen: View {
         }
     }
 
+    /// A spring, not a timing curve: a second tap mid-flight turns the panel
+    /// around from wherever it is, at the speed it was moving, instead of
+    /// layering a fresh curve on top of the unfinished one.
+    private var panelAnimation: Animation? {
+        reduceMotion ? nil : .smooth(duration: 0.3)
+    }
+
     private func presentPanel(_ kind: PanelKind) {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+        withAnimation(panelAnimation) {
             panelKind = panelKind == kind ? nil : kind
         }
     }
 
     private func dismissPanel() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+        withAnimation(panelAnimation) {
             panelKind = nil
         }
     }
