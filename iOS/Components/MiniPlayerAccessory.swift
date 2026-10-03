@@ -50,8 +50,8 @@ struct MiniPlayerAccessory: View {
             } label: {
                 HStack(spacing: 12) {
                     // One size in both placements: the system accessory is a
-                // ~48 pt capsule either way, and a bigger cover was cropped.
-                artwork(size: 36)
+                    // ~48 pt capsule either way, and a bigger cover was cropped.
+                    artwork(size: 36)
                         .matchedTransitionSource(id: NowPlayingZoomID.player, in: zoomNamespace)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -79,8 +79,6 @@ struct MiniPlayerAccessory: View {
                     // controls need a direction.
                     .id(playbackPresentation.currentTrack?.id)
                     .transition(.opacity)
-
-                    Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
