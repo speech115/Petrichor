@@ -1,7 +1,8 @@
 //
 // PlaylistsTabView (iOS)
 //
-// Favorites, personal playlists, then imported collections grouped by source.
+// Personal playlists, imported collections grouped by source, then the
+// unlabelled import ("Все треки"). Favorites lives on Home.
 //
 // The service's mark rides in the section header, once, next to its name;
 // rows carry a 48 pt cover — the playlist's own artwork when it has one,
@@ -44,17 +45,9 @@ struct PlaylistsTabView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    playlistRows(favorites)
-                }
                 if !ownPlaylists.isEmpty {
                     Section {
                         playlistRows(ownPlaylists)
-                    }
-                }
-                if !otherImports.isEmpty {
-                    Section {
-                        playlistRows(otherImports)
                     }
                 }
                 ForEach(PlaylistSource.allCases, id: \.title) { source in
@@ -65,6 +58,11 @@ struct PlaylistsTabView: View {
                         } header: {
                             sourceHeader(source)
                         }
+                    }
+                }
+                if !otherImports.isEmpty {
+                    Section {
+                        playlistRows(otherImports)
                     }
                 }
             }
@@ -131,20 +129,13 @@ struct PlaylistsTabView: View {
         playlistCatalog.playlists.isEmpty
     }
 
-    /// Smart playlists in the manager's order, then user playlists sorted by
-    /// their stored name — which keeps the export numbering as the order
-    /// inside each source section even though the numbers are not shown.
+    /// User playlists sorted by their stored name — which keeps the export
+    /// numbering as the order inside each source section even though the
+    /// numbers are not shown.
     private var displayPlaylists: [Playlist] {
-        let smart = playlistCatalog.playlists.filter { $0.type == .smart }
-        let regular = playlistCatalog.playlists
+        playlistCatalog.playlists
             .filter { $0.type == .regular && !PlaylistSource.isHidden($0) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        return smart + regular
-    }
-
-    /// Favorites, the one smart playlist this tab shows.
-    private var favorites: [Playlist] {
-        displayPlaylists.filter { $0.type == .smart && $0.name == DefaultPlaylists.favorites }
     }
 
     /// Each source's playlists: the pinned ones first in their pinned order,

@@ -4,8 +4,8 @@
 // The tab-bar bottom accessory: artwork and title for the current track, a
 // play/pause button, and a swipe gesture (up opens the full player, left/right
 // skip). Rasterizes title+artist into one layer so the zoom transition's source
-// restore lands them atomically. Extracted from `ContentView` along with the
-// zoom source id and the thin progress line.
+// restore lands them atomically. No progress line, like Apple Music's: Now
+// Playing owns the scrubber.
 //
 
 import SwiftUI
@@ -44,120 +44,106 @@ struct MiniPlayerAccessory: View {
     var body: some View {
         let isCompact = placement == .inline
 
-        VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Button {
-                    showingNowPlaying = true
-                } label: {
-                    HStack(spacing: 12) {
-                        artwork(size: isCompact ? 44 : 56)
-                            .matchedTransitionSource(id: NowPlayingZoomID.player, in: zoomNamespace)
+        HStack(spacing: 12) {
+            Button {
+                showingNowPlaying = true
+            } label: {
+                HStack(spacing: 12) {
+                    // One size in both placements: the system accessory is a
+                // ~48 pt capsule either way, and a bigger cover was cropped.
+                artwork(size: 36)
+                        .matchedTransitionSource(id: NowPlayingZoomID.player, in: zoomNamespace)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(playbackPresentation.currentTrack?.title ?? "")
-                                .font(isCompact ? .subheadline.weight(.semibold) : .headline)
-                                .lineLimit(1)
-                            Text(playbackPresentation.currentTrack?.displayArtist ?? "")
-                                .font(isCompact ? .caption : .subheadline)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        // Rasterize title+artist into a single layer. They are two
-                        // Text nodes, and the zoom transition's source restore
-                        // re-registers them in separate passes — the artist line
-                        // visibly pops in a beat after the title on collapse. One
-                        // Metal texture lands atomically instead (compositingGroup
-                        // still drew the two nodes separately, so the artist lag
-                        // survived it). The text is a two-line label at most, so
-                        // the rasterization cost is negligible.
-                        .drawingGroup()
-                        // Cross-fade, not a slide: in a 44pt row a horizontal
-                        // move reads as a twitch. The track usually changes on
-                        // its own at the end of a song, with nobody's finger on
-                        // the screen, so the swap needs a bridge more than the
-                        // controls need a direction.
-                        .id(playbackPresentation.currentTrack?.id)
-                        .transition(.opacity)
-
-                        Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(playbackPresentation.currentTrack?.title ?? "")
+                            .font(isCompact ? .subheadline.weight(.semibold) : .headline)
+                            .lineLimit(1)
+                        Text(playbackPresentation.currentTrack?.displayArtist ?? "")
+                            .font(isCompact ? .caption : .subheadline)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                    .animation(
-                        .easeInOut(duration: AnimationDuration.standardDuration),
-                        value: playbackPresentation.currentTrack?.id
-                    )
+                    // Rasterize title+artist into a single layer. They are two
+                    // Text nodes, and the zoom transition's source restore
+                    // re-registers them in separate passes — the artist line
+                    // visibly pops in a beat after the title on collapse. One
+                    // Metal texture lands atomically instead (compositingGroup
+                    // still drew the two nodes separately, so the artist lag
+                    // survived it). The text is a two-line label at most, so
+                    // the rasterization cost is negligible.
+                    .drawingGroup()
+                    // Cross-fade, not a slide: in a 44pt row a horizontal
+                    // move reads as a twitch. The track usually changes on
+                    // its own at the end of a song, with nobody's finger on
+                    // the screen, so the swap needs a bridge more than the
+                    // controls need a direction.
+                    .id(playbackPresentation.currentTrack?.id)
+                    .transition(.opacity)
+
+                    Spacer(minLength: 0)
                 }
-                .accessibilityIdentifier("MiniPlayer")
-                .buttonStyle(.plain)
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 24)
-                        .onEnded { value in
-                            let dx = value.translation.width
-                            let dy = value.translation.height
-                            if abs(dy) > abs(dx), dy < -36 {
-                                showingNowPlaying = true
-                            } else if abs(dx) > abs(dy) * 1.2, abs(dx) > 28 {
-                                if dx < 0 {
-                                    playlistManager.playNextTrack()
-                                } else {
-                                    playlistManager.playPreviousTrack()
-                                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .animation(
+                    .easeInOut(duration: AnimationDuration.standardDuration),
+                    value: playbackPresentation.currentTrack?.id
+                )
+            }
+            .accessibilityIdentifier("MiniPlayer")
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded { value in
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+                        if abs(dy) > abs(dx), dy < -36 {
+                            showingNowPlaying = true
+                        } else if abs(dx) > abs(dy) * 1.2, abs(dx) > 28 {
+                            if dx < 0 {
+                                playlistManager.playNextTrack()
+                            } else {
+                                playlistManager.playPreviousTrack()
                             }
                         }
-                )
+                    }
+            )
 
+            // Apple Music's transport: bare fill glyphs of one size and
+            // weight, no backgrounds, packed close on the trailing side.
+            HStack(spacing: 0) {
                 playPauseButton
-                Button {
+                transportButton(Icons.forwardFill, label: String(localized: "Next")) {
                     playlistManager.playNextTrack()
-                } label: {
-                    Image(systemName: Icons.forwardFill)
-                        .font(.title3)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "Next"))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, isCompact ? 8 : 10)
-
-            if isCompact {
-                progressLine
-                    .frame(height: 3)
-                    .padding(.bottom, 6)
             }
         }
-    }
-
-    /// Thin non-interactive progress line under the compact row, like Apple
-    /// Music's mini player. The expanded row has no line - Now Playing owns
-    /// the scrubber there.
-    private var progressLine: some View {
-        MiniPlayerProgressLine(
-            duration: playbackPresentation.currentTrack?.duration ?? 0,
-            playbackProgressState: playbackProgressState
-        )
+        .padding(.horizontal, 16)
     }
 
     private var playPauseButton: some View {
-        Button {
+        transportButton(
+            playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill,
+            label: playbackPresentation.isPlaying ? String(localized: "Pause") : String(localized: "Play")
+        ) {
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             playbackManager.togglePlayPause()
-        } label: {
-            // The same morph the full player's transport uses. Without it the
-            // icon snapped here and slid there, which shows the moment someone
-            // pauses in the mini player and opens the player right after.
-            Image(systemName: playbackPresentation.isPlaying ? Icons.pauseFill : Icons.playFill)
+        }
+    }
+
+    /// One glyph style for both buttons. The symbol morph on play/pause
+    /// is the same one the full player's transport uses, so the icon does not
+    /// snap here and slide there. The glyph scales with Dynamic Type but stays
+    /// inside its fixed 44 pt row.
+    private func transportButton(_ icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
                 .contentTransition(.symbolEffect(.replace.offUp))
-                // The mini player is a fixed 44 pt row: the glyph scales with
-                // Dynamic Type but stays inside its button.
-                .font(.system(size: min(playPauseIconSize, 30)))
-                .frame(width: 44, height: 44)
-                .contentShape(Circle())
+                .font(.system(size: min(transportIconSize, 26), weight: .medium))
+                .frame(width: placement == .inline ? 38 : 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(playbackPresentation.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
+        .accessibilityLabel(label)
     }
 
     private func artwork(size: CGFloat) -> some View {
@@ -170,35 +156,5 @@ struct MiniPlayerAccessory: View {
         .frame(width: size, height: size)
     }
 
-    @ScaledMetric(relativeTo: .title2) private var playPauseIconSize: CGFloat = 22
-}
-
-struct MiniPlayerProgressLine: View {
-    let duration: Double
-    @ObservedObject var playbackProgressState: PlaybackProgressState
-
-    var body: some View {
-        let progress = duration > 0
-            ? min(max(playbackProgressState.currentTime / duration, 0), 1)
-            : 0
-
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.secondary.opacity(0.18))
-                Capsule()
-                    .fill(Color.accentColor.opacity(0.75))
-                    .frame(width: geometry.size.width * progress)
-                    // Same tween as the player's scrubber: the playhead lands
-                    // once per sample, the line has to cross the gap itself.
-                    .animation(
-                        .linear(duration: playbackProgressState.sampleInterval),
-                        value: progress
-                    )
-            }
-        }
-        .frame(height: 3)
-        .padding(.horizontal, 16)
-        .allowsHitTesting(false)
-    }
+    @ScaledMetric(relativeTo: .title2) private var transportIconSize: CGFloat = 22
 }

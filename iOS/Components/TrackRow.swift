@@ -201,17 +201,17 @@ private struct TrackPlaybackStatus: View {
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                // No line limit on the title: the accessibility audit flags
-                // any truncation ("Text clipped"), and a wrapped title keeps
-                // the full name readable at accessibility sizes.
+                // One line each, truncated at the tail, as Apple Music does:
+                // a wrapped title made rows of uneven height. VoiceOver and
+                // the context menu still carry the full name.
                 Text(track.title)
                     .font(.body.weight(isCurrent ? .semibold : .regular))
                     .foregroundColor(.primary)
-                // Same reasoning as the title: a capped line limit is what
-                // the audit calls clipped at accessibility sizes.
+                    .lineLimit(1)
                 Text(track.displayArtist)
                     .font(.subheadline)
                     .foregroundColor(.secondaryText)
+                    .lineLimit(1)
             }
 
             Spacer(minLength: 8)
