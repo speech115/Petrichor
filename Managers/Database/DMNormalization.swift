@@ -349,9 +349,9 @@ extension DatabaseManager {
     ) throws {
         guard let artworkData = artworkData, !artworkData.isEmpty else { return }
 
-        // Only update if album doesn't already have artwork
+        // A new scan only fills missing artwork; a changed file replaces it.
         guard let album = try Album.fetchOne(db, key: albumId),
-              album.artworkData == nil else { return }
+              album.artworkData == nil || (replacingExisting && album.artworkData != artworkData) else { return }
         album.artworkData = artworkData
         album.artworkThumbnail = ImageUtils.makeThumbnail(from: artworkData, source: "album: \(album.title)")
         try album.update(db)
