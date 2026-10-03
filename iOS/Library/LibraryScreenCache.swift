@@ -19,6 +19,10 @@ final class LibraryScreenCache: ObservableObject {
     private static let recentAlbumLimit = 10
 
     private(set) var recentAlbums: [AlbumEntity]?
+    /// One in-flight run per preparation identity: the launch sequence and the
+    /// screens' own `.task`s ask for the same preparation, and the second
+    /// caller joins the first instead of decoding the same covers again.
+    private var preparations: [String: Task<Void, Never>] = [:]
     @Published private(set) var playlistPreviews: [UUID: [Track]] = [:]
     private var playlistPreviewIdentity: String?
 
@@ -105,25 +109,14 @@ final class LibraryScreenCache: ObservableObject {
                 trackCountsByAlbumID: counts
             )
         }.value
-        // Decode a few covers concurrently. Ten serial codec calls made the
-        // Home shelf the longest part of launch; an unbounded batch would
-        // contend with ImageIO's own HEVC workers on the phone.
-        for start in stride(from: 0, to: albums.count, by: 3) {
-            guard !Task.isCancelled else { return nil }
-            let batch = albums[start..<min(start + 3, albums.count)]
-            await withTaskGroup(of: Void.self) { group in
-                for album in batch {
-                    guard let data = album.displayArtwork, let albumID = album.albumId else { continue }
-                    group.addTask {
-                        await ArtworkTile.prewarm(
-                            data: data,
-                            cacheKey: ArtworkCacheKey.album(albumID),
-                            maxPixelSize: RecentAlbumsShelf.artworkPixelSize
-                        )
-                    }
-                }
-            }
-        }
+        await Self.decode(albums.compactMap { album in
+            guard let data = album.displayArtwork, let albumID = album.albumId else { return nil }
+            return ArtworkDecode(
+                data: data,
+                cacheKey: ArtworkCacheKey.album(albumID),
+                maxPixelSize: RecentAlbumsShelf.artworkPixelSize
+            )
+        })
         guard !Task.isCancelled else { return nil }
         recentAlbums = albums
         return albums
@@ -132,12 +125,17 @@ final class LibraryScreenCache: ObservableObject {
     /// Prepare the first Discover frame before the tab can be selected.
     func prepareDiscover(_ library: LibraryManager) async {
         let revision = library.libraryRevision
+        await joinPreparation("discover-\(revision)-\(trackRevision)") {
+            await self.runDiscoverPreparation(library, revision: revision)
+        }
+    }
+
+    private func runDiscoverPreparation(_ library: LibraryManager, revision: Int) async {
         await library.loadDiscoverTracks(populateArtwork: false)
         let rows = library.discoverTracks
         let selectionDate = library.discoverLastUpdated
-        await Self.prepareMosaic(rows)
-        await Self.prepareArtwork(rows, database: library.databaseManager)
-        guard !Task.isCancelled, library.libraryRevision == revision,
+        await Self.decode(Self.mosaicDecodes(rows) + Self.rowDecodes(rows, database: library.databaseManager))
+        guard library.libraryRevision == revision,
               library.discoverLastUpdated == selectionDate else { return }
         store(
             Tracks(rows: rows, sections: [IndexedSection(key: "", items: rows)]),
@@ -159,21 +157,35 @@ final class LibraryScreenCache: ObservableObject {
         let trackRevision = trackRevision
         let identity = Self.playlistPreviewIdentity(playlists, revision: revision, trackRevision: trackRevision)
         guard playlistPreviewIdentity != identity else { return }
+        await joinPreparation("previews-\(identity)") {
+            await self.runPlaylistPreviewPreparation(
+                playlists, library: library, identity: identity, revision: revision, trackRevision: trackRevision
+            )
+        }
+    }
+
+    private func runPlaylistPreviewPreparation(
+        _ playlists: [Playlist],
+        library: LibraryManager,
+        identity: String,
+        revision: Int,
+        trackRevision: Int
+    ) async {
         let previews = await Task.detached(priority: .userInitiated) {
             Dictionary(uniqueKeysWithValues: playlists.compactMap { playlist -> (UUID, [Track])? in
                 guard playlist.coverArtworkData == nil, PlaylistCover.of(playlist) == nil else { return nil }
                 return (playlist.id, library.getPlaylistPreviewTracks(playlist, limit: 4))
             })
         }.value
-        for playlist in playlists {
-            guard !Task.isCancelled else { return }
+        // Every playlist's covers go through one bounded queue: decoding the
+        // mosaics one playlist after another was the longest part of launch.
+        await Self.decode(playlists.flatMap { playlist -> [ArtworkDecode] in
             if let data = playlist.coverArtworkData {
-                await ArtworkTile.prewarm(data: data, cacheKey: ArtworkCacheKey.playlist(playlist.id), maxPixelSize: 180)
-            } else if let rows = previews[playlist.id] {
-                await Self.prepareMosaic(rows)
+                return [ArtworkDecode(data: data, cacheKey: ArtworkCacheKey.playlist(playlist.id), maxPixelSize: 180)]
             }
-        }
-        guard !Task.isCancelled, library.libraryRevision == revision,
+            return previews[playlist.id].map(Self.mosaicDecodes) ?? []
+        })
+        guard library.libraryRevision == revision,
               self.trackRevision == trackRevision else { return }
         playlistPreviews = previews
         playlistPreviewIdentity = identity
@@ -195,11 +207,12 @@ final class LibraryScreenCache: ObservableObject {
               current.dateModified == playlist.dateModified,
               !current.tracks.isEmpty || current.trackCount == 0 else { return }
         let rows = current.tracks
-        if let data = current.coverArtworkData {
-            await ArtworkTile.prewarm(data: data, cacheKey: ArtworkCacheKey.playlist(current.id), maxPixelSize: 180)
+        let cover = current.coverArtworkData.map {
+            ArtworkDecode(data: $0, cacheKey: ArtworkCacheKey.playlist(current.id), maxPixelSize: 180)
         }
-        await Self.prepareMosaic(rows)
-        await Self.prepareArtwork(rows, database: library.databaseManager)
+        await Self.decode(
+            [cover].compactMap { $0 } + Self.mosaicDecodes(rows) + Self.rowDecodes(rows, database: library.databaseManager)
+        )
     }
 
     func prepareLibrary(_ library: LibraryManager) async {
@@ -239,23 +252,23 @@ final class LibraryScreenCache: ObservableObject {
             return Category(items: items, sections: sections)
         }.value
         let visible = type == .albums ? snapshot.items : snapshot.sections.flatMap(\.items)
-        for item in visible.prefix(Self.visibleArtworkLimit) {
-            guard !Task.isCancelled else { return nil }
-            let database = library.databaseManager
+        let database = library.databaseManager
+        await Self.decode(visible.prefix(Self.visibleArtworkLimit).compactMap { item in
             if type == .albums, let albumID = item.albumId {
-                await ArtworkTile.prewarm(
+                return ArtworkDecode(
                     cacheKey: ArtworkCacheKey.album(albumID),
                     maxPixelSize: 600,
                     loader: ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumID) }
                 )
             } else if type == .artists {
-                await ArtworkTile.prewarm(
+                return ArtworkDecode(
                     cacheKey: ArtworkCacheKey.artist(item.name),
                     maxPixelSize: 180,
                     loader: ArtworkDataLoader { database.getArtistArtworkThumbnail(name: item.name) }
                 )
             }
-        }
+            return nil
+        })
         guard !Task.isCancelled, library.libraryRevision == revision else { return nil }
         store(snapshot, type: type, revision: revision)
         return snapshot
@@ -265,33 +278,68 @@ final class LibraryScreenCache: ObservableObject {
         IndexedListSectionFactory.sections(from: rows, key: { IndexedListSectionFactory.sectionKey(for: $0.title) })
     }
 
-    static func prepareMosaic(_ rows: [Track]) async {
-        for data in PlaylistCover.mosaicCovers(from: rows) {
-            guard !Task.isCancelled else { return }
-            await ArtworkTile.prewarm(data: data, cacheKey: ArtworkTile.dataCacheKey(data), maxPixelSize: 180)
+    /// One cover to decode into the shared row cache.
+    struct ArtworkDecode: Sendable {
+        var data: Data?
+        let cacheKey: String
+        let maxPixelSize: CGFloat
+        var loader: ArtworkDataLoader?
+    }
+
+    /// Decodes `jobs` a few at a time, stopping early on cancellation.
+    static func decode(_ jobs: [ArtworkDecode], width: Int = 4) async {
+        await withTaskGroup(of: Void.self) { group in
+            for (index, job) in jobs.enumerated() {
+                guard !Task.isCancelled else { return }
+                if index >= width { await group.next() }
+                group.addTask {
+                    await ArtworkTile.prewarm(
+                        data: job.data,
+                        cacheKey: job.cacheKey,
+                        maxPixelSize: job.maxPixelSize,
+                        loader: job.loader
+                    )
+                }
+            }
+        }
+    }
+
+    static func mosaicDecodes(_ rows: [Track]) -> [ArtworkDecode] {
+        PlaylistCover.mosaicCovers(from: rows).map {
+            ArtworkDecode(data: $0, cacheKey: ArtworkTile.dataCacheKey($0), maxPixelSize: 180)
+        }
+    }
+
+    static func rowDecodes(_ rows: [Track], database: DatabaseManager) -> [ArtworkDecode] {
+        rows.prefix(visibleArtworkLimit).compactMap { track in
+            guard let key = ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId) else { return nil }
+            let loader = track.trackId.flatMap {
+                ArtworkDataLoader.trackListArtwork(
+                    database: database,
+                    albumId: track.albumId,
+                    trackId: $0,
+                    hasDisplayArtwork: track.displayArtwork != nil
+                )
+            }
+            return ArtworkDecode(data: track.displayArtwork, cacheKey: key, maxPixelSize: 144, loader: loader)
         }
     }
 
     static func prepareArtwork(_ rows: [Track], database: DatabaseManager) async {
-        await withTaskGroup(of: Void.self) { group in
-            var submitted = 0
-            for track in rows.prefix(visibleArtworkLimit) {
-                guard !Task.isCancelled else { return }
-                guard let key = ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId) else { continue }
-                let loader = track.trackId.flatMap {
-                    ArtworkDataLoader.trackListArtwork(
-                        database: database,
-                        albumId: track.albumId,
-                        trackId: $0,
-                        hasDisplayArtwork: track.displayArtwork != nil
-                    )
-                }
-                if submitted >= 3 { await group.next() }
-                submitted += 1
-                group.addTask {
-                    await ArtworkTile.prewarm(data: track.displayArtwork, cacheKey: key, maxPixelSize: 144, loader: loader)
-                }
-            }
+        await decode(rowDecodes(rows, database: database))
+    }
+
+    /// Runs `work` once per `key`; concurrent callers await the same run.
+    /// The run is unstructured, so a caller's cancellation does not abandon
+    /// it halfway for the others; its revision checks guard what it stores.
+    private func joinPreparation(_ key: String, _ work: @escaping @MainActor () async -> Void) async {
+        if let running = preparations[key] {
+            await running.value
+            return
         }
+        let task = Task { await work() }
+        preparations[key] = task
+        await task.value
+        preparations[key] = nil
     }
 }
