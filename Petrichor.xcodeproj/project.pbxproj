@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		55A000000000000000000102 /* PetrichorWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 55A000000000000000000101 /* PetrichorWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		552CE3E52FE3263900A5C93D /* Crescendo in Frameworks */ = {isa = PBXBuildFile; productRef = 552CE3E42FE3263900A5C93D /* Crescendo */; };
 		5590877F2DE0C078009E7719 /* PetrichorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5590877E2DE0C078009E7719 /* PetrichorApp.swift */; };
 		55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
@@ -16,6 +17,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		55A000000000000000000104 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 550F4A062DB45B1A005F794E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 55A000000000000000000110;
+			remoteInfo = PetrichorWidgets;
+		};
 		55A000000000000000000052 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 550F4A062DB45B1A005F794E /* Project object */;
@@ -32,7 +40,22 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		55A000000000000000000103 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				55A000000000000000000102 /* PetrichorWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		55A000000000000000000101 /* PetrichorWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PetrichorWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		550F4A0E2DB45B1A005F794E /* Petrichor Dev.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Petrichor Dev.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		550F4A3F2DB4786F005F794E /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		55593A412DE019E400640247 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
@@ -160,6 +183,16 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		55A000000000000000000106 /* PlaybackControls */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PlaybackControls;
+			sourceTree = "<group>";
+		};
+		55A000000000000000000107 /* PetrichorWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PetrichorWidgets;
+			sourceTree = "<group>";
+		};
 		555A7BBD2E65FF88009F4922 /* Core */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -242,6 +275,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		55A000000000000000000112 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		550F4A0B2DB45B1A005F794E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -292,6 +332,8 @@
 				55F38A842DF8F2FE0028843B /* Resources */,
 				55B57E742E19D73900E57EC3 /* Scripts */,
 				55A000000000000000000001 /* iOS */,
+				55A000000000000000000106 /* PlaybackControls */,
+				55A000000000000000000107 /* PetrichorWidgets */,
 				55A000000000000000000042 /* PetrichoriOSTests */,
 				550F4A3F2DB4786F005F794E /* .gitignore */,
 				55613A822E04A7230000E217 /* .swiftlint.yml */,
@@ -305,6 +347,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		55A000000000000000000110 /* PetrichorWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55A000000000000000000114 /* Build configuration list for PBXNativeTarget "PetrichorWidgets" */;
+			buildPhases = (
+				55A000000000000000000111 /* Sources */,
+				55A000000000000000000112 /* Frameworks */,
+				55A000000000000000000113 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				55A000000000000000000106 /* PlaybackControls */,
+				55A000000000000000000107 /* PetrichorWidgets */,
+			);
+			name = PetrichorWidgets;
+			productName = PetrichorWidgets;
+			productReference = 55A000000000000000000101 /* PetrichorWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		550F4A0D2DB45B1A005F794E /* Petrichor */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 550F4A1A2DB45B1B005F794E /* Build configuration list for PBXNativeTarget "Petrichor" */;
@@ -345,10 +408,12 @@
 				55A000000000000000000022 /* Sources */,
 				55A000000000000000000023 /* Frameworks */,
 				55A000000000000000000024 /* Resources */,
+				55A000000000000000000103 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				55A000000000000000000105 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				555A7BBD2E65FF88009F4922 /* Core */,
@@ -359,6 +424,7 @@
 				55F38A7E2DF8F2F30028843B /* Utilities */,
 				55F38A842DF8F2FE0028843B /* Resources */,
 				55A000000000000000000001 /* iOS */,
+				55A000000000000000000106 /* PlaybackControls */,
 			);
 			name = PetrichoriOS;
 			packageProductDependencies = (
@@ -430,6 +496,9 @@
 					55A000000000000000000020 = {
 						CreatedOnToolsVersion = 26.6;
 					};
+					55A000000000000000000110 = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					55A000000000000000000043 = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 55A000000000000000000020;
@@ -464,11 +533,19 @@
 				55A000000000000000000020 /* PetrichoriOS */,
 				55A000000000000000000043 /* PetrichoriOSTests */,
 				55A000000000000000000067 /* PetrichoriOSUITests */,
+				55A000000000000000000110 /* PetrichorWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		55A000000000000000000113 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		550F4A0C2DB45B1A005F794E /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -500,6 +577,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		55A000000000000000000111 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		550F4A0A2DB45B1A005F794E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -532,6 +616,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		55A000000000000000000105 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 55A000000000000000000110 /* PetrichorWidgets */;
+			targetProxy = 55A000000000000000000104 /* PBXContainerItemProxy */;
+		};
 		55A000000000000000000053 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 55A000000000000000000020 /* PetrichoriOS */;
@@ -545,6 +634,84 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		55A000000000000000000115 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Configuration/Info-Widgets.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		55A000000000000000000116 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Configuration/Info-Widgets.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		55A000000000000000000117 /* Dev */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Configuration/Info-Widgets.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Petrichor;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks @executable_path/../../Frameworks";
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Dev;
+		};
 		550F4A182DB45B1B005F794E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1104,6 +1271,16 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		55A000000000000000000114 /* Build configuration list for PBXNativeTarget "PetrichorWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55A000000000000000000115 /* Debug */,
+				55A000000000000000000116 /* Release */,
+				55A000000000000000000117 /* Dev */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		550F4A092DB45B1A005F794E /* Build configuration list for PBXProject "Petrichor" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

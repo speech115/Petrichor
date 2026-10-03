@@ -1,0 +1,50 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Play/Pause" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Пуск/Пауза"
+          }
+        }
+      }
+    },
+    "Next Track" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Следующий трек"
+          }
+        }
+      }
+    },
+    "Plays or pauses Petrichor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запускает или ставит на паузу Petrichor."
+          }
+        }
+      }
+    },
+    "Skips to the next song in Petrichor." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переключает Petrichor на следующую песню."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}
