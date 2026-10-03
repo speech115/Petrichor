@@ -60,7 +60,7 @@ struct MiniPlayerAccessory: View {
                             .lineLimit(1)
                         Text(playbackPresentation.currentTrack?.displayArtist ?? "")
                             .font(isCompact ? .caption : .subheadline)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.secondaryText)
                             .lineLimit(1)
                     }
                     // Rasterize title+artist into a single layer. They are two
