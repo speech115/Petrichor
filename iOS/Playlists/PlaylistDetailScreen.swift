@@ -39,6 +39,7 @@ struct PlaylistDetailScreen: View {
                     identity: AnyHashable(tracksTaskID(playlist)),
                     load: { await loadTracks(playlist) },
                     sectioner: { [IndexedSection(key: "", items: $0)] },
+                    initialRows: playlist.tracks.isEmpty && playlist.trackCount > 0 ? nil : playlist.tracks,
                     usesPlainStyle: true,
                     showEmptyState: false,
                     header: { tracks in

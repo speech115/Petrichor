@@ -28,6 +28,8 @@ struct ContentView: View {
     let playbackManager: PlaybackManager
     @ObservedObject private var playbackAvailability: PlaybackAvailabilityObservation
 
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
+
     @State private var selectedTab: IOSSection = .home
     @State private var homePath: [LibraryDestination] = []
 
@@ -50,6 +52,16 @@ struct ContentView: View {
     var body: some View {
         mainInterface
         .toastHost(isActive: !showingNowPlaying)
+        .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { _ in
+            screenCache.invalidateTrackLists()
+        }
+        .task(id: "\(libraryManager.libraryRevision)-\(libraryManager.entitiesLoaded)-\(screenCache.trackRevision)") {
+            guard libraryManager.entitiesLoaded else { return }
+            if let favorites = playlistManager.playlists.first(where: { $0.name == DefaultPlaylists.favorites }) {
+                await LibraryScreenCache.shared.preparePlaylist(favorites, library: libraryManager, manager: playlistManager)
+            }
+            await LibraryScreenCache.shared.prepareLibrary(libraryManager)
+        }
         .environment(\.settingsZoomNamespace, settingsZoomNamespace)
         .sheet(isPresented: $showingSettings) {
             NavigationStack {

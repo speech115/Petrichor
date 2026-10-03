@@ -191,6 +191,9 @@ struct PlaylistsTabView: View {
                 )
                 .detailZoomSource(.playlist(playlist.id), in: zoomNamespace, cornerRadius: 8)
             }
+            .task(id: "\(playlist.dateModified)-\(libraryManager.libraryRevision)") {
+                await LibraryScreenCache.shared.preparePlaylist(playlist, library: libraryManager, manager: playlistManager)
+            }
             // Vertical insets are not decoration: at zero the covers of
             // consecutive rows touch, and a column of identical service marks
             // reads as one tall block instead of three rows.

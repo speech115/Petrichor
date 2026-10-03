@@ -93,14 +93,42 @@ struct ArtworkTile: View {
         fallbackMaxPixelSize.flatMap { versionedCacheKey(maxPixelSize: $0) }
     }
 
+    nonisolated static func dataCacheKey(_ data: Data) -> String {
+        "artwork-data-\(data.hashValue)"
+    }
+
     private func versionedCacheKey(maxPixelSize: CGFloat) -> String? {
-        cacheKey.map {
-            // The current track first arrives with a thumbnail and is enriched
-            // with full artwork after audio starts. Keep those decoded images
-            // distinct so the larger view cannot remain stuck on the thumbnail.
-            let dataVersion = data.map { "#\($0.count)" } ?? ""
-            return "\($0)\(dataVersion)@\(Int(maxPixelSize.rounded(.up)))"
+        cacheKey.map { Self.sizedCacheKey($0, data: data, maxPixelSize: maxPixelSize) }
+    }
+
+    /// The decoded-image key for a tile showing `data` (nil when the tile
+    /// fetches through its loader) under `cacheKey` at `maxPixelSize`.
+    nonisolated static func sizedCacheKey(_ cacheKey: String, data: Data?, maxPixelSize: CGFloat) -> String {
+        // The current track first arrives with a thumbnail and is enriched
+        // with full artwork after audio starts. Keep those decoded images
+        // distinct so the larger view cannot remain stuck on the thumbnail.
+        let dataVersion = data.map { "#\($0.count)" } ?? ""
+        return "\(cacheKey)\(dataVersion)@\(Int(maxPixelSize.rounded(.up)))"
+    }
+
+    /// Uses the same key as the rendered tile. The database read and codec
+    /// run on GCD because ImageIO may block waiting on its own worker threads.
+    static func prewarm(
+        data: Data? = nil,
+        cacheKey: String,
+        maxPixelSize: CGFloat,
+        loader: ArtworkDataLoader? = nil
+    ) async {
+        let key = sizedCacheKey(cacheKey, data: data, maxPixelSize: maxPixelSize)
+        guard RowArtworkCache.shared.image(forKey: key) == nil, !Task.isCancelled else { return }
+        let image: UIImage? = await withCheckedContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                let image = (data ?? loader?()).flatMap { downsample($0, maxPixelSize: maxPixelSize) }
+                continuation.resume(returning: image)
+            }
         }
+        guard !Task.isCancelled, let image else { return }
+        RowArtworkCache.shared.setImage(image, forKey: key)
     }
 
     var body: some View {
