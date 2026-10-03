@@ -2,8 +2,9 @@
 // MarqueeText (iOS)
 //
 // A one-line title that scrolls when it does not fit, the way Apple Music and
-// Spotify show a long track name: it rests, slides to the end, rests, slides
-// back, edges faded. A wrapped title would push the whole player layout
+// shows a long track name: it rests, then slides left with a second copy
+// following a gap behind it, so the loop closes seamlessly instead of
+// bouncing back; edges faded. A wrapped title would push the whole player layout
 // around every time the track changes.
 //
 // Text that fits is drawn plainly. With Reduce Motion the line truncates with
@@ -28,8 +29,11 @@ struct MarqueeText: View {
     @State private var offset: CGFloat = 0
 
     /// Points per second; slow enough to read while it moves.
-    private static let speed: CGFloat = 32
-    private static let pause: Double = 1.5
+    private static let speed: CGFloat = 24
+    /// Rest before each pass, long enough to read the start first.
+    private static let pause: Double = 3
+    /// Space between the end of the title and its repeated copy.
+    private static let gap: CGFloat = 48
     private static let fadeWidth: CGFloat = 14
 
     private var overflow: CGFloat { max(0, textWidth - containerWidth) }
@@ -51,13 +55,19 @@ struct MarqueeText: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { containerWidth = $0 })
             .overlay(alignment: .leading) {
-                // Measures the full width while resting, then is the moving copy.
-                Text(text)
-                    .font(font)
-                    .fixedSize()
-                    .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { textWidth = $0 })
-                    .offset(x: offset)
-                    .opacity(scrolls ? 1 : 0)
+                // Measures the full width while resting, then is the moving
+                // copy; the second copy closes the loop.
+                HStack(spacing: Self.gap) {
+                    Text(text)
+                        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }, action: { textWidth = $0 })
+                    if scrolls {
+                        Text(text)
+                    }
+                }
+                .font(font)
+                .fixedSize()
+                .offset(x: offset)
+                .opacity(scrolls ? 1 : 0)
             }
             .clipped()
             .mask(fadeMask)
@@ -90,14 +100,15 @@ struct MarqueeText: View {
     private func scroll() async {
         offset = 0
         guard scrolls else { return }
-        let distance = overflow + Self.fadeWidth
+        let distance = textWidth + Self.gap
         let duration = Double(distance / Self.speed)
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(Self.pause))
+            guard !Task.isCancelled else { return }
             withAnimation(.linear(duration: duration)) { offset = -distance }
-            try? await Task.sleep(for: .seconds(duration + Self.pause))
-            withAnimation(.linear(duration: duration)) { offset = 0 }
             try? await Task.sleep(for: .seconds(duration))
+            // The copy now sits exactly where the original started.
+            offset = 0
         }
     }
 }
