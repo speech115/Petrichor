@@ -18,7 +18,8 @@ devices = json.load(open(sys.argv[1]))["result"]["devices"]
 # operation. Only "unavailable" means the device is truly unreachable.
 connected = [
     d for d in devices
-    if d["hardwareProperties"].get("platform") == "iOS"
+    # deviceType, not platform: an iPad also reports platform "iOS".
+    if d["hardwareProperties"].get("deviceType") == "iPhone"
     and d["hardwareProperties"].get("reality") == "physical"
     and d["connectionProperties"].get("tunnelState") != "unavailable"
 ]
