@@ -100,12 +100,15 @@ struct PetrichorApp: App {
                 .task {
                     guard !isInterfacePrepared else { return }
                     let cache = LibraryScreenCache.shared
-                    _ = await cache.prepareRecentAlbums(appCoordinator.libraryManager)
-                    await cache.prepareDiscover(appCoordinator.libraryManager)
-                    await cache.preparePlaylistPreviews(
+                    // Independent first-screen preparations overlap their reads
+                    // and decoding instead of extending launch one after another.
+                    async let home = cache.prepareRecentAlbums(appCoordinator.libraryManager)
+                    async let discover: Void = cache.prepareDiscover(appCoordinator.libraryManager)
+                    async let previews: Void = cache.preparePlaylistPreviews(
                         appCoordinator.playlistManager.playlists,
                         library: appCoordinator.libraryManager
                     )
+                    _ = await (home, discover, previews)
                     guard !Task.isCancelled else { return }
                     var transaction = Transaction()
                     transaction.disablesAnimations = true

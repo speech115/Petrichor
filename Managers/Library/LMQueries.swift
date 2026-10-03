@@ -68,8 +68,8 @@ extension LibraryManager {
     }
 
     /// `nonisolated`: see `getTracksForArtist` above.
-    nonisolated func getRecentlyPlayedTracks(limit: Int = 10) -> [Track] {
-        databaseManager.getRecentlyPlayedTracks(limit: limit)
+    nonisolated func getRecentlyPlayedTracks(limit: Int = 10, populateArtwork: Bool = true) -> [Track] {
+        databaseManager.getRecentlyPlayedTracks(limit: limit, populateArtwork: populateArtwork)
     }
 
     /// `nonisolated`: see `getTracksForArtist` above.

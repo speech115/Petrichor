@@ -87,7 +87,14 @@ final class LibraryScreenCache: ObservableObject {
         let fetchLimit = Self.recentTracksFetchLimit
         let albumLimit = Self.recentAlbumLimit
         let albums = await Task.detached(priority: .userInitiated) {
-            let tracks = library.getRecentlyPlayedTracks(limit: fetchLimit)
+            let recent = library.getRecentlyPlayedTracks(limit: fetchLimit, populateArtwork: false)
+            var albumIDs = Set<Int64>()
+            var tracks = recent.filter { track in
+                guard let albumID = track.albumId else { return false }
+                if albumIDs.count < albumLimit { albumIDs.insert(albumID) }
+                return albumIDs.contains(albumID)
+            }
+            library.databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
             let counts = Dictionary(
                 albumEntities.compactMap { album in album.albumId.map { ($0, album.trackCount) } },
                 uniquingKeysWith: { first, _ in first }
@@ -98,14 +105,24 @@ final class LibraryScreenCache: ObservableObject {
                 trackCountsByAlbumID: counts
             )
         }.value
-        for album in albums {
+        // Decode a few covers concurrently. Ten serial codec calls made the
+        // Home shelf the longest part of launch; an unbounded batch would
+        // contend with ImageIO's own HEVC workers on the phone.
+        for start in stride(from: 0, to: albums.count, by: 3) {
             guard !Task.isCancelled else { return nil }
-            guard let data = album.displayArtwork, let albumID = album.albumId else { continue }
-            await ArtworkTile.prewarm(
-                data: data,
-                cacheKey: ArtworkCacheKey.album(albumID),
-                maxPixelSize: RecentAlbumsShelf.artworkPixelSize
-            )
+            let batch = albums[start..<min(start + 3, albums.count)]
+            await withTaskGroup(of: Void.self) { group in
+                for album in batch {
+                    guard let data = album.displayArtwork, let albumID = album.albumId else { continue }
+                    group.addTask {
+                        await ArtworkTile.prewarm(
+                            data: data,
+                            cacheKey: ArtworkCacheKey.album(albumID),
+                            maxPixelSize: RecentAlbumsShelf.artworkPixelSize
+                        )
+                    }
+                }
+            }
         }
         guard !Task.isCancelled else { return nil }
         recentAlbums = albums
@@ -256,18 +273,25 @@ final class LibraryScreenCache: ObservableObject {
     }
 
     static func prepareArtwork(_ rows: [Track], database: DatabaseManager) async {
-        for track in rows.prefix(visibleArtworkLimit) {
-            guard !Task.isCancelled else { return }
-            guard let key = ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId) else { continue }
-            let loader = track.trackId.flatMap {
-                ArtworkDataLoader.trackListArtwork(
-                    database: database,
-                    albumId: track.albumId,
-                    trackId: $0,
-                    hasDisplayArtwork: track.displayArtwork != nil
-                )
+        await withTaskGroup(of: Void.self) { group in
+            var submitted = 0
+            for track in rows.prefix(visibleArtworkLimit) {
+                guard !Task.isCancelled else { return }
+                guard let key = ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId) else { continue }
+                let loader = track.trackId.flatMap {
+                    ArtworkDataLoader.trackListArtwork(
+                        database: database,
+                        albumId: track.albumId,
+                        trackId: $0,
+                        hasDisplayArtwork: track.displayArtwork != nil
+                    )
+                }
+                if submitted >= 3 { await group.next() }
+                submitted += 1
+                group.addTask {
+                    await ArtworkTile.prewarm(data: track.displayArtwork, cacheKey: key, maxPixelSize: 144, loader: loader)
+                }
             }
-            await ArtworkTile.prewarm(data: track.displayArtwork, cacheKey: key, maxPixelSize: 144, loader: loader)
         }
     }
 }
