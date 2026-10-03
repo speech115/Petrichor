@@ -137,7 +137,7 @@ extension DatabaseManager {
         if let newArtworkData = metadata.artworkData {
             let shouldStoreInTrack = (track.album == "Unknown Album" || track.album.isEmpty)
             
-            if shouldStoreInTrack && track.trackArtworkData == nil {
+            if shouldStoreInTrack && track.trackArtworkData != newArtworkData {
                 // Store artwork for tracks without albums
                 track.trackArtworkData = newArtworkData
                 hasChanges = true

@@ -386,7 +386,7 @@ extension DatabaseManager {
             
             // Update album artwork
             if let albumId = mutableTrack.albumId {
-                try updateAlbumArtwork(albumId, artworkData: artworkData, in: db)
+                try updateAlbumArtwork(albumId, artworkData: artworkData, replacingExisting: true, in: db)
             }
         }
     }
