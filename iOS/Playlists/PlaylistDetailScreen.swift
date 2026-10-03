@@ -124,7 +124,10 @@ struct PlaylistDetailScreen: View {
         .sheet(isPresented: $showingAddSongs) {
             AddSongsSheet(playlistID: playlistID, playlistManager: playlistManager)
         }
-        .task(id: playlistID) {
+        // Keyed on the loaded track set, not just the playlist: on first open
+        // the tracks arrive after this view appears, and a playlist-only key
+        // would check the still-empty list and never look again.
+        .task(id: playlist.map { "\(tracksTaskID($0))-\($0.tracks.count)" }) {
             await refreshMissingFiles()
         }
         .detailHeaderTint(cacheID: playlistID.uuidString, imageData: playlist?.coverArtworkData, tint: $headerTint)

@@ -298,19 +298,19 @@ class PlaylistManager: ObservableObject {
     /// thumbnails are filled for a possible header mosaic; visible rows load
     /// their own thumbnails. Reads stay off the main thread; every access to
     /// `playlists` is isolated via `MainActor.run` (mirrors
-    /// `loadSmartPlaylistTracks`).
-    func loadPlaylistTracks(for playlistId: UUID) async {
-        guard let dbManager = libraryManager?.databaseManager else { return }
-
-        let shouldLoad = await MainActor.run { () -> Bool in
-            guard let playlist = playlists.first(where: { $0.id == playlistId }),
+    /// `loadSmartPlaylistTracks`). `nonisolated` so the read and the row
+    /// decoding (1000+ rows) run off the main actor; the class is `@MainActor`.
+    nonisolated func loadPlaylistTracks(for playlistId: UUID) async {
+        let dbManager = await MainActor.run { () -> DatabaseManager? in
+            guard let dbManager = libraryManager?.databaseManager,
+                  let playlist = playlists.first(where: { $0.id == playlistId }),
                   playlist.type == .regular,
                   playlist.tracks.isEmpty,
-                  !loadingRegularPlaylistIDs.contains(playlistId) else { return false }
+                  !loadingRegularPlaylistIDs.contains(playlistId) else { return nil }
             loadingRegularPlaylistIDs.insert(playlistId)
-            return true
+            return dbManager
         }
-        guard shouldLoad else { return }
+        guard let dbManager else { return }
 
         var tracks = dbManager.loadTracksForPlaylist(playlistId, populateArtwork: false)
         dbManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)

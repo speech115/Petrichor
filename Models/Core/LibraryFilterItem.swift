@@ -1,6 +1,6 @@
 import Foundation
 
-struct LibraryFilterItem: Identifiable, Hashable {
+struct LibraryFilterItem: Identifiable, Hashable, Sendable {
     let id = UUID()
     let name: String
     let count: Int

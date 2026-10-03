@@ -121,19 +121,20 @@ extension PlaylistManager {
     /// Load tracks for a single smart playlist on-demand. Rows are list rows:
     /// the display-size artwork pass is skipped. Only the first four album
     /// thumbnails are filled for a possible header mosaic; visible rows load
-    /// their own thumbnails.
-    func loadSmartPlaylistTracks(_ playlist: Playlist) async {
-        guard playlist.type == .smart,
-              let libraryManager = libraryManager else { return }
+    /// their own thumbnails. `nonisolated`: the query and row decoding stay
+    /// off the main actor.
+    nonisolated func loadSmartPlaylistTracks(_ playlist: Playlist) async {
+        guard playlist.type == .smart else { return }
 
         // In-flight guard: if a load for this playlist is already running, skip. Otherwise
         // two near-simultaneous callers both see empty tracks and run the full query twice.
-        let shouldLoad = await MainActor.run { () -> Bool in
-            guard !self.loadingSmartPlaylistIDs.contains(playlist.id) else { return false }
+        let libraryManager = await MainActor.run { () -> LibraryManager? in
+            guard let libraryManager = self.libraryManager,
+                  !self.loadingSmartPlaylistIDs.contains(playlist.id) else { return nil }
             self.loadingSmartPlaylistIDs.insert(playlist.id)
-            return true
+            return libraryManager
         }
-        guard shouldLoad else { return }
+        guard let libraryManager else { return }
 
         let autoUpdate = playlist.smartCriteria?.autoUpdate ?? true
         let tracks: [Track]

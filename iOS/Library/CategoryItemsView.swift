@@ -17,6 +17,8 @@ struct CategoryItemsView: View {
     let zoomNamespace: Namespace.ID
 
     @State private var items: [LibraryFilterItem] = []
+    @State private var sections: [IndexedSection<LibraryFilterItem>] = []
+    @State private var hasLoaded = false
 
     var body: some View {
         Group {
@@ -35,15 +37,11 @@ struct CategoryItemsView: View {
         }
         .navigationTitle(filterType.pluralDisplayName)
         .toolbarTitleDisplayMode(.inline)
-        .onAppear(perform: reload)
-        .onChange(of: libraryManager.libraryRevision) { _, _ in
-            reload()
-        }
-        .onChange(of: libraryManager.entitiesLoaded) { _, _ in
-            reload()
+        .task(id: ReloadKey(revision: libraryManager.libraryRevision, entitiesLoaded: libraryManager.entitiesLoaded)) {
+            await reload()
         }
         .overlay {
-            if items.isEmpty, libraryManager.shouldShowMainUI {
+            if hasLoaded, items.isEmpty, libraryManager.shouldShowMainUI {
                 ContentUnavailableView(
                     filterType.emptyStateMessage,
                     systemImage: Icons.musicNote
@@ -81,7 +79,10 @@ struct CategoryItemsView: View {
         }
     }
 
-    private var sections: [IndexedSection<LibraryFilterItem>] {
+    private nonisolated static func sections(
+        _ items: [LibraryFilterItem],
+        filterType: LibraryFilterType
+    ) -> [IndexedSection<LibraryFilterItem>] {
         let sections = IndexedListSectionFactory.sections(
             from: items,
             key: { IndexedListSectionFactory.sectionKey(for: $0.name) }
@@ -132,8 +133,24 @@ struct CategoryItemsView: View {
         }
     }
 
-    private func reload() {
-        items = sort(libraryManager.getLibraryFilterItems(for: filterType))
+    private struct ReloadKey: Equatable {
+        let revision: Int
+        let entitiesLoaded: Bool
+    }
+
+    /// The query (a GROUP BY over the whole library on a cold cache), the
+    /// sort and the sectioning all run off the main actor.
+    private func reload() async {
+        let filterType = filterType
+        let fetched = await libraryManager.libraryFilterItems(for: filterType)
+        let (sorted, built) = await Task.detached(priority: .userInitiated) {
+            let sorted = Self.sort(fetched, filterType: filterType)
+            return (sorted, Self.sections(sorted, filterType: filterType))
+        }.value
+        guard !Task.isCancelled else { return }
+        items = sorted
+        sections = built
+        hasLoaded = true
     }
 
     private func artistArtworkLoader(for name: String) -> ArtworkDataLoader {
@@ -147,7 +164,10 @@ struct CategoryItemsView: View {
         return ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumId) }
     }
 
-    private func sort(_ items: [LibraryFilterItem]) -> [LibraryFilterItem] {
+    private nonisolated static func sort(
+        _ items: [LibraryFilterItem],
+        filterType: LibraryFilterType
+    ) -> [LibraryFilterItem] {
         if filterType == .years {
             return items.sorted { yearValue($0.name) > yearValue($1.name) }
         }
@@ -156,7 +176,7 @@ struct CategoryItemsView: View {
         }
     }
 
-    private func yearValue(_ year: String) -> Int {
+    private nonisolated static func yearValue(_ year: String) -> Int {
         Int(year.prefix(4)) ?? Int.min
     }
 }
