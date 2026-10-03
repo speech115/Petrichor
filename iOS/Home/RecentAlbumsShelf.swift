@@ -18,6 +18,10 @@ struct RecentAlbumsShelf: View {
     let headerValue: UUID?
     let zoomNamespace: Namespace.ID
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var lineLimit: Int? { dynamicTypeSize.isAccessibilitySize ? nil : 1 }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let headerValue {
@@ -32,7 +36,7 @@ struct RecentAlbumsShelf: View {
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(alignment: .top, spacing: 12) {
                     ForEach(albums) { album in
                         NavigationLink(value: LibraryDestination.album(album)) {
                             VStack(alignment: .leading, spacing: 6) {
@@ -55,20 +59,16 @@ struct RecentAlbumsShelf: View {
                                 // its own accessibilityHidden; VoiceOver
                                 // still reads the card as one "name, artist"
                                 // stop.
-                                VStack(alignment: .leading, spacing: 6) {
-                                    // 130 pt is fixed (it matches the artwork
-                                    // above): any line limit reads as clipped
-                                    // at the largest accessibility sizes,
-                                    // where a short title alone can need more
-                                    // than two lines to fit that width. No
-                                    // limit lets the text wrap instead of
-                                    // truncating, and `fixedSize` makes it
-                                    // actually claim that height — inside a
-                                    // `LazyHStack` a `Text` otherwise gets
-                                    // compressed to the row's pre-scaling
-                                    // height instead of growing.
+                                // One line each, like Apple Music's shelves,
+                                // so every card ends at the same baseline.
+                                // Accessibility sizes wrap instead: at 130 pt
+                                // a single line would clip most titles, and
+                                // `fixedSize` lets the wrapped text claim its
+                                // height inside the `LazyHStack`.
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(album.displayName)
                                         .font(.subheadline.weight(.semibold))
+                                        .lineLimit(lineLimit)
                                         .fixedSize(horizontal: false, vertical: true)
 
                                     // `.secondary` measures ~3.4:1 at caption
@@ -76,6 +76,7 @@ struct RecentAlbumsShelf: View {
                                     Text(album.artistName ?? "")
                                         .font(.caption)
                                         .foregroundColor(.secondaryText)
+                                        .lineLimit(lineLimit)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                                 .accessibilityElement(children: .combine)
