@@ -31,6 +31,11 @@ import Testing
             t.column("track_number", .integer)
             t.column("disc_number", .integer)
             t.column("album_id", .integer)
+            t.column("codec", .text)
+            t.column("bitrate", .integer)
+            t.column("sample_rate", .integer)
+            t.column("channels", .integer)
+            t.column("is_duplicate", .boolean)
         }
     }
 
@@ -77,6 +82,11 @@ import Testing
             t.column("track_number", .integer)
             t.column("disc_number", .integer)
             t.column("album_id", .integer)
+            t.column("codec", .text)
+            t.column("bitrate", .integer)
+            t.column("sample_rate", .integer)
+            t.column("channels", .integer)
+            t.column("is_duplicate", .boolean)
         }
     }
 

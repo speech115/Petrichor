@@ -212,8 +212,10 @@ extension DatabaseManager {
                 // junction row carries position order and the playlist's
                 // date_added, so no dictionary or manual re-sorting is needed.
                 // Duplicate track_ids would naturally produce two rows.
+                let columns = Track.lightweightSelection.map { "tracks.\($0.name)" }.joined(separator: ", ")
                 var sql = """
-                    SELECT tracks.*, playlist_tracks.date_added AS playlist_date_added
+                    SELECT \(columns), tracks.duplicate_group_id,
+                           playlist_tracks.date_added AS playlist_date_added
                     FROM playlist_tracks
                     JOIN tracks ON tracks.id = playlist_tracks.track_id
                     WHERE playlist_tracks.playlist_id = ?
@@ -240,8 +242,8 @@ extension DatabaseManager {
                 // lost the election ("Любимые песни" keeps 5 tracks of 30).
                 var seenGroups = Set<String>()
                 while let row = try rows.next() {
-                    // `Track` does not carry the group; the row does, because
-                    // the query selects the whole table.
+                    // `Track` does not carry the group; the query selects it
+                    // alongside the track columns.
                     if let group = row["duplicate_group_id"] as String?,
                        !seenGroups.insert(group).inserted {
                         continue
