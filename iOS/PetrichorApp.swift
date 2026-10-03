@@ -10,19 +10,17 @@
 import OSLog
 import SwiftUI
 
-/// The app's brand accent, adaptive to the color scheme. Light mode keeps
-/// the darkened system pink that clears the WCAG AA bar (4.5:1) against the
-/// white Form cells and list backgrounds — system `.pink` measures ~3.6:1
-/// there. Dark mode needs the inverse adjustment: the same pink lands at
-/// ~3.6:1 on the grouped background and ~2.9:1 on inset row cells, so it is
-/// blended 40% toward white, which keeps the hue and clears 4.5:1 on both
-/// (6.2:1 grouped, 5.1:1 rows).
+/// The app's brand accent: Apple Music's red (hue ~352°), adaptive to the
+/// color scheme. Music's own #FA2D48 measures 3.8:1 on white, so light mode
+/// darkens it to #E0243E, clearing the WCAG AA bar (4.5:1) on the white Form
+/// cells and list backgrounds (4.7:1). Dark mode lightens it slightly to
+/// #FA3B53: 5.8:1 on the grouped background, 4.7:1 on inset row cells.
 extension Color {
     static let brandAccent = Color(uiColor: UIColor { traits in
         if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 0.922, green: 0.475, blue: 0.581, alpha: 1)
+            return UIColor(red: 0.980, green: 0.231, blue: 0.325, alpha: 1)
         }
-        return UIColor(red: 0.871, green: 0.122, blue: 0.302, alpha: 1)
+        return UIColor(red: 0.878, green: 0.141, blue: 0.243, alpha: 1)
     })
 }
 
