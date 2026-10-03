@@ -15,6 +15,10 @@ final class LibraryScreenCache: ObservableObject {
     static let visibleArtworkLimit = 16
     private static let snapshotLimit = 16
     private static let trackBudget = 40_000
+    private static let recentTracksFetchLimit = 100
+    private static let recentAlbumLimit = 10
+
+    private(set) var recentAlbums: [AlbumEntity]?
 
     struct Tracks: Sendable {
         let rows: [Track]
@@ -71,6 +75,39 @@ final class LibraryScreenCache: ObservableObject {
         tracks.removeAll()
         recency.removeAll()
         categories.removeAll()
+    }
+
+    /// Home's first frame needs both the shelf geometry and decoded covers.
+    /// This bounded read runs before the tab interface is presented; later
+    /// refreshes keep the previous shelf visible until its replacement is ready.
+    func prepareRecentAlbums(_ library: LibraryManager) async -> [AlbumEntity]? {
+        let albumEntities = library.albumEntities
+        let fetchLimit = Self.recentTracksFetchLimit
+        let albumLimit = Self.recentAlbumLimit
+        let albums = await Task.detached(priority: .userInitiated) {
+            let tracks = library.getRecentlyPlayedTracks(limit: fetchLimit)
+            let counts = Dictionary(
+                albumEntities.compactMap { album in album.albumId.map { ($0, album.trackCount) } },
+                uniquingKeysWith: { first, _ in first }
+            )
+            return RecentAlbumsShelf.albums(
+                from: tracks,
+                limit: albumLimit,
+                trackCountsByAlbumID: counts
+            )
+        }.value
+        for album in albums {
+            guard !Task.isCancelled else { return nil }
+            guard let data = album.displayArtwork, let albumID = album.albumId else { continue }
+            await ArtworkTile.prewarm(
+                data: data,
+                cacheKey: ArtworkCacheKey.album(albumID),
+                maxPixelSize: RecentAlbumsShelf.artworkPixelSize
+            )
+        }
+        guard !Task.isCancelled else { return nil }
+        recentAlbums = albums
+        return albums
     }
 
     /// Called by the parent while the destination is still off-screen.

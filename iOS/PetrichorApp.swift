@@ -30,6 +30,10 @@ struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
+    // Prepare the small Home shelf before presenting the tab interface, so
+    // Favorites never jumps down when recent albums arrive after first paint.
+    @State private var isHomePrepared = false
+
     // The first .active arrives right after launch, when AppCoordinator.init
     // has already kicked off reconciliation; only later transitions back to
     // .active (return from background) are a reconciliation trigger.
@@ -83,10 +87,24 @@ struct PetrichorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(
-                playlistManager: appCoordinator.playlistManager,
-                playbackManager: appCoordinator.playbackManager
-            )
+            Group {
+                if isHomePrepared {
+                    ContentView(
+                        playlistManager: appCoordinator.playlistManager,
+                        playbackManager: appCoordinator.playbackManager
+                    )
+                } else {
+                    Color(uiColor: .systemBackground).ignoresSafeArea()
+                }
+            }
+                .task {
+                    guard !isHomePrepared else { return }
+                    _ = await LibraryScreenCache.shared.prepareRecentAlbums(appCoordinator.libraryManager)
+                    guard !Task.isCancelled else { return }
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { isHomePrepared = true }
+                }
                 .environmentObject(appCoordinator.playbackManager)
                 .environmentObject(appCoordinator.playbackManager.playbackProgressState)
                 .environmentObject(appCoordinator.libraryManager)

@@ -12,6 +12,7 @@
 import SwiftUI
 
 struct RecentAlbumsShelf: View {
+    nonisolated static let artworkPixelSize: CGFloat = 180
     let albums: [AlbumEntity]
     /// Destination of the section title link (the "Top 25 Recently Played"
     /// smart playlist); nil renders a plain title.
@@ -42,9 +43,10 @@ struct RecentAlbumsShelf: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 ArtworkTile(
                                     data: album.displayArtwork,
-                                    cacheKey: album.albumId.map(String.init),
+                                    cacheKey: album.albumId.map(ArtworkCacheKey.album),
                                     cornerRadius: 10,
-                                    iconSize: 28
+                                    iconSize: 28,
+                                    maxPixelSize: Self.artworkPixelSize
                                 )
                                 .frame(width: 130, height: 130)
                                 .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 10)
