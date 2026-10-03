@@ -16,7 +16,14 @@ struct CategoryItemsView: View {
     let filterType: LibraryFilterType
     let zoomNamespace: Namespace.ID
 
-    @State private var items: [LibraryFilterItem] = []
+    @State private var snapshot: LibraryScreenCache.Category?
+
+    private var presentation: LibraryScreenCache.Category? {
+        snapshot ?? LibraryScreenCache.shared.category(filterType, revision: libraryManager.libraryRevision)
+    }
+    private var items: [LibraryFilterItem] { presentation?.items ?? [] }
+    private var sections: [IndexedSection<LibraryFilterItem>] { presentation?.sections ?? [] }
+    @State private var hasLoaded = false
 
     var body: some View {
         Group {
@@ -35,15 +42,11 @@ struct CategoryItemsView: View {
         }
         .navigationTitle(filterType.pluralDisplayName)
         .toolbarTitleDisplayMode(.inline)
-        .onAppear(perform: reload)
-        .onChange(of: libraryManager.libraryRevision) { _, _ in
-            reload()
-        }
-        .onChange(of: libraryManager.entitiesLoaded) { _, _ in
-            reload()
+        .task(id: ReloadKey(type: filterType, revision: libraryManager.libraryRevision, entitiesLoaded: libraryManager.entitiesLoaded)) {
+            await reload()
         }
         .overlay {
-            if items.isEmpty, libraryManager.shouldShowMainUI {
+            if hasLoaded, items.isEmpty, libraryManager.shouldShowMainUI {
                 ContentUnavailableView(
                     filterType.emptyStateMessage,
                     systemImage: Icons.musicNote
@@ -79,17 +82,6 @@ struct CategoryItemsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
         }
-    }
-
-    private var sections: [IndexedSection<LibraryFilterItem>] {
-        let sections = IndexedListSectionFactory.sections(
-            from: items,
-            key: { IndexedListSectionFactory.sectionKey(for: $0.name) }
-        )
-        if filterType == .years {
-            return sections.sorted { $0.key > $1.key }
-        }
-        return sections
     }
 
     /// Artists and albums get their detail pages; genres and years keep the
@@ -132,8 +124,19 @@ struct CategoryItemsView: View {
         }
     }
 
-    private func reload() {
-        items = sort(libraryManager.getLibraryFilterItems(for: filterType))
+    private struct ReloadKey: Equatable {
+        let type: LibraryFilterType
+        let revision: Int
+        let entitiesLoaded: Bool
+    }
+
+    /// The query (a GROUP BY over the whole library on a cold cache), the
+    /// sort and the sectioning all run off the main actor.
+    private func reload() async {
+        guard let prepared = await LibraryScreenCache.shared.prepareCategory(filterType, library: libraryManager),
+              !Task.isCancelled else { return }
+        snapshot = prepared
+        hasLoaded = true
     }
 
     private func artistArtworkLoader(for name: String) -> ArtworkDataLoader {
@@ -145,19 +148,6 @@ struct CategoryItemsView: View {
         guard let albumId else { return nil }
         let database = libraryManager.databaseManager
         return ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumId) }
-    }
-
-    private func sort(_ items: [LibraryFilterItem]) -> [LibraryFilterItem] {
-        if filterType == .years {
-            return items.sorted { yearValue($0.name) > yearValue($1.name) }
-        }
-        return items.sorted {
-            $0.name.localizedStandardCompare($1.name) == .orderedAscending
-        }
-    }
-
-    private func yearValue(_ year: String) -> Int {
-        Int(year.prefix(4)) ?? Int.min
     }
 }
 

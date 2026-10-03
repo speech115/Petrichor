@@ -223,9 +223,11 @@ extension DatabaseManager {
                 }
                 sql += " ORDER BY playlist_tracks.position"
 
-                let rows = try Row.fetchAll(db, sql: sql, arguments: [playlistId.uuidString])
+                // A cursor, not `Row.fetchAll`: copied rows resolve every
+                // column name by a linear scan, cursor rows by the statement's
+                // cached index — the difference is most of the decode time.
+                let rows = try Row.fetchCursor(db, sql: sql, arguments: [playlistId.uuidString])
                 var tracks: [Track] = []
-                tracks.reserveCapacity(rows.count)
                 // The same audio file can sit in several folders — the VK
                 // export writes a track into the flat folder and into every
                 // sub-playlist folder it belongs to — and the M3U lists each
@@ -237,7 +239,7 @@ extension DatabaseManager {
                 // wherever it lives, which empties playlists whose own copy
                 // lost the election ("Любимые песни" keeps 5 tracks of 30).
                 var seenGroups = Set<String>()
-                for row in rows {
+                while let row = try rows.next() {
                     // `Track` does not carry the group; the row does, because
                     // the query selects the whole table.
                     if let group = row["duplicate_group_id"] as String?,

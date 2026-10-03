@@ -14,7 +14,14 @@ struct TrackListView: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
 
     let filterItem: LibraryFilterItem?
-    @State private var loadedTracks: [Track] = []
+    @State private var loadedTracks: [Track]?
+
+    private var tracks: [Track] {
+        loadedTracks ?? LibraryScreenCache.shared.trackList(
+            AnyHashable(filterItem.map { "\($0.id)" } ?? "all-tracks"),
+            revision: libraryManager.libraryRevision
+        )?.rows ?? []
+    }
 
     var body: some View {
         TrackListScreen(
@@ -59,9 +66,9 @@ struct TrackListView: View {
         // `safeAreaInset` cut them off at a hard line.
         .safeAreaBar(edge: .top) {
             PlayShuffleRow(
-                onPlay: { playlistManager.playLibrary(loadedTracks) },
-                onShuffle: { playlistManager.shuffleLibrary(loadedTracks) },
-                playDisabled: loadedTracks.isEmpty
+                onPlay: { playlistManager.playLibrary(tracks) },
+                onShuffle: { playlistManager.shuffleLibrary(tracks) },
+                playDisabled: tracks.isEmpty
             )
             .padding(.horizontal, 16)
             .padding(.vertical, 8)

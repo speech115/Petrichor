@@ -143,7 +143,7 @@ struct HomeView: View {
                 tableRowSize: $trackTableRowSize
             ) {
                 Button(action: {
-                    libraryManager.refreshDiscoverTracks()
+                    Task { await libraryManager.refreshDiscoverTracks() }
                 }, label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14))
@@ -195,7 +195,7 @@ struct HomeView: View {
         }
         .onAppear {
             if libraryManager.discoverTracks.isEmpty {
-                libraryManager.loadDiscoverTracks()
+                Task { await libraryManager.loadDiscoverTracks() }
             }
         }
     }

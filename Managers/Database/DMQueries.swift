@@ -672,7 +672,7 @@ extension DatabaseManager {
 
     /// Recently played tracks for the Home carousel, most recent first, with
     /// album thumbnails only (list rows never pull the display-size BLOB).
-    func getRecentlyPlayedTracks(limit: Int = 10) -> [Track] {
+    func getRecentlyPlayedTracks(limit: Int = 10, populateArtwork: Bool = true) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
                 try Track.lightweightRequest()
@@ -682,7 +682,7 @@ extension DatabaseManager {
                     .fetchAll(db)
             }
 
-            populateAlbumArtworkThumbnailsForTracks(&tracks)
+            if populateArtwork { populateAlbumArtworkThumbnailsForTracks(&tracks) }
 
             return tracks
         } catch {

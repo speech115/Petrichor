@@ -1,6 +1,6 @@
 import Foundation
 
-enum LibraryFilterType: String, CaseIterable {
+enum LibraryFilterType: String, CaseIterable, Sendable {
     case artists = "Artists"
     case albums = "Albums"
     case albumArtists = "Album Artists"

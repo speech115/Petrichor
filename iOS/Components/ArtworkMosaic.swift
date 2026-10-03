@@ -14,15 +14,14 @@ struct ArtworkMosaic: View {
     var body: some View {
         Group {
             if covers.count >= 4 {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 2),
-                        GridItem(.flexible(), spacing: 2)
-                    ],
-                    spacing: 2
-                ) {
-                    ForEach(Array(covers.prefix(4).enumerated()), id: \.offset) { _, data in
-                        tile(data)
+                VStack(spacing: 2) {
+                    HStack(spacing: 2) {
+                        tile(covers[0])
+                        tile(covers[1])
+                    }
+                    HStack(spacing: 2) {
+                        tile(covers[2])
+                        tile(covers[3])
                     }
                 }
             } else if let cover = covers.first {
@@ -42,7 +41,7 @@ struct ArtworkMosaic: View {
     /// to bound the grid's row height, so a non-square cover makes the grid
     /// grow past the frame it was given and spill over its neighbours.
     private func tile(_ data: Data) -> some View {
-        ArtworkTile(data: data, cornerRadius: 8)
+        ArtworkTile(data: data, cacheKey: ArtworkTile.dataCacheKey(data), cornerRadius: 8)
             .aspectRatio(1, contentMode: .fit)
     }
 }

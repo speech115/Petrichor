@@ -23,8 +23,7 @@ struct PlaylistsTabView: View {
     @Binding var showingPlaylistImporter: Bool
     @Binding var showingSettings: Bool
 
-    @State private var playlistPreviews: [UUID: [Track]] = [:]
-    @State private var loadTask: Task<Void, Never>?
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
     @Namespace private var zoomNamespace
 
     init(
@@ -39,8 +38,6 @@ struct PlaylistsTabView: View {
         _showingPlaylistImporter = showingPlaylistImporter
         _showingSettings = showingSettings
     }
-
-    private static let previewLimit = 4
 
     var body: some View {
         NavigationStack {
@@ -115,13 +112,6 @@ struct PlaylistsTabView: View {
                     }
                 }
             }
-            .onAppear(perform: scheduleLoad)
-            .onChange(of: playlistCatalog.playlists.count) { _, _ in
-                scheduleLoad()
-            }
-            .onDisappear {
-                loadTask?.cancel()
-            }
         }
     }
 
@@ -187,45 +177,18 @@ struct PlaylistsTabView: View {
             NavigationLink(value: LibraryDestination.playlist(playlist.id)) {
                 PlaylistRowView(
                     playlist: playlist,
-                    previewTracks: playlistPreviews[playlist.id] ?? []
+                    previewTracks: screenCache.playlistPreviews[playlist.id] ?? []
                 )
                 .detailZoomSource(.playlist(playlist.id), in: zoomNamespace, cornerRadius: 8)
+            }
+            .task(id: "\(playlist.dateModified)-\(libraryManager.libraryRevision)") {
+                await LibraryScreenCache.shared.preparePlaylist(playlist, library: libraryManager, manager: playlistManager)
             }
             // Vertical insets are not decoration: at zero the covers of
             // consecutive rows touch, and a column of identical service marks
             // reads as one tall block instead of three rows.
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         }
-    }
-
-    // MARK: - Loading
-
-    private func scheduleLoad() {
-        loadTask?.cancel()
-        loadTask = Task {
-            await load()
-        }
-    }
-
-    private func load() async {
-        if playlistManager.playlists.isEmpty {
-            playlistManager.loadPlaylists()
-        }
-
-        let libraryManager = libraryManager
-        let playlists = displayPlaylists
-        let previewLimit = Self.previewLimit
-
-        let previews = await Task.detached(priority: .userInitiated) {
-            Dictionary(
-                uniqueKeysWithValues: playlists.map {
-                    ($0.id, libraryManager.getPlaylistPreviewTracks($0, limit: previewLimit))
-                }
-            )
-        }.value
-
-        guard !Task.isCancelled else { return }
-        playlistPreviews = previews
     }
 }
 

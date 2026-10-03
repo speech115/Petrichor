@@ -23,71 +23,50 @@ extension LibraryManager {
     
     // MARK: - Methods
     
-    func loadDiscoverTracks(populateArtwork: Bool = true) {
-        var tracks: [Track]
-        
-        if shouldRefreshDiscover() {
-            // Generate new discover list
-            tracks = databaseManager.getDiscoverTracks(
-                limit: discoverTrackCount,
-                populateArtwork: populateArtwork
-            )
-            
-            // Save track IDs
-            let trackIds = tracks.compactMap { $0.trackId }
-            userDefaults.set(trackIds, forKey: Self.discoverTrackIdsKey)
-            userDefaults.set(Date(), forKey: Self.discoverLastUpdatedKey)
-        } else {
-            // Load from saved IDs
-            if let savedIds = userDefaults.array(forKey: Self.discoverTrackIdsKey) as? [Int64] {
-                tracks = databaseManager.getTracks(byIds: savedIds)
-                // Populate album artwork for loaded tracks
-                if populateArtwork {
-                    databaseManager.populateAlbumArtworkForTracks(&tracks)
+    func loadDiscoverTracks(populateArtwork: Bool = true) async {
+        if let pending = discoverLoadTask {
+            await pending.value
+            return
+        }
+        let storedIDs = userDefaults.array(forKey: Self.discoverTrackIdsKey) as? [Int64]
+        let savedIDs = shouldRefreshDiscover() || storedIDs?.isEmpty != false ? nil : storedIDs
+        let count = discoverTrackCount
+        let database = databaseManager
+        let task = Task { @MainActor in
+            let tracks = await Task.detached(priority: .userInitiated) {
+                var rows: [Track]
+                if let savedIDs {
+                    rows = database.getTracks(byIds: savedIDs)
+                    if populateArtwork { database.populateAlbumArtworkForTracks(&rows) }
+                } else {
+                    rows = database.getDiscoverTracks(limit: count, populateArtwork: populateArtwork)
                 }
-            } else {
-                // No saved tracks, generate new
-                tracks = databaseManager.getDiscoverTracks(
-                    limit: discoverTrackCount,
-                    populateArtwork: populateArtwork
-                )
-                
-                // Save track IDs
-                let trackIds = tracks.compactMap { $0.trackId }
-                userDefaults.set(trackIds, forKey: Self.discoverTrackIdsKey)
+                if !populateArtwork {
+                    database.populateAlbumArtworkThumbnailsForTracks(&rows, limit: 4)
+                }
+                return rows
+            }.value
+            guard !Task.isCancelled else { return }
+            if savedIDs == nil, !tracks.isEmpty {
+                userDefaults.set(tracks.compactMap(\.trackId), forKey: Self.discoverTrackIdsKey)
                 userDefaults.set(Date(), forKey: Self.discoverLastUpdatedKey)
             }
+            discoverTracks = tracks
+            discoverLoadTask = nil
+            Logger.info("Discover tracks loaded")
         }
+        discoverLoadTask = task
+        await task.value
+    }
 
-        // iOS mosaic: seed up to four covers from anywhere in the rotation.
-        // macOS Discover passes populateArtwork: true and skips this path.
-        if !populateArtwork {
-            databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)
-        }
-        
-        self.discoverTracks = tracks
-        Logger.info("Discover tracks loaded")
-    }
-    
-    /// Force refresh discover tracks (called when settings change).
-    /// Default keeps macOS Discover table artwork; iOS passes `false`.
-    func refreshDiscoverTracks(populateArtwork: Bool = true) {
-        Logger.info("Force refreshing discover tracks")
-        
-        // Clear the last updated date to force refresh
+    /// Keep the previous selection visible while the replacement is read.
+    func refreshDiscoverTracks(populateArtwork: Bool = true) async {
+        discoverLoadTask?.cancel()
+        discoverLoadTask = nil
         userDefaults.removeObject(forKey: Self.discoverLastUpdatedKey)
-        
-        // Clear current tracks to force UI update
-        self.discoverTracks = []
-        
-        loadDiscoverTracks(populateArtwork: populateArtwork)
-        
-        // Force UI update by triggering objectWillChange
-        DispatchQueue.main.async { [weak self] in
-            self?.objectWillChange.send()
-        }
+        await loadDiscoverTracks(populateArtwork: populateArtwork)
     }
-    
+
     /// Check if discover list needs refresh
     private func shouldRefreshDiscover() -> Bool {
         guard let lastUpdated = userDefaults.object(forKey: Self.discoverLastUpdatedKey) as? Date else {

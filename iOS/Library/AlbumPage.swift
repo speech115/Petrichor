@@ -21,7 +21,7 @@ struct AlbumPage: View {
         TrackListScreen(
             identity: AnyHashable(album.id),
             load: { [libraryManager, album] in libraryManager.getTracksForAlbum(album) },
-            sectioner: Self.discSections,
+            sectioner: { Self.discSections($0) },
             usesPlainStyle: true,
             header: { tracks in
                 header(tracks: tracks)
@@ -50,7 +50,7 @@ struct AlbumPage: View {
 
     /// Disc sections with "Disc N" headers, or one headerless section when the
     /// album is a single disc.
-    private static func discSections(_ tracks: [Track]) -> [IndexedSection<Track>] {
+    nonisolated private static func discSections(_ tracks: [Track]) -> [IndexedSection<Track>] {
         let discs = Dictionary(grouping: tracks, by: { $0.discNumber ?? 1 })
             .sorted { $0.key < $1.key }
         if discs.count > 1 {

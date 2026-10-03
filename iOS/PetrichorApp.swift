@@ -30,6 +30,10 @@ struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
+    // The first frame of Home, Discover and playlist covers is ready before
+    // the tab interface appears; full library lists continue warming afterward.
+    @State private var isInterfacePrepared = false
+
     // The first .active arrives right after launch, when AppCoordinator.init
     // has already kicked off reconciliation; only later transitions back to
     // .active (return from background) are a reconciliation trigger.
@@ -83,10 +87,33 @@ struct PetrichorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(
-                playlistManager: appCoordinator.playlistManager,
-                playbackManager: appCoordinator.playbackManager
-            )
+            Group {
+                if isInterfacePrepared {
+                    ContentView(
+                        playlistManager: appCoordinator.playlistManager,
+                        playbackManager: appCoordinator.playbackManager
+                    )
+                } else {
+                    Color(uiColor: .systemBackground).ignoresSafeArea()
+                }
+            }
+                .task {
+                    guard !isInterfacePrepared else { return }
+                    let cache = LibraryScreenCache.shared
+                    // Independent first-screen preparations overlap their reads
+                    // and decoding instead of extending launch one after another.
+                    async let home = cache.prepareRecentAlbums(appCoordinator.libraryManager)
+                    async let discover: Void = cache.prepareDiscover(appCoordinator.libraryManager)
+                    async let previews: Void = cache.preparePlaylistPreviews(
+                        appCoordinator.playlistManager.playlists,
+                        library: appCoordinator.libraryManager
+                    )
+                    _ = await (home, discover, previews)
+                    guard !Task.isCancelled else { return }
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { isInterfacePrepared = true }
+                }
                 .environmentObject(appCoordinator.playbackManager)
                 .environmentObject(appCoordinator.playbackManager.playbackProgressState)
                 .environmentObject(appCoordinator.libraryManager)

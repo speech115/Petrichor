@@ -121,51 +121,40 @@ extension PlaylistManager {
     /// Load tracks for a single smart playlist on-demand. Rows are list rows:
     /// the display-size artwork pass is skipped. Only the first four album
     /// thumbnails are filled for a possible header mosaic; visible rows load
-    /// their own thumbnails.
-    func loadSmartPlaylistTracks(_ playlist: Playlist) async {
-        guard playlist.type == .smart,
-              let libraryManager = libraryManager else { return }
-
-        // In-flight guard: if a load for this playlist is already running, skip. Otherwise
-        // two near-simultaneous callers both see empty tracks and run the full query twice.
-        let shouldLoad = await MainActor.run { () -> Bool in
-            guard !self.loadingSmartPlaylistIDs.contains(playlist.id) else { return false }
-            self.loadingSmartPlaylistIDs.insert(playlist.id)
-            return true
-        }
-        guard shouldLoad else { return }
-
-        let autoUpdate = playlist.smartCriteria?.autoUpdate ?? true
-        let tracks: [Track]
-
-        if autoUpdate {
-            do {
-                var loaded = try await libraryManager.databaseManager.getTracksForSmartPlaylist(
-                    playlist,
-                    populateArtwork: false
-                )
-                libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&loaded, limit: 4)
-                tracks = loaded
-            } catch {
-                Logger.error("Failed to load tracks for smart playlist '\(playlist.name)': \(error)")
-                await MainActor.run { _ = self.loadingSmartPlaylistIDs.remove(playlist.id) }
-                return
+    /// their own thumbnails. `nonisolated`: the query and row decoding stay
+    /// off the main actor.
+    nonisolated func loadSmartPlaylistTracks(_ playlist: Playlist) async {
+        guard playlist.type == .smart else { return }
+        let task = await MainActor.run { () -> Task<Void, Never>? in
+            if let pending = smartPlaylistLoads[playlist.id] { return pending }
+            guard let database = libraryManager?.databaseManager else { return nil }
+            let task = Task { @MainActor in
+                let tracks = await Task.detached(priority: .userInitiated) { () -> [Track]? in
+                    do {
+                        var rows: [Track]
+                        if playlist.smartCriteria?.autoUpdate ?? true {
+                            rows = try await database.getTracksForSmartPlaylist(playlist, populateArtwork: false)
+                        } else {
+                            rows = database.loadTracksForPlaylist(playlist.id, populateArtwork: false)
+                        }
+                        database.populateAlbumArtworkThumbnailsForTracks(&rows, limit: 4)
+                        return rows
+                    } catch {
+                        Logger.error("Failed to load tracks for smart playlist '\(playlist.name)': \(error)")
+                        return nil
+                    }
+                }.value
+                if let tracks, let index = playlists.firstIndex(where: { $0.id == playlist.id }),
+                   playlists[index].dateModified == playlist.dateModified {
+                    playlists[index].tracks = tracks
+                    playlists[index].trackCount = tracks.count
+                }
+                smartPlaylistLoads[playlist.id] = nil
             }
-        } else {
-            // Frozen: read the persisted one-time snapshot.
-            var loaded = libraryManager.databaseManager.loadTracksForPlaylist(playlist.id, populateArtwork: false)
-            libraryManager.databaseManager.populateAlbumArtworkThumbnailsForTracks(&loaded, limit: 4)
-            tracks = loaded
+            smartPlaylistLoads[playlist.id] = task
+            return task
         }
-
-        await MainActor.run {
-            if let index = self.playlists.firstIndex(where: { $0.id == playlist.id }) {
-                self.playlists[index].tracks = tracks
-                self.playlists[index].trackCount = tracks.count
-                Logger.info("Loaded \(tracks.count) tracks for smart playlist '\(playlist.name)'")
-            }
-            self.loadingSmartPlaylistIDs.remove(playlist.id)
-        }
+        await task?.value
     }
 
     // MARK: - Library-Change Refresh

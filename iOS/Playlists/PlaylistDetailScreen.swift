@@ -21,6 +21,8 @@ struct PlaylistDetailScreen: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
 
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
+
     @State private var showingAddSongs = false
     @State private var missingPaths: Set<String> = []
     @State private var showingRenameAlert = false
@@ -39,6 +41,7 @@ struct PlaylistDetailScreen: View {
                     identity: AnyHashable(tracksTaskID(playlist)),
                     load: { await loadTracks(playlist) },
                     sectioner: { [IndexedSection(key: "", items: $0)] },
+                    initialRows: playlist.tracks.isEmpty && playlist.trackCount > 0 ? nil : playlist.tracks,
                     usesPlainStyle: true,
                     showEmptyState: false,
                     header: { tracks in
@@ -124,7 +127,10 @@ struct PlaylistDetailScreen: View {
         .sheet(isPresented: $showingAddSongs) {
             AddSongsSheet(playlistID: playlistID, playlistManager: playlistManager)
         }
-        .task(id: playlistID) {
+        // Keyed on the loaded track set, not just the playlist: on first open
+        // the tracks arrive after this view appears, and a playlist-only key
+        // would check the still-empty list and never look again.
+        .task(id: playlist.map { "\(tracksTaskID($0))-\($0.tracks.count)" }) {
             await refreshMissingFiles()
         }
         .detailHeaderTint(cacheID: playlistID.uuidString, imageData: playlist?.coverArtworkData, tint: $headerTint)
@@ -174,7 +180,12 @@ struct PlaylistDetailScreen: View {
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
             artwork: {
-                PlaylistArtworkView(playlist: playlist, tracks: tracks, cornerRadius: 12, iconSize: 56)
+                PlaylistArtworkView(
+                    playlist: playlist,
+                    tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
+                    cornerRadius: 12,
+                    iconSize: 56
+                )
                     .frame(width: 280, height: 280)
             }
         )

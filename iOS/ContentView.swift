@@ -27,6 +27,9 @@ struct ContentView: View {
     let playlistManager: PlaylistManager
     let playbackManager: PlaybackManager
     @ObservedObject private var playbackAvailability: PlaybackAvailabilityObservation
+    @ObservedObject private var playlistCatalog: PlaylistCatalogObservation
+
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
 
     @State private var selectedTab: IOSSection = .home
     @State private var homePath: [LibraryDestination] = []
@@ -45,11 +48,30 @@ struct ContentView: View {
         self.playlistManager = playlistManager
         self.playbackManager = playbackManager
         playbackAvailability = playbackManager.availabilityObservation
+        playlistCatalog = playlistManager.catalogObservation
     }
 
     var body: some View {
         mainInterface
         .toastHost(isActive: !showingNowPlaying)
+        .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { _ in
+            screenCache.invalidateTrackLists()
+        }
+        .task(id: "\(libraryManager.libraryRevision)-\(libraryManager.entitiesLoaded)-\(screenCache.trackRevision)") {
+            guard libraryManager.entitiesLoaded else { return }
+            await screenCache.prepareDiscover(libraryManager)
+            if let favorites = playlistManager.playlists.first(where: { $0.name == DefaultPlaylists.favorites }) {
+                await LibraryScreenCache.shared.preparePlaylist(favorites, library: libraryManager, manager: playlistManager)
+            }
+            await LibraryScreenCache.shared.prepareLibrary(libraryManager)
+        }
+        .task(id: LibraryScreenCache.playlistPreviewIdentity(
+            playlistCatalog.playlists,
+            revision: libraryManager.libraryRevision,
+            trackRevision: screenCache.trackRevision
+        )) {
+            await screenCache.preparePlaylistPreviews(playlistCatalog.playlists, library: libraryManager)
+        }
         .environment(\.settingsZoomNamespace, settingsZoomNamespace)
         .sheet(isPresented: $showingSettings) {
             NavigationStack {
