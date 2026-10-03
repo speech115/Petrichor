@@ -35,17 +35,6 @@ struct ArtistPage: View {
                     .listRowBackground(Color.clear)
             }
 
-            if !albums.isEmpty {
-                Section(String(localized: "Albums")) {
-                    ForEach(albums) { album in
-                        NavigationLink(value: LibraryDestination.album(album)) {
-                            albumRow(album)
-                                .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 6)
-                        }
-                    }
-                }
-            }
-
             if !tracks.isEmpty {
                 Section(String(localized: "Tracks")) {
                     ForEach(tracks) { track in
@@ -58,6 +47,15 @@ struct ArtistPage: View {
                         )
                         .equatable()
                     }
+                }
+            }
+
+            if !albums.isEmpty {
+                Section(String(localized: "Albums")) {
+                    albumCarousel
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 }
             }
         }
@@ -126,31 +124,48 @@ struct ArtistPage: View {
 
     @ScaledMetric(relativeTo: .largeTitle) private var initialsSize: CGFloat = 56
 
-    // MARK: - Album Row
+    // MARK: - Album Carousel
 
-    private func albumRow(_ album: AlbumEntity) -> some View {
-        HStack(spacing: 12) {
-            albumArtwork(album)
-                .frame(width: 44, height: 44)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(album.displayName)
-                    .lineLimit(1)
-                Text(albumSubtitle(album))
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+    private var albumCarousel: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: 14) {
+                ForEach(albums) { album in
+                    NavigationLink(value: LibraryDestination.album(album)) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            albumArtwork(album)
+                                .frame(width: Self.albumCardSide, height: Self.albumCardSide)
+                                .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 10)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(album.displayName)
+                                    .font(.subheadline.weight(.semibold))
+                                    .lineLimit(2)
+                                Text(albumSubtitle(album))
+                                    .font(.caption)
+                                    .foregroundColor(.secondaryText)
+                                    .lineLimit(1)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                        .frame(width: Self.albumCardSide, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.horizontal, 16)
         }
     }
+
+    private static let albumCardSide: CGFloat = 170
 
     private func albumArtwork(_ album: AlbumEntity) -> some View {
         ArtworkTile(
             data: album.displayArtwork,
             cacheKey: album.albumId.map(ArtworkCacheKey.album),
+            cornerRadius: 10,
+            iconSize: 36,
             loader: albumArtworkLoader(for: album.albumId)
         )
-            .frame(width: 44, height: 44)
     }
 
     private func albumArtworkLoader(for albumId: Int64?) -> ArtworkDataLoader? {

@@ -54,7 +54,10 @@ struct TrackListView: View {
                 .equatable()
             }
         )
-        .safeAreaInset(edge: .top, spacing: 0) {
+        // A bar with no background of its own: the rows scroll under it and
+        // the system's soft edge effect fades them out, where `.bar` behind a
+        // `safeAreaInset` cut them off at a hard line.
+        .safeAreaBar(edge: .top) {
             PlayShuffleRow(
                 onPlay: { playlistManager.playLibrary(loadedTracks) },
                 onShuffle: { playlistManager.shuffleLibrary(loadedTracks) },
@@ -62,7 +65,6 @@ struct TrackListView: View {
             )
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            .background(.bar)
         }
         .navigationTitle(navigationTitle)
         .toolbarTitleDisplayMode(.inline)

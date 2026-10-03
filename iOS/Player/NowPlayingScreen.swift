@@ -4,6 +4,7 @@
 // The full-screen player, laid out the way Apple Music lays its own out: one
 // artwork-tinted surface edge to edge, a grabber, the cover as the hero, then
 // title, scrubber, transport, volume and the lyrics / AirPlay / queue row.
+// Shuffle and repeat are in the queue panel, as in Apple Music.
 //
 // The surface ignores the safe areas on purpose. The previous version drew
 // its gradient inside a NavigationStack's content area, which left the status
@@ -353,21 +354,29 @@ struct NowPlayingScreen: View {
             )
 
             if let track {
-                chipButton(
-                    icon: track.isFavorite ? Icons.starFill : Icons.star,
-                    label: String(localized: "Favorite"),
-                    isActive: track.isFavorite
-                ) {
-                    UISelectionFeedbackGenerator().selectionChanged()
-                    ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
-                }
+                // A pair, as in Apple Music: the 44 pt hit targets overlap so
+                // the visible 30 pt circles sit 10 pt apart instead of 26.
+                HStack(spacing: -4) {
+                    chipButton(
+                        icon: track.isFavorite ? Icons.starFill : Icons.star,
+                        label: String(localized: "Favorite"),
+                        isActive: track.isFavorite
+                    ) {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
+                    }
 
-                Menu {
-                    TrackMenuContent(track: track, playlistManager: playlistManager)
-                } label: {
-                    chipLabel(icon: "ellipsis", isActive: false)
+                    Menu {
+                        TrackMenuContent(track: track, playlistManager: playlistManager)
+                    } label: {
+                        chipLabel(icon: "ellipsis", isActive: false)
+                    }
+                    .accessibilityLabel(String(localized: "Track menu"))
                 }
-                .accessibilityLabel(String(localized: "Track menu"))
+                // The trailing hit area overhangs the content edge so the
+                // ellipsis circle, not its invisible frame, lines up with
+                // the scrubber's end.
+                .padding(.trailing, -7)
             }
         }
     }
@@ -460,7 +469,7 @@ struct NowPlayingScreen: View {
         switch kind {
         case .queue:
             NowPlayingQueuePanel(
-                accentColor: palette.foreground,
+                palette: palette,
                 playbackManager: playbackManager,
                 playlistManager: playlistManager
             )

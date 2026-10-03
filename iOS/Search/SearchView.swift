@@ -9,8 +9,9 @@
 //
 // Tracks come from the FTS5-backed `LibraryManager.searchResults`; artists
 // and albums are filtered in memory from the cached entity lists, which are
-// small next to 2829 tracks. The query is local state: each keystroke runs
-// the FTS search off the main thread, so typing never blocks the main actor.
+// small next to 2829 tracks. The query is local state, cleared when the app
+// goes to background: each keystroke runs the FTS search off the main
+// thread, so typing never blocks the main actor.
 //
 
 import SwiftUI
@@ -38,6 +39,7 @@ struct SearchView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
+    @Environment(\.scenePhase) private var scenePhase
 
     /// Newline-joined, newest first. Queries never contain a newline: the
     /// search field is single-line.
@@ -45,6 +47,7 @@ struct SearchView: View {
     private var recentSearchesRaw = ""
     @State private var isTabVisible = false
     @State private var query = ""
+    @State private var isSearchPresented = false
     @State private var scope = SearchScope.all
     @FocusState private var isSearchFieldFocused: Bool
     @Namespace private var zoomNamespace
@@ -103,14 +106,18 @@ struct SearchView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                if !trimmedQuery.isEmpty {
-                    scopePicker
+            resultsList
+                // A bar, not a stacked view or `safeAreaInset`: the list
+                // scrolls under it and the system's soft edge effect fades
+                // the rows out behind both it and the search field.
+                .safeAreaBar(edge: .top) {
+                    if !trimmedQuery.isEmpty {
+                        scopePicker
+                    }
                 }
-                resultsList
-            }
                 .searchable(
                     text: $query,
+                    isPresented: $isSearchPresented,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: String(localized: "Search Library")
                 )
@@ -145,6 +152,15 @@ struct SearchView: View {
                     isSearchFieldFocused = true
                 }
                 .onSubmit(of: .search) { rememberQuery() }
+                // A query is for this visit. Coming back to the app later
+                // starts from the empty field; Recent Searches keeps the
+                // query one tap away.
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .background else { return }
+                    query = ""
+                    scope = .all
+                    isSearchPresented = false
+                }
                 .task(id: query) {
                     await libraryManager.search(query: query)
                     // A query that stood still for a moment and found something
