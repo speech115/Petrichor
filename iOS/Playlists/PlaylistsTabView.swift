@@ -129,13 +129,18 @@ struct PlaylistsTabView: View {
         playlistCatalog.playlists.isEmpty
     }
 
-    /// User playlists sorted by their stored name — which keeps the export
-    /// numbering as the order inside each source section even though the
-    /// numbers are not shown.
+    /// Smart playlists in the manager's order, minus Favorites (it lives on
+    /// Home), then user playlists sorted by their stored name — which keeps
+    /// the export numbering as the order inside each source section even
+    /// though the numbers are not shown.
     private var displayPlaylists: [Playlist] {
-        playlistCatalog.playlists
+        let smart = playlistCatalog.playlists.filter {
+            $0.type == .smart && $0.name != DefaultPlaylists.favorites
+        }
+        let regular = playlistCatalog.playlists
             .filter { $0.type == .regular && !PlaylistSource.isHidden($0) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        return smart + regular
     }
 
     /// Each source's playlists: the pinned ones first in their pinned order,
