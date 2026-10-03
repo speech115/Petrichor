@@ -29,6 +29,7 @@ class LibraryManager: ObservableObject {
     }
     @Published var searchResults: [Track] = []
     @Published var discoverTracks: [Track] = []
+    var discoverLoadTask: Task<Void, Never>?
     @Published var pinnedItems: [PinnedItem] = []
     @Published var pendingMergeRequest: MergeRequest?
     @Published internal var cachedArtistEntities: [ArtistEntity] = []
@@ -248,7 +249,7 @@ class LibraryManager: ObservableObject {
                 
                 // Refresh library data so UI can populate (debounced to coalesce with scan completion)
                 scheduleLibraryReload()
-                refreshDiscoverTracks()
+                Task { await refreshDiscoverTracks() }
             }
         }
     }

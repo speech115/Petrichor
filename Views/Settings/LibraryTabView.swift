@@ -114,7 +114,7 @@ struct LibraryTabView: View {
             #endif
 
             if discoverTrackCount != initialDiscoverTrackCount {
-                libraryManager.refreshDiscoverTracks()
+                Task { await libraryManager.refreshDiscoverTracks() }
             }
         }
         .onChange(of: libraryManager.isScanning) { _, newValue in

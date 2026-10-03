@@ -27,6 +27,7 @@ struct DiscoverTabView: View {
                 identity: AnyHashable(libraryManager.discoverLastUpdated),
                 load: { await loadTracks() },
                 sectioner: { [IndexedSection(key: "", items: $0)] },
+                initialRows: libraryManager.discoverTracks.isEmpty ? nil : libraryManager.discoverTracks,
                 usesPlainStyle: true,
                 showEmptyState: false,
                 header: { tracks in
@@ -61,7 +62,10 @@ struct DiscoverTabView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        libraryManager.refreshDiscoverTracks(populateArtwork: false)
+                        Task {
+                            await libraryManager.refreshDiscoverTracks(populateArtwork: false)
+                            await LibraryScreenCache.shared.prepareDiscover(libraryManager)
+                        }
                     } label: {
                         Image(systemName: Icons.arrowClockwise)
                     }
@@ -81,7 +85,7 @@ struct DiscoverTabView: View {
             playDisabled: tracks.isEmpty,
             subtitle: TrackCountText.songs(tracks.count),
             artwork: {
-                ArtworkMosaic(covers: Array(tracks.lazy.compactMap { $0.displayArtwork }.prefix(4)))
+                ArtworkMosaic(covers: PlaylistCover.mosaicCovers(from: tracks))
                     .frame(width: 240, height: 240)
             }
         )
@@ -95,7 +99,7 @@ struct DiscoverTabView: View {
     /// screen grey.
     private func loadTracks() async -> [Track] {
         if libraryManager.discoverTracks.isEmpty {
-            libraryManager.loadDiscoverTracks(populateArtwork: false)
+            await LibraryScreenCache.shared.prepareDiscover(libraryManager)
         }
         return libraryManager.discoverTracks
     }

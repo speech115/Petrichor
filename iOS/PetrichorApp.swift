@@ -30,9 +30,9 @@ struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
-    // Prepare the small Home shelf before presenting the tab interface, so
-    // Favorites never jumps down when recent albums arrive after first paint.
-    @State private var isHomePrepared = false
+    // The first frame of Home, Discover and playlist covers is ready before
+    // the tab interface appears; full library lists continue warming afterward.
+    @State private var isInterfacePrepared = false
 
     // The first .active arrives right after launch, when AppCoordinator.init
     // has already kicked off reconciliation; only later transitions back to
@@ -88,7 +88,7 @@ struct PetrichorApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if isHomePrepared {
+                if isInterfacePrepared {
                     ContentView(
                         playlistManager: appCoordinator.playlistManager,
                         playbackManager: appCoordinator.playbackManager
@@ -98,12 +98,18 @@ struct PetrichorApp: App {
                 }
             }
                 .task {
-                    guard !isHomePrepared else { return }
-                    _ = await LibraryScreenCache.shared.prepareRecentAlbums(appCoordinator.libraryManager)
+                    guard !isInterfacePrepared else { return }
+                    let cache = LibraryScreenCache.shared
+                    _ = await cache.prepareRecentAlbums(appCoordinator.libraryManager)
+                    await cache.prepareDiscover(appCoordinator.libraryManager)
+                    await cache.preparePlaylistPreviews(
+                        appCoordinator.playlistManager.playlists,
+                        library: appCoordinator.libraryManager
+                    )
                     guard !Task.isCancelled else { return }
                     var transaction = Transaction()
                     transaction.disablesAnimations = true
-                    withTransaction(transaction) { isHomePrepared = true }
+                    withTransaction(transaction) { isInterfacePrepared = true }
                 }
                 .environmentObject(appCoordinator.playbackManager)
                 .environmentObject(appCoordinator.playbackManager.playbackProgressState)

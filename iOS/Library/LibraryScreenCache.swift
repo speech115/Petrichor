@@ -19,6 +19,8 @@ final class LibraryScreenCache: ObservableObject {
     private static let recentAlbumLimit = 10
 
     private(set) var recentAlbums: [AlbumEntity]?
+    @Published private(set) var playlistPreviews: [UUID: [Track]] = [:]
+    private var playlistPreviewIdentity: String?
 
     struct Tracks: Sendable {
         let rows: [Track]
@@ -110,6 +112,56 @@ final class LibraryScreenCache: ObservableObject {
         return albums
     }
 
+    /// Prepare the first Discover frame before the tab can be selected.
+    func prepareDiscover(_ library: LibraryManager) async {
+        let revision = library.libraryRevision
+        await library.loadDiscoverTracks(populateArtwork: false)
+        let rows = library.discoverTracks
+        let selectionDate = library.discoverLastUpdated
+        await Self.prepareMosaic(rows)
+        await Self.prepareArtwork(rows, database: library.databaseManager)
+        guard !Task.isCancelled, library.libraryRevision == revision,
+              library.discoverLastUpdated == selectionDate else { return }
+        store(
+            Tracks(rows: rows, sections: [IndexedSection(key: "", items: rows)]),
+            identity: AnyHashable(selectionDate),
+            revision: revision
+        )
+    }
+
+    static func playlistPreviewIdentity(_ playlists: [Playlist], revision: Int, trackRevision: Int) -> String {
+        "\(revision)-\(trackRevision)-" + playlists.map {
+            "\($0.id)-\($0.dateModified.timeIntervalSince1970)-\($0.trackCount)-\($0.name)"
+        }.joined(separator: "|")
+    }
+
+    /// Publish preview data and decoded covers together. The root owns this
+    /// preparation so entering Playlists does not start its first database read.
+    func preparePlaylistPreviews(_ playlists: [Playlist], library: LibraryManager) async {
+        let revision = library.libraryRevision
+        let trackRevision = trackRevision
+        let identity = Self.playlistPreviewIdentity(playlists, revision: revision, trackRevision: trackRevision)
+        guard playlistPreviewIdentity != identity else { return }
+        let previews = await Task.detached(priority: .userInitiated) {
+            Dictionary(uniqueKeysWithValues: playlists.compactMap { playlist -> (UUID, [Track])? in
+                guard playlist.coverArtworkData == nil, PlaylistCover.of(playlist) == nil else { return nil }
+                return (playlist.id, library.getPlaylistPreviewTracks(playlist, limit: 4))
+            })
+        }.value
+        for playlist in playlists {
+            guard !Task.isCancelled else { return }
+            if let data = playlist.coverArtworkData {
+                await ArtworkTile.prewarm(data: data, cacheKey: ArtworkCacheKey.playlist(playlist.id), maxPixelSize: 180)
+            } else if let rows = previews[playlist.id] {
+                await Self.prepareMosaic(rows)
+            }
+        }
+        guard !Task.isCancelled, library.libraryRevision == revision,
+              self.trackRevision == trackRevision else { return }
+        playlistPreviews = previews
+        playlistPreviewIdentity = identity
+    }
+
     /// Called by the parent while the destination is still off-screen.
     func preparePlaylist(_ playlist: Playlist, library: LibraryManager, manager: PlaylistManager) async {
         guard !Task.isCancelled else { return }
@@ -126,11 +178,11 @@ final class LibraryScreenCache: ObservableObject {
               current.dateModified == playlist.dateModified,
               !current.tracks.isEmpty || current.trackCount == 0 else { return }
         let rows = current.tracks
-        await Self.prepareArtwork(rows, database: library.databaseManager)
         if let data = current.coverArtworkData {
             await ArtworkTile.prewarm(data: data, cacheKey: ArtworkCacheKey.playlist(current.id), maxPixelSize: 180)
         }
         await Self.prepareMosaic(rows)
+        await Self.prepareArtwork(rows, database: library.databaseManager)
     }
 
     func prepareLibrary(_ library: LibraryManager) async {

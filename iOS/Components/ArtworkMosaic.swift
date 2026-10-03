@@ -14,15 +14,14 @@ struct ArtworkMosaic: View {
     var body: some View {
         Group {
             if covers.count >= 4 {
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 2),
-                        GridItem(.flexible(), spacing: 2)
-                    ],
-                    spacing: 2
-                ) {
-                    ForEach(Array(covers.prefix(4).enumerated()), id: \.offset) { _, data in
-                        tile(data)
+                VStack(spacing: 2) {
+                    HStack(spacing: 2) {
+                        tile(covers[0])
+                        tile(covers[1])
+                    }
+                    HStack(spacing: 2) {
+                        tile(covers[2])
+                        tile(covers[3])
                     }
                 }
             } else if let cover = covers.first {

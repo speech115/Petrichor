@@ -21,6 +21,8 @@ struct PlaylistDetailScreen: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
 
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
+
     @State private var showingAddSongs = false
     @State private var missingPaths: Set<String> = []
     @State private var showingRenameAlert = false
@@ -178,7 +180,12 @@ struct PlaylistDetailScreen: View {
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
             artwork: {
-                PlaylistArtworkView(playlist: playlist, tracks: tracks, cornerRadius: 12, iconSize: 56)
+                PlaylistArtworkView(
+                    playlist: playlist,
+                    tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
+                    cornerRadius: 12,
+                    iconSize: 56
+                )
                     .frame(width: 280, height: 280)
             }
         )
