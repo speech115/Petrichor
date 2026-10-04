@@ -1,26 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Browse" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Обзор"
-          }
-        }
-      }
-    },
-    "Pinned" : {
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Закреплённое"
-          }
-        }
-      }
-    },
     "Swipe to Change Tracks" : {
       "extractionState" : "manual",
       "localizations" : {

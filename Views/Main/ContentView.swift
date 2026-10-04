@@ -155,6 +155,9 @@ struct ContentView: View {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     selectedTab = .library
                 }
+            } else if newValue.isEmpty && selectedTab == .library {
+                // The column browser has no sidebar row; cleared search goes back home.
+                selectedTab = .home
             }
         }
         .onChange(of: showFoldersTab) { _, newValue in

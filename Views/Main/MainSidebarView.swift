@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The main window's single sidebar, Apple Music style: Discover, the library
-/// sections, pinned items and playlists in one list. Picking a row sets the
-/// section shown in the center and that section's own selection.
+/// The main window's single sidebar, shaped like the iPhone app: Discover and
+/// the playlists in one list. Picking a row sets the section shown in the
+/// center and that section's own selection. Search and library links (an
+/// artist name in a track) open the column browser, which has no row.
 struct MainSidebarView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
@@ -23,28 +24,8 @@ struct MainSidebarView: View {
         List {
             Section {
                 homeRow(HomeSidebarItem(type: .discover))
-            }
-
-            Section(String(localized: "Library")) {
-                homeRow(HomeSidebarItem(type: .tracks))
-                homeRow(HomeSidebarItem(type: .artists))
-                homeRow(HomeSidebarItem(type: .albums))
-                sectionRow(.library, title: String(localized: "Browse"))
                 if showFoldersTab {
                     sectionRow(.folders, title: Sections.folders.label)
-                }
-            }
-
-            if !pinnedItems.isEmpty {
-                Section(String(localized: "Pinned")) {
-                    ForEach(pinnedItems) { item in
-                        homeRow(item)
-                    }
-                    .onMove { offsets, destination in
-                        var reordered = libraryManager.pinnedItems
-                        reordered.move(fromOffsets: offsets, toOffset: destination)
-                        Task { await libraryManager.reorderPinnedItems(reordered) }
-                    }
                 }
             }
 
@@ -78,15 +59,8 @@ struct MainSidebarView: View {
                 selectedHomeItem = HomeSidebarItem(type: .discover)
             }
         }
-        .task(id: collagePlaylistIDs) {
+        .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
-        }
-        .onChange(of: libraryManager.pinnedItems) {
-            // A removed pinned item can't stay selected.
-            if case .pinned(let pinned) = selectedHomeItem?.source,
-               !libraryManager.pinnedItems.contains(where: { $0.id == pinned.id }) {
-                selectedHomeItem = HomeSidebarItem(type: .discover)
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPlaylist)) { notification in
             if let playlistID = notification.userInfo?["playlistID"] as? UUID,
@@ -117,14 +91,9 @@ struct MainSidebarView: View {
     // MARK: - Rows
 
     private func homeRow(_ item: HomeSidebarItem) -> some View {
-        row(item, isSelected: selectedTab == .home && isSelectedHomeItem(item)) {
+        row(item, isSelected: selectedTab == .home && selectedHomeItem?.id == item.id) {
             selectedHomeItem = item
             selectedTab = .home
-        }
-        .contextMenu {
-            ForEach(homeMenuItems(for: item), id: \.id) { menuItem in
-                ContextMenuItemView(item: menuItem)
-            }
         }
     }
 
@@ -203,18 +172,6 @@ struct MainSidebarView: View {
 
     // MARK: - Data
 
-    private var pinnedItems: [HomeSidebarItem] {
-        let playlistsById = Dictionary(playlistManager.playlists.map { ($0.id, $0) }) { first, _ in first }
-        return libraryManager.pinnedItems.map { pinnedItem in
-            let playlist = pinnedItem.playlistId.flatMap { playlistsById[$0] }
-            return HomeSidebarItem(
-                pinnedItem: pinnedItem,
-                playlist: playlist,
-                artworkOverride: playlist.flatMap { collageArtwork[$0.id] }
-            )
-        }
-    }
-
     /// Same rule as the iOS Playlists tab: only Favorites among the built-in
     /// smart playlists. Top 25 Most/Recently Played stay on Home.
     private var displayedPlaylists: [Playlist] {
@@ -224,29 +181,10 @@ struct MainSidebarView: View {
         }
     }
 
-    /// Displayed and pinned playlists — the ones whose rows may need a collage.
-    private var collagePlaylistIDs: [UUID] {
-        let pinned = Set(libraryManager.pinnedItems.compactMap(\.playlistId))
-        let displayed = Set(displayedPlaylists.map(\.id))
-        return playlistManager.playlists.map(\.id).filter { pinned.contains($0) || displayed.contains($0) }
-    }
-
-    private func isSelectedHomeItem(_ item: HomeSidebarItem) -> Bool {
-        switch (selectedHomeItem?.source, item.source) {
-        case let (.fixed(selected)?, .fixed(type)):
-            return selected == type
-        case let (.pinned(selected)?, .pinned(pinned)):
-            return selected.id == pinned.id
-        default:
-            return false
-        }
-    }
-
     private func warmCollageArtwork() async {
         let database = libraryManager.databaseManager
-        let ids = Set(collagePlaylistIDs)
-        let playlists = playlistManager.playlists.filter {
-            ids.contains($0.id) && PlaylistSidebarArtwork.resolve(for: $0) == nil
+        let playlists = displayedPlaylists.filter {
+            PlaylistSidebarArtwork.resolve(for: $0) == nil
         }
         var updates: [UUID: SidebarItemArtwork] = [:]
         for playlist in playlists {
@@ -284,21 +222,6 @@ struct MainSidebarView: View {
 
     // MARK: - Menus
 
-    private func homeMenuItems(for item: HomeSidebarItem) -> [ContextMenuItem] {
-        guard case .pinned(let pinnedItem) = item.source else { return [] }
-
-        if let playlistId = pinnedItem.playlistId,
-           let playlist = playlistManager.playlists.first(where: { $0.id == playlistId }) {
-            return playlistMenuItems(for: playlist)
-        }
-
-        return [
-            .button(title: String(localized: "Remove from Home"), role: nil) {
-                Task { await libraryManager.removePinnedItem(pinnedItem) }
-            }
-        ]
-    }
-
     private func playlistMenuItems(for playlist: Playlist) -> [ContextMenuItem] {
         PlaylistMenuBuilder.items(for: playlist, playlistManager: playlistManager) {
             playlistToDelete = playlist
@@ -307,7 +230,7 @@ struct MainSidebarView: View {
     }
 }
 
-/// A row that opens a whole center section (the column browser, folders).
+/// A row that opens a whole center section (folders).
 private struct SectionSidebarItem: SidebarItem {
     let section: Sections
     let title: String
