@@ -186,9 +186,6 @@ struct PlayerView: View {
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
 
-    @AppStorage("showTrackTechnicalInfo")
-    private var showTrackTechnicalInfo = true
-
     @AppStorage("tintPlaybackControls")
     private var tintPlaybackControls = true
 
@@ -300,8 +297,7 @@ struct PlayerView: View {
         PlayerTrackDetailsView(
             track: playbackManager.currentTrack,
             contextMenuItems: currentTrackContextMenuItems,
-            playlistManager: playlistManager,
-            showTechnicalInfo: showTrackTechnicalInfo
+            playlistManager: playlistManager
         )
         .equatable()
     }
@@ -661,22 +657,19 @@ struct PlayerTrackDetailsView: View, Equatable {
     let track: Track?
     let contextMenuItems: [ContextMenuItem]
     let playlistManager: PlaylistManager
-    let showTechnicalInfo: Bool
 
     static func == (lhs: PlayerTrackDetailsView, rhs: PlayerTrackDetailsView) -> Bool {
         lhs.track?.id == rhs.track?.id &&
-        lhs.track?.isFavorite == rhs.track?.isFavorite &&
-        lhs.showTechnicalInfo == rhs.showTechnicalInfo
+        lhs.track?.isFavorite == rhs.track?.isFavorite
     }
 
-    // When the format badges are hidden, the remaining three rows grow slightly
-    // and spread out so they stay vertically balanced against the album artwork.
-    private var titleFontSize: CGFloat { showTechnicalInfo ? 14 : 16 }
-    private var artistFontSize: CGFloat { showTechnicalInfo ? 12 : 14 }
-    private var albumFontSize: CGFloat { showTechnicalInfo ? 11 : 13 }
-    private var rowSpacing: CGFloat { showTechnicalInfo ? 4 : 10 }
-    private var titleRowHeight: CGFloat { showTechnicalInfo ? 16 : 20 }
-    private var textRowHeight: CGFloat { showTechnicalInfo ? 15 : 18 }
+    // Three rows spread to stay vertically balanced against the album artwork.
+    private let titleFontSize: CGFloat = 16
+    private let artistFontSize: CGFloat = 14
+    private let albumFontSize: CGFloat = 13
+    private let rowSpacing: CGFloat = 10
+    private let titleRowHeight: CGFloat = 20
+    private let textRowHeight: CGFloat = 18
 
     var body: some View {
         VStack(alignment: .leading, spacing: rowSpacing) {
@@ -727,57 +720,8 @@ struct PlayerTrackDetailsView: View, Equatable {
             .contextMenu {
                 TrackContextMenuContent(items: contextMenuItems)
             }
-
-            if showTechnicalInfo {
-                formatBadgeRow
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var formatBadgeRow: some View {
-        HStack(spacing: 4) {
-            if let track = track {
-                if track.isLossless {
-                    LosslessLabel(iconSize: 12, font: .system(size: 10), spacing: 3)
-                }
-                if let codec = track.codecDisplay {
-                    FormatBadge(text: codec)
-                }
-                // No need to show Bitrate for Lossless tracks, as it is pointless
-                if !track.isLossless, let bitrate = track.bitrateDisplay {
-                    FormatBadge(text: bitrate)
-                }
-                if let sampleRate = track.sampleRateDisplay {
-                    FormatBadge(text: sampleRate)
-                }
-                if let channels = track.channelsDisplay {
-                    FormatBadge(text: channels)
-                }
-            }
-        }
-        .frame(height: 15)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-// MARK: - Format Badge
-
-private struct FormatBadge: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium))
-            .foregroundColor(.secondary)
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.secondary.opacity(0.2))
-            )
     }
 }
 

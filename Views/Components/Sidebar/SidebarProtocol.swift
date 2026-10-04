@@ -75,7 +75,7 @@ struct PlaylistSidebarItem: SidebarItem {
 
     init(playlist: Playlist, artworkOverride: SidebarItemArtwork? = nil) {
         self.id = playlist.id
-        self.title = DefaultPlaylists.displayName(for: playlist)
+        self.title = PlaylistDisplay.name(for: playlist)
         self.icon = Icons.defaultPlaylistIcon(for: playlist)
         self.artwork = artworkOverride ?? PlaylistSidebarArtwork.resolve(for: playlist)
         self.playlist = playlist

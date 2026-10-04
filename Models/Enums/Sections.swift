@@ -6,7 +6,6 @@ enum Sections: String, CaseIterable, Identifiable {
     case discover
     case library
     case playlists
-    case folders
     /// Results for the toolbar search field; it has no sidebar row.
     case search
 
@@ -18,7 +17,6 @@ enum Sections: String, CaseIterable, Identifiable {
         case .discover: return String(localized: "Discover")
         case .library: return String(localized: "Library")
         case .playlists: return String(localized: "Playlists")
-        case .folders: return String(localized: "Folders")
         case .search: return String(localized: "Search")
         }
     }
@@ -29,7 +27,6 @@ enum Sections: String, CaseIterable, Identifiable {
         case .discover: return Icons.sparkles
         case .library: return Icons.customMusicNoteRectangleStack
         case .playlists: return Icons.musicNoteList
-        case .folders: return Icons.folder
         case .search: return Icons.magnifyingGlass
         }
     }

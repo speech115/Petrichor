@@ -43,8 +43,6 @@ struct ContentView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
 
-    @AppStorage("showFoldersTab")
-    private var showFoldersTab = false
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
     @AppStorage("tintNowPlayingBackground")
@@ -69,7 +67,6 @@ struct ContentView: View {
 
     // Sidebar selection state (owned here, passed as bindings to sidebars + content views)
     @State private var selectedPlaylist: Playlist?
-    @State private var selectedFolderNode: FolderNode?
     @AppStorage("librarySelectedFilterType")
     private var libraryFilterType: LibraryFilterType = .artists
     @State private var libraryFilterItem: LibraryFilterItem?
@@ -164,13 +161,6 @@ struct ContentView: View {
             } else if newValue.isEmpty && selectedTab == .search {
                 // Search has no sidebar row; a cleared search goes back home.
                 selectedTab = .home
-            }
-        }
-        .onChange(of: showFoldersTab) { _, newValue in
-            if !newValue && selectedTab == .folders {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    selectedTab = .home
-                }
             }
         }
         .background(WindowAccessor(windowDelegate: windowDelegate))
@@ -332,18 +322,6 @@ struct ContentView: View {
             if selectedTab == .playlists {
                 PlaylistsView(selectedPlaylist: $selectedPlaylist)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            if selectedTab == .folders && showFoldersTab {
-                PersistentSplitView(
-                    left: {
-                        FoldersSidebarView(selectedNode: $selectedFolderNode)
-                    },
-                    main: {
-                        FoldersView(selectedFolderNode: $selectedFolderNode)
-                    },
-                    leftStorageKey: "foldersColumnSplitPosition"
-                )
             }
 
             if selectedTab == .search {

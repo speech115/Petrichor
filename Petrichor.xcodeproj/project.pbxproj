@@ -131,8 +131,6 @@
 				Components/Widgets/SearchInputField.swift,
 				Components/Widgets/TabbedButtons.swift,
 				Components/Widgets/VerticalSlider.swift,
-				Folders/FolderSidebarView.swift,
-				Folders/FoldersView.swift,
 				Home/EntityDetailView.swift,
 				Components/DetailPageStyle.swift,
 				Components/EntityTile.swift,

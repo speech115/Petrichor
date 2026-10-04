@@ -283,12 +283,6 @@ class PlaylistManager: ObservableObject {
         let savedRegularPlaylists = savedPlaylists.filter { $0.type == .regular }
         
         playlists = sortPlaylists(smart: savedSmartPlaylists, regular: savedRegularPlaylists)
-        
-        if let favorites = playlists.first(where: {
-            $0.name == DefaultPlaylists.favorites && $0.type == .smart
-        }) {
-            PlaylistSortManager.shared.clearStaleFavoritesDateAddedPreference(for: favorites.id)
-        }
 
         updateSmartPlaylistCounts()
     }

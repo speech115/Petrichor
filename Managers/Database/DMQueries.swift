@@ -36,7 +36,6 @@ extension DatabaseManager {
     /// - mosaic headers (Discover / playlists): pass `limit` as the number of
     ///   covers needed — albums are scanned in track order until that many
     ///   thumbnails are assigned (not a hard `prefix(limit)` of tracks);
-    /// - macOS Folders: uses full `albumArtworkData` via `getTracksForFolder`.
     func populateAlbumArtworkThumbnailsForTracks(_ tracks: inout [Track], limit: Int? = nil) {
         let albumIds: [Int64]
         if let limit {
@@ -706,25 +705,6 @@ extension DatabaseManager {
         }
     }
 
-    func getTracksForFolder(_ folderId: Int64) -> [Track] {
-        do {
-            var tracks = try dbQueue.read { db in
-                try Track.lightweightRequest()
-                    .filter(Track.Columns.folderId == folderId)
-                    .order(Track.Columns.title)
-                    .fetchAll(db)
-            }
-
-            // macOS Folders table reads `albumArtworkData`; iOS has no Folders tab.
-            populateAlbumArtworkForTracks(&tracks)
-
-            return tracks
-        } catch {
-            Logger.error("Failed to fetch tracks for folder: \(error)")
-            return []
-        }
-    }
-    
     /// LIKE pattern for descendants of `folderPath`, escaping wildcards so paths match literally. Use with `ESCAPE '\'`.
     private func descendantLikePattern(for folderPath: String) -> String {
         let escaped = folderPath
@@ -735,7 +715,6 @@ extension DatabaseManager {
     }
 
     /// Get tracks located directly in a folder path (immediate children only, no sub-folders).
-    /// Mirrors `FolderNode.getImmediateTracks` so pinned-folder track lists match the Folders tab.
     func getImmediateTracksForFolderPath(_ folderPath: String) -> [Track] {
         do {
             // The LIKE is a coarse descendant pre-filter; the parent-path match is exact.
@@ -899,27 +878,6 @@ extension DatabaseManager {
             tracksByFilenames: { filenames in await self.tracksByFilenames(filenames) },
             storedFilenames: { await self.storedFilenames() }
         )
-    }
-
-    func getTrackCountsByFolderPath() -> [String: Int] {
-        do {
-            return try dbQueue.read { db in
-                let paths = try applyDuplicateFilter(Track.all())
-                    .select(Track.Columns.path)
-                    .asRequest(of: String.self)
-                    .fetchAll(db)
-
-                var counts: [String: Int] = [:]
-                for path in paths {
-                    let parentPath = URL(fileURLWithPath: path).deletingLastPathComponent().path
-                    counts[parentPath, default: 0] += 1
-                }
-                return counts
-            }
-        } catch {
-            Logger.error("Failed to get track counts by folder path: \(error)")
-            return [:]
-        }
     }
 
     /// Apply duplicate filtering to a Track query if the user preference is enabled

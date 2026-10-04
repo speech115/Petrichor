@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The main window's single sidebar, shaped like the iPhone app: Home,
-/// Discover and the playlists in one list. Picking a row sets the section shown in the
-/// center and that section's own selection. Search and library links (an
-/// artist name in a track) open the column browser, which has no row.
+/// Discover and the playlists in one list, imports grouped under their
+/// service the way the iPhone's Playlists tab groups them. Picking a row sets
+/// the section shown in the center and that section's own selection.
 struct MainSidebarView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
@@ -12,9 +12,6 @@ struct MainSidebarView: View {
     @Binding var selectedPlaylist: Playlist?
     /// Called on every row click, including the already selected row.
     let onSelect: () -> Void
-
-    @AppStorage("showFoldersTab")
-    private var showFoldersTab = false
 
     @State private var hoveredItemID: UUID?
     @State private var collageArtwork: [UUID: SidebarItemArtwork] = [:]
@@ -26,9 +23,6 @@ struct MainSidebarView: View {
             Section {
                 sectionRow(.home)
                 sectionRow(.discover)
-                if showFoldersTab {
-                    sectionRow(.folders)
-                }
             }
 
             Section {
@@ -38,20 +32,21 @@ struct MainSidebarView: View {
                 playlistsHeader
             }
 
+            ForEach(PlaylistSource.allCases, id: \.title) { source in
+                let playlists = source.members(of: displayedPlaylists)
+                if !playlists.isEmpty {
+                    Section(source.title) {
+                        playlistRows(playlists, movable: false)
+                    }
+                }
+            }
+
             let otherImports = displayedPlaylists.filter {
                 PlaylistSource.isImported($0) && PlaylistSource.of($0) == nil
             }
             if !otherImports.isEmpty {
-                Section(String(localized: "Imported from services")) {
+                Section {
                     playlistRows(otherImports)
-                }
-            }
-            ForEach(PlaylistSource.allCases, id: \.title) { source in
-                let playlists = displayedPlaylists.filter { PlaylistSource.of($0) == source }
-                if !playlists.isEmpty {
-                    Section(source.importTitle) {
-                        playlistRows(playlists)
-                    }
                 }
             }
         }
@@ -80,7 +75,7 @@ struct MainSidebarView: View {
             }
         } message: {
             if let playlist = playlistToDelete {
-                Text("Are you sure you want to delete \"\(DefaultPlaylists.displayName(for: playlist))\"? This action cannot be undone.")
+                Text("Are you sure you want to delete \"\(PlaylistDisplay.name(for: playlist))\"? This action cannot be undone.")
             }
         }
     }
@@ -94,7 +89,9 @@ struct MainSidebarView: View {
         }
     }
 
-    private func playlistRows(_ playlists: [Playlist]) -> some View {
+    /// Service sections keep their pinned order, as on the iPhone, so only
+    /// the user's own rows can be dragged.
+    private func playlistRows(_ playlists: [Playlist], movable: Bool = true) -> some View {
         let items = playlists.map {
             PlaylistSidebarItem(playlist: $0, artworkOverride: collageArtwork[$0.id])
         }
@@ -104,7 +101,7 @@ struct MainSidebarView: View {
                 selectedTab = .playlists
                 onSelect()
             }
-            .moveDisabled(!item.playlist.isUserEditable)
+            .moveDisabled(!movable || !item.playlist.isUserEditable)
             .contextMenu {
                 ForEach(playlistMenuItems(for: item.playlist), id: \.id) { menuItem in
                     ContextMenuItemView(item: menuItem)
@@ -161,11 +158,14 @@ struct MainSidebarView: View {
 
     // MARK: - Data
 
-    /// Same rule as the iOS Playlists tab: only Favorites among the built-in
-    /// smart playlists. Top 25 Most/Recently Played stay on Home.
+    /// Same rules as the iOS Playlists tab: only Favorites among the built-in
+    /// smart playlists (Top 25 Most/Recently Played stay on Home), and no
+    /// exports a strict service section leaves out.
     private var displayedPlaylists: [Playlist] {
         playlistManager.playlists.filter { playlist in
-            guard playlist.type == .smart, !playlist.isUserEditable else { return true }
+            guard playlist.type == .smart, !playlist.isUserEditable else {
+                return !PlaylistSource.isHidden(playlist)
+            }
             return playlist.name == DefaultPlaylists.favorites
         }
     }
@@ -219,7 +219,7 @@ struct MainSidebarView: View {
     }
 }
 
-/// A row that opens a whole center section (Home, Discover, folders).
+/// A row that opens a whole center section (Home, Discover).
 private struct SectionSidebarItem: SidebarItem {
     let section: Sections
 

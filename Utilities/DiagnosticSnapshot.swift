@@ -125,8 +125,6 @@ enum DiagnosticSnapshot {
                 "hideDuplicateTracks": defaults.boolOrNull("hideDuplicateTracks")
             ],
             "appearance": [
-                "showFoldersTab": defaults.boolOrNull("showFoldersTab"),
-                "showTrackTechnicalInfo": defaults.boolOrNull("showTrackTechnicalInfo"),
                 "miniPlayerAlwaysOnTop": defaults.boolOrNull("miniPlayerAlwaysOnTop"),
                 "colorMode": defaults.stringOrNull("colorMode"),
                 "useArtworkColors": defaults.boolOrNull("useArtworkColors"),

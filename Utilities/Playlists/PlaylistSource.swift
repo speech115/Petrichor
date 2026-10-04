@@ -50,17 +50,15 @@ enum PlaylistSource: CaseIterable {
     /// the display name (prefix already stripped), case-insensitively.
     var pinned: [PinnedPlaylist] {
         switch self {
-        // The "Spotify - " these carry is the exporter repeating the section
-        // header on every row, so the titles drop it.
         case .spotify:
             return [
-                PinnedPlaylist("Spotify - Liked Songs", title: "Liked Songs", cover: .likedSongs),
+                PinnedPlaylist("Spotify - Liked Songs", cover: .likedSongs),
                 PinnedPlaylist(
                     "Spotify - Любимые песни",
                     title: "Любимые песни (любимого) человека"
                 ),
-                PinnedPlaylist("Spotify - Топ 2020", title: "Топ 2020", cover: .top2020),
-                PinnedPlaylist("Spotify - Shazam", title: "Shazam", cover: .shazam)
+                PinnedPlaylist("Spotify - Топ 2020", cover: .top2020),
+                PinnedPlaylist("Spotify - Shazam", cover: .shazam)
             ]
         case .vk:
             return [
@@ -116,8 +114,26 @@ enum PlaylistSource: CaseIterable {
             || PlaylistDisplay.storedName(for: playlist).caseInsensitiveCompare("Все треки") == .orderedSame
     }
 
-    var importTitle: String {
-        String(localized: "Imported from \(title)")
+    /// This source's playlists out of `playlists`: the pinned ones first in
+    /// their pinned order, then whatever else matched the service by name, in
+    /// the order given. Unpinned exports are appended rather than dropped — a
+    /// playlist that fell out of the pinned list is still in the library and
+    /// still has to be reachable.
+    func members(of playlists: [Playlist]) -> [Playlist] {
+        playlists.filter { Self.of($0) == self }
+            .enumerated()
+            .sorted { lhs, rhs in
+                let left = pinnedIndex(of: lhs.element) ?? Int.max
+                let right = pinnedIndex(of: rhs.element) ?? Int.max
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }
+            .map(\.element)
+    }
+
+    /// Whether `text` names this service.
+    fileprivate func isNamed(in text: String) -> Bool {
+        let text = text.lowercased()
+        return markers.contains { text.contains($0) }
     }
 
     /// Position in `pinned`, or nil when the playlist is not pinned here.
@@ -156,9 +172,17 @@ struct PinnedPlaylist {
 
 enum PlaylistDisplay {
     /// The name to show: the pinned entry's title when it renames the
-    /// playlist, otherwise its own stored name.
+    /// playlist, otherwise its own stored name without the service in front.
+    /// "ВКонтакте - Френки шоу" sits under the VK header, which already says
+    /// where it came from; a name that is only the service ("ВКонтакте") stays.
     static func name(for playlist: Playlist) -> String {
-        PlaylistSource.pinnedEntry(for: playlist)?.title ?? storedName(for: playlist)
+        if let title = PlaylistSource.pinnedEntry(for: playlist)?.title { return title }
+        let stored = storedName(for: playlist)
+        guard let source = PlaylistSource.of(playlist),
+              let dash = stored.range(of: " - "),
+              source.isNamed(in: String(stored[..<dash.lowerBound])),
+              !stored[dash.upperBound...].isEmpty else { return stored }
+        return String(stored[dash.upperBound...])
     }
 
     /// The playlist's own name with the exporter's numeric sort prefix

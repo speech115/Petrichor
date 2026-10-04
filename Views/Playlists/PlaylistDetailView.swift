@@ -144,7 +144,7 @@ struct PlaylistDetailView: View {
                 .foregroundColor(.secondary)
                 .fontWeight(.medium)
 
-            Text(playlist.map(DefaultPlaylists.displayName) ?? "")
+            Text(playlist.map(PlaylistDisplay.name) ?? "")
                 .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
 
@@ -348,8 +348,10 @@ struct PlaylistDetailView: View {
     private func loadSortPreference() {
         let sortManager = PlaylistSortManager.shared
 
-        // If user has explicitly set a sort preference, use it
-        if sortManager.hasSortPreference(for: playlistID) {
+        // Built-in smart playlists (Favorites) always open in their own order,
+        // the one the iPhone shows; a header click re-sorts only until reopened.
+        let isBuiltIn = playlist?.type == .smart && playlist?.isUserEditable == false
+        if !isBuiltIn, sortManager.hasSortPreference(for: playlistID) {
             let field = sortManager.getSortField(for: playlistID)
             if field == .custom {
                 NotificationCenter.default.post(

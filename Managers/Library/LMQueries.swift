@@ -16,16 +16,6 @@ extension LibraryManager {
     // `ArtworkTile` loaders fetch thumbnails as they appear. The display-size
     // BLOB pass stays inside the database for detail/playback only.
 
-    func getTracksInFolder(_ folder: Folder) -> [Track] {
-        guard let folderId = folder.id else {
-            Logger.error("Folder has no ID")
-            return []
-        }
-
-        // macOS Folders view; carries full artwork for the track table.
-        return databaseManager.getTracksForFolder(folderId)
-    }
-
     nonisolated func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
         if filterType.usesMultiArtistParsing && value != filterType.unknownPlaceholder {
             return databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
@@ -205,10 +195,6 @@ extension LibraryManager {
             return items.first { $0.albumId == albumId }?.count ?? 0
         }
         return items.first { $0.name == value }?.count ?? 0
-    }
-
-    func getTrackCountsByFolderPath() -> [String: Int] {
-        databaseManager.getTrackCountsByFolderPath()
     }
 
     func updateSearchResults() {
