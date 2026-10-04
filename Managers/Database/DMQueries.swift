@@ -180,12 +180,16 @@ extension DatabaseManager {
         }
     }
     
-    /// Get tracks for the Discover feature
-    func getDiscoverTracks(limit: Int = 50, populateArtwork: Bool = true) -> [Track] {
+    /// Get tracks for the Discover feature. Favorites and `excluding` (the
+    /// previous rotation) never qualify: Discover is for tracks not yet known.
+    func getDiscoverTracks(limit: Int = 50, excluding previousIds: [Int64] = [], populateArtwork: Bool = true) -> [Track] {
         do {
             return try dbQueue.read { db in
-                var tracks = try Track.all()
-                    .filter(Track.Columns.isDuplicate == false)  // Always exclude duplicates
+                let candidates = Track.all()
+                    .filter(Track.Columns.isDuplicate == false)
+                    .filter(Track.Columns.isFavorite == false)
+                    .filter(!previousIds.contains(Track.Columns.trackId))
+                var tracks = try candidates
                     .filter(Track.Columns.playCount == 0)
                     .order(sql: "RANDOM()")
                     .limit(limit)
@@ -196,8 +200,7 @@ extension DatabaseManager {
                     let remaining = limit - tracks.count
                     let existingIds = Set(tracks.compactMap { $0.trackId })
                     
-                    let additionalTracks = try Track.all()
-                        .filter(Track.Columns.isDuplicate == false)
+                    let additionalTracks = try candidates
                         .filter(!existingIds.contains(Track.Columns.trackId))
                         .order(
                             Track.Columns.lastPlayedDate.asc,
