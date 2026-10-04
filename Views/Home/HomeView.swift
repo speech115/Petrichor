@@ -205,7 +205,7 @@ struct HomeView: View {
     private var tracksView: some View {
         VStack(alignment: .leading, spacing: 0) {
             TrackListHeader(
-                title: String(localized: "All Music"),
+                title: String(localized: "Songs"),
                 sortOrder: $trackTableSortOrder,
                 tableRowSize: $trackTableRowSize
             )

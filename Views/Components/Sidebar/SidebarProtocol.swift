@@ -69,7 +69,7 @@ struct HomeSidebarItem: SidebarItem {
         var title: String {
             switch self {
             case .discover: return String(localized: "Discover")
-            case .tracks: return String(localized: "All Music")
+            case .tracks: return String(localized: "Songs")
             case .artists: return String(localized: "Artists")
             case .albums: return String(localized: "Albums")
             }
@@ -112,7 +112,8 @@ struct HomeSidebarItem: SidebarItem {
         playlist: Playlist? = nil,
         artworkOverride: SidebarItemArtwork? = nil
     ) {
-        self.id = UUID(uuidString: "pinned-\(pinnedItem.id ?? 0)") ?? UUID()
+        // Stable across rebuilds, so selection and hover survive a refresh.
+        self.id = UUID(uuidString: String(format: "00000000-0000-0000-0001-%012llx", pinnedItem.id ?? 0)) ?? UUID()
         self.type = nil
         self.source = .pinned(pinnedItem)
         self.title = playlist.map(DefaultPlaylists.displayName) ?? pinnedItem.displayName

@@ -266,30 +266,12 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder private var leftSidebar: some View {
-        ZStack {
-            HomeSidebarView(selectedItem: $selectedHomeSidebarItem)
-                .opacity(selectedTab == .home ? 1 : 0)
-                .allowsHitTesting(selectedTab == .home)
-
-            if selectedTab == .library {
-                LibrarySidebarView(
-                    selectedFilterType: $libraryFilterType,
-                    selectedFilterItem: $libraryFilterItem,
-                    pendingSearchText: $libraryPendingSearchText,
-                    filteredItems: $libraryFilteredItems,
-                    selectedSidebarItem: $librarySelectedSidebarItem
-                )
-            }
-
-            if selectedTab == .playlists {
-                PlaylistSidebarView(selectedPlaylist: $selectedPlaylist)
-            }
-
-            if selectedTab == .folders {
-                FoldersSidebarView(selectedNode: $selectedFolderNode)
-            }
-        }
+    private var leftSidebar: some View {
+        MainSidebarView(
+            selectedTab: $selectedTab,
+            selectedHomeItem: $selectedHomeSidebarItem,
+            selectedPlaylist: $selectedPlaylist
+        )
     }
 
     private var sectionContent: some View {
@@ -300,14 +282,27 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             if selectedTab == .library {
-                LibraryView(
-                    selectedFilterType: $libraryFilterType,
-                    selectedFilterItem: $libraryFilterItem,
-                    pendingSearchText: $libraryPendingSearchText,
-                    cachedFilteredTracks: $libraryCachedTracks,
-                    pendingFilter: $pendingLibraryFilter
+                PersistentSplitView(
+                    left: {
+                        LibrarySidebarView(
+                            selectedFilterType: $libraryFilterType,
+                            selectedFilterItem: $libraryFilterItem,
+                            pendingSearchText: $libraryPendingSearchText,
+                            filteredItems: $libraryFilteredItems,
+                            selectedSidebarItem: $librarySelectedSidebarItem
+                        )
+                    },
+                    main: {
+                        LibraryView(
+                            selectedFilterType: $libraryFilterType,
+                            selectedFilterItem: $libraryFilterItem,
+                            pendingSearchText: $libraryPendingSearchText,
+                            cachedFilteredTracks: $libraryCachedTracks,
+                            pendingFilter: $pendingLibraryFilter
+                        )
+                    },
+                    leftStorageKey: "libraryColumnSplitPosition"
                 )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             if selectedTab == .playlists {
@@ -316,8 +311,15 @@ struct ContentView: View {
             }
 
             if selectedTab == .folders && showFoldersTab {
-                FoldersView(selectedFolderNode: $selectedFolderNode)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                PersistentSplitView(
+                    left: {
+                        FoldersSidebarView(selectedNode: $selectedFolderNode)
+                    },
+                    main: {
+                        FoldersView(selectedFolderNode: $selectedFolderNode)
+                    },
+                    leftStorageKey: "foldersColumnSplitPosition"
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -360,15 +362,6 @@ struct ContentView: View {
     // MARK: - Toolbar
 
     @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            TabbedButtons(
-                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
-                selection: $selectedTab,
-                animation: .transform,
-                isDisabled: libraryManager.folders.isEmpty
-            )
-        }
-
         // Do not remove this spacer, it allows
         // for pushing toolbar items below to the
         // right-edge of window frame on macOS 14.x
@@ -393,16 +386,6 @@ struct ContentView: View {
 
     @available(macOS 26.0, *)
     @ToolbarContentBuilder private var modernToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            TabbedButtons(
-                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
-                selection: $selectedTab,
-                style: .modern,
-                animation: .transform,
-                isDisabled: libraryManager.folders.isEmpty
-            )
-        }
-
         ToolbarItem(placement: .confirmationAction) {
             NotificationTray()
                 .frame(width: 34, height: 30)
