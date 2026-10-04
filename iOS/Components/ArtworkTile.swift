@@ -121,8 +121,10 @@ struct ArtworkTile: View {
     ) async {
         let key = sizedCacheKey(cacheKey, data: data, maxPixelSize: maxPixelSize)
         guard RowArtworkCache.shared.image(forKey: key) == nil, !Task.isCancelled else { return }
+        // Someone is waiting on a prepared screen; utility QoS let launch-time
+        // background reads and scans run ahead of it.
         let image: UIImage? = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
+            DispatchQueue.global(qos: .userInitiated).async {
                 let image = (data ?? loader?()).flatMap { downsample($0, maxPixelSize: maxPixelSize) }
                 continuation.resume(returning: image)
             }

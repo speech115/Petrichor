@@ -279,8 +279,24 @@ enum DatabaseMigrator {
             Logger.info("v15_date_favorited: column, backfill, Favorites sort newest-first")
         }
 
+        migrator.registerMigration("v16_artwork_read_performance") { db in
+            // Two background jobs (identifiers sort in run order): re-encode
+            // HEIC thumbnails as JPEG, then rebuild albums/artists/tracks with
+            // their artwork BLOBs as the last columns of each row.
+            for identifier in ["v16_background_jpeg_thumbnails", "v16_background_move_artwork_columns_last"] {
+                try db.execute(
+                    sql: "INSERT INTO background_migrations (identifier, resumable) VALUES (?, ?)",
+                    arguments: [identifier, true]
+                )
+            }
+            Logger.info("v16_artwork_read_performance: flagged JPEG thumbnails and artwork column move")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v16_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v17_description") { db in ... }
+        // A column added to albums, artists or tracks lands after their artwork
+        // BLOBs; reading it then walks every BLOB's overflow pages. Rebuild with
+        // `moveColumnsToEnd` instead of a plain ADD COLUMN on those tables.
 
         return migrator
     }
@@ -322,6 +338,114 @@ extension Database {
         }
     }
     
+    /// Rebuilds `table` with `columns` moved, in this order, to the end of each
+    /// row. SQLite stores values in declaration order, and a value behind a large
+    /// BLOB is reached only by walking that BLOB's overflow pages — so a list
+    /// query reading `albums.release_year` paid for every album's full cover.
+    ///
+    /// Call inside a transaction with foreign keys disabled. Rows move in
+    /// batches, each deleted from the old table right after it is copied, so
+    /// the freed pages are reused and the file never holds two copies of the
+    /// table. Triggers are dropped before the copy (an FTS delete trigger
+    /// would empty the search index) and recreated with the indexes afterwards.
+    func moveColumnsToEnd(_ columns: [String], of table: String) throws {
+        let current = try self.columns(in: table).map(\.name)
+        guard Array(current.suffix(columns.count)) != columns else { return }
+
+        guard let createSQL = try String.fetchOne(
+            self,
+            sql: "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?",
+            arguments: [table]
+        ),
+              let open = createSQL.firstIndex(of: "("),
+              let close = createSQL.lastIndex(of: ")") else {
+            throw GRDB.DatabaseError(message: "No table definition for \(table)")
+        }
+        let definitions = Self.topLevelDefinitions(createSQL[createSQL.index(after: open)..<close])
+        func isDefinition(_ definition: String, of column: String) -> Bool {
+            definition.hasPrefix("\"\(column)\"")
+        }
+        let moved = columns.compactMap { column in definitions.first { isDefinition($0, of: column) } }
+        guard moved.count == columns.count else {
+            throw GRDB.DatabaseError(message: "Missing columns \(columns) in \(table)")
+        }
+        let kept = definitions.filter { definition in !columns.contains { isDefinition(definition, of: $0) } }
+
+        let dependents = try Row.fetchAll(
+            self,
+            sql: "SELECT type, name, sql FROM sqlite_master WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL",
+            arguments: [table]
+        )
+        for row in dependents where row["type"] as String == "trigger" {
+            try execute(sql: "DROP TRIGGER \"\(row["name"] as String)\"")
+        }
+        let hasSequence = try tableExists("sqlite_sequence")
+        let sequence = hasSequence
+            ? try Int64.fetchOne(self, sql: "SELECT seq FROM sqlite_sequence WHERE name = ?", arguments: [table])
+            : nil
+
+        let staging = "\(table)_reordered"
+        try execute(sql: "CREATE TABLE \"\(staging)\" (\((kept + moved).joined(separator: ", ")))")
+        let columnList = (current.filter { !columns.contains($0) } + columns)
+            .map { "\"\($0)\"" }
+            .joined(separator: ", ")
+        var lastRowID = Int64.min
+        while let upper = try Int64.fetchOne(
+            self,
+            sql: "SELECT MAX(rowid) FROM (SELECT rowid FROM \"\(table)\" WHERE rowid > ? ORDER BY rowid LIMIT 100)",
+            arguments: [lastRowID]
+        ) {
+            try execute(
+                sql: "INSERT INTO \"\(staging)\" (\(columnList)) SELECT \(columnList) FROM \"\(table)\" WHERE rowid > ? AND rowid <= ?",
+                arguments: [lastRowID, upper]
+            )
+            try execute(sql: "DELETE FROM \"\(table)\" WHERE rowid > ? AND rowid <= ?", arguments: [lastRowID, upper])
+            lastRowID = upper
+        }
+        try execute(sql: "DROP TABLE \"\(table)\"")
+        try execute(sql: "ALTER TABLE \"\(staging)\" RENAME TO \"\(table)\"")
+        for row in dependents {
+            try execute(sql: row["sql"])
+        }
+        // Dropping the table forgot its AUTOINCREMENT high-water mark; keep ids
+        // of deleted rows from being reused.
+        if let sequence {
+            try execute(
+                sql: "UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = ?",
+                arguments: [sequence, table]
+            )
+            if changesCount == 0 {
+                try execute(sql: "INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)", arguments: [table, sequence])
+            }
+        }
+    }
+
+    /// Splits a CREATE TABLE body at commas outside parentheses and quotes.
+    static func topLevelDefinitions(_ body: Substring) -> [String] {
+        var definitions: [String] = []
+        var current = ""
+        var depth = 0
+        var quote: Character?
+        for character in body {
+            if let open = quote {
+                if character == open { quote = nil }
+            } else if character == "\"" || character == "'" {
+                quote = character
+            } else if character == "(" {
+                depth += 1
+            } else if character == ")" {
+                depth -= 1
+            } else if character == ",", depth == 0 {
+                definitions.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current = ""
+                continue
+            }
+            current.append(character)
+        }
+        definitions.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+        return definitions
+    }
+
     /// Helper to drop a column if it exists
     func dropColumnIfExists(table: String, column: String) throws {
         let columns = try self.columns(in: table)

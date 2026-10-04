@@ -85,14 +85,15 @@ private func imageType(of data: Data) -> String? {
     #expect(size == (420, 315))
 }
 
-@Test func thumbnailUsesSupportedEncoding() {
+@Test func thumbnailIsJPEG() {
     let thumbnail = ImageUtils.makeThumbnail(from: makeTestImage(width: 1200, height: 900))
 
     guard let thumbnail else {
         Issue.record("Thumbnail is missing")
         return
     }
-    #expect([UTType.heic.identifier, UTType.jpeg.identifier].contains(imageType(of: thumbnail) ?? ""))
+    #expect(imageType(of: thumbnail) == UTType.jpeg.identifier)
+    #expect(ImageUtils.isJPEG(thumbnail))
 }
 
 

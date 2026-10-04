@@ -136,7 +136,11 @@ extension LibraryManager {
         tracks = []
         libraryRevision += 1
 
-        loadLibraryCategories()
+        // Before launch work starts the category cache is left to
+        // `startLaunchWork(watchFolders:)`.
+        if launchWorkStarted {
+            loadLibraryCategories()
+        }
         updateSearchResults()
         // `updateTotalCounts()` is intentionally not called here: on a cold
         // database the three COUNT queries cost ~750ms, and running them

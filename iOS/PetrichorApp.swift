@@ -7,21 +7,20 @@
 // `AVQueuePlayerBackend` on first playback.
 //
 
+import OSLog
 import SwiftUI
 
-/// The app's brand accent, adaptive to the color scheme. Light mode keeps
-/// the darkened system pink that clears the WCAG AA bar (4.5:1) against the
-/// white Form cells and list backgrounds — system `.pink` measures ~3.6:1
-/// there. Dark mode needs the inverse adjustment: the same pink lands at
-/// ~3.6:1 on the grouped background and ~2.9:1 on inset row cells, so it is
-/// blended 40% toward white, which keeps the hue and clears 4.5:1 on both
-/// (6.2:1 grouped, 5.1:1 rows).
+/// The app's brand accent: Apple Music's red (hue ~352°), adaptive to the
+/// color scheme. Music's own #FA2D48 measures 3.8:1 on white, so light mode
+/// darkens it to #E0243E, clearing the WCAG AA bar (4.5:1) on the white Form
+/// cells and list backgrounds (4.7:1). Dark mode lightens it slightly to
+/// #FA3B53: 5.8:1 on the grouped background, 4.7:1 on inset row cells.
 extension Color {
     static let brandAccent = Color(uiColor: UIColor { traits in
         if traits.userInterfaceStyle == .dark {
-            return UIColor(red: 0.922, green: 0.475, blue: 0.581, alpha: 1)
+            return UIColor(red: 0.980, green: 0.231, blue: 0.325, alpha: 1)
         }
-        return UIColor(red: 0.871, green: 0.122, blue: 0.302, alpha: 1)
+        return UIColor(red: 0.878, green: 0.141, blue: 0.243, alpha: 1)
     })
 }
 
@@ -30,8 +29,9 @@ struct PetrichorApp: App {
     @StateObject private var appCoordinator: AppCoordinator
     @Environment(\.scenePhase) private var scenePhase
 
-    // The first frame of Home, Discover and playlist covers is ready before
-    // the tab interface appears; full library lists continue warming afterward.
+    // Home, the tab on screen at launch, has its first frame ready before the
+    // tab interface appears. Discover and playlist covers follow right after,
+    // then the library's own background work.
     @State private var isInterfacePrepared = false
 
     // The first .active arrives right after launch, when AppCoordinator.init
@@ -41,6 +41,10 @@ struct PetrichorApp: App {
     @State private var playbackSaveTask: Task<Void, Never>?
     @State private var needsPlaybackSave = false
     @State private var backgroundSaveID = UIBackgroundTaskIdentifier.invalid
+    private let launchStart = ContinuousClock.now
+    /// Launch phases as Instruments intervals (Points of Interest); the log
+    /// line below carries the same numbers off a device without Instruments.
+    private static let signposter = OSSignposter(subsystem: "org.Petrichor.ios", category: .pointsOfInterest)
 
     init() {
         #if DEBUG
@@ -63,7 +67,7 @@ struct PetrichorApp: App {
         // iPhone rows load artwork only as they become visible. Keeping every
         // album and artist BLOB in the shared entity cache costs hundreds of
         // megabytes on a real library and makes launch contend with the UI.
-        let coordinator = AppCoordinator(cacheEntityArtwork: false)
+        let coordinator = AppCoordinator(cacheEntityArtwork: false, deferLaunchWork: true)
         _appCoordinator = StateObject(wrappedValue: coordinator)
 
         // Control Center buttons run their intents here, in the app's process.
@@ -73,11 +77,6 @@ struct PetrichorApp: App {
         PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
             playlistManager.playNextTrack()
         }
-
-        // The iOS library is the app's own Documents folder, so it must be
-        // registered on every launch (no picker step). Fire-and-forget; the
-        // coordinator captured the pre-scan folder state before this runs.
-        coordinator.libraryManager.reconcileInBackground()
 
         // Catches the search-index deletions reconciliation never causes on
         // its own: folder removal and entity merges, both of which post
@@ -99,20 +98,38 @@ struct PetrichorApp: App {
             }
                 .task {
                     guard !isInterfacePrepared else { return }
+                    let library = appCoordinator.libraryManager
                     let cache = LibraryScreenCache.shared
-                    // Independent first-screen preparations overlap their reads
-                    // and decoding instead of extending launch one after another.
-                    async let home = cache.prepareRecentAlbums(appCoordinator.libraryManager)
-                    async let discover: Void = cache.prepareDiscover(appCoordinator.libraryManager)
-                    async let previews: Void = cache.preparePlaylistPreviews(
-                        appCoordinator.playlistManager.playlists,
-                        library: appCoordinator.libraryManager
-                    )
-                    _ = await (home, discover, previews)
+                    let homeInterval = Self.signposter.beginInterval("Prepare Home")
+                    _ = await cache.prepareRecentAlbums(library)
+                    Self.signposter.endInterval("Prepare Home", homeInterval)
                     guard !Task.isCancelled else { return }
+                    let homeReady = ContinuousClock.now
                     var transaction = Transaction()
                     transaction.disablesAnimations = true
                     withTransaction(transaction) { isInterfacePrepared = true }
+
+                    // The other tabs are prepared before one can realistically be
+                    // tapped; ContentView's own tasks join these same runs.
+                    async let discover: Void = cache.prepareDiscover(library)
+                    async let previews: Void = cache.preparePlaylistPreviews(
+                        appCoordinator.playlistManager.playlists,
+                        library: library
+                    )
+                    let tabsInterval = Self.signposter.beginInterval("Prepare other tabs")
+                    _ = await (discover, previews)
+                    Self.signposter.endInterval("Prepare other tabs", tabsInterval)
+                    Logger.info(
+                        "Launch: Home ready \((homeReady - launchStart).formatted(.units(allowed: [.milliseconds]))) after app init, "
+                            + "other tabs \((ContinuousClock.now - homeReady).formatted(.units(allowed: [.milliseconds]))) later"
+                    )
+
+                    // Only now the work no screen waits on: it competes for the
+                    // database readers and CPU the preparation above needs. The
+                    // iOS library is the app's own Documents folder, registered
+                    // and reconciled on every launch; it has no folder watcher.
+                    library.startLaunchWork(watchFolders: false)
+                    library.reconcileInBackground()
                 }
                 .environmentObject(appCoordinator.playbackManager)
                 .environmentObject(appCoordinator.playbackManager.playbackProgressState)
