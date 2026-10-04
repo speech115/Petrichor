@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// Which columns a track table opens with.
+enum TrackTableLayout {
+    /// The library columns the user customizes once for every table.
+    case standard
+    /// An album page, as on the iPhone: track number, title, artist and
+    /// duration, without artwork or column headers.
+    case album
+}
+
 struct TrackTableView: View {
     let tracks: [Track]
     let playlistID: UUID?
@@ -7,6 +16,7 @@ struct TrackTableView: View {
     // Queue source recorded when playing from this table (non-playlist tables); folder detail
     // views pass .folder so row playback keeps folder context, matching the header Play/Shuffle.
     let queueSource: PlaylistManager.QueueSource
+    var layout: TrackTableLayout = .standard
     let onPlayTrack: (Track) -> Void
     let contextMenuItems: ([Track], PlaybackManager) -> [ContextMenuItem]
     @Binding var sortOrder: [KeyPathComparator<Track>]
@@ -32,6 +42,21 @@ struct TrackTableView: View {
 
     @AppStorage("trackTableColumnCustomizationData")
     private var columnCustomizationData = Data()
+
+    // ponytail: album column changes last until the page closes; persist them
+    // under their own key if people start customizing album pages.
+    @State private var albumColumnCustomization: TableColumnCustomization<Track> = {
+        var customization = TableColumnCustomization<Track>()
+        customization[visibility: "trackNumber"] = .visible
+        customization[visibility: "album"] = .hidden
+        customization[visibility: "year"] = .hidden
+        return customization
+    }()
+
+    /// Album rows carry no artwork: the cover is already in the page header.
+    private var rowSize: TableRowSize {
+        layout == .album ? .compact : tableRowSize
+    }
 
     private static let trackFont = Font.system(size: 13, weight: .regular)
     private static let currentTrackFont = Font.system(size: 13, weight: .medium)
@@ -142,7 +167,12 @@ struct TrackTableView: View {
     }
 
     private var tableView: some View {
-        Table(sortedTracks, selection: $selection, sortOrder: $sortOrder, columnCustomization: $columnCustomization) {
+        Table(
+            sortedTracks,
+            selection: $selection,
+            sortOrder: $sortOrder,
+            columnCustomization: layout == .album ? $albumColumnCustomization : $columnCustomization
+        ) {
             Group {
                 // Track Number
                 TableColumn("#", value: \.sortableTrackNumber) { track in
@@ -150,9 +180,9 @@ struct TrackTableView: View {
                         .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
                         .foregroundColor(.secondary)
                         .monospacedDigit()
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .width(min: 20)
+                .width(min: 20, ideal: 28, max: 44)
                 .customizationID("trackNumber")
                 .defaultVisibility(.hidden)
 
@@ -185,7 +215,7 @@ struct TrackTableView: View {
                 // Title
                 TableColumn("Title", value: \.title) { track in
                     TrackTitleCell(
-                        tableRowSize: tableRowSize,
+                        tableRowSize: rowSize,
                         track: track,
                         isCurrentTrack: isCurrentTrack(track),
                         isPlaying: isPlaying(track),
@@ -287,13 +317,15 @@ struct TrackTableView: View {
                         .monospacedDigit()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .width(min: 40)
+                .width(min: 40, ideal: 50, max: 100)
                 .customizationID("duration")
                 .defaultVisibility(.visible)
             }
         }
         .scrollContentBackground(.hidden)
-        .environment(\.defaultMinListRowHeight, tableRowSize.rowHeight)
+        .tableColumnHeaders(layout == .album ? .hidden : .visible)
+        .alternatingRowBackgrounds(layout == .album ? .disabled : .enabled)
+        .environment(\.defaultMinListRowHeight, rowSize.rowHeight)
     }
 
     // MARK: - Content

@@ -7,6 +7,7 @@ struct TrackView: View {
     let playlistID: UUID?
     let entityID: UUID?
     var queueSource: PlaylistManager.QueueSource = .library
+    var layout: TrackTableLayout = .standard
     @Binding var sortOrder: [KeyPathComparator<Track>]
     let onPlayTrack: (Track) -> Void
     let contextMenuItems: ([Track], PlaybackManager) -> [ContextMenuItem]
@@ -20,6 +21,7 @@ struct TrackView: View {
             playlistID: playlistID,
             entityID: entityID,
             queueSource: queueSource,
+            layout: layout,
             onPlayTrack: onPlayTrack,
             contextMenuItems: contextMenuItems,
             sortOrder: $sortOrder,

@@ -54,6 +54,7 @@ struct EntityDetailView: View {
                     playlistID: nil,
                     entityID: entity.id,
                     queueSource: queueSource,
+                    layout: entity is AlbumEntity ? .album : .standard,
                     sortOrder: $trackTableSortOrder,
                     onPlayTrack: { track in
                         playTrack(track)
