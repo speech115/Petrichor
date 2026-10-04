@@ -8795,6 +8795,12 @@
     },
     "Title" : {
       "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Название"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
