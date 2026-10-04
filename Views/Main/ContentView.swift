@@ -61,6 +61,8 @@ struct ContentView: View {
     // Toolbar state captured before immersive hides it, so closing restores it.
     @State private var immersiveToolbarWasVisible = true
     @State private var pendingLibraryFilter: LibraryFilterRequest?
+    /// An album or artist page shown over the current section, with a back button.
+    @State private var detailEntity: (any Entity)?
     @State private var windowDelegate = WindowDelegate()
     @State private var shouldFocusSearch = false
     @State private var showingExportPlaylistSheet = false
@@ -137,7 +139,7 @@ struct ContentView: View {
             shouldFocusSearch: $shouldFocusSearch,
             showingSettings: $showingSettings,
             selectedTab: $selectedTab,
-            pendingLibraryFilter: $pendingLibraryFilter,
+            goToLibraryFilter: goToLibraryFilter,
             showTrackDetail: showTrackDetail
         )
         .onChange(of: playbackManager.currentTrack?.id) { oldId, _ in
@@ -147,10 +149,17 @@ struct ContentView: View {
                 rightSidebarContent = .trackDetail(newTrack)
             }
         }
+        .onChange(of: selectedTab) {
+            // Any section change (a new playlist, a search) leaves the page.
+            detailEntity = nil
+        }
         .onChange(of: rightSidebarContent) { _, newValue in
             mainWindowPanelState = MainWindowPanelState(content: newValue)
         }
         .onChange(of: libraryManager.globalSearchText) { _, newValue in
+            if !newValue.isEmpty {
+                detailEntity = nil
+            }
             if !newValue.isEmpty && selectedTab != .library {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     selectedTab = .library
@@ -274,7 +283,9 @@ struct ContentView: View {
             selectedTab: $selectedTab,
             selectedHomeItem: $selectedHomeSidebarItem,
             selectedPlaylist: $selectedPlaylist
-        )
+        ) {
+            detailEntity = nil
+        }
     }
 
     private var sectionContent: some View {
@@ -323,6 +334,13 @@ struct ContentView: View {
                     },
                     leftStorageKey: "foldersColumnSplitPosition"
                 )
+            }
+
+            if let entity = detailEntity {
+                EntityDetailView(entity: entity) {
+                    detailEntity = nil
+                }
+                .id(entity.id)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -493,6 +511,32 @@ struct ContentView: View {
 
     // MARK: - Helper Methods
 
+    /// Artists and albums open their own page, as on the iPhone; other filters
+    /// (genres, years, composers) open the column browser.
+    private func goToLibraryFilter(_ filterType: LibraryFilterType, value: String) {
+        if let entity = detailPage(for: filterType, value: value) {
+            detailEntity = entity
+            return
+        }
+        detailEntity = nil
+        withAnimation(.easeInOut(duration: AnimationDuration.standardDuration)) {
+            selectedTab = .library
+            pendingLibraryFilter = LibraryFilterRequest(filterType: filterType, value: value)
+        }
+    }
+
+    private func detailPage(for filterType: LibraryFilterType, value: String) -> (any Entity)? {
+        switch filterType {
+        case .artists:
+            return libraryManager.artistEntities.first { $0.name == value }
+                ?? ArtistEntity(name: value, trackCount: 0)
+        case .albums:
+            return libraryManager.albumEntities.first { $0.name == value }
+        default:
+            return nil
+        }
+    }
+
     private func showTrackDetail(for track: Track) {
         rightSidebarContent = .trackDetail(track)
     }
@@ -519,7 +563,7 @@ extension View {
         shouldFocusSearch: Binding<Bool>,
         showingSettings: Binding<Bool>,
         selectedTab: Binding<Sections>,
-        pendingLibraryFilter: Binding<LibraryFilterRequest?>,
+        goToLibraryFilter: @escaping (LibraryFilterType, String) -> Void,
         showTrackDetail: @escaping (Track) -> Void
     ) -> some View {
         self
@@ -529,10 +573,7 @@ extension View {
             .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
                 if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,
                    let filterValue = notification.userInfo?["filterValue"] as? String {
-                    withAnimation(.easeInOut(duration: AnimationDuration.standardDuration)) {
-                        selectedTab.wrappedValue = .library
-                        pendingLibraryFilter.wrappedValue = LibraryFilterRequest(filterType: filterType, value: filterValue)
-                    }
+                    goToLibraryFilter(filterType, filterValue)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowTrackInfo"))) { notification in

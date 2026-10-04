@@ -11,6 +11,8 @@ struct MainSidebarView: View {
     @Binding var selectedTab: Sections
     @Binding var selectedHomeItem: HomeSidebarItem?
     @Binding var selectedPlaylist: Playlist?
+    /// Called on every row click, including the already selected row.
+    let onSelect: () -> Void
 
     @AppStorage("showFoldersTab")
     private var showFoldersTab = false
@@ -94,12 +96,14 @@ struct MainSidebarView: View {
         row(item, isSelected: selectedTab == .home && selectedHomeItem?.id == item.id) {
             selectedHomeItem = item
             selectedTab = .home
+            onSelect()
         }
     }
 
     private func sectionRow(_ section: Sections, title: String) -> some View {
         row(SectionSidebarItem(section: section, title: title), isSelected: selectedTab == section) {
             selectedTab = section
+            onSelect()
         }
     }
 
@@ -111,6 +115,7 @@ struct MainSidebarView: View {
             row(item, isSelected: selectedTab == .playlists && selectedPlaylist?.id == item.playlist.id) {
                 selectedPlaylist = item.playlist
                 selectedTab = .playlists
+                onSelect()
             }
             .moveDisabled(!item.playlist.isUserEditable)
             .contextMenu {
