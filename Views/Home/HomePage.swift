@@ -12,8 +12,6 @@ struct HomePage: View {
 
     @State private var recentAlbums: [AlbumEntity] = []
 
-    private static let tileSize: CGFloat = 160
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
@@ -59,48 +57,11 @@ struct HomePage: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 16) {
                     ForEach(recentAlbums) { album in
-                        Button { onOpenAlbum(album) } label: {
-                            albumTile(album)
-                        }
-                        .buttonStyle(.plain)
+                        EntityTile(entity: album, subtitle: album.artistName) { onOpenAlbum(album) }
                     }
                 }
             }
         }
-    }
-
-    private func albumTile(_ album: AlbumEntity) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Group {
-                if let data = album.displayArtwork, let image = PlatformImage(data: data) {
-                    Image(platformImage: image)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Rectangle()
-                        .fill(Color.secondary.opacity(0.2))
-                        .overlay(
-                            Image(systemName: Icons.opticalDiscFill)
-                                .font(.system(size: 36))
-                                .foregroundStyle(.secondary)
-                        )
-                }
-            }
-            .frame(width: Self.tileSize, height: Self.tileSize)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(album.displayName)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(album.artistName ?? "")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            .lineLimit(1)
-        }
-        .frame(width: Self.tileSize, alignment: .leading)
-        .contentShape(Rectangle())
     }
 
     // MARK: - Favorites

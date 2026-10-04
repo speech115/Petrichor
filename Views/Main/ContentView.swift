@@ -159,12 +159,10 @@ struct ContentView: View {
             if !newValue.isEmpty {
                 detailEntity = nil
             }
-            if !newValue.isEmpty && selectedTab != .library {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    selectedTab = .library
-                }
-            } else if newValue.isEmpty && selectedTab == .library {
-                // The column browser has no sidebar row; cleared search goes back home.
+            if !newValue.isEmpty && selectedTab != .search {
+                selectedTab = .search
+            } else if newValue.isEmpty && selectedTab == .search {
+                // Search has no sidebar row; a cleared search goes back home.
                 selectedTab = .home
             }
         }
@@ -346,6 +344,10 @@ struct ContentView: View {
                     },
                     leftStorageKey: "foldersColumnSplitPosition"
                 )
+            }
+
+            if selectedTab == .search {
+                SearchPage { detailEntity = $0 }
             }
 
             if let entity = detailEntity {
