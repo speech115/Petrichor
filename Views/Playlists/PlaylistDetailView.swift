@@ -172,18 +172,19 @@ struct PlaylistDetailView: View {
         PlayShuffleButtons(
             onPlay: { playPlaylist() },
             onShuffle: { playPlaylist(shuffle: true) },
-            isDisabled: playlist?.trackCount == 0
-        ) {
-            if playlist?.type == .regular {
-                Button(action: editRegularPlaylist) {
-                    Label("Edit", systemImage: Icons.edit)
-                }
-            } else if playlist?.type == .smart && playlist?.isUserEditable == true {
-                Button(action: editSmartPlaylistRules) {
-                    Label("Edit", systemImage: Icons.edit)
+            isDisabled: playlist?.trackCount == 0,
+            extra: {
+                if playlist?.type == .regular {
+                    Button(action: editRegularPlaylist) {
+                        Label("Edit", systemImage: Icons.edit)
+                    }
+                } else if playlist?.type == .smart && playlist?.isUserEditable == true {
+                    Button(action: editSmartPlaylistRules) {
+                        Label("Edit", systemImage: Icons.edit)
+                    }
                 }
             }
-        }
+        )
     }
 
     // MARK: - Playlist Content

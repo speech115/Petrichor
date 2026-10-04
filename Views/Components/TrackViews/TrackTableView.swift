@@ -17,6 +17,8 @@ struct TrackTableView: View {
     // views pass .folder so row playback keeps folder context, matching the header Play/Shuffle.
     let queueSource: PlaylistManager.QueueSource
     var layout: TrackTableLayout = .standard
+    /// False leaves the "#" column blank: the tags' numbers aren't real track numbers.
+    var showsTrackNumbers = true
     let onPlayTrack: (Track) -> Void
     let contextMenuItems: ([Track], PlaybackManager) -> [ContextMenuItem]
     @Binding var sortOrder: [KeyPathComparator<Track>]
@@ -176,7 +178,7 @@ struct TrackTableView: View {
             Group {
                 // Track Number
                 TableColumn("#", value: \.sortableTrackNumber) { track in
-                    Text(track.trackNumber.map(String.init) ?? "")
+                    Text(showsTrackNumbers ? track.trackNumber.map(String.init) ?? "" : "")
                         .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
                         .foregroundColor(.secondary)
                         .monospacedDigit()

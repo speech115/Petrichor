@@ -111,7 +111,7 @@ struct AlbumPage: View {
             playlistManager: playlistManager,
             libraryManager: libraryManager,
             playbackManager: playbackManager,
-            showsTrackNumber: true
+            showsTrackNumber: Track.hasPlausibleTrackNumbers(context)
         )
         .equatable()
         .listRowBackground(Color.clear)

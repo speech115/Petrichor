@@ -391,3 +391,22 @@ extension Track {
         }
     }
 }
+
+// MARK: - Album Track Numbers
+
+extension Track {
+    /// Whether the tags' track numbers can number an album's tracks: every
+    /// track has one, none repeats within a disc, and none is above 40.
+    /// Files downloaded from services often carry their position in a source
+    /// playlist instead (77, 470), which must not show as track numbers.
+    // ponytail: a fixed 40 without the tagged track total (not loaded into
+    // `Track`); read `total_tracks` if real albums longer than 40 show up.
+    static func hasPlausibleTrackNumbers(_ tracks: [Track]) -> Bool {
+        var seen = Set<[Int]>()
+        for track in tracks {
+            guard let number = track.trackNumber, (1...40).contains(number),
+                  seen.insert([track.discNumber ?? 1, number]).inserted else { return false }
+        }
+        return true
+    }
+}

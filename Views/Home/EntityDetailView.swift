@@ -9,6 +9,7 @@ struct EntityDetailView: View {
     @State private var tracks: [Track] = []
     @State private var selectedTrackID: String?
     @State private var isLoading = true
+    @State private var showsTrackNumbers = true
     @State private var isBackButtonHovered = false
     @State private var isArtworkHovered = false
     @State private var showingImagePicker = false
@@ -53,6 +54,7 @@ struct EntityDetailView: View {
                     entityID: entity.id,
                     queueSource: queueSource,
                     layout: entity is AlbumEntity ? .album : .standard,
+                    showsTrackNumbers: showsTrackNumbers,
                     sortOrder: $trackTableSortOrder,
                     onPlayTrack: { track in
                         playTrack(track)
@@ -462,10 +464,11 @@ extension EntityDetailView {
             fetchedTracks = []
         }
 
-        // Albums with full track numbering force disc/track ordering; everything
-        // else follows the user's saved global sort.
+        // Albums with real track numbering force disc/track ordering and show the
+        // numbers; everything else follows the user's saved global sort.
         let hasCompleteAlbumOrdering = entity is AlbumEntity
-            && fetchedTracks.allSatisfy { ($0.trackNumber ?? 0) > 0 }
+            && Track.hasPlausibleTrackNumbers(fetchedTracks)
+        showsTrackNumbers = hasCompleteAlbumOrdering
 
         if hasCompleteAlbumOrdering {
             trackTableSortOrder = [
