@@ -16,13 +16,9 @@ struct HomeTabView: View {
     @Binding var showingSettings: Bool
 
     @State private var showingAddMusic = false
-    @State private var recentAlbums: [AlbumEntity] = []
+    @State private var recentAlbums = LibraryScreenCache.shared.recentAlbums ?? []
     @State private var loadTask: Task<Void, Never>?
     @Namespace private var zoomNamespace
-
-    /// Tracks fetched per refresh; the grouping caps the shelf itself.
-    private static let recentTracksFetchLimit = 100
-    private static let albumShelfLimit = 10
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -176,32 +172,13 @@ struct HomeTabView: View {
             playlistManager.loadPlaylists()
         }
 
-        let libraryManager = libraryManager
-        let fetchLimit = Self.recentTracksFetchLimit
-        let albumLimit = Self.albumShelfLimit
-        // Read on the main actor before detaching: `albumEntities` mirrors real
-        // `@Published` state, unlike the query wrappers below (which are `nonisolated`
-        // because they touch only the `Sendable` `databaseManager`).
-        let albumEntities = libraryManager.albumEntities
-
-        let loaded = await Task.detached(priority: .userInitiated) {
-            let recentTracks = libraryManager.getRecentlyPlayedTracks(limit: fetchLimit)
-            let albumCounts = Dictionary(
-                albumEntities.compactMap { entity in
-                    entity.albumId.map { ($0, entity.trackCount) }
-                },
-                uniquingKeysWith: { first, _ in first }
-            )
-            let albums = RecentAlbumsShelf.albums(
-                from: recentTracks,
-                limit: albumLimit,
-                trackCountsByAlbumID: albumCounts
-            )
-            return albums
-        }.value
-
-        guard !Task.isCancelled else { return }
-        recentAlbums = loaded
+        guard let albums = await LibraryScreenCache.shared.prepareRecentAlbums(libraryManager),
+              !Task.isCancelled else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            recentAlbums = albums
+        }
     }
 }
 

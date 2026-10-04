@@ -15,6 +15,8 @@ struct IndexedSection<Item: Identifiable>: Identifiable {
     var id: String { key }
 }
 
+extension IndexedSection: Sendable where Item: Sendable {}
+
 enum IndexedListSectionFactory {
     /// Clearance so the last row sits above ContentView's floating tab bar.
     /// Owned by the host chrome, not IndexedList itself.

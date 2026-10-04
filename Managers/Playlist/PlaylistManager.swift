@@ -139,11 +139,11 @@ class PlaylistManager: ObservableObject {
     /// Smart playlists whose tracks are currently being loaded, to collapse concurrent
     /// duplicate loads (e.g. PlaylistDetailView firing onAppear + onChange together).
     /// Mutated only on the main actor.
-    internal var loadingSmartPlaylistIDs: Set<UUID> = []
+    internal var smartPlaylistLoads: [UUID: Task<Void, Never>] = [:]
     /// Regular playlists use the same single-flight rule. A list reload can
     /// overlap its initial `.task`; both callers otherwise materialize the same
     /// track and artwork arrays at once.
-    internal var loadingRegularPlaylistIDs: Set<UUID> = []
+    internal var regularPlaylistLoads: [UUID: Task<Void, Never>] = [:]
 
     /// Context menus ask the same membership question for every visible row.
     /// Keep one ID set per loaded playlist so those checks stay O(1) instead of
@@ -298,32 +298,32 @@ class PlaylistManager: ObservableObject {
     /// thumbnails are filled for a possible header mosaic; visible rows load
     /// their own thumbnails. Reads stay off the main thread; every access to
     /// `playlists` is isolated via `MainActor.run` (mirrors
-    /// `loadSmartPlaylistTracks`).
-    func loadPlaylistTracks(for playlistId: UUID) async {
-        guard let dbManager = libraryManager?.databaseManager else { return }
-
-        let shouldLoad = await MainActor.run { () -> Bool in
-            guard let playlist = playlists.first(where: { $0.id == playlistId }),
-                  playlist.type == .regular,
-                  playlist.tracks.isEmpty,
-                  !loadingRegularPlaylistIDs.contains(playlistId) else { return false }
-            loadingRegularPlaylistIDs.insert(playlistId)
-            return true
-        }
-        guard shouldLoad else { return }
-
-        var tracks = dbManager.loadTracksForPlaylist(playlistId, populateArtwork: false)
-        dbManager.populateAlbumArtworkThumbnailsForTracks(&tracks, limit: 4)
-        let loadedTracks = tracks
-
-        await MainActor.run {
-            if let index = playlists.firstIndex(where: { $0.id == playlistId }) {
-                playlists[index].tracks = loadedTracks
+    /// `loadSmartPlaylistTracks`). `nonisolated` so the read and the row
+    /// decoding (1000+ rows) run off the main actor; the class is `@MainActor`.
+    nonisolated func loadPlaylistTracks(for playlistId: UUID) async {
+        let task = await MainActor.run { () -> Task<Void, Never>? in
+            if let pending = regularPlaylistLoads[playlistId] { return pending }
+            guard let dbManager = libraryManager?.databaseManager,
+                  let playlist = playlists.first(where: { $0.id == playlistId }),
+                  playlist.type == .regular, playlist.tracks.isEmpty else { return nil }
+            let task = Task { @MainActor in
+                let tracks = await Task.detached(priority: .userInitiated) {
+                    var rows = dbManager.loadTracksForPlaylist(playlistId, populateArtwork: false)
+                    dbManager.populateAlbumArtworkThumbnailsForTracks(&rows, limit: 4)
+                    return rows
+                }.value
+                if let index = playlists.firstIndex(where: { $0.id == playlistId }),
+                   playlists[index].dateModified == playlist.dateModified {
+                    playlists[index].tracks = tracks
+                }
+                regularPlaylistLoads[playlistId] = nil
             }
-            loadingRegularPlaylistIDs.remove(playlistId)
+            regularPlaylistLoads[playlistId] = task
+            return task
         }
+        await task?.value
     }
-    
+
     /// Get tracks for a playlist, loading them if needed. Async: the load
     /// path is the same `loadPlaylistTracks` used by the list screens, which
     /// never pulls the display-size artwork BLOBs (export and automation

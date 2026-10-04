@@ -17,7 +17,10 @@ struct TrackListScreen<Header: View, Row: View>: View {
     /// Loads the rows for the current identity, off the main thread.
     let load: @Sendable () async -> [Track]
     /// Groups loaded rows into list sections (index letters, discs, one blob).
-    let sectioner: ([Track]) -> [IndexedSection<Track>]
+    let sectioner: @Sendable ([Track]) -> [IndexedSection<Track>]
+    /// Live manager-owned rows, when available, remain authoritative for
+    /// playlists whose membership can change without a library revision.
+    var initialRows: [Track]? = nil
     /// Whether the alphabet index bar is shown (multi-section lists only).
     var isIndexed = false
     /// `.plain` for single-section lists, `.insetGrouped` otherwise.
@@ -43,9 +46,21 @@ struct TrackListScreen<Header: View, Row: View>: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @State private var tracks: [Track] = []
-    @State private var sections: [IndexedSection<Track>] = []
-    @State private var loadTask: Task<Void, Never>?
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
+
+    @State private var snapshot: LibraryScreenCache.Tracks?
+    @State private var snapshotIdentity: AnyHashable?
+
+    private var presentation: LibraryScreenCache.Tracks? {
+        if let initialRows {
+            return LibraryScreenCache.Tracks(rows: initialRows, sections: sectioner(initialRows))
+        }
+        if snapshotIdentity == identity, let snapshot { return snapshot }
+        return LibraryScreenCache.shared.trackList(identity, revision: libraryManager.libraryRevision)
+    }
+
+    private var tracks: [Track] { presentation?.rows ?? [] }
+    private var sections: [IndexedSection<Track>] { presentation?.sections ?? [] }
     @State private var isLoading = true
     @State private var showsSpinner = false
     @State private var spinnerTask: Task<Void, Never>?
@@ -70,7 +85,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
             }
         }
         .overlay {
-            if showsSpinner, sections.isEmpty, libraryManager.shouldShowMainUI {
+            if presentation == nil, showsSpinner, sections.isEmpty, libraryManager.shouldShowMainUI {
                 ProgressView()
                     .transition(.opacity)
             } else if !isLoading, showEmptyState, sections.isEmpty, libraryManager.shouldShowMainUI {
@@ -78,14 +93,14 @@ struct TrackListScreen<Header: View, Row: View>: View {
                     .transition(.opacity)
             }
         }
-        .task(id: identity) {
+        .task(id: ReloadKey(
+            identity: identity,
+            revision: libraryManager.libraryRevision,
+            trackRevision: screenCache.trackRevision
+        )) {
             await loadRows()
         }
-        .onChange(of: libraryManager.libraryRevision) { _, _ in
-            scheduleLoad()
-        }
         .onDisappear {
-            loadTask?.cancel()
             spinnerTask?.cancel()
         }
     }
@@ -102,7 +117,7 @@ struct TrackListScreen<Header: View, Row: View>: View {
 
     private var listBody: some View {
         List {
-            if showsHeader {
+            if showsHeader, presentation != nil {
                 Section {
                     header(tracks)
                 } header: {
@@ -129,35 +144,48 @@ struct TrackListScreen<Header: View, Row: View>: View {
         }
     }
 
-    private func scheduleLoad() {
-        loadTask?.cancel()
-        loadTask = Task {
-            await loadRows()
-        }
+    private struct ReloadKey: Equatable {
+        let identity: AnyHashable
+        let revision: Int
+        let trackRevision: Int
     }
 
     private func loadRows() async {
         isLoading = true
         scheduleSpinner()
 
-        let loader = load
-        let loaded = await Task.detached(priority: .userInitiated) {
-            await loader()
-        }.value
-
+        let revision = libraryManager.libraryRevision
+        let trackRevision = screenCache.trackRevision
+        let requestedIdentity = identity
+        let prepared: LibraryScreenCache.Tracks
+        if initialRows == nil, let cached = LibraryScreenCache.shared.trackList(identity, revision: revision) {
+            prepared = cached
+        } else {
+            let loader = load
+            let sectioner = sectioner
+            prepared = await Task.detached(priority: .userInitiated) {
+                let rows = await loader()
+                return LibraryScreenCache.Tracks(rows: rows, sections: sectioner(rows))
+            }.value
+            await LibraryScreenCache.prepareArtwork(
+                prepared.sections.flatMap(\.items), database: libraryManager.databaseManager
+            )
+        }
+        guard !Task.isCancelled, libraryManager.libraryRevision == revision,
+              screenCache.trackRevision == trackRevision else { return }
         spinnerTask?.cancel()
-        guard !Task.isCancelled else { return }
-        // Publish without animation: list pop-in during a zoom push is the
-        // hitch. Spinner hide stays unanimated for the same reason.
+        if initialRows == nil {
+            LibraryScreenCache.shared.store(prepared, identity: requestedIdentity, revision: revision)
+        }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            tracks = loaded
-            sections = sectioner(loaded)
+            snapshot = prepared
+            snapshotIdentity = requestedIdentity
             isLoading = false
             showsSpinner = false
         }
-        onRowsChange?(loaded)
+        onRowsChange?(prepared.rows)
     }
 
     private func scheduleSpinner() {
