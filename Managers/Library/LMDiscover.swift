@@ -31,6 +31,8 @@ extension LibraryManager {
         let storedIDs = userDefaults.array(forKey: Self.discoverTrackIdsKey) as? [Int64]
         let savedIDs = shouldRefreshDiscover() || storedIDs?.isEmpty != false ? nil : storedIDs
         let count = discoverTrackCount
+        // A new draw skips the rotation it replaces.
+        let previousIDs = storedIDs ?? []
         let database = databaseManager
         let task = Task { @MainActor in
             let tracks = await Task.detached(priority: .userInitiated) {
@@ -39,7 +41,7 @@ extension LibraryManager {
                     rows = database.getTracks(byIds: savedIDs)
                     if populateArtwork { database.populateAlbumArtworkForTracks(&rows) }
                 } else {
-                    rows = database.getDiscoverTracks(limit: count, populateArtwork: populateArtwork)
+                    rows = database.getDiscoverTracks(limit: count, excluding: previousIDs, populateArtwork: populateArtwork)
                 }
                 if !populateArtwork {
                     database.populateAlbumArtworkThumbnailsForTracks(&rows, limit: 4)
