@@ -162,7 +162,9 @@ struct AVAssetMetadataReader: MetadataReader {
             let value = await Self.loggedLoad(tag: "year", url: url) { try await yearItem.load(.value) }
             metadata.year = stringValue(value)
             metadata.releaseDate = metadata.year
-        } else if let dateItem = items.first(where: { $0.commonKey == .commonKeyCreationDate }) {
+        } else if let dateItem = byKey[AVMetadataIdentifier.id3MetadataRecordingTime.rawValue]
+                    ?? items.first(where: { $0.commonKey == .commonKeyCreationDate }) {
+            // ID3v2.4 keeps the year in TDRC, which AVFoundation gives no common key.
             let dateString = await Self.loggedLoad(tag: "creationDate", url: url) { try await dateItem.load(.stringValue) }
             let cleaned = dateString?.nilIfEmpty
             metadata.releaseDate = cleaned
