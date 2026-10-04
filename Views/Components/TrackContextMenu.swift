@@ -251,19 +251,40 @@ enum TrackContextMenu {
 
         // swiftlint:disable:next localized_context_menu_title - dynamic filter category and value
         return .button(title: "\(filterType.pluralDisplayName): \(filterType.localizedDisplay(displayValue))") {
-            postGoToNotification(filterType: filterType, filterValue: displayValue)
+            postGoToNotification(
+                filterType: filterType,
+                filterValue: displayValue,
+                albumId: filterType == .albums ? track.albumId : nil
+            )
         }
     }
-    
-    private static func postGoToNotification(filterType: LibraryFilterType, filterValue: String) {
-        NotificationCenter.default.post(
-            name: .goToLibraryFilter,
-            object: nil,
-            userInfo: [
-                "filterType": filterType,
-                "filterValue": filterValue
-            ]
+
+    /// Opens the track's album page; titles aren't unique, so the album id goes along.
+    static func goToAlbum(of track: Track) {
+        postGoToNotification(filterType: .albums, filterValue: track.album, albumId: track.albumId)
+    }
+
+    /// Opens the page of the track's first credited artist.
+    // ponytail: a multi-artist credit links only its first name; split the
+    // text into one link per artist if the others are missed.
+    static func goToArtist(of track: Track) {
+        let filterType = LibraryFilterType.artists
+        let artists = ArtistParser.parse(
+            filterType.getValue(from: track),
+            unknownPlaceholder: filterType.unknownPlaceholder,
+            role: filterType.artistRole
         )
+        guard let first = artists.first else { return }
+        postGoToNotification(filterType: filterType, filterValue: first)
+    }
+
+    private static func postGoToNotification(filterType: LibraryFilterType, filterValue: String, albumId: Int64? = nil) {
+        var userInfo: [String: Any] = [
+            "filterType": filterType,
+            "filterValue": filterValue
+        ]
+        userInfo["albumId"] = albumId
+        NotificationCenter.default.post(name: .goToLibraryFilter, object: nil, userInfo: userInfo)
     }
     
     static func createPlaylistItems(

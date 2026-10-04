@@ -710,6 +710,7 @@ struct PlayerTrackDetailsView: View, Equatable {
             )
             .frame(height: textRowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .link { if let track { TrackContextMenu.goToArtist(of: track) } }
             .contextMenu {
                 TrackContextMenuContent(items: contextMenuItems)
             }
@@ -722,6 +723,7 @@ struct PlayerTrackDetailsView: View, Equatable {
             )
             .frame(height: textRowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .link { if let track { TrackContextMenu.goToAlbum(of: track) } }
             .contextMenu {
                 TrackContextMenuContent(items: contextMenuItems)
             }

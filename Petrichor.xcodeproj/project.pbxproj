@@ -136,6 +136,7 @@
 				Folders/FoldersView.swift,
 				Home/EntityDetailView.swift,
 				Components/EntityTile.swift,
+				Components/LinkModifier.swift,
 				Home/DiscoverView.swift,
 				Search/SearchPage.swift,
 				Home/HomePage.swift,

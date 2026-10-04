@@ -527,8 +527,8 @@ struct ContentView: View {
 
     /// Artists and albums open their own page, as on the iPhone; other filters
     /// (genres, years, composers) open the column browser.
-    private func goToLibraryFilter(_ filterType: LibraryFilterType, value: String) {
-        if let entity = detailPage(for: filterType, value: value) {
+    private func goToLibraryFilter(_ filterType: LibraryFilterType, value: String, albumId: Int64?) {
+        if let entity = detailPage(for: filterType, value: value, albumId: albumId) {
             detailEntity = entity
             return
         }
@@ -539,12 +539,15 @@ struct ContentView: View {
         }
     }
 
-    private func detailPage(for filterType: LibraryFilterType, value: String) -> (any Entity)? {
+    private func detailPage(for filterType: LibraryFilterType, value: String, albumId: Int64?) -> (any Entity)? {
         switch filterType {
         case .artists:
             return libraryManager.artistEntities.first { $0.name == value }
                 ?? ArtistEntity(name: value, trackCount: 0)
         case .albums:
+            if let albumId, let album = libraryManager.albumEntities.first(where: { $0.albumId == albumId }) {
+                return album
+            }
             return libraryManager.albumEntities.first { $0.name == value }
         default:
             return nil
@@ -577,7 +580,7 @@ extension View {
         shouldFocusSearch: Binding<Bool>,
         showingSettings: Binding<Bool>,
         selectedTab: Binding<Sections>,
-        goToLibraryFilter: @escaping (LibraryFilterType, String) -> Void,
+        goToLibraryFilter: @escaping (LibraryFilterType, String, Int64?) -> Void,
         showTrackDetail: @escaping (Track) -> Void
     ) -> some View {
         self
@@ -587,7 +590,7 @@ extension View {
             .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
                 if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,
                    let filterValue = notification.userInfo?["filterValue"] as? String {
-                    goToLibraryFilter(filterType, filterValue)
+                    goToLibraryFilter(filterType, filterValue, notification.userInfo?["albumId"] as? Int64)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowTrackInfo"))) { notification in

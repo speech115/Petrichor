@@ -233,6 +233,7 @@ struct TrackTableView: View {
                     Text(track.displayArtist)
                         .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
                         .lineLimit(1)
+                        .link { TrackContextMenu.goToArtist(of: track) }
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .width(min: 100)
@@ -244,6 +245,7 @@ struct TrackTableView: View {
                     Text(track.displayAlbum)
                         .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
                         .lineLimit(1)
+                        .link { TrackContextMenu.goToAlbum(of: track) }
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .width(min: 100)
