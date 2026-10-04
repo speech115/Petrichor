@@ -6,10 +6,9 @@
 
 import Foundation
 import AppKit
-import Sparkle
 
-class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
-    internal var updaterController: SPUStandardUpdaterController?
+@MainActor
+class AppDelegate: NSObject, NSApplicationDelegate {
 
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
@@ -155,19 +154,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             name: NSNotification.Name("CurrentTrackChanged"),
             object: nil
         )
-
-        // Dev builds run under their own bundle identifier, so the production
-        // appcast isn't an update path for them - installing a "newer" release
-        // would just leave a second app behind. Don't start the updater at all.
-        if AppInfo.isProductionBuild {
-            updaterController = SPUStandardUpdaterController(
-                startingUpdater: true,
-                updaterDelegate: nil,
-                userDriverDelegate: nil
-            )
-        } else {
-            Logger.info("Dev build (\(AppInfo.bundleIdentifier)) - skipping updater setup")
-        }
 
         Logger.info("App finished launching")
     }
