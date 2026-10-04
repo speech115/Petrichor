@@ -117,11 +117,6 @@ extension PetrichorApp {
         CommandGroup(after: .appInfo) {
             settingsMenuItem()
         }
-
-        CommandGroup(after: .appInfo) {
-            Divider()
-            checkForUpdatesMenuItem()
-        }
     }
 
     private func aboutMenuItem() -> some View {
@@ -153,22 +148,6 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(",", modifiers: .command)
-    }
-
-    private func checkForUpdatesMenuItem() -> some View {
-        Button {
-            if let updater = appDelegate.updaterController?.updater {
-                updater.checkForUpdates()
-            }
-        } label: {
-            if #available(macOS 26.0, *) {
-                Label("Check for Updates...", systemImage: Icons.checkForUpdates)
-            } else {
-                Text("Check for Updates...")
-            }
-        }
-        // Dev builds don't run the updater, so leave the item visible but inert
-        .disabled(!AppInfo.isProductionBuild)
     }
 
     // MARK: - File Menu Commands

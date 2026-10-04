@@ -51,7 +51,6 @@ enum Icons {
     static let infoCircle = "info.circle"
     static let questionmarkCircle = "questionmark.circle"
     static let plusCircle = "plus.circle"
-    static let checkForUpdates = "square.and.arrow.down"
     static let chartUptrendFill = "chart.line.uptrend.xyaxis.circle.fill"
     static let infoCircleFill = "info.circle.fill"
     static let plusCircleFill = "plus.circle.fill"

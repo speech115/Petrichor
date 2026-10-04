@@ -313,7 +313,7 @@ enum TrackContextMenu {
             
             for playlist in playlists {
                 let isInPlaylist = trackId != nil && playlistManager.playlistContainsTrack(track, in: playlist)
-                let playlistName = DefaultPlaylists.displayName(for: playlist)
+                let playlistName = PlaylistDisplay.name(for: playlist)
                 let title = isInPlaylist ? "✓ \(playlistName)" : playlistName
                 
                 playlistItems.append(.button(title: title) {
@@ -356,7 +356,7 @@ enum TrackContextMenu {
             playlistItems.append(.divider)
             
             for playlist in playlists {
-                playlistItems.append(.button(title: DefaultPlaylists.displayName(for: playlist)) {
+                playlistItems.append(.button(title: PlaylistDisplay.name(for: playlist)) {
                     Task {
                         await playlistManager.addTracksToPlaylist(tracks: tracks, playlistID: playlist.id)
                     }

@@ -119,12 +119,9 @@ enum DiagnosticSnapshot {
             "general": [
                 "closeToMenubar": defaults.boolOrNull("closeToMenubar"),
                 "startAtLogin": defaults.boolOrNull("startAtLogin"),
-                "hideDuplicateTracks": defaults.boolOrNull("hideDuplicateTracks"),
-                "automaticUpdatesEnabled": defaults.boolOrNull("automaticUpdatesEnabled")
+                "hideDuplicateTracks": defaults.boolOrNull("hideDuplicateTracks")
             ],
             "appearance": [
-                "showFoldersTab": defaults.boolOrNull("showFoldersTab"),
-                "showTrackTechnicalInfo": defaults.boolOrNull("showTrackTechnicalInfo"),
                 "miniPlayerAlwaysOnTop": defaults.boolOrNull("miniPlayerAlwaysOnTop"),
                 "colorMode": defaults.stringOrNull("colorMode"),
                 "useArtworkColors": defaults.boolOrNull("useArtworkColors"),

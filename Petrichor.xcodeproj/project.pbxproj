@@ -12,7 +12,6 @@
 		5590877F2DE0C078009E7719 /* PetrichorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5590877E2DE0C078009E7719 /* PetrichorApp.swift */; };
 		55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55A000000000000000000040 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
-		55D673CF2E42CEA50095A358 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 55D673CE2E42CEA50095A358 /* Sparkle */; };
 		55A000000000000000000051 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 /* End PBXBuildFile section */
 
@@ -132,8 +131,6 @@
 				Components/Widgets/SearchInputField.swift,
 				Components/Widgets/TabbedButtons.swift,
 				Components/Widgets/VerticalSlider.swift,
-				Folders/FolderSidebarView.swift,
-				Folders/FoldersView.swift,
 				Home/EntityDetailView.swift,
 				Components/DetailPageStyle.swift,
 				Components/EntityTile.swift,
@@ -289,7 +286,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */,
-				55D673CF2E42CEA50095A358 /* Sparkle in Frameworks */,
 				552CE3E52FE3263900A5C93D /* Crescendo in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -395,7 +391,6 @@
 			name = Petrichor;
 			packageProductDependencies = (
 				55B0DEC02DE3A58400A41ED9 /* GRDB */,
-				55D673CE2E42CEA50095A358 /* Sparkle */,
 				552CE3E42FE3263900A5C93D /* Crescendo */,
 			);
 			productName = Petrichor;
@@ -523,7 +518,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				55B0DEBF2DE3A58400A41ED9 /* XCRemoteSwiftPackageReference "GRDB" */,
-				55D673CD2E42CEA50095A358 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				552CE3E32FE3263900A5C93D /* XCRemoteSwiftPackageReference "CrescendoKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -1354,14 +1348,6 @@
 				minimumVersion = 7.5.0;
 			};
 		};
-		55D673CD2E42CEA50095A358 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.7.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1374,11 +1360,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 55B0DEBF2DE3A58400A41ED9 /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
-		};
-		55D673CE2E42CEA50095A358 /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 55D673CD2E42CEA50095A358 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
