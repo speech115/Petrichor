@@ -65,6 +65,17 @@ struct AVAssetMetadataReaderTests {
         #expect(metadata.duration > 0)
     }
 
+    /// ID3v2.4 files (most of the library) carry the year as a TDRC timestamp.
+    @Test func recordingTimeFrameGivesYear() async throws {
+        let url = try makeSilentMP3(title: "More Than a Feeling", year: "1976-08-25", yearFrame: "TDRC")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let metadata = await reader.extractMetadata(from: url, externalArtwork: nil, artworkCache: nil)
+
+        #expect(metadata.year == "1976")
+        #expect(metadata.releaseDate == "1976-08-25")
+    }
+
     /// A file with no ID3 tag at all: every tag-derived field must come back
     /// empty, and that is the correct, non-error outcome — distinct from the
     /// corrupted-file scenario below, where the file *has* a tag and it's

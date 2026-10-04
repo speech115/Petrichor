@@ -31,6 +31,7 @@ func makeSilentMP3(
     composer: String? = nil,
     genre: String? = nil,
     year: String? = nil,
+    yearFrame: String = "TYER",
     trackNumber: Int? = nil,
     totalTracks: Int? = nil,
     artwork: Data? = nil,
@@ -79,7 +80,7 @@ func makeSilentMP3(
     if let albumArtist { tags.append(textFrame("TPE2", albumArtist)) }
     if let composer { tags.append(textFrame("TCOM", composer)) }
     if let genre { tags.append(textFrame("TCON", genre)) }
-    if let year { tags.append(textFrame("TYER", year)) }
+    if let year { tags.append(textFrame(yearFrame, year)) }
     if let trackNumber {
         let trackValue = totalTracks.map { "\(trackNumber)/\($0)" } ?? "\(trackNumber)"
         tags.append(textFrame("TRCK", trackValue))
