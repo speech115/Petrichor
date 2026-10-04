@@ -27,9 +27,6 @@ struct ContentView: View {
     let playlistManager: PlaylistManager
     let playbackManager: PlaybackManager
     @ObservedObject private var playbackAvailability: PlaybackAvailabilityObservation
-    @ObservedObject private var playlistCatalog: PlaylistCatalogObservation
-
-    @ObservedObject private var screenCache = LibraryScreenCache.shared
 
     @State private var selectedTab: IOSSection = .home
     @State private var homePath: [LibraryDestination] = []
@@ -48,29 +45,13 @@ struct ContentView: View {
         self.playlistManager = playlistManager
         self.playbackManager = playbackManager
         playbackAvailability = playbackManager.availabilityObservation
-        playlistCatalog = playlistManager.catalogObservation
     }
 
     var body: some View {
         mainInterface
         .toastHost(isActive: !showingNowPlaying)
-        .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { _ in
-            screenCache.invalidateTrackLists()
-        }
-        .task(id: "\(libraryManager.libraryRevision)-\(libraryManager.entitiesLoaded)-\(screenCache.trackRevision)") {
-            guard libraryManager.entitiesLoaded else { return }
-            await screenCache.prepareDiscover(libraryManager)
-            if let favorites = playlistManager.playlists.first(where: { $0.name == DefaultPlaylists.favorites }) {
-                await LibraryScreenCache.shared.preparePlaylist(favorites, library: libraryManager, manager: playlistManager)
-            }
-            await LibraryScreenCache.shared.prepareLibrary(libraryManager)
-        }
-        .task(id: LibraryScreenCache.playlistPreviewIdentity(
-            playlistCatalog.playlists,
-            revision: libraryManager.libraryRevision,
-            trackRevision: screenCache.trackRevision
-        )) {
-            await screenCache.preparePlaylistPreviews(playlistCatalog.playlists, library: libraryManager)
+        .background {
+            LibraryPreparation(playlistManager: playlistManager, playlistCatalog: playlistManager.catalogObservation)
         }
         .environment(\.settingsZoomNamespace, settingsZoomNamespace)
         .sheet(isPresented: $showingSettings) {
@@ -282,5 +263,38 @@ struct ContentView: View {
         }
 
         return parts.joined(separator: "\n")
+    }
+}
+
+/// Warms list snapshots and playlist covers in the background. A separate
+/// view so the catalog and cache publishers redraw only this, not the tab
+/// hierarchy: every played track republishes the smart playlists, and
+/// redrawing the root that often swallowed the mini-player tap.
+private struct LibraryPreparation: View {
+    @EnvironmentObject var libraryManager: LibraryManager
+    let playlistManager: PlaylistManager
+    @ObservedObject var playlistCatalog: PlaylistCatalogObservation
+    @ObservedObject private var screenCache = LibraryScreenCache.shared
+
+    var body: some View {
+        Color.clear
+            .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { _ in
+                screenCache.invalidateTrackLists()
+            }
+            .task(id: "\(libraryManager.libraryRevision)-\(libraryManager.entitiesLoaded)-\(screenCache.trackRevision)") {
+                guard libraryManager.entitiesLoaded else { return }
+                await screenCache.prepareDiscover(libraryManager)
+                if let favorites = playlistManager.playlists.first(where: { $0.name == DefaultPlaylists.favorites }) {
+                    await LibraryScreenCache.shared.preparePlaylist(favorites, library: libraryManager, manager: playlistManager)
+                }
+                await LibraryScreenCache.shared.prepareLibrary(libraryManager)
+            }
+            .task(id: LibraryScreenCache.playlistPreviewIdentity(
+                playlistCatalog.playlists,
+                revision: libraryManager.libraryRevision,
+                trackRevision: screenCache.trackRevision
+            )) {
+                await screenCache.preparePlaylistPreviews(playlistCatalog.playlists, library: libraryManager)
+            }
     }
 }
