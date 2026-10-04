@@ -173,6 +173,7 @@ struct PlaylistDetailView: View {
             onPlay: { playPlaylist() },
             onShuffle: { playPlaylist(shuffle: true) },
             isDisabled: playlist?.trackCount == 0,
+            // swiftlint:disable:next trailing_closure
             extra: {
                 if playlist?.type == .regular {
                     Button(action: editRegularPlaylist) {

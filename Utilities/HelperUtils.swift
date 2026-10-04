@@ -53,14 +53,18 @@ enum HelperUtils {
     /// Invalid values such as NaN, infinity, and negative durations are displayed as zero.
     /// - Parameter seconds: Duration in seconds.
     /// - Returns: A formatted duration string (`H hr M min` when hours are present, otherwise `M min`).
+    /// "5 hr 32 min" / "11 min", in the user's language.
     static func formattedDurationSummary(_ seconds: Double) -> String {
         let totalSeconds = sanitizedWholeDuration(seconds)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-
-        if hours > 0 {
-            return "\(hours) hr \(minutes) min"
-        }
-        return "\(minutes) min"
+        // Whole minutes, as before: drop the seconds instead of rounding them.
+        return durationSummaryFormatter.string(from: TimeInterval(totalSeconds / 60 * 60)) ?? ""
     }
+
+    private static let durationSummaryFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        formatter.zeroFormattingBehavior = .dropLeading
+        return formatter
+    }()
 }
