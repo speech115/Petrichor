@@ -264,9 +264,9 @@ enum TrackContextMenu {
         postGoToNotification(filterType: .albums, filterValue: track.album, albumId: track.albumId)
     }
 
-    /// Opens the page of the track's first credited artist.
     // ponytail: a multi-artist credit links only its first name; split the
     // text into one link per artist if the others are missed.
+    /// Opens the page of the track's first credited artist.
     static func goToArtist(of track: Track) {
         let filterType = LibraryFilterType.artists
         let artists = ArtistParser.parse(

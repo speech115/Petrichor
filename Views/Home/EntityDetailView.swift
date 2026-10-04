@@ -67,18 +67,7 @@ struct EntityDetailView: View {
                 )
             }
         }
-        .background {
-            ZStack {
-                Color(platformColor: .windowBackgroundColor)
-                // The cover's colors wash the whole page and fade out downward,
-                // as on the iPhone album page.
-                if !gradientColors.isEmpty {
-                    GradientBackground(colors: gradientColors)
-                        .mask(LinearGradient(colors: [.black, .black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom))
-                        .transaction { $0.animation = nil }
-                }
-            }
-        }
+        .artworkWash(gradientColors)
         .onAppear {
             loadTracks()
             updateGradientColors()
@@ -194,9 +183,6 @@ struct EntityDetailView: View {
         entity is ArtistEntity
     }
 
-    /// Cover size in the header: large, as on the iPhone album page.
-    private static let artworkSize: CGFloat = 200
-
     private var entityArtwork: some View {
         Group {
             if let artworkData = displayedArtworkData,
@@ -204,13 +190,13 @@ struct EntityDetailView: View {
                 Image(platformImage: platformImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: Self.artworkSize, height: Self.artworkSize)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 6)
             } else {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.secondary.opacity(0.2))
-                    .frame(width: Self.artworkSize, height: Self.artworkSize)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
                         Group {
                             if isPersonEntity {
@@ -242,7 +228,7 @@ struct EntityDetailView: View {
             if isPersonEntity {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Color.black.opacity(0.4))
-                    .frame(width: Self.artworkSize, height: Self.artworkSize)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
                         VStack(spacing: 4) {
                             Image(systemName: "pencil")
@@ -295,7 +281,7 @@ struct EntityDetailView: View {
                 .fontWeight(.medium)
 
             Text(entity.name)
-                .font(.system(size: 28, weight: .bold))
+                .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
 
             if let bio = artistBio, !bio.isEmpty {
@@ -315,7 +301,7 @@ struct EntityDetailView: View {
 
         return VStack(alignment: .leading, spacing: 4) {
             Text(entity.name)
-                .font(.system(size: 28, weight: .bold))
+                .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
 
             if let artistName = albumEntity?.artistName, !artistName.isEmpty {
@@ -372,28 +358,12 @@ struct EntityDetailView: View {
         Text("•").font(.subheadline).foregroundColor(.secondary)
     }
 
-    /// Play and Shuffle as equal capsules, as on the iPhone: on a long
-    /// artist people press Shuffle, so it must not read as secondary.
     private var entityControls: some View {
-        HStack(spacing: 12) {
-            Button { playEntity() } label: {
-                Label("Play", systemImage: Icons.playFill)
-                    .frame(width: 110)
-            }
-            .disabled(tracks.isEmpty)
-
-            Button { playEntity(shuffle: true) } label: {
-                Label("Shuffle", systemImage: Icons.shuffleFill)
-                    .frame(width: 110)
-            }
-            .disabled(tracks.isEmpty)
-        }
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(.tint)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .tint(.accentColor)
-        .controlSize(.large)
+        PlayShuffleButtons(
+            onPlay: { playEntity() },
+            onShuffle: { playEntity(shuffle: true) },
+            isDisabled: tracks.isEmpty
+        )
     }
 
     // MARK: - Views
