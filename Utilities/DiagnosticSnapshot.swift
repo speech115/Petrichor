@@ -12,7 +12,6 @@ enum DiagnosticSnapshot {
         let artistCount: Int
         let albumCount: Int
         let playlistCount: Int
-        let pinnedItemCount: Int
         let totalDurationSec: TimeInterval
         let totalSizeBytes: Int64
         let formats: [String: Int]
@@ -33,7 +32,6 @@ enum DiagnosticSnapshot {
             artistCount: lm.artistCount,
             albumCount: lm.albumCount,
             playlistCount: coordinator.playlistManager.playlists.count,
-            pinnedItemCount: lm.pinnedItems.count,
             totalDurationSec: db.getTotalDuration(),
             totalSizeBytes: db.getTotalFileSize(),
             formats: db.getTrackCountsByFormat(),
@@ -103,7 +101,6 @@ enum DiagnosticSnapshot {
             libraryDict["artistCount"] = library.artistCount
             libraryDict["albumCount"] = library.albumCount
             libraryDict["playlistCount"] = library.playlistCount
-            libraryDict["pinnedItemCount"] = library.pinnedItemCount
             libraryDict["totalDurationSec"] = HelperUtils.sanitizedWholeDuration(library.totalDurationSec)
             libraryDict["totalSize"] = bytes(library.totalSizeBytes)
             libraryDict["formats"] = library.formats

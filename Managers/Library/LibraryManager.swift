@@ -30,7 +30,6 @@ class LibraryManager: ObservableObject {
     @Published var searchResults: [Track] = []
     @Published var discoverTracks: [Track] = []
     var discoverLoadTask: Task<Void, Never>?
-    @Published var pinnedItems: [PinnedItem] = []
     @Published var pendingMergeRequest: MergeRequest?
     @Published internal var cachedArtistEntities: [ArtistEntity] = []
     @Published internal var cachedAlbumEntities: [AlbumEntity] = []
@@ -135,8 +134,6 @@ class LibraryManager: ObservableObject {
             .assign(to: &$scanStatusMessage)
 
         loadMusicLibrary()
-
-        pinnedItems = databaseManager.getPinnedItemsSync()
 
         if !deferLaunchWork {
             startLaunchWork(watchFolders: true)

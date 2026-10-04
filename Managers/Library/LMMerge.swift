@@ -87,7 +87,7 @@ extension LibraryManager {
 
     // MARK: - Execution
 
-    /// Perform the merge, then refresh cached entities/categories/pins and notify.
+    /// Perform the merge, then refresh cached entities/categories and notify.
     @MainActor
     func performMerge(_ request: MergeRequest, selected: [MergeCandidate], newName: String, winnerAlbumId: Int64?) async {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -112,7 +112,6 @@ extension LibraryManager {
             pendingMergeRequest = nil
             refreshEntities()
             refreshLibraryCategories()
-            await loadPinnedItems()
             NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
 
             NotificationManager.shared.addMessage(

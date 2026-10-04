@@ -112,7 +112,6 @@ extension DatabaseManager {
             )
         }
 
-        try reconcileArtistPins(loserNames: loserAliases.map { $0.display }, oldName: winner.name, newName: renameTarget, in: db)
         try updateArtistStats(in: db)
 
         return EntityMergeResult(mergedCount: loserIds.count, canonicalName: renameTarget ?? winner.name)
@@ -142,12 +141,10 @@ extension DatabaseManager {
             return EntityMergeResult(mergedCount: 0, canonicalName: winner.title)
         }
 
-        var loserTitles: [String] = []
         if !loserIds.isEmpty {
             // Capture alias keys before deletes remove the album_artists rows they read.
             var loserAliasKeys: [(key: String, title: String)] = []
             let losers = try Album.filter(loserIds.contains(Album.Columns.id)).fetchAll(db)
-            loserTitles = losers.map { $0.title }
             for loser in losers {
                 guard let id = loser.id else { continue }
                 let normalizedArtist = try albumPrimaryArtistNormalized(albumId: id, in: db)
@@ -204,7 +201,6 @@ extension DatabaseManager {
             )
         }
 
-        try reconcileAlbumPins(loserIds: loserIds, loserTitles: loserTitles, winnerId: winnerId, newTitle: renameTarget, in: db)
         try updateAlbumStats(in: db)
 
         return EntityMergeResult(mergedCount: loserIds.count, canonicalName: canonicalTitle)
@@ -265,56 +261,6 @@ extension DatabaseManager {
 
     private func writeAlbumAlias(key: String, displayTitle: String, canonicalId: Int64, in db: Database) throws {
         try AlbumAlias(normalizedKey: key, displayTitle: displayTitle, canonicalAlbumId: canonicalId).insert(db)
-    }
-
-    private func reconcileArtistPins(loserNames: [String], oldName: String, newName: String?, in db: Database) throws {
-        let isLibraryItem = PinnedItem.Columns.itemType == PinnedItem.ItemType.library.rawValue
-        let artistTypes = [
-            LibraryFilterType.artists.rawValue,
-            LibraryFilterType.albumArtists.rawValue,
-            LibraryFilterType.composers.rawValue
-        ]
-        if !loserNames.isEmpty {
-            try PinnedItem
-                .filter(isLibraryItem)
-                .filter(artistTypes.contains(PinnedItem.Columns.filterType))
-                .filter(loserNames.contains(PinnedItem.Columns.filterValue))
-                .deleteAll(db)
-        }
-        if let newName, newName != oldName {
-            try PinnedItem
-                .filter(isLibraryItem)
-                .filter(artistTypes.contains(PinnedItem.Columns.filterType))
-                .filter(PinnedItem.Columns.filterValue == oldName)
-                .updateAll(db, PinnedItem.Columns.filterValue.set(to: newName), PinnedItem.Columns.displayName.set(to: newName))
-        }
-    }
-
-    private func reconcileAlbumPins(loserIds: [Int64], loserTitles: [String], winnerId: Int64, newTitle: String?, in db: Database) throws {
-        let isLibraryItem = PinnedItem.Columns.itemType == PinnedItem.ItemType.library.rawValue
-
-        // Precise: pins that reference a loser album by id.
-        if !loserIds.isEmpty {
-            try PinnedItem.filter(loserIds.contains(PinnedItem.Columns.albumId)).deleteAll(db)
-        }
-
-        // Legacy title-only pins (nil albumId): only remove when no album with that title
-        // survives, so a pin meant for an unrelated same-title album is never deleted.
-        for title in Set(loserTitles) where try Album.filter(Album.Columns.title == title).fetchCount(db) == 0 {
-            try PinnedItem
-                .filter(isLibraryItem)
-                .filter(PinnedItem.Columns.filterType == LibraryFilterType.albums.rawValue)
-                .filter(PinnedItem.Columns.albumId == nil)
-                .filter(PinnedItem.Columns.filterValue == title)
-                .deleteAll(db)
-        }
-
-        if let newTitle {
-            try PinnedItem
-                .filter(isLibraryItem)
-                .filter(PinnedItem.Columns.albumId == winnerId)
-                .updateAll(db, PinnedItem.Columns.filterValue.set(to: newTitle), PinnedItem.Columns.displayName.set(to: newTitle))
-        }
     }
 
     // MARK: - Merge Candidates

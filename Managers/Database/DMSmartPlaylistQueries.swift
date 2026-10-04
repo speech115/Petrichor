@@ -88,7 +88,7 @@ extension DatabaseManager {
         }
     }
 
-    /// Get tracks for a smart playlist synchronously (for use in pinned items)
+    /// Get tracks for a smart playlist synchronously
     func getTracksForSmartPlaylistSync(_ playlist: Playlist, populateArtwork: Bool = true) -> [Track] {
         guard playlist.type == .smart,
               let criteria = playlist.smartCriteria else {
