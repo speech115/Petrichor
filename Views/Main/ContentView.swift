@@ -68,7 +68,6 @@ struct ContentView: View {
     @State private var showingExportPlaylistSheet = false
 
     // Sidebar selection state (owned here, passed as bindings to sidebars + content views)
-    @State private var selectedHomeSidebarItem: HomeSidebarItem?
     @State private var selectedPlaylist: Playlist?
     @State private var selectedFolderNode: FolderNode?
     @AppStorage("librarySelectedFilterType")
@@ -281,7 +280,6 @@ struct ContentView: View {
     private var leftSidebar: some View {
         MainSidebarView(
             selectedTab: $selectedTab,
-            selectedHomeItem: $selectedHomeSidebarItem,
             selectedPlaylist: $selectedPlaylist
         ) {
             detailEntity = nil
@@ -290,10 +288,24 @@ struct ContentView: View {
 
     private var sectionContent: some View {
         ZStack {
-            HomeView(selectedSidebarItem: $selectedHomeSidebarItem, isShowingEntities: .constant(false))
-                .opacity(selectedTab == .home ? 1 : 0)
-                .allowsHitTesting(selectedTab == .home)
+            // Kept alive while hidden: rebuilding the Discover table is slow.
+            DiscoverView()
+                .opacity(selectedTab == .discover ? 1 : 0)
+                .allowsHitTesting(selectedTab == .discover)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if selectedTab == .home {
+                HomePage(
+                    onOpenAlbum: { album in
+                        // The shelf's entity carries only a thumbnail; the library's has the cover.
+                        detailEntity = libraryManager.albumEntities.first { $0.albumId == album.albumId } ?? album
+                    },
+                    onOpenPlaylist: { playlist in
+                        selectedPlaylist = playlist
+                        selectedTab = .playlists
+                    }
+                )
+            }
 
             if selectedTab == .library {
                 PersistentSplitView(

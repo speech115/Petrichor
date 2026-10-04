@@ -91,21 +91,13 @@ final class LibraryScreenCache: ObservableObject {
         let fetchLimit = Self.recentTracksFetchLimit
         let albumLimit = Self.recentAlbumLimit
         let albums = await Task.detached(priority: .userInitiated) {
-            let recent = library.getRecentlyPlayedTracks(limit: fetchLimit, populateArtwork: false)
-            var albumIDs = Set<Int64>()
-            var tracks = recent.filter { track in
-                guard let albumID = track.albumId else { return false }
-                if albumIDs.count < albumLimit { albumIDs.insert(albumID) }
-                return albumIDs.contains(albumID)
-            }
-            library.databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
             let counts = Dictionary(
                 albumEntities.compactMap { album in album.albumId.map { ($0, album.trackCount) } },
                 uniquingKeysWith: { first, _ in first }
             )
-            return RecentAlbumsShelf.albums(
-                from: tracks,
-                limit: albumLimit,
+            return library.recentlyPlayedAlbums(
+                fetchLimit: fetchLimit,
+                albumLimit: albumLimit,
                 trackCountsByAlbumID: counts
             )
         }.value

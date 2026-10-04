@@ -184,16 +184,6 @@ struct PlaylistDetailView: View {
         let iconTextSpacing: CGFloat = 4
 
         return HStack(spacing: buttonSpacing) {
-            Button(action: pinPlaylist) {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: iconSize))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, verticalPadding)
-                    .padding(.horizontal, verticalPadding)
-            }
-            .adaptiveCircularButtonStyle()
-            .help(isPinned ? String(localized: "Remove from Home") : String(localized: "Pin to Home"))
-
             Button(action: { playPlaylist() }, label: {
                 HStack(spacing: iconTextSpacing) {
                     Image(systemName: Icons.playFill)
@@ -362,10 +352,6 @@ struct PlaylistDetailView: View {
         return DefaultPlaylists.emptyStateText(for: playlist)
     }
 
-    private var isPinned: Bool {
-        playlistManager.isPlaylistPinned(playlist ?? Playlist(name: "", tracks: []))
-    }
-
     // MARK: - Action Methods
 
     /// Swaps in the selected playlist's cover/cached collage synchronously, so
@@ -486,18 +472,6 @@ struct PlaylistDetailView: View {
             object: nil,
             userInfo: ["playlistID": playlist.id, "shuffle": shuffle]
         )
-    }
-
-    private func pinPlaylist() {
-        guard let playlist = playlist else { return }
-
-        Task {
-            if isPinned {
-                await playlistManager.unpinPlaylist(playlist)
-            } else {
-                await playlistManager.pinPlaylist(playlist)
-            }
-        }
     }
 
     private func editSmartPlaylistRules() {

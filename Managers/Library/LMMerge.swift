@@ -14,34 +14,9 @@ extension LibraryManager {
 
     // MARK: - Context Menu Items
 
-    /// Pin + (when mergeable) "Merge with…" items for a Home-grid entity.
-    func contextMenuItems(for entity: any Entity) -> [ContextMenuItem] {
-        var items = [createPinContextMenuItem(for: entity)]
-        if let merge = createMergeContextMenuItem(for: entity) { items.append(merge) }
-        return items
-    }
-
-    /// Pin + (when mergeable) "Merge with…" items for a Library-sidebar filter item.
+    /// "Merge with…", when mergeable, for a Library-sidebar filter item.
     func contextMenuItems(filterType: LibraryFilterType, filterValue: String, albumId: Int64? = nil) -> [ContextMenuItem] {
-        var items = [createPinContextMenuItem(for: filterType, filterValue: filterValue, albumId: albumId)]
-        if let merge = createMergeContextMenuItem(filterType: filterType, filterValue: filterValue, albumId: albumId) {
-            items.append(merge)
-        }
-        return items
-    }
-
-    private func createMergeContextMenuItem(for entity: any Entity) -> ContextMenuItem? {
-        let request: MergeRequest
-        if entity is ArtistEntity {
-            guard entity.name != LibraryFilterType.artists.unknownPlaceholder else { return nil }
-            request = MergeRequest(kind: .artist, name: entity.name)
-        } else if let album = entity as? AlbumEntity {
-            guard album.name != LibraryFilterType.albums.unknownPlaceholder else { return nil }
-            request = MergeRequest(kind: .album, name: album.name, albumId: album.albumId)
-        } else {
-            return nil
-        }
-        return mergeButton(for: request)
+        createMergeContextMenuItem(filterType: filterType, filterValue: filterValue, albumId: albumId).map { [$0] } ?? []
     }
 
     private func createMergeContextMenuItem(filterType: LibraryFilterType, filterValue: String, albumId: Int64?) -> ContextMenuItem? {

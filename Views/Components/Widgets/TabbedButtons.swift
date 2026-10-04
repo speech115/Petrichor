@@ -395,10 +395,6 @@ extension TabbedButtonStyle: Equatable {
     }
 }
 
-extension Sections: TabbedItem {
-    var title: String { self.label }
-}
-
 extension SettingsView.SettingsTab: TabbedItem {
     var title: String {
         switch self {

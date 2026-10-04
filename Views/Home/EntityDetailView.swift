@@ -3,7 +3,6 @@ import SwiftUI
 struct EntityDetailView: View {
     let entity: any Entity
     let onBack: (() -> Void)?
-    let pinnedItem: PinnedItem?
 
     @EnvironmentObject var playlistManager: PlaylistManager
     @EnvironmentObject var libraryManager: LibraryManager
@@ -20,10 +19,9 @@ struct EntityDetailView: View {
     @State private var gradientRevision: UInt64 = 0
     @State private var gradientTask: Task<Void, Never>?
 
-    init(entity: any Entity, onBack: (() -> Void)? = nil, pinnedItem: PinnedItem? = nil) {
+    init(entity: any Entity, onBack: (() -> Void)? = nil) {
         self.entity = entity
         self.onBack = onBack
-        self.pinnedItem = pinnedItem
     }
 
     @AppStorage("useArtworkColors")
@@ -286,11 +284,7 @@ struct EntityDetailView: View {
         if let category = entity as? CategoryEntity {
             return category.filterType.singularDisplayName
         }
-        switch pinnedItem?.filterType {
-        case .albumArtists: return String(localized: "Album Artist")
-        case .composers: return String(localized: "Composer")
-        default: return String(localized: "Artist")
-        }
+        return String(localized: "Artist")
     }
 
     private var artistEntityInfo: some View {
@@ -490,10 +484,7 @@ extension EntityDetailView {
 
         let fetchedTracks: [Track]
 
-        // When pinnedItem is provided, use the unified pinned item track loader
-        if let pinnedItem = pinnedItem {
-            fetchedTracks = libraryManager.getTracksForPinnedItem(pinnedItem)
-        } else if entity is ArtistEntity {
+        if entity is ArtistEntity {
             fetchedTracks = libraryManager.getTracksForArtist(entity.name)
         } else if let albumEntity = entity as? AlbumEntity {
             fetchedTracks = libraryManager.getTracksForAlbum(albumEntity)

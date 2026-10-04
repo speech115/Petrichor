@@ -52,18 +52,24 @@ struct SidebarItemRow<Item: SidebarItem>: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            iconView
-            contentView
-            Spacer(minLength: 0)
+            // A real button, not a tap gesture: VoiceOver and other accessibility
+            // clients can press it. Trailing controls (menus) stay outside it.
+            Button(action: onTap) {
+                HStack(spacing: 10) {
+                    iconView
+                    contentView
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
             trailingView
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
         .background(rowBackground)
-        .onTapGesture {
-            onTap()
-        }
         .onHover { hovering in
             onHover(hovering)
         }

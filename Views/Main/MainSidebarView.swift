@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The main window's single sidebar, shaped like the iPhone app: Discover and
-/// the playlists in one list. Picking a row sets the section shown in the
+/// The main window's single sidebar, shaped like the iPhone app: Home,
+/// Discover and the playlists in one list. Picking a row sets the section shown in the
 /// center and that section's own selection. Search and library links (an
 /// artist name in a track) open the column browser, which has no row.
 struct MainSidebarView: View {
@@ -9,7 +9,6 @@ struct MainSidebarView: View {
     @EnvironmentObject var playlistManager: PlaylistManager
 
     @Binding var selectedTab: Sections
-    @Binding var selectedHomeItem: HomeSidebarItem?
     @Binding var selectedPlaylist: Playlist?
     /// Called on every row click, including the already selected row.
     let onSelect: () -> Void
@@ -25,9 +24,10 @@ struct MainSidebarView: View {
     var body: some View {
         List {
             Section {
-                homeRow(HomeSidebarItem(type: .discover))
+                sectionRow(.home)
+                sectionRow(.discover)
                 if showFoldersTab {
-                    sectionRow(.folders, title: Sections.folders.label)
+                    sectionRow(.folders)
                 }
             }
 
@@ -56,11 +56,6 @@ struct MainSidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .onAppear {
-            if selectedHomeItem == nil {
-                selectedHomeItem = HomeSidebarItem(type: .discover)
-            }
-        }
         .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
         }
@@ -92,16 +87,8 @@ struct MainSidebarView: View {
 
     // MARK: - Rows
 
-    private func homeRow(_ item: HomeSidebarItem) -> some View {
-        row(item, isSelected: selectedTab == .home && selectedHomeItem?.id == item.id) {
-            selectedHomeItem = item
-            selectedTab = .home
-            onSelect()
-        }
-    }
-
-    private func sectionRow(_ section: Sections, title: String) -> some View {
-        row(SectionSidebarItem(section: section, title: title), isSelected: selectedTab == section) {
+    private func sectionRow(_ section: Sections) -> some View {
+        row(SectionSidebarItem(section: section), isSelected: selectedTab == section) {
             selectedTab = section
             onSelect()
         }
@@ -141,9 +128,6 @@ struct MainSidebarView: View {
             // swiftlint:disable:next trailing_closure
             onHover: { hoveredItemID = $0 ? item.id : nil }
         )
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityAction(.default, onTap)
         .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
     }
 
@@ -235,20 +219,17 @@ struct MainSidebarView: View {
     }
 }
 
-/// A row that opens a whole center section (folders).
+/// A row that opens a whole center section (Home, Discover, folders).
 private struct SectionSidebarItem: SidebarItem {
     let section: Sections
-    let title: String
 
+    /// Stable per section, so hover and selection survive a redraw.
     var id: UUID {
-        switch section {
-        case .home: return UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0))
-        case .library: return UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1))
-        case .playlists: return UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2))
-        case .folders: return UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3))
-        }
+        let index = UInt8(Sections.allCases.firstIndex(of: section) ?? 0)
+        return UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, index))
     }
 
+    var title: String { section.label }
     var subtitle: String? { nil }
     var icon: String? { section.icon }
     var count: Int? { nil }

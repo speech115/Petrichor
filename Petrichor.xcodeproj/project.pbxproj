@@ -110,7 +110,6 @@
 			membershipExceptions = (
 				Components/ActivityAnimation.swift,
 				Components/ArtistImageSheet.swift,
-				Components/EntityGridView.swift,
 				Components/FloatingControlCluster.swift,
 				Components/FocusStableMaterial.swift,
 				Components/HoverEffect.swift,
@@ -136,7 +135,8 @@
 				Folders/FolderSidebarView.swift,
 				Folders/FoldersView.swift,
 				Home/EntityDetailView.swift,
-				Home/HomeView.swift,
+				Home/DiscoverView.swift,
+				Home/HomePage.swift,
 				Immersive/ImmersiveView.swift,
 				Library/LibrarySidebarView.swift,
 				Library/LibraryView.swift,
@@ -165,7 +165,6 @@
 				Settings/SettingsView.swift,
 				Support/AcknowledgementsView.swift,
 				Support/ReportProblemView.swift,
-				Components/EntityView.swift,
 				Components/NowPlaying/NowPlayingProgressBar.swift,
 				Components/Widgets/IconOnlyDropdown.swift,
 			);
