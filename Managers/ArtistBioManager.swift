@@ -234,7 +234,7 @@ actor ArtistBioManager {
             for artist in artists.prefix(limit) {
                 guard let mbid = artist["id"] as? String else { continue }
 
-                // For auto-fetch, only accept close name matches
+                // For auto-fetch, only accept the same name
                 if limit == 1, let resultName = artist["name"] as? String,
                    !isNameMatch(query: name, result: resultName) { continue }
 
@@ -387,13 +387,11 @@ actor ArtistBioManager {
             for result in results.prefix(limit == 1 ? 3 : limit) {
                 guard let profilePath = result["profile_path"] as? String else { continue }
 
-                // For auto-fetch, only accept a close name match or an exact alias
-                if limit == 1, let resultName = result["name"] as? String,
-                   !isNameMatch(query: name, result: resultName) {
+                // For auto-fetch, only accept the same name or an alias
+                if limit == 1, !isNameMatch(query: name, result: result["name"] as? String ?? "") {
                     guard let personId = result["id"] as? Int,
-                          await tmdbAliases(personId: personId, token: token).contains(where: {
-                              $0.compare(name, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) == .orderedSame
-                          }) else { continue }
+                          await tmdbAliases(personId: personId, token: token).contains(where: { isNameMatch(query: name, result: $0) })
+                    else { continue }
                 }
 
                 let imageUrlString = TMDB.imageBaseURL + profilePath
@@ -500,13 +498,12 @@ actor ArtistBioManager {
         return data
     }
 
-    /// Check if the API result name is a close match to the search query.
-    /// Accepts exact matches or when one name contains the other, ignoring
-    /// case, accents and character width ("Tyler， The Creator" from a
-    /// fullwidth-comma tag is "Tyler, The Creator").
+    /// Same name, ignoring case, accents and character width ("Tyler， The
+    /// Creator" from a fullwidth-comma tag is "Tyler, The Creator"). The whole
+    /// name, not a substring: "Pilo" must not land on an actor called Kristaq Pilo.
     private func isNameMatch(query: String, result: String) -> Bool {
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
-        return query.range(of: result, options: options) != nil || result.range(of: query, options: options) != nil
+        return query.compare(result, options: options) == .orderedSame
     }
 
     // MARK: - Rate Limiting
