@@ -510,22 +510,4 @@ extension DatabaseManager {
             Logger.error("Failed to detect duplicates: \(error)")
         }
     }
-    
-    /// Get tracks respecting the hide duplicates setting
-    func getTracksRespectingDuplicates(hideDuplicates: Bool) -> [Track] {
-        do {
-            return try dbQueue.read { db in
-                if hideDuplicates {
-                    return try Track
-                        .filter(Track.Columns.isDuplicate == false)
-                        .fetchAll(db)
-                } else {
-                    return try Track.fetchAll(db)
-                }
-            }
-        } catch {
-            Logger.error("Failed to fetch tracks: \(error)")
-            return []
-        }
-    }
 }

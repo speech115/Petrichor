@@ -8,7 +8,6 @@ enum Icons {
     static let musicNoteList = "music.note.list"
     static let smartPlaylist = "custom.music.note.gear"
     static let musicNoteHouse = "music.note.house"
-    static let musicNoteHouseFill = "music.note.house.fill"
     static let musicPagesFill = "custom.music.pages.fill"
     
     // Playback Controls
@@ -30,15 +29,10 @@ enum Icons {
     
     // Navigation
     static let chevronRight = "chevron.right"
-    static let chevronDown = "chevron.down"
     static let xmarkCircleFill = "xmark.circle.fill"
     
-    // File & Folder
-    static let folder = "folder"
     static let folderFill = "folder.fill"
     static let folderBadgePlus = "folder.badge.plus"
-    static let folderFillBadgePlus = "folder.fill.badge.plus"
-    static let folderFillBadgeMinus = "folder.fill.badge.minus"
     
     // UI Elements
     static let sparkles = "sparkles"
@@ -50,11 +44,9 @@ enum Icons {
     static let trash = "trash"
     static let infoCircle = "info.circle"
     static let questionmarkCircle = "questionmark.circle"
-    static let plusCircle = "plus.circle"
     static let chartUptrendFill = "chart.line.uptrend.xyaxis.circle.fill"
     static let infoCircleFill = "info.circle.fill"
     static let plusCircleFill = "plus.circle.fill"
-    static let minusSquareFill = "minus.square.fill"
     static let minusCircleFill = "minus.circle.fill"
     static let arrowClockwise = "arrow.clockwise"
     static let arrowClockwiseCircle = "arrow.clockwise.circle"
@@ -72,7 +64,6 @@ enum Icons {
     
     // Smart Playlist Icons
     static let starFill = "star.fill"
-    static let starSlash = "star.slash"
     static let clockFill = "clock.fill"
     
     // Sort Icons
@@ -87,7 +78,6 @@ enum Icons {
     // Custom Icons (from project assets)
     static let customLossless = "custom.lossless"
     static let customMusicNoteRectangleStack = "custom.music.note.rectangle.stack"
-    static let customMusicNoteRectangleStackFill = "custom.music.note.rectangle.stack.fill"
     static let customLyrics = "custom.music.microphone.bubble.right"
 }
 
@@ -126,9 +116,6 @@ enum AudioFormat {
         return extensions
     }()
 
-    // Lookup form for `isSupported`, which a scan calls once per file.
-    private static let supportedExtensionSet = Set(supportedExtensions)
-
     // Formats the engine cannot decode
     static let unsupportedExtensions = [
         // DRM'd or container forms the engine deliberately declines
@@ -149,10 +136,6 @@ enum AudioFormat {
         return ListFormatter.localizedString(byJoining: exts)
     }
 
-    static func isSupported(_ fileExtension: String) -> Bool {
-        supportedExtensionSet.contains(fileExtension.lowercased())
-    }
-    
     static func isNotSupported(_ fileExtension: String) -> Bool {
         let ext = fileExtension.lowercased()
         return unsupportedExtensions.contains(ext) || withheldExtensions.contains(ext)
@@ -300,8 +283,6 @@ extension Notification.Name {
     static let initialScanCompleted = Notification.Name("initialScanCompleted")
     static let foldersAddedToDatabase = Notification.Name("foldersAddedToDatabase")
 
-    static let showFolderImporter = Notification.Name("showFolderImporter")
-
     static let libraryDataDidChange = Notification.Name("LibraryDataDidChange")
     /// The database was wiped and re-migrated (`DatabaseManager.resetDatabase()`
     /// via `LibraryManager.resetAllData()`): row ids restart from 1, so a
@@ -350,15 +331,6 @@ extension Icons {
     
     static func sortIcon(for isAscending: Bool) -> String {
         isAscending ? Icons.sortAscending : Icons.sortDescending
-    }
-    
-    static func entityIcon(for entity: any Entity) -> String {
-        if entity is ArtistEntity {
-            return Icons.personFill
-        } else if entity is AlbumEntity {
-            return Icons.opticalDiscFill
-        }
-        return Icons.musicNote
     }
     
     static func defaultPlaylistIcon(for playlist: Playlist) -> String {

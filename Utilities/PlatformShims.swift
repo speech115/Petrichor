@@ -72,24 +72,9 @@ extension PlatformColor {
 }
 
 extension PlatformFont {
-    static func systemFont(ofSize size: CGFloat, bold: Bool) -> PlatformFont {
-        #if os(macOS)
-        NSFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
-        #else
-        UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
-        #endif
-    }
 }
 
 extension PlatformImage {
-    /// Encode a `CGImage` as JPEG platform data.
-    static func jpegData(from cgImage: CGImage, quality: CGFloat) -> Data? {
-        #if os(macOS)
-        return NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: [.compressionFactor: quality])
-        #else
-        return UIImage(cgImage: cgImage).jpegData(compressionQuality: quality)
-        #endif
-    }
 }
 
 #if !os(macOS)

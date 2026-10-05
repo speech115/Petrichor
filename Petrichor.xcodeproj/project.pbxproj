@@ -333,6 +333,7 @@
 				55A000000000000000000106 /* PlaybackControls */,
 				55A000000000000000000107 /* PetrichorWidgets */,
 				55A000000000000000000042 /* PetrichoriOSTests */,
+				55A000000000000000000061 /* PetrichoriOSUITests */,
 				550F4A3F2DB4786F005F794E /* .gitignore */,
 				55613A822E04A7230000E217 /* .swiftlint.yml */,
 				55593A412DE019E400640247 /* README.md */,
@@ -1041,6 +1042,8 @@
 
 		55A000000000000000000031 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 55F38A822DF8F2FC0028843B /* Configuration */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -1073,6 +1076,8 @@
 		};
 		55A000000000000000000032 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 55F38A822DF8F2FC0028843B /* Configuration */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -1105,6 +1110,8 @@
 		};
 		55A000000000000000000033 /* Dev */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 55F38A822DF8F2FC0028843B /* Configuration */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

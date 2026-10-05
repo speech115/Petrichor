@@ -168,48 +168,15 @@ extension LibraryManager {
         refreshEntities()
     }
     
-    /// Load all tracks into memory
-    func loadAllTracks() async {
-        if tracks.isEmpty {
-            Logger.info("Loading all tracks into memory...")
-            
-            let loadedTracks = await Task.detached {
-                self.databaseManager.getAllTracks()
-            }.value
-            
-            await MainActor.run {
-                self.tracks = loadedTracks
-                self.libraryRevision += 1
-                self.updateSearchResults()
-            }
-        }
-    }
-
-    func updateArtistEntityArtwork(name: String, artworkData: Data?) {
-        // iOS keeps entity summaries metadata-only; the database write has
-        // already happened and visible rows will fetch the new image lazily.
-        guard cacheEntityArtwork else { return }
-        if let index = cachedArtistEntities.firstIndex(where: { $0.name == name }) {
-            let old = cachedArtistEntities[index]
-            cachedArtistEntities[index] = ArtistEntity(
-                name: old.name,
-                trackCount: old.trackCount,
-                artworkData: artworkData,
-                artworkThumbnail: old.artworkThumbnail
-            )
-        }
-    }
-
-    /// Reloads the entity summaries and counts off the main thread. On iOS the
-    /// summaries deliberately omit artwork; visible rows fetch one thumbnail
-    /// at a time instead of retaining the whole library's BLOBs in memory.
+    /// Reloads the entity summaries and counts off the main thread. The
+    /// summaries carry no artwork: visible tiles fetch one thumbnail at a time
+    /// instead of the whole library's BLOBs (hundreds of MB) living in memory.
     func refreshEntities() {
         let dbManager = databaseManager
-        let includeArtwork = cacheEntityArtwork
         Task { @MainActor [weak self] in
             let entityTask = Task.detached(priority: .userInitiated) {
-                let artists = dbManager.getArtistEntities(includeArtwork: includeArtwork)
-                let albums = dbManager.getAlbumEntities(includeArtwork: includeArtwork)
+                let artists = dbManager.getArtistEntities()
+                let albums = dbManager.getAlbumEntities()
                 let artistNames = dbManager.getArtistNamesByRole()
                 return (artists, albums, artistNames)
             }

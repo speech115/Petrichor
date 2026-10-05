@@ -170,10 +170,6 @@ class Album: Identifiable, ObservableObject, FetchableRecord, PersistableRecord 
     }
 
     // MARK: - Associations
-
-    static let tracks = hasMany(Track.self, using: ForeignKey(["album_id"]))
-    static let albumArtists = hasMany(AlbumArtist.self)
-    static let artists = hasMany(Artist.self, through: albumArtists, using: AlbumArtist.artist)
 }
 
 // MARK: - Equatable

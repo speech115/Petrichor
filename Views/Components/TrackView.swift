@@ -6,7 +6,6 @@ struct TrackView: View {
     @Binding var selectedTrackID: String?
     let playlistID: UUID?
     let entityID: UUID?
-    var queueSource: PlaylistManager.QueueSource = .library
     var layout: TrackTableLayout = .standard
     var showsTrackNumbers = true
     @Binding var sortOrder: [KeyPathComparator<Track>]
@@ -21,7 +20,6 @@ struct TrackView: View {
             tracks: tracks,
             playlistID: playlistID,
             entityID: entityID,
-            queueSource: queueSource,
             layout: layout,
             showsTrackNumbers: showsTrackNumbers,
             onPlayTrack: onPlayTrack,
@@ -61,9 +59,7 @@ struct TrackContextMenuContent: View {
         playlistID: nil,
         entityID: nil,
         sortOrder: $sortOrder,
-        onPlayTrack: { track in
-            Logger.debugPrint("Playing \(track.title)")
-        },
+        onPlayTrack: { _ in },
         contextMenuItems: { _, _ in [] }
     )
     .frame(height: 400)
@@ -89,9 +85,7 @@ struct TrackContextMenuContent: View {
         playlistID: nil,
         entityID: nil,
         sortOrder: $sortOrder,
-        onPlayTrack: { track in
-            Logger.debugPrint("Playing \(track.title)")
-        },
+        onPlayTrack: { _ in },
         contextMenuItems: { _, _ in [] }
     )
     .frame(height: 600)

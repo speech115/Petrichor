@@ -11,18 +11,6 @@ enum LibraryFilterType: String, CaseIterable, Sendable {
 
     // MARK: - Computed Props
 
-    var databaseColumn: String {
-        switch self {
-        case .artists: return "artist"
-        case .albums: return "album"
-        case .albumArtists: return "album_artist"
-        case .composers: return "composer"
-        case .genres: return "genre"
-        case .decades: return "year"
-        case .years: return "year"
-        }
-    }
-
     var stableIndex: Int {
         switch self {
         case .artists: return 0

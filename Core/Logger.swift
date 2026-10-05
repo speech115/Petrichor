@@ -498,10 +498,4 @@ extension Logger {
     static var logFileURL: URL? {
         LogFileManager.getLogFileURL()
     }
-    /// Debug print for use in SwiftUI Previews and tests
-    /// This bypasses the logging system and uses regular print
-    static func debugPrint(_ items: Any..., separator: String = " ", terminator: String = "\n") {
-        // swiftlint:disable:next no_print_statements
-        print(items.map { "\($0)" }.joined(separator: separator), terminator: terminator)
-    }
 }

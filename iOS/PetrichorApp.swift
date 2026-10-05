@@ -64,10 +64,7 @@ struct PetrichorApp: App {
 
         GestureTips.configure()
 
-        // iPhone rows load artwork only as they become visible. Keeping every
-        // album and artist BLOB in the shared entity cache costs hundreds of
-        // megabytes on a real library and makes launch contend with the UI.
-        let coordinator = AppCoordinator(cacheEntityArtwork: false, deferLaunchWork: true)
+        let coordinator = AppCoordinator(deferLaunchWork: true)
         _appCoordinator = StateObject(wrappedValue: coordinator)
 
         // Control Center buttons run their intents here, in the app's process.

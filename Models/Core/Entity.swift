@@ -59,29 +59,10 @@ extension Entity {
     }
 }
 
-// MARK: - Shared Color Defaults
-
-extension Entity {
-    /// Cached dominant colors only. `nil` = not computed yet; empty = no usable
-    /// colors. Views that need a fill schedule `backgroundGradientColors`.
-    @MainActor
-    var cachedDominantColors: [PlatformColor]? {
-        guard let artworkData else { return [] }
-        return ImageUtils.cachedDominantColorsIfAvailable(id: id.uuidString, imageData: artworkData)
-    }
-
-    @MainActor
-    func backgroundGradientColors(isDark: Bool) async -> [Color] {
-        guard let original = artworkData else { return [] }
-        return await ImageUtils.cachedBackgroundGradientColors(id: id.uuidString, imageData: original, isDark: isDark)
-    }
-}
-
 // MARK: - Artist Entity
 struct ArtistEntity: Entity {
     let id: UUID
     let name: String
-    let tracks: [Track]
     let trackCount: Int
     let artworkData: Data?
     let artworkThumbnail: Data?
@@ -92,21 +73,9 @@ struct ArtistEntity: Entity {
         String(localized: "\(trackCount) songs")
     }
 
-    init(name: String, tracks: [Track]) {
-        self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.artist)
-        self.name = name
-        self.tracks = tracks
-        self.trackCount = tracks.count
-
-        let trackWithArt = tracks.first { $0.albumArtworkData != nil }
-        self.artworkData = trackWithArt?.albumArtworkData
-        self.artworkThumbnail = tracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail
-    }
-
     init(name: String, trackCount: Int, artworkData: Data? = nil, artworkThumbnail: Data? = nil) {
         self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.artist)
         self.name = name
-        self.tracks = []
         self.trackCount = trackCount
         self.artworkData = artworkData
         self.artworkThumbnail = artworkThumbnail
@@ -117,36 +86,17 @@ struct ArtistEntity: Entity {
 struct AlbumEntity: Entity, Hashable {
     let id: UUID
     let name: String
-    let tracks: [Track]
     let trackCount: Int
     let artworkData: Data?
     let artworkThumbnail: Data?
     let albumId: Int64?
     let year: String?
-    let duration: Double?
     let artistName: String?
-    let dateAdded: Date?
 
     var displayName: String { LibraryFilterType.albums.localizedDisplay(name) }
 
     var subtitle: String? {
         year
-    }
-
-    init(name: String, tracks: [Track]) {
-        self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.album)
-        self.name = name
-        self.tracks = tracks
-        self.trackCount = tracks.count
-        self.albumId = nil
-        self.year = nil
-        self.duration = nil
-        self.artistName = nil
-        self.dateAdded = nil
-
-        let trackWithArt = tracks.first { $0.albumArtworkData != nil }
-        self.artworkData = trackWithArt?.albumArtworkData
-        self.artworkThumbnail = tracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail
     }
 
     init(
@@ -156,9 +106,7 @@ struct AlbumEntity: Entity, Hashable {
         artworkThumbnail: Data? = nil,
         albumId: Int64? = nil,
         year: String? = nil,
-        duration: Double? = nil,
-        artistName: String? = nil,
-        dateAdded: Date? = nil
+        artistName: String? = nil
     ) {
         if let albumId = albumId {
             let uuidString = String(format: "00000000-0000-0000-0000-%012d", albumId)
@@ -167,64 +115,18 @@ struct AlbumEntity: Entity, Hashable {
             self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.album)
         }
         self.name = name
-        self.tracks = []
         self.trackCount = trackCount
         self.artworkData = artworkData
         self.artworkThumbnail = artworkThumbnail
         self.albumId = albumId
         self.year = year
-        self.duration = duration
         self.artistName = artistName
-        self.dateAdded = dateAdded
     }
 }
 
 // MARK: - Category Entity
-struct CategoryEntity: Entity {
-    let id: UUID
-    let name: String
-    let trackCount: Int
-    let artworkData: Data?
-    let filterType: LibraryFilterType
-
-    var displayName: String { filterType.localizedDisplay(name) }
-
-    var subtitle: String? {
-        String(localized: "\(trackCount) songs")
-    }
-
-    @MainActor
-    init(name: String, trackCount: Int, filterType: LibraryFilterType) {
-        self.id = UUID(name: "\(filterType.rawValue)-\(name)".lowercased(), namespace: EntityNamespaces.category)
-        self.name = name
-        self.trackCount = trackCount
-        self.filterType = filterType
-        self.artworkData = ImageUtils.cachedCategoryArtwork(text: name, seed: "\(filterType.rawValue)-\(name)")
-    }
-}
 
 // MARK: - Folder Entity
-struct FolderEntity: Entity {
-    let id: UUID
-    let name: String
-    let path: String
-    let trackCount: Int
-    let artworkData: Data?
-
-    var subtitle: String? {
-        String(localized: "\(trackCount) songs")
-    }
-
-    @MainActor
-    init(path: String, name: String, trackCount: Int) {
-        self.id = UUID(name: "folder-\(path)".lowercased(), namespace: EntityNamespaces.category)
-        self.name = name
-        self.path = path
-        self.trackCount = trackCount
-        // Seed by path so same-named folders get distinct artwork.
-        self.artworkData = ImageUtils.cachedCategoryArtwork(text: name, seed: "folder-\(path)")
-    }
-}
 
 // MARK: - UUID Extension
 

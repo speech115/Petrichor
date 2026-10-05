@@ -46,9 +46,6 @@ struct AlbumArtist: FetchableRecord, PersistableRecord {
     }
 
     // MARK: - Associations
-
-    static let album = belongsTo(Album.self, using: ForeignKey(["album_id"]))
-    static let artist = belongsTo(Artist.self, using: ForeignKey(["artist_id"]))
 }
 
 // MARK: - Role Constants
@@ -57,6 +54,5 @@ extension AlbumArtist {
     enum Role {
         static let primary = "primary"
         static let featured = "featured"
-        static let various = "various"
     }
 }

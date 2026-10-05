@@ -18,8 +18,6 @@ extension PlaylistManager {
         case library(context: [Track])
         /// A regular playlist row; the manager resolves the index itself.
         case playlist(Playlist)
-        /// A folder's immediate track list.
-        case folder(context: [Track])
     }
 
     func play(_ track: Track, source: PlaySource) {
@@ -30,8 +28,6 @@ extension PlaylistManager {
         case .playlist(let playlist):
             guard let index = playlist.tracks.firstIndex(where: { $0.id == track.id }) else { return }
             playTrackFromPlaylist(playlist, at: index)
-        case .folder(let context):
-            playTrackFromFolder(track, folderTracks: context)
         }
     }
 
@@ -97,11 +93,6 @@ extension PlaylistManager {
         beginPlayback(of: playlist.tracks[index], in: playlist.tracks)
     }
 
-    func playTrackFromFolder(_ track: Track, folderTracks: [Track]) {
-        currentQueueSource = .folder
-        currentPlaylist = nil
-        beginPlayback(of: track, in: folderTracks)
-    }
 
     /// Queues `contextTracks` and starts `track` within it. With shuffle off the whole
     /// list is queued with the cursor on the chosen track, so Previous walks back up

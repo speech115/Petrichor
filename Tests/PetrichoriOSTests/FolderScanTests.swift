@@ -108,7 +108,7 @@ import Testing
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
 
     // All three files made it through the scan as tracks.
-    let tracks = databaseManager.getTracksRespectingDuplicates(hideDuplicates: false)
+    let tracks = try await databaseManager.dbQueue.read { try Track.fetchAll($0) }
     #expect(tracks.count == 3)
     #expect(Set(tracks.map { $0.url.lastPathComponent }) == [
         "Annabel - Above Your Hand.mp3",
@@ -162,7 +162,7 @@ import Testing
     let databaseManager = try DatabaseManager(pool: makeTestDatabasePool(in: root))
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
 
-    #expect(databaseManager.getTracksRespectingDuplicates(hideDuplicates: false).count == 2)
+    #expect(try await databaseManager.dbQueue.read { try Track.fetchAll($0) }.count == 2)
 
     // The file disappears from disk (user deleted it in Files, iCloud evicted
     // it, an external drive was unplugged). The row must survive the rescan.
@@ -172,7 +172,7 @@ import Testing
     // scanLibraryRoot() does on every reconciliation.
     _ = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
 
-    let tracks = databaseManager.getTracksRespectingDuplicates(hideDuplicates: false)
+    let tracks = try await databaseManager.dbQueue.read { try Track.fetchAll($0) }
     #expect(tracks.count == 2)
     #expect(Set(tracks.map { $0.url.lastPathComponent }) == [
         "Annabel - Above Your Hand.mp3",

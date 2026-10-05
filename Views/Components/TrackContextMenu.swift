@@ -116,8 +116,6 @@ enum TrackContextMenu {
             switch currentContext {
             case .library:
                 playlistManager.playTrack(track, fromTracks: [track])
-            case .folder:
-                playlistManager.playTrackFromFolder(track, folderTracks: [track])
             case .playlist(let playlist):
                 if let index = playlist.tracks.firstIndex(of: track) {
                     playlistManager.playTrackFromPlaylist(playlist, at: index)
@@ -391,17 +389,6 @@ enum TrackContextMenu {
         var items: [ContextMenuItem] = []
         
         switch currentContext {
-        case .folder:
-            items.append(.divider)
-            #if os(macOS)
-            items.append(.button(title: String(localized: "Show in Finder"), icon: "finder") {
-                NSWorkspace.shared.selectFile(
-                    track.url.path,
-                    inFileViewerRootedAtPath: track.url.deletingLastPathComponent().path
-                )
-            })
-            #endif
-            
         case .playlist(let playlist):
             if playlist.type == .regular {
                 items.append(.button(title: String(localized: "Remove from Playlist"), icon: Icons.trash, role: .destructive) {
@@ -421,7 +408,6 @@ enum TrackContextMenu {
     
     enum MenuContext {
         case library
-        case folder(Folder)
         case playlist(Playlist)
     }
 }

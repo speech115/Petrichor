@@ -175,7 +175,6 @@ class Artist: Identifiable, ObservableObject, FetchableRecord, PersistableRecord
     // MARK: - Associations
 
     static let tracks = hasMany(TrackArtist.self)
-    static let albums = hasMany(Album.self)
 }
 
 // MARK: - Equatable

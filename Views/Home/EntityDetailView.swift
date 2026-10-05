@@ -14,6 +14,9 @@ struct EntityDetailView: View {
     @State private var isArtworkHovered = false
     @State private var showingImagePicker = false
     @State private var overrideArtworkData: Data?
+    /// Full-size cover or artist photo, read from the database when the page
+    /// opens: the entity cache carries no artwork.
+    @State private var artworkData: Data?
     @State private var artworkDeleted = false
     @State private var artistBio: String?
     @State private var gradientColors: [Color] = []
@@ -52,7 +55,6 @@ struct EntityDetailView: View {
                     selectedTrackID: $selectedTrackID,
                     playlistID: nil,
                     entityID: entity.id,
-                    queueSource: queueSource,
                     layout: entity is AlbumEntity ? .album : .standard,
                     showsTrackNumbers: showsTrackNumbers,
                     sortOrder: $trackTableSortOrder,
@@ -178,7 +180,7 @@ struct EntityDetailView: View {
 
     private var displayedArtworkData: Data? {
         if artworkDeleted { return nil }
-        return overrideArtworkData ?? entity.artworkData
+        return overrideArtworkData ?? artworkData
     }
 
     private var isPersonEntity: Bool {
@@ -205,12 +207,6 @@ struct EntityDetailView: View {
                                 Text(entity.name.artistInitials)
                                     .font(.system(size: 64, weight: .medium, design: .rounded))
                                     .foregroundColor(.secondary)
-                            } else if entity is CategoryEntity {
-                                Text(entity.name)
-                                    .font(.system(size: entity.name.count <= 5 ? 28 : 16, weight: .medium, design: .rounded))
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(8)
                             } else {
                                 Image(systemName: Icons.opticalDiscFill)
                                     .font(.system(size: 64))
@@ -265,19 +261,9 @@ struct EntityDetailView: View {
         }
     }
 
-    private var entityTypeLabel: String {
-        if entity is FolderEntity {
-            return String(localized: "Folder")
-        }
-        if let category = entity as? CategoryEntity {
-            return category.filterType.singularDisplayName
-        }
-        return String(localized: "Artist")
-    }
-
     private var artistEntityInfo: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(entityTypeLabel)
+            Text("Artist")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .fontWeight(.medium)
@@ -384,8 +370,6 @@ struct EntityDetailView: View {
 
     private var emptyViewIcon: String {
         if entity is ArtistEntity { return "person.slash" }
-        if entity is CategoryEntity { return "music.note.slash" }
-        if entity is FolderEntity { return Icons.folderFill }
         return "opticaldisc.slash"
     }
 
@@ -484,20 +468,15 @@ extension EntityDetailView {
 
         self.tracks = fetchedTracks
 
-        // Load artist bio for person entities (artists, album artists, composers)
+        let database = libraryManager.databaseManager
         if entity is ArtistEntity {
-            artistBio = libraryManager.getArtistBio(for: entity.name)
+            (artworkData, artistBio) = database.getArtistArtworkAndBio(for: entity.name)
         } else {
+            artworkData = (entity as? AlbumEntity)?.albumId.flatMap { database.getArtworkData(albumId: $0, trackId: nil) }
             artistBio = nil
         }
 
         self.isLoading = false
-    }
-
-    // Folders retain folder queue source; every other entity type plays as a library queue.
-    // Passed to TrackView so all of its playback paths (header, double-click, row button) agree.
-    private var queueSource: PlaylistManager.QueueSource {
-        entity is FolderEntity ? .folder : .library
     }
 
     private func playTrack(_ track: Track) {
@@ -526,7 +505,7 @@ extension EntityDetailView {
 
     return EntityDetailView(
         entity: artist,
-    ) { Logger.debugPrint("Back tapped") }
+    ) {}
     .environmentObject(LibraryManager())
     .environmentObject(PlaybackManager(libraryManager: LibraryManager(), playlistManager: PlaylistManager()))
     .environmentObject(PlaylistManager())
@@ -534,11 +513,11 @@ extension EntityDetailView {
 }
 
 #Preview("Album Detail") {
-    let album = AlbumEntity(name: "The Dark Side of the Moon", trackCount: 10, year: "1973", duration: 2580)
+    let album = AlbumEntity(name: "The Dark Side of the Moon", trackCount: 10, year: "1973")
 
     return EntityDetailView(
         entity: album,
-    ) { Logger.debugPrint("Back tapped") }
+    ) {}
     .environmentObject(LibraryManager())
     .environmentObject(PlaybackManager(libraryManager: LibraryManager(), playlistManager: PlaylistManager()))
     .environmentObject(PlaylistManager())

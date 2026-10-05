@@ -144,7 +144,6 @@ struct ArtistImageSheet: View {
             imageSource: source
         )
         onImageSelected?(imageData)
-        libraryManager.updateArtistEntityArtwork(name: artistName, artworkData: imageData)
     }
 
     private var sheetFooter: some View {
@@ -153,7 +152,6 @@ struct ArtistImageSheet: View {
                 guard let artistId, let libraryManager else { return }
                 libraryManager.deleteArtistImage(artistId: artistId)
                 onImageSelected?(nil)
-                libraryManager.updateArtistEntityArtwork(name: artistName, artworkData: nil)
                 isPresented = false
             } label: {
                 Text("Delete Image")

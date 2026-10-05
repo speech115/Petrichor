@@ -36,7 +36,4 @@ struct TrackGenre: FetchableRecord, PersistableRecord {
     }
 
     // MARK: - Associations
-
-    static let track = belongsTo(Track.self, using: ForeignKey(["track_id"]))
-    static let genre = belongsTo(Genre.self, using: ForeignKey(["genre_id"]))
 }

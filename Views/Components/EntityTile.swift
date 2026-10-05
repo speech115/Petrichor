@@ -2,11 +2,17 @@ import SwiftUI
 
 /// A shelf tile for an album or artist: square artwork (round for artists)
 /// with the name and a subtitle under it. Clicking it calls `onOpen`.
+///
+/// Entities carry no artwork, so the tile reads its own thumbnail off the
+/// main thread once it is on screen.
 struct EntityTile: View {
     let entity: any Entity
     let subtitle: String?
     var size: CGFloat = 160
     let onOpen: () -> Void
+
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @State private var image: PlatformImage?
 
     private var isArtist: Bool { entity is ArtistEntity }
 
@@ -33,10 +39,27 @@ struct EntityTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .task(id: entity.id) {
+            image = await loadThumbnail().flatMap(PlatformImage.init(data:))
+        }
+    }
+
+    private func loadThumbnail() async -> Data? {
+        if let data = entity.displayArtwork { return data }
+        let database = libraryManager.databaseManager
+        let name = entity.name
+        let albumId = (entity as? AlbumEntity)?.albumId
+        let isArtist = isArtist
+        return await Task.detached(priority: .userInitiated) {
+            if isArtist { return database.getArtistArtworkThumbnail(name: name) }
+            guard let albumId else { return nil }
+            return database.getAlbumArtworkThumbnail(albumId: albumId)
+                ?? database.getArtworkData(albumId: albumId, trackId: nil)
+        }.value
     }
 
     @ViewBuilder private var artwork: some View {
-        if let data = entity.displayArtwork, let image = PlatformImage(data: data) {
+        if let image {
             Image(platformImage: image)
                 .resizable()
                 .scaledToFill()

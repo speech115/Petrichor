@@ -13,9 +13,6 @@ struct TrackTableView: View {
     let tracks: [Track]
     let playlistID: UUID?
     let entityID: UUID?
-    // Queue source recorded when playing from this table (non-playlist tables); folder detail
-    // views pass .folder so row playback keeps folder context, matching the header Play/Shuffle.
-    let queueSource: PlaylistManager.QueueSource
     var layout: TrackTableLayout = .standard
     /// False leaves the "#" column blank: the tags' numbers aren't real track numbers.
     var showsTrackNumbers = true
@@ -62,7 +59,6 @@ struct TrackTableView: View {
 
     private static let trackFont = Font.system(size: 13, weight: .regular)
     private static let currentTrackFont = Font.system(size: 13, weight: .medium)
-    private static let currentTrackTitleFont = Font.system(size: 13, weight: .bold)
 
     private func isCurrentTrack(_ track: Track) -> Bool {
         guard let currentTrack = playbackManager.currentTrack else { return false }
@@ -401,7 +397,7 @@ struct TrackTableView: View {
             playlistManager.currentPlaylist = playlist
             playlistManager.currentQueueSource = .playlist
         } else {
-            playlistManager.currentQueueSource = queueSource
+            playlistManager.currentQueueSource = .library
         }
     }
 
@@ -474,7 +470,7 @@ struct TrackTableView: View {
 
         if let firstTrack = tracksForPlayback.first {
             playlistManager.playTrack(firstTrack, fromTracks: tracksForPlayback)
-            playlistManager.currentQueueSource = queueSource
+            playlistManager.currentQueueSource = .library
         }
     }
 

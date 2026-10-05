@@ -35,7 +35,6 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
 
     @State private var leftWidth: CGFloat
     @State private var rightWidth: CGFloat
-    @State private var isRightSidebarVisible: Bool
 
     // MARK: - Initializers
 
@@ -55,7 +54,6 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         let storedValue = UserDefaults.standard.double(forKey: leftStorageKey)
         self._leftWidth = State(initialValue: storedValue > 0 ? CGFloat(storedValue) : SplitViewConstants.leftSidebarDefaultWidth)
         self._rightWidth = State(initialValue: 0)
-        self._isRightSidebarVisible = State(initialValue: false)
     }
 
     // Right sidebar only
@@ -74,7 +72,6 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         let storedValue = UserDefaults.standard.double(forKey: rightStorageKey)
         self._leftWidth = State(initialValue: 0)
         self._rightWidth = State(initialValue: storedValue > 0 ? CGFloat(storedValue) : SplitViewConstants.rightSidebarDefaultWidth)
-        self._isRightSidebarVisible = State(initialValue: true)
     }
 
     // Both sidebars
@@ -96,7 +93,6 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         let rightStored = UserDefaults.standard.double(forKey: rightStorageKey)
         self._leftWidth = State(initialValue: leftStored > 0 ? CGFloat(leftStored) : SplitViewConstants.leftSidebarDefaultWidth)
         self._rightWidth = State(initialValue: rightStored > 0 ? CGFloat(rightStored) : SplitViewConstants.rightSidebarDefaultWidth)
-        self._isRightSidebarVisible = State(initialValue: true)
     }
 
     var body: some View {

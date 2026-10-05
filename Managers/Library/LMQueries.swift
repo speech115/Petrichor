@@ -49,10 +49,6 @@ extension LibraryManager {
         databaseManager.getArtistArtworkAndBio(for: name)
     }
 
-    func getArtistBio(for name: String) -> String? {
-        databaseManager.getArtistBio(for: name)
-    }
-
     func getArtistId(for name: String) -> Int64? {
         databaseManager.getArtistId(for: name)
     }
@@ -187,14 +183,6 @@ extension LibraryManager {
 
         await MainActor.run { cachedLibraryCategories[filterType] = items }
         return items
-    }
-
-    func libraryFilterTrackCount(for filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> Int {
-        let items = getLibraryFilterItems(for: filterType)
-        if filterType == .albums, let albumId {
-            return items.first { $0.albumId == albumId }?.count ?? 0
-        }
-        return items.first { $0.name == value }?.count ?? 0
     }
 
     func updateSearchResults() {
