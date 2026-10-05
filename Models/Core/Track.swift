@@ -241,8 +241,6 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     
     // MARK: - Relationships
     
-    static let folder = belongsTo(Folder.self)
-    
     // MARK: - Equatable
     
     static func == (lhs: Track, rhs: Track) -> Bool {
@@ -367,17 +365,6 @@ extension Track {
 // MARK: - Full Track Loading
 
 extension Track {
-    /// Fetch the complete FullTrack record from database
-    /// - Parameter db: Database connection
-    /// - Returns: FullTrack with all metadata, or nil if not found
-    func fullTrack(db: Database) throws -> FullTrack? {
-        guard let trackId = trackId else { return nil }
-        
-        return try FullTrack
-            .filter(FullTrack.Columns.trackId == trackId)
-            .fetchOne(db)
-    }
-    
     /// Async version for fetching FullTrack
     /// - Parameter dbQueue: Any database reader (a `DatabaseQueue` or `DatabasePool`)
     /// - Returns: FullTrack with all metadata, or nil if not found

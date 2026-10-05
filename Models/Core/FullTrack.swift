@@ -268,12 +268,6 @@ struct FullTrack: Identifiable, Equatable, Hashable, FetchableRecord, Persistabl
     
     // MARK: - Associations
     
-    static let folder = belongsTo(Folder.self)
-    static let album = belongsTo(Album.self, using: ForeignKey(["album_id"]))
-    static let trackArtists = hasMany(TrackArtist.self)
-    static let artists = hasMany(Artist.self, through: trackArtists, using: TrackArtist.artist)
-    static let genres = hasMany(Genre.self, through: hasMany(TrackGenre.self), using: TrackGenre.genre)
-    
     // MARK: - Equatable
     
     static func == (lhs: FullTrack, rhs: FullTrack) -> Bool {

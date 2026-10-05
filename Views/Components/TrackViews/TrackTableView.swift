@@ -62,7 +62,6 @@ struct TrackTableView: View {
 
     private static let trackFont = Font.system(size: 13, weight: .regular)
     private static let currentTrackFont = Font.system(size: 13, weight: .medium)
-    private static let currentTrackTitleFont = Font.system(size: 13, weight: .bold)
 
     private func isCurrentTrack(_ track: Track) -> Bool {
         guard let currentTrack = playbackManager.currentTrack else { return false }

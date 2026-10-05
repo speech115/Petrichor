@@ -166,31 +166,6 @@ struct Playlist: Identifiable, FetchableRecord, PersistableRecord {
         self.smartCriteria = criteria
     }
     
-    // Database restoration initializer
-    init(
-        id: UUID,
-        name: String,
-        tracks: [Track],
-        dateCreated: Date,
-        dateModified: Date,
-        coverArtworkData: Data?,
-        type: PlaylistType,
-        isUserEditable: Bool,
-        isContentEditable: Bool,
-        smartCriteria: SmartPlaylistCriteria?
-    ) {
-        self.id = id
-        self.name = name
-        self.tracks = tracks
-        self.dateCreated = dateCreated
-        self.dateModified = dateModified
-        self.coverArtworkData = coverArtworkData
-        self.type = type
-        self.isUserEditable = isUserEditable
-        self.isContentEditable = isContentEditable
-        self.smartCriteria = smartCriteria
-    }
-    
     // MARK: - GRDB Support
     
     // DB Configuration
@@ -254,10 +229,6 @@ struct Playlist: Identifiable, FetchableRecord, PersistableRecord {
         }
     }
     
-    // Associations
-    static let playlistTracks = hasMany(PlaylistTrack.self)
-    static let tracks = hasMany(Track.self, through: playlistTracks, using: PlaylistTrack.track)
-    
     // MARK: - Business Logic Methods
     
     // Add a track to the playlist (only for regular playlists)
@@ -291,25 +262,6 @@ struct Playlist: Identifiable, FetchableRecord, PersistableRecord {
         
         dateModified = Date()
         PlaylistArtworkCache.shared.clearCache(for: id)
-    }
-    
-    // Move a track within the playlist (only for regular playlists)
-    mutating func moveTrack(from sourceIndex: Int, to destinationIndex: Int) {
-        guard type == .regular && isContentEditable else { return }
-        
-        guard sourceIndex >= 0, sourceIndex < tracks.count,
-              destinationIndex >= 0, destinationIndex < tracks.count,
-              sourceIndex != destinationIndex else {
-            return
-        }
-        
-        let track = tracks.remove(at: sourceIndex)
-        tracks.insert(track, at: destinationIndex)
-        dateModified = Date()
-        // Only clear cache if moving affects the first 4 tracks
-        if sourceIndex < 4 || destinationIndex < 4 {
-            PlaylistArtworkCache.shared.clearCache(for: id)
-        }
     }
     
     // Calculate total duration of the playlist

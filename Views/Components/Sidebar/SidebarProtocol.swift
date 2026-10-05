@@ -9,7 +9,6 @@ protocol SidebarItem: Identifiable, Equatable {
     var icon: String? { get }
     /// Square artwork shown instead of `icon` when present (playlist covers).
     var artwork: SidebarItemArtwork? { get }
-    var count: Int? { get }
 }
 
 extension SidebarItem {
@@ -29,7 +28,6 @@ struct LibrarySidebarItem: SidebarItem {
     let title: String
     let subtitle: String?
     let icon: String?
-    let count: Int?
     let filterType: LibraryFilterType
     let filterName: String
     let albumId: Int64?
@@ -39,7 +37,6 @@ struct LibrarySidebarItem: SidebarItem {
         self.title = filterItem.name
         self.subtitle = String(localized: "\(filterItem.count) songs")
         self.icon = Self.getIcon(for: filterItem.filterType, isAllItem: false)
-        self.count = nil
         self.filterType = filterItem.filterType
         self.filterName = filterItem.name
         self.albumId = filterItem.albumId
@@ -51,7 +48,6 @@ struct LibrarySidebarItem: SidebarItem {
         self.title = filterType.allItemsTitle
         self.subtitle = String(localized: "\(count) songs")
         self.icon = Self.getIcon(for: filterType, isAllItem: true)
-        self.count = nil
         self.filterType = filterType
         self.filterName = ""
         self.albumId = nil
@@ -70,7 +66,6 @@ struct PlaylistSidebarItem: SidebarItem {
     let subtitle: String?
     let icon: String?
     let artwork: SidebarItemArtwork?
-    let count: Int?
     let playlist: Playlist
 
     init(playlist: Playlist, artworkOverride: SidebarItemArtwork? = nil) {
@@ -80,18 +75,10 @@ struct PlaylistSidebarItem: SidebarItem {
         self.artwork = artworkOverride ?? PlaylistSidebarArtwork.resolve(for: playlist)
         self.playlist = playlist
 
-        // Set subtitle and count based on playlist type
-        if playlist.type == .smart {
-            let trackCount = playlist.trackCount
-            if let limit = playlist.trackLimit {
-                self.subtitle = String(localized: "\(trackCount) / \(limit) songs")
-            } else {
-                self.subtitle = String(localized: "\(trackCount) songs")
-            }
-            self.count = nil
+        if playlist.type == .smart, let limit = playlist.trackLimit {
+            self.subtitle = String(localized: "\(playlist.trackCount) / \(limit) songs")
         } else {
             self.subtitle = String(localized: "\(playlist.trackCount) songs")
-            self.count = nil
         }
     }
 }

@@ -43,8 +43,6 @@ struct PlaylistTrack: Codable, FetchableRecord, PersistableRecord {
     }
 
     // MARK: - Associations
-    static let track = belongsTo(Track.self, using: ForeignKey(["track_id"]))
-    static let playlist = belongsTo(Playlist.self, using: ForeignKey(["playlist_id"]))
 }
 
 extension PlaylistTrack {

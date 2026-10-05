@@ -39,12 +39,6 @@ struct Genre: Identifiable, FetchableRecord, PersistableRecord {
     }
 
     // MARK: - Associations
-
-    static let tracks = hasMany(Track.self, through: hasMany(TrackGenre.self), using: TrackGenre.track)
-
-    var tracks: QueryInterfaceRequest<Track> {
-        request(for: Genre.tracks)
-    }
 }
 
 // MARK: - Equatable

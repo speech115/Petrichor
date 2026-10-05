@@ -75,8 +75,6 @@ struct ContentView: View {
     @State private var libraryCachedTracks: [Track] = []
     @State private var librarySelectedSidebarItem: LibrarySidebarItem?
 
-    @ObservedObject private var notificationManager = NotificationManager.shared
-
     init() {
         let raw = UserDefaults.standard.string(forKey: mainWindowPanelStateKey)
         let restoredPanel = MainWindowPanelState(rawValue: raw ?? "") ?? .none

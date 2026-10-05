@@ -213,13 +213,4 @@ extension PlaylistManager {
             }
         }
     }
-
-    /// Check if a smart playlist needs its tracks refreshed
-    func smartPlaylistNeedsRefresh(_ playlist: Playlist) -> Bool {
-        guard playlist.type == .smart else { return false }
-
-        // If tracks array is empty, it needs refresh
-        // (unless it's genuinely empty based on criteria)
-        return playlist.tracks.isEmpty && playlist.dateModified != playlist.dateCreated
-    }
 }

@@ -232,5 +232,4 @@ private struct SectionSidebarItem: SidebarItem {
     var title: String { section.label }
     var subtitle: String? { nil }
     var icon: String? { section.icon }
-    var count: Int? { nil }
 }

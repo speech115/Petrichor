@@ -61,9 +61,7 @@ struct TrackContextMenuContent: View {
         playlistID: nil,
         entityID: nil,
         sortOrder: $sortOrder,
-        onPlayTrack: { track in
-            Logger.debugPrint("Playing \(track.title)")
-        },
+        onPlayTrack: { _ in },
         contextMenuItems: { _, _ in [] }
     )
     .frame(height: 400)
@@ -89,9 +87,7 @@ struct TrackContextMenuContent: View {
         playlistID: nil,
         entityID: nil,
         sortOrder: $sortOrder,
-        onPlayTrack: { track in
-            Logger.debugPrint("Playing \(track.title)")
-        },
+        onPlayTrack: { _ in },
         contextMenuItems: { _, _ in [] }
     )
     .frame(height: 600)

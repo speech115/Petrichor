@@ -161,5 +161,4 @@ struct PlaybackState: Codable, Sendable {
 
 enum PlaybackStateError: Error {
     case incompatibleVersion
-    case corruptedData
 }

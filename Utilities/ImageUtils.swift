@@ -366,8 +366,8 @@ enum ImageUtils {
 
     // MARK: - Cached Color Lookups
 
-    /// Every current caller (Now Playing / player backgrounds, `EntityDetailView`,
-    /// `CategoryEntity.init`) is SwiftUI view code, so `@MainActor` matches how
+    /// Every current caller (Now Playing / player backgrounds, `EntityDetailView`)
+    /// is SwiftUI view code, so `@MainActor` matches how
     /// this is actually used - `NSCache`'s own thread safety isn't the thing in
     /// question, the checker just can't verify a `static var` of any
     /// non-`Sendable` type (holding it behind a lock only trades this problem
@@ -451,167 +451,7 @@ enum ImageUtils {
         PlatformColor.from(color)
     }
 
-    @MainActor
-    private static let generatedArtworkCache = NSCache<NSString, NSData>()
-
-    /// Returns procedural artwork for the seed, generating (and caching) on a cache miss.
-    @MainActor
-    static func cachedCategoryArtwork(text: String, seed: String) -> Data? {
-        let cacheKey = seed as NSString
-        if let cached = generatedArtworkCache.object(forKey: cacheKey) {
-            return cached as Data
-        }
-
-        let generated = generateCategoryArtwork(text: text, seed: seed)
-        if let generated {
-            generatedArtworkCache.setObject(generated as NSData, forKey: cacheKey)
-        }
-        return generated
-    }
-
     // MARK: - Procedural Artwork
-
-    /// Generate deterministic procedural artwork for category entities (Genre, Decade, Year).
-    /// Uses the seed string to produce consistent colors and geometric shapes.
-    /// - Parameters:
-    ///   - text: Display text to render on the artwork
-    ///   - seed: Seed string for deterministic randomization
-    /// - Returns: JPEG image data, or nil if generation fails
-    /// Mix two integers into a new pseudo-random value (xorshift-style)
-    private static func mix(_ a: Int, _ b: Int) -> Int {
-        var x = a &+ b &* 2654435761
-        x ^= (x >> 16)
-        x &*= 0x45d9f3b
-        x ^= (x >> 16)
-        return x & Int.max
-    }
-
-    static func generateCategoryArtwork(text: String, seed: String) -> Data? {
-        let size = 240
-        let h = seed.deterministicHash
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-
-        guard let ctx = CGContext(
-            data: nil,
-            width: size,
-            height: size,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else { return nil }
-
-        // Independent hashes for color, layout, and gradient angle
-        let hColor = mix(h, 1)
-        let hLayout = mix(h, 2)
-        let hAngle = mix(h, 3)
-
-        // Golden-ratio hue spacing for maximum visual separation across seeds
-        let goldenRatio = 0.618033988749895
-        let hue1 = CGFloat(hColor % 997) / 997.0
-        let hue2 = (hue1 + goldenRatio).truncatingRemainder(dividingBy: 1.0)
-        let hue3 = (hue1 + goldenRatio * 2).truncatingRemainder(dividingBy: 1.0)
-
-        let c1 = PlatformColor(hue: hue1, saturation: 0.55, brightness: 0.85, alpha: 1)
-        let c2 = PlatformColor(hue: hue2, saturation: 0.5, brightness: 0.8, alpha: 1)
-        let c3 = PlatformColor(hue: hue3, saturation: 0.5, brightness: 0.9, alpha: 1)
-
-        // Gradient angle varies per seed
-        let angle = CGFloat(hAngle % 628) / 100.0  // 0 to ~2π
-        let endX = CGFloat(size) * (0.5 + 0.5 * cos(angle))
-        let endY = CGFloat(size) * (0.5 + 0.5 * sin(angle))
-        let startX = CGFloat(size) - endX
-        let startY = CGFloat(size) - endY
-
-        let gradient = CGGradient(
-            colorsSpace: colorSpace,
-            colors: [c1.cgColor, c2.cgColor] as CFArray,
-            locations: [0, 1]
-        )
-        guard let gradient else { return nil }
-        ctx.drawLinearGradient(
-            gradient,
-            start: CGPoint(x: startX, y: startY),
-            end: CGPoint(x: endX, y: endY),
-            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-        )
-
-        // Large geometric shapes — each shape uses an independent seed via mix()
-        for i in 0..<(3 + hLayout % 3) {
-            let s = mix(hLayout, i &* 31)
-            let x = CGFloat(s % (size + 80)) - 40
-            let y = CGFloat(mix(s, 7) % (size + 80)) - 40
-            let d = CGFloat(100 + mix(s, 13) % 120)
-            ctx.setFillColor(
-                (i.isMultiple(of: 2) ? c3 : c1)
-                    .withAlphaComponent(0.2 + CGFloat(mix(s, 19) % 15) / 100)
-                    .cgColor
-            )
-
-            switch mix(s, 37) % 3 {
-            case 0:
-                ctx.fillEllipse(in: CGRect(x: x - d / 2, y: y - d / 2, width: d, height: d))
-            case 1:
-                ctx.addPath(CGPath(
-                    roundedRect: CGRect(x: x - d / 2, y: y - d / 2, width: d, height: d * 0.75),
-                    cornerWidth: 16,
-                    cornerHeight: 16,
-                    transform: nil
-                ))
-                ctx.fillPath()
-            default:
-                ctx.saveGState()
-                ctx.translateBy(x: x, y: y)
-                ctx.rotate(by: .pi / 4)
-                let r = d * 0.4
-                ctx.fill(CGRect(x: -r, y: -r, width: r * 2, height: r * 2))
-                ctx.restoreGState()
-            }
-        }
-
-        // Centered text overlay
-        ctx.saveGState()
-        ctx.textMatrix = .identity
-        ctx.translateBy(x: 0, y: CGFloat(size))
-        ctx.scaleBy(x: 1, y: -1)
-
-        let fontSize: CGFloat = text.count <= 5 ? 48 : (text.count <= 12 ? 28 : 20)
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        style.lineBreakMode = .byTruncatingTail
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: systemFont(ofSize: fontSize, weight: .bold),
-            .foregroundColor: PlatformColor.white.withAlphaComponent(0.9),
-            .paragraphStyle: style
-        ]
-        let bound = (text as NSString).boundingRect(
-            with: CGSize(width: CGFloat(size - 32), height: CGFloat(size)),
-            options: .usesLineFragmentOrigin,
-            attributes: attrs,
-            context: nil
-        )
-        (text as NSString).draw(
-            in: CGRect(x: 16, y: (CGFloat(size) - bound.height) / 2, width: CGFloat(size - 32), height: bound.height + 4),
-            withAttributes: attrs
-        )
-        ctx.restoreGState()
-
-        guard let cgImage = ctx.makeImage() else { return nil }
-        return encodeJPEGPlatform(cgImage, quality: 0.85)
-    }
-
-    private static func systemFont(ofSize size: CGFloat, weight: FontWeight) -> PlatformFont {
-        PlatformFont.systemFont(ofSize: size, bold: weight == .bold)
-    }
-
-    private enum FontWeight {
-        case regular
-        case bold
-    }
-
-    private static func encodeJPEGPlatform(_ cgImage: CGImage, quality: CGFloat) -> Data? {
-        PlatformImage.jpegData(from: cgImage, quality: quality)
-    }
 
 
 }
@@ -670,12 +510,4 @@ private class CachedPlatformColors: NSObject {
 // MARK: - Deterministic Hash
 
 extension String {
-    /// A deterministic hash for seed-based generation (unlike `hashValue` which is randomized per process).
-    var deterministicHash: Int {
-        var hash = 5381
-        for char in utf8 {
-            hash = ((hash << 5) &+ hash) &+ Int(char)
-        }
-        return hash
-    }
 }

@@ -48,7 +48,6 @@ struct TrackArtist: FetchableRecord, PersistableRecord {
     // MARK: - Associations
 
     static let track = belongsTo(Track.self, using: ForeignKey(["track_id"]))
-    static let artist = belongsTo(Artist.self, using: ForeignKey(["artist_id"]))
 }
 
 // MARK: - Role Constants

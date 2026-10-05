@@ -189,14 +189,6 @@ extension LibraryManager {
         return items
     }
 
-    func libraryFilterTrackCount(for filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> Int {
-        let items = getLibraryFilterItems(for: filterType)
-        if filterType == .albums, let albumId {
-            return items.first { $0.albumId == albumId }?.count ?? 0
-        }
-        return items.first { $0.name == value }?.count ?? 0
-    }
-
     func updateSearchResults() {
         if globalSearchText.isEmpty {
             // When not searching, don't populate searchResults with all tracks

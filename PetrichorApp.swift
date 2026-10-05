@@ -11,9 +11,6 @@ struct PetrichorApp: App {
         _appCoordinator = StateObject(wrappedValue: AppCoordinator())
     }
 
-    @AppStorage("showFoldersTab")
-    private var showFoldersTab = false
-
     @AppStorage("closeToMenubar")
     private var closeToMenubar = true
 
@@ -603,7 +600,6 @@ extension PetrichorApp {
     private func viewMenuCommands() -> some Commands {
         CommandGroup(after: .toolbar) {
             focusSearchMenuItem()
-            foldersTabToggle()
             miniPlayerOnTopToggle()
         }
     }
@@ -632,17 +628,6 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut("f", modifiers: .command)
-    }
-
-    private func foldersTabToggle() -> some View {
-        Toggle(isOn: $showFoldersTab) {
-            if #available(macOS 26.0, *) {
-                Label("Folders Tab", systemImage: Icons.folderFill)
-            } else {
-                Text("Folders Tab")
-            }
-        }
-        .keyboardShortcut("f", modifiers: [.command, .option, .shift])
     }
 
     // MARK: - Help Menu Commands

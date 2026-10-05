@@ -475,36 +475,4 @@ extension DatabaseManager {
             return false
         }
     }
-    
-    /// Remove a single track from a playlist without rebuilding
-    func removeTrackFromPlaylist(playlistId: UUID, trackId: Int64) async -> Bool {
-        do {
-            try await dbQueue.write { db in
-                let deleted = try PlaylistTrack
-                    .filter(PlaylistTrack.Columns.playlistId == playlistId.uuidString)
-                    .filter(PlaylistTrack.Columns.trackId == trackId)
-                    .deleteAll(db)
-                
-                Logger.info("Removed \(deleted) track from playlist")
-                
-                // Reorder remaining tracks to close the gap
-                let remainingTracks = try PlaylistTrack
-                    .filter(PlaylistTrack.Columns.playlistId == playlistId.uuidString)
-                    .order(PlaylistTrack.Columns.position)
-                    .fetchAll(db)
-                
-                // Update positions
-                for (index, track) in remainingTracks.enumerated() {
-                    try db.execute(
-                        sql: "UPDATE playlist_tracks SET position = ? WHERE playlist_id = ? AND track_id = ?",
-                        arguments: [index, track.playlistId, track.trackId]
-                    )
-                }
-            }
-            return true
-        } catch {
-            Logger.error("Failed to remove track from playlist: \(error)")
-            return false
-        }
-    }
 }

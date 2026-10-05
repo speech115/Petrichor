@@ -183,11 +183,6 @@ public enum EqualizerPreset: String, CaseIterable {
     var displayName: String {
         config.displayName
     }
-
-    /// Description of what the preset does
-    var description: String {
-        config.description
-    }
 }
 
 // MARK: - Equalizer Frequencies

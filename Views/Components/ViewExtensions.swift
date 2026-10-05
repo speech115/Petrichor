@@ -13,47 +13,6 @@ extension View {
     }
 }
 
-// MARK: - Adaptive Button Styles
-
-extension View {
-    @ViewBuilder
-    func adaptiveButtonStyle(prominent: Bool = false) -> some View {
-        if #available(macOS 26.0, iOS 26.0, *) {
-            if prominent {
-                self.foregroundStyle(Color.accentColor)
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.small)
-            } else {
-                self.foregroundStyle(.secondary)
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.small)
-            }
-        } else {
-            if prominent {
-                self.buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-            } else {
-                self.buttonStyle(.bordered)
-                    .controlSize(.small)
-            }
-        }
-    }
-
-    @ViewBuilder
-    func adaptiveCircularButtonStyle() -> some View {
-        if #available(macOS 26.0, iOS 26.0, *) {
-            self.buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.small)
-        } else {
-            self.buttonStyle(.bordered)
-                .controlSize(.small)
-        }
-    }
-}
-
 // MARK: - Active Control Indicator
 
 extension View {
@@ -73,25 +32,19 @@ extension View {
 
 // MARK: - Lossless Label
 
-/// A glyph + "Lossless" label, shared between the track-detail view and the
-/// player's format badges. Defaults match the track-detail sizing; the player
-/// passes a more compact configuration.
+/// A glyph + "Lossless" label for the track-detail view.
 struct LosslessLabel: View {
-    var iconSize: CGFloat = 14
-    var font: Font = .subheadline
-    var spacing: CGFloat = 5
-
     var body: some View {
-        HStack(spacing: spacing) {
+        HStack(spacing: 5) {
             Image(Icons.customLossless)
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(width: iconSize, height: iconSize)
+                .frame(width: 14, height: 14)
                 .foregroundColor(.secondary)
 
             Text("Lossless")
-                .font(font)
+                .font(.subheadline)
                 .foregroundColor(.secondary)
                 .lineLimit(1)
                 .fixedSize()

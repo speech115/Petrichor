@@ -168,23 +168,6 @@ extension LibraryManager {
         refreshEntities()
     }
     
-    /// Load all tracks into memory
-    func loadAllTracks() async {
-        if tracks.isEmpty {
-            Logger.info("Loading all tracks into memory...")
-            
-            let loadedTracks = await Task.detached {
-                self.databaseManager.getAllTracks()
-            }.value
-            
-            await MainActor.run {
-                self.tracks = loadedTracks
-                self.libraryRevision += 1
-                self.updateSearchResults()
-            }
-        }
-    }
-
     func updateArtistEntityArtwork(name: String, artworkData: Data?) {
         // iOS keeps entity summaries metadata-only; the database write has
         // already happened and visible rows will fetch the new image lazily.

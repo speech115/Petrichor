@@ -52,7 +52,7 @@ struct EntityDetailView: View {
                     selectedTrackID: $selectedTrackID,
                     playlistID: nil,
                     entityID: entity.id,
-                    queueSource: queueSource,
+                    queueSource: .library,
                     layout: entity is AlbumEntity ? .album : .standard,
                     showsTrackNumbers: showsTrackNumbers,
                     sortOrder: $trackTableSortOrder,
@@ -205,12 +205,6 @@ struct EntityDetailView: View {
                                 Text(entity.name.artistInitials)
                                     .font(.system(size: 64, weight: .medium, design: .rounded))
                                     .foregroundColor(.secondary)
-                            } else if entity is CategoryEntity {
-                                Text(entity.name)
-                                    .font(.system(size: entity.name.count <= 5 ? 28 : 16, weight: .medium, design: .rounded))
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(8)
                             } else {
                                 Image(systemName: Icons.opticalDiscFill)
                                     .font(.system(size: 64))
@@ -265,19 +259,9 @@ struct EntityDetailView: View {
         }
     }
 
-    private var entityTypeLabel: String {
-        if entity is FolderEntity {
-            return String(localized: "Folder")
-        }
-        if let category = entity as? CategoryEntity {
-            return category.filterType.singularDisplayName
-        }
-        return String(localized: "Artist")
-    }
-
     private var artistEntityInfo: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(entityTypeLabel)
+            Text("Artist")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .fontWeight(.medium)
@@ -384,8 +368,6 @@ struct EntityDetailView: View {
 
     private var emptyViewIcon: String {
         if entity is ArtistEntity { return "person.slash" }
-        if entity is CategoryEntity { return "music.note.slash" }
-        if entity is FolderEntity { return Icons.folderFill }
         return "opticaldisc.slash"
     }
 
@@ -494,12 +476,6 @@ extension EntityDetailView {
         self.isLoading = false
     }
 
-    // Folders retain folder queue source; every other entity type plays as a library queue.
-    // Passed to TrackView so all of its playback paths (header, double-click, row button) agree.
-    private var queueSource: PlaylistManager.QueueSource {
-        entity is FolderEntity ? .folder : .library
-    }
-
     private func playTrack(_ track: Track) {
         playlistManager.playTrack(track, fromTracks: tracks)
         selectedTrackID = track.id
@@ -526,7 +502,7 @@ extension EntityDetailView {
 
     return EntityDetailView(
         entity: artist,
-    ) { Logger.debugPrint("Back tapped") }
+    ) {}
     .environmentObject(LibraryManager())
     .environmentObject(PlaybackManager(libraryManager: LibraryManager(), playlistManager: PlaylistManager()))
     .environmentObject(PlaylistManager())
@@ -538,7 +514,7 @@ extension EntityDetailView {
 
     return EntityDetailView(
         entity: album,
-    ) { Logger.debugPrint("Back tapped") }
+    ) {}
     .environmentObject(LibraryManager())
     .environmentObject(PlaybackManager(libraryManager: LibraryManager(), playlistManager: PlaylistManager()))
     .environmentObject(PlaylistManager())
