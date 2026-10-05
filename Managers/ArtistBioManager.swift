@@ -59,6 +59,9 @@ actor ArtistBioManager {
     private var lastWikimediaRequest: Date?
     private var lastTMDBRequest: Date?
     private var lastLastFMRequest: Date?
+    /// Requests that failed at the transport level (offline, DNS, timeout),
+    /// as opposed to answering "nothing found". Drives the offline breaker.
+    private var networkErrors = 0
 
     private nonisolated var tmdbReadAccessToken: String? {
         Bundle.main.object(forInfoDictionaryKey: "TMDB_READ_ACCESS_TOKEN") as? String
@@ -121,42 +124,34 @@ actor ArtistBioManager {
             let uiUpdateInterval: TimeInterval = 2
 
             // Stop a doomed run (offline / APIs down) instead of timing out on every
-            // artist. The list is popular-first, so a long run yielding neither image
-            // nor bio means "offline", not "no data exists".
+            // artist. Only transport errors count: an empty answer means the artist
+            // has no data there, which is stamped and retried in 7 days.
             let maxConsecutiveFailures = 10
             var consecutiveFailures = 0
-            var stoppedEarly = false
 
-            // Full (image+bio) misses deferred until we can tell "offline" from "no
-            // data": a success or finishing the whole list stamps them; any early exit
-            // (offline breaker or cancel) drops them so a later refresh retries them.
-            var deferredFullMisses: [Int64] = []
-            func flushDeferredFailures() {
-                for artistId in deferredFullMisses {
-                    databaseManager.markArtistImageFetchFailed(artistId: artistId)
-                    databaseManager.markArtistBioFetchFailed(artistId: artistId)
-                }
-                deferredFullMisses.removeAll()
-            }
+            // Without a Last.fm key no bio can come back, so it isn't attempted.
+            let canFetchBio = !(self.lastfmApiKey ?? "").isEmpty
 
             for artist in artists {
                 guard !Task.isCancelled, self.isArtistInfoFetchEnabled else {
                     Logger.info("Fetch stopped")
-                    stoppedEarly = true
                     break
                 }
 
+                let wantsImage = !artist.hasImage
+                let wantsBio = !artist.hasBio && canFetchBio
+                guard wantsImage || wantsBio else { continue }
+
                 // Fetch image and bio, then write once
-                Logger.info("Fetching info for '\(artist.name)' (image: \(!artist.hasImage), bio: \(!artist.hasBio))")
-                let imageResult = artist.hasImage ? nil : await self.fetchArtistImage(name: artist.name)
-                let bio = artist.hasBio ? nil : await self.fetchArtistBio(name: artist.name)
+                Logger.info("Fetching info for '\(artist.name)' (image: \(wantsImage), bio: \(wantsBio))")
+                let errorsBefore = await self.networkErrors
+                let imageResult = wantsImage ? await self.fetchArtistImage(name: artist.name) : nil
+                let bio = wantsBio ? await self.fetchArtistBio(name: artist.name) : nil
+                let networkFailed = await self.networkErrors != errorsBefore
 
                 // A cancel mid-fetch surfaces as nil results; bail before treating them
                 // as misses so we don't stamp an interrupted artist as failed.
-                if Task.isCancelled {
-                    stoppedEarly = true
-                    break
-                }
+                if Task.isCancelled { break }
 
                 if let imageResult,
                    let compressed = ImageUtils.compressImage(from: imageResult.imageData, source: "ArtistBioManager/\(imageResult.source)") {
@@ -174,35 +169,21 @@ actor ArtistBioManager {
                     databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: "last.fm")
                 }
 
-                // A miss = an attempted fetch that got an empty remote response.
-                // (A downloaded image that fails local compression is not a miss; it
-                // stays unstamped so it retries rather than being skipped for 7 days.)
-                let imageMiss = !artist.hasImage && imageResult == nil
-                let bioMiss = !artist.hasBio && bio == nil
-
-                if imageResult != nil || bio != nil {
-                    // Got data, so we're online: flush deferred full misses (genuine),
-                    // stamp this artist's own miss, reset the breaker.
-                    flushDeferredFailures()
-                    if imageMiss { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
-                    if bioMiss { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
-                    consecutiveFailures = 0
-                } else if imageMiss && bioMiss {
-                    // Both attempted fields came back empty: an offline candidate.
-                    // Defer the stamps and count toward the breaker.
-                    deferredFullMisses.append(artist.id)
+                if networkFailed && imageResult == nil && bio == nil {
+                    // Nothing came back and a request failed in transit: leave the
+                    // artist unstamped for a later retry and count toward the breaker.
                     consecutiveFailures += 1
                     if consecutiveFailures >= maxConsecutiveFailures {
-                        Logger.warning("Stopping artist fetch after \(maxConsecutiveFailures) consecutive failures (likely offline)")
-                        stoppedEarly = true
+                        Logger.warning("Stopping artist fetch after \(maxConsecutiveFailures) consecutive network failures")
                         break
                     }
                 } else {
-                    // Only one field was attempted and authoritatively returned nothing
-                    // (e.g. no Last.fm bio exists, or no Last.fm key): a genuine miss,
-                    // not evidence of offline. Stamp it; leave the breaker untouched.
-                    if imageMiss { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
-                    if bioMiss { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
+                    // A miss = an attempted fetch that got an empty remote response.
+                    // (A downloaded image that fails local compression is not a miss; it
+                    // stays unstamped so it retries rather than being skipped for 7 days.)
+                    if wantsImage && imageResult == nil { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
+                    if wantsBio && bio == nil { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
+                    consecutiveFailures = 0
                 }
 
                 // Flush pending UI updates every 2 seconds
@@ -212,10 +193,6 @@ actor ArtistBioManager {
                     lastUIUpdate = Date()
                 }
             }
-
-            // Stamp trailing full misses only if we finished the whole list; any early
-            // exit (offline or cancel) leaves them for a later retry.
-            if !stoppedEarly { flushDeferredFailures() }
 
             // Flush remaining updates
             if !pendingUpdates.isEmpty {
@@ -285,6 +262,7 @@ actor ArtistBioManager {
             return images
         } catch {
             if isCancellation(error) { return [] }
+            if error is URLError { networkErrors += 1 }
             Logger.error("MusicBrainz error for '\(name)': \(error.localizedDescription)")
             return []
         }
@@ -322,6 +300,7 @@ actor ArtistBioManager {
             return nil
         } catch {
             if isCancellation(error) { return nil }
+            if error is URLError { networkErrors += 1 }
             Logger.error("MusicBrainz lookup error for MBID '\(mbid)': \(error.localizedDescription)")
             return nil
         }
@@ -370,6 +349,7 @@ actor ArtistBioManager {
             return nil
         } catch {
             if isCancellation(error) { return nil }
+            if error is URLError { networkErrors += 1 }
             Logger.error("Wikidata error for '\(qid)': \(error.localizedDescription)")
             return nil
         }
@@ -435,6 +415,7 @@ actor ArtistBioManager {
             return images
         } catch {
             if isCancellation(error) { return [] }
+            if error is URLError { networkErrors += 1 }
             Logger.error("TMDB error for '\(name)': \(error.localizedDescription)")
             return []
         }
@@ -482,6 +463,7 @@ actor ArtistBioManager {
             return cleaned.isEmpty ? nil : cleaned
         } catch {
             if isCancellation(error) { return nil }
+            if error is URLError { networkErrors += 1 }
             Logger.error("Last.fm bio error for '\(name)': \(error.localizedDescription)")
             return nil
         }
