@@ -39,6 +39,7 @@ actor ArtistBioManager {
 
     private enum TMDB {
         static let searchURL = "https://api.themoviedb.org/3/search/person"
+        static let personURL = "https://api.themoviedb.org/3/person"
         static let imageBaseURL = "https://image.tmdb.org/t/p/w500"
         static let rateLimitDelay: TimeInterval = 0.3 // ~40 req / 10s
     }
@@ -381,18 +382,26 @@ actor ArtistBioManager {
             }
 
             var images: [ImageResult] = []
-            for result in results.prefix(limit) {
+            // Auto-fetch looks past the first hit: TMDB also matches aliases, so the
+            // artist can sit under a real name (Хаски -> Dmitry Kuznetsov) further down.
+            for result in results.prefix(limit == 1 ? 3 : limit) {
                 guard let profilePath = result["profile_path"] as? String else { continue }
 
-                // For auto-fetch, only accept close name matches
+                // For auto-fetch, only accept a close name match or an exact alias
                 if limit == 1, let resultName = result["name"] as? String,
-                   !isNameMatch(query: name, result: resultName) { continue }
+                   !isNameMatch(query: name, result: resultName) {
+                    guard let personId = result["id"] as? Int,
+                          await tmdbAliases(personId: personId, token: token).contains(where: {
+                              $0.compare(name, options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]) == .orderedSame
+                          }) else { continue }
+                }
 
                 let imageUrlString = TMDB.imageBaseURL + profilePath
 
                 if let imageData = await downloadImageData(from: imageUrlString) {
                     let label = limit == 1 ? "tmdb" : (result["name"] as? String).map { "tmdb – \($0)" } ?? "tmdb"
                     images.append(ImageResult(imageData: imageData, imageUrl: imageUrlString, source: label))
+                    if limit == 1 { break }
                 }
             }
             return images
@@ -400,6 +409,24 @@ actor ArtistBioManager {
             if isCancellation(error) { return [] }
             if error is URLError { networkErrors += 1 }
             Logger.error("TMDB error for '\(name)': \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func tmdbAliases(personId: Int, token: String) async -> [String] {
+        lastTMDBRequest = await waitForRateLimit(lastRequest: lastTMDBRequest, delay: TMDB.rateLimitDelay)
+
+        guard let url = URL(string: "\(TMDB.personURL)/\(personId)") else { return [] }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, _) = try await AppInfo.urlSession.data(for: request)
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return json?["also_known_as"] as? [String] ?? []
+        } catch {
+            if error is URLError { networkErrors += 1 }
             return []
         }
     }
