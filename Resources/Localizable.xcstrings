@@ -7269,12 +7269,12 @@
         }
       }
     },
-    "Removes all folders, tracks, playlists, and pinned items. Use the checkbox in the confirmation dialog to optionally reset app preferences." : {
+    "Removes all folders, tracks, and playlists. Use the checkbox in the confirmation dialog to optionally reset app preferences." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "移除所有文件夹、歌曲、播放列表和已固定项目，可在确认对话框中勾选以同时重置应用设置"
+            "value" : "移除所有文件夹、歌曲和播放列表，可在确认对话框中勾选以同时重置应用设置"
           }
         }
       }
@@ -8671,12 +8671,12 @@
         }
       }
     },
-    "This will permanently remove all library data, including added folders, tracks, playlists, and pinned items. This action cannot be undone." : {
+    "This will permanently remove all library data, including added folders, tracks, and playlists. This action cannot be undone." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此操作将永久删除资料库数据，包括已添加的文件夹、歌曲、播放列表和固定的项目，且无法撤销"
+            "value" : "此操作将永久删除资料库数据，包括已添加的文件夹、歌曲和播放列表，且无法撤销"
           }
         }
       }

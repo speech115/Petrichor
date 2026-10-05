@@ -172,7 +172,6 @@ enum DatabaseMigrator {
                 table: "tracks",
                 columns: ["filename"]
             )
-            try db.dropColumnIfExists(table: "pinned_items", column: "icon_name")
             Logger.info("v10_add_filename_index_and_drop_pinned_icon_name migration completed")
         }
 
@@ -191,25 +190,6 @@ enum DatabaseMigrator {
                 columns: ["canonical_album_id"]
             )
 
-            // Backfill album_id on legacy title-only library album pins so distinct same-title
-            // albums pin independently. Ambiguous titles resolve to the most-tracks album.
-            let legacyAlbumPins = try PinnedItem
-                .filter(PinnedItem.Columns.itemType == PinnedItem.ItemType.library.rawValue)
-                .filter(PinnedItem.Columns.filterType == LibraryFilterType.albums.rawValue)
-                .filter(PinnedItem.Columns.albumId == nil)
-                .fetchAll(db)
-            for pin in legacyAlbumPins {
-                guard let pinId = pin.id, let title = pin.filterValue else { continue }
-                let albumId = try Album
-                    .select(Album.Columns.id, as: Int64.self)
-                    .filter(Album.Columns.title == title)
-                    .order(Album.Columns.totalTracks.desc)
-                    .fetchOne(db)
-                guard let albumId else { continue }
-                try PinnedItem
-                    .filter(PinnedItem.Columns.id == pinId)
-                    .updateAll(db, PinnedItem.Columns.albumId.set(to: albumId))
-            }
             Logger.info("v11_add_merge_support migration completed")
         }
 
@@ -292,8 +272,15 @@ enum DatabaseMigrator {
             Logger.info("v16_artwork_read_performance: flagged JPEG thumbnails and artwork column move")
         }
 
+        migrator.registerMigration("v17_drop_pinned_items") { db in
+            // Pinning has no UI any more; v10 and v11 used to touch this table
+            // and now leave it to this drop.
+            try db.execute(sql: "DROP TABLE IF EXISTS pinned_items")
+            Logger.info("v17_drop_pinned_items: dropped pinned_items table")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v17_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v18_description") { db in ... }
         // A column added to albums, artists or tracks lands after their artwork
         // BLOBs; reading it then walks every BLOB's overflow pages. Rebuild with
         // `moveColumnsToEnd` instead of a plain ADD COLUMN on those tables.
@@ -446,18 +433,6 @@ extension Database {
         return definitions
     }
 
-    /// Helper to drop a column if it exists
-    func dropColumnIfExists(table: String, column: String) throws {
-        let columns = try self.columns(in: table)
-        let columnExists = columns.contains { $0.name == column }
-        
-        if columnExists {
-            try self.alter(table: table) { t in
-                t.drop(column: column)
-            }
-        }
-    }
-    
     /// Helper to create an index if it doesn't exist
     func createIndexIfNotExists(
         name: String,

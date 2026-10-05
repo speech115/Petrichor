@@ -40,7 +40,6 @@
 - Smart playlists with conditional, negative, and regular-expression rules.
 - Manage the play queue interactively using drag and drop.
 - Browse music using folder view when needed.
-- Pin _anything_ (almost!) to the sidebar for quick access to your favorite music.
 - Navigate easily: right-click a track to go to its album, artist, year, etc.
 - Native macOS integration with menubar and dock playback controls, plus dark mode support.
 - Miniplayer and immersive mode.
@@ -334,21 +333,6 @@ erDiagram
     track_genres {
         INTEGER track_id FK "NOT NULL"
         INTEGER genre_id FK "NOT NULL"
-    }
-
-    pinned_items {
-        INTEGER id PK "AUTO_INCREMENT"
-        TEXT item_type "NOT NULL (library/playlist)"
-        TEXT filter_type "For library items"
-        TEXT filter_value "Artist/album name"
-        TEXT entity_id "UUID for entities"
-        INTEGER artist_id "Database ID"
-        INTEGER album_id "Database ID"
-        TEXT playlist_id "For playlist items"
-        TEXT display_name "NOT NULL"
-        TEXT subtitle "For albums"
-        INTEGER sort_order "NOT NULL DEFAULT 0"
-        DATETIME date_added "NOT NULL"
     }
 
     artist_aliases {

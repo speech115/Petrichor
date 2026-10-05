@@ -95,9 +95,6 @@ extension PlaylistManager {
         // Remove from database
         Task {
             do {
-                // Remove the playlist from pinned items if needed
-                await handlePlaylistDeletionForPinnedItems(playlist.id)
-                
                 // Remove the playlist from db
                 if let dbManager = libraryManager?.databaseManager {
                     try await dbManager.deletePlaylist(playlist.id)
@@ -126,14 +123,6 @@ extension PlaylistManager {
                 do {
                     if let dbManager = libraryManager?.databaseManager {
                         try await dbManager.updatePlaylistMetadata(updatedPlaylist)
-
-                        if let pinnedIndex = libraryManager?.pinnedItems.firstIndex(where: {
-                            $0.itemType == .playlist && $0.playlistId == playlist.id
-                        }) {
-                            await MainActor.run {
-                                libraryManager?.pinnedItems[pinnedIndex].displayName = newName
-                            }
-                        }
                     }
                 } catch {
                     Logger.error("Failed to save renamed playlist: \(error)")

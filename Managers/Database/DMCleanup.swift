@@ -131,17 +131,6 @@ extension DatabaseManager {
                 deletedCounts["extended_metadata"] = Int(db.changesCount)
             }
             
-            // Delete orphaned pinned items
-            try db.execute(
-                sql: """
-                DELETE FROM pinned_items
-                WHERE (artist_id IS NOT NULL AND artist_id NOT IN (SELECT id FROM artists))
-                   OR (album_id IS NOT NULL AND album_id NOT IN (SELECT id FROM albums))
-                   OR (playlist_id IS NOT NULL AND playlist_id NOT IN (SELECT id FROM playlists))
-                """
-            )
-            deletedCounts["pinned_items"] = Int(db.changesCount)
-            
             // Log cleanup results
             var totalDeleted = 0
             for (table, count) in deletedCounts where count > 0 {

@@ -22,7 +22,6 @@ extension DatabaseManager {
         try createPlaylistTracksTable(in: db)
         try createTrackArtistsTable(in: db)
         try createTrackGenresTable(in: db)
-        try createPinnedItemsTable(in: db)
         try createArtistAliasesTable(in: db)
         try createAlbumAliasesTable(in: db)
         try createInternetRadioTable(in: db)
@@ -35,7 +34,6 @@ extension DatabaseManager {
         
         // Seed default data
         try seedDefaultPlaylists(in: db)
-        try seedDefaultPinnedItems(in: db)
         
         Logger.info("Database schema setup completed")
     }
@@ -270,25 +268,6 @@ extension DatabaseManager {
             t.primaryKey(["track_id", "genre_id"])
         }
         Logger.info("Created `track_genres` table")
-    }
-    
-    // MARK: - Pinned Items Table
-    static func createPinnedItemsTable(in db: Database) throws {
-        try db.createTableIfNotExists("pinned_items") { t in
-            t.autoIncrementedPrimaryKey("id")
-            t.column("item_type", .text).notNull() // "library" or "playlist"
-            t.column("filter_type", .text) // For library items: artists, albums, etc.
-            t.column("filter_value", .text) // The specific artist/album name
-            t.column("entity_id", .text) // UUID for entities (optional)
-            t.column("artist_id", .integer) // Database ID for artist (optional)
-            t.column("album_id", .integer) // Database ID for album (optional)
-            t.column("playlist_id", .text) // For playlist items
-            t.column("display_name", .text).notNull()
-            t.column("subtitle", .text) // For albums, shows artist name
-            t.column("sort_order", .integer).notNull().defaults(to: 0)
-            t.column("date_added", .datetime).notNull()
-        }
-        Logger.info("Created `pinned_items` table")
     }
     
     // MARK: - Artist Aliases Table
@@ -548,10 +527,6 @@ extension DatabaseManager {
         
         try db.createIndexIfNotExists(name: "idx_track_genres_genre_id", table: "track_genres", columns: ["genre_id"])
         
-        // Pinned items indices
-        try db.createIndexIfNotExists(name: "idx_pinned_items_sort_order", table: "pinned_items", columns: ["sort_order"])
-        try db.createIndexIfNotExists(name: "idx_pinned_items_item_type", table: "pinned_items", columns: ["item_type"])
-
         try createInternetRadioIndices(in: db)
 
         // Merge alias indices for re-pointing aliases when a canonical entity is merged
@@ -599,58 +574,6 @@ extension DatabaseManager {
                 try playlist.insert(db)
                 Logger.info("Created default smart playlist: \(playlist.name)")
             }
-        }
-    }
-    
-    // MARK: - Seed Default Pinned Items
-    static func seedDefaultPinnedItems(in db: Database) throws {
-        // Check if pinned_items table is empty (first time setup)
-        let pinnedCount = try PinnedItem.fetchCount(db)
-        
-        if pinnedCount == 0 {
-            Logger.info("Seeding default pinned items")
-            
-            // Get the default playlists that were just created
-            let favoritesPlaylist = try Playlist
-                .filter(Playlist.Columns.name == DefaultPlaylists.favorites)
-                .fetchOne(db)
-            
-            let mostPlayedPlaylist = try Playlist
-                .filter(Playlist.Columns.name == DefaultPlaylists.mostPlayed)
-                .fetchOne(db)
-            
-            // Artists and Albums are ordinary pins now, so they can be reordered or removed.
-            try insertDefaultCategoryPins(in: db, startingAt: 0)
-            let playlistOrder = defaultCategoryPins.count
-
-            // Create pinned items for these playlists
-            if let favorites = favoritesPlaylist {
-                let pinnedFavorites = PinnedItem(playlist: favorites)
-                var savedItem = pinnedFavorites
-                savedItem.sortOrder = playlistOrder
-                try savedItem.insert(db)
-                Logger.info("Pinned default playlist: \(favorites.name)")
-            }
-
-            if let mostPlayed = mostPlayedPlaylist {
-                let pinnedMostPlayed = PinnedItem(playlist: mostPlayed)
-                var savedItem = pinnedMostPlayed
-                savedItem.sortOrder = playlistOrder + 1
-                try savedItem.insert(db)
-                Logger.info("Pinned default playlist: \(mostPlayed.name)")
-            }
-        }
-    }
-
-    /// Shared by first-run seeding and the v15 migration so both produce the same pins.
-    static let defaultCategoryPins: [LibraryFilterType] = [.artists, .albums]
-
-    static func insertDefaultCategoryPins(in db: Database, startingAt sortOrder: Int) throws {
-        for (offset, filterType) in defaultCategoryPins.enumerated() {
-            var item = PinnedItem(categoryType: filterType)
-            item.sortOrder = sortOrder + offset
-            try item.insert(db)
-            Logger.info("Pinned default category: \(filterType.rawValue)")
         }
     }
 }
