@@ -14,6 +14,9 @@ struct EntityDetailView: View {
     @State private var isArtworkHovered = false
     @State private var showingImagePicker = false
     @State private var overrideArtworkData: Data?
+    /// Full-size cover or artist photo, read from the database when the page
+    /// opens: the entity cache carries no artwork.
+    @State private var artworkData: Data?
     @State private var artworkDeleted = false
     @State private var artistBio: String?
     @State private var gradientColors: [Color] = []
@@ -178,7 +181,7 @@ struct EntityDetailView: View {
 
     private var displayedArtworkData: Data? {
         if artworkDeleted { return nil }
-        return overrideArtworkData ?? entity.artworkData
+        return overrideArtworkData ?? artworkData
     }
 
     private var isPersonEntity: Bool {
@@ -466,10 +469,11 @@ extension EntityDetailView {
 
         self.tracks = fetchedTracks
 
-        // Load artist bio for person entities (artists, album artists, composers)
+        let database = libraryManager.databaseManager
         if entity is ArtistEntity {
-            artistBio = libraryManager.getArtistBio(for: entity.name)
+            (artworkData, artistBio) = database.getArtistArtworkAndBio(for: entity.name)
         } else {
+            artworkData = (entity as? AlbumEntity)?.albumId.flatMap { database.getArtworkData(albumId: $0, trackId: nil) }
             artistBio = nil
         }
 
@@ -510,7 +514,7 @@ extension EntityDetailView {
 }
 
 #Preview("Album Detail") {
-    let album = AlbumEntity(name: "The Dark Side of the Moon", trackCount: 10, year: "1973", duration: 2580)
+    let album = AlbumEntity(name: "The Dark Side of the Moon", trackCount: 10, year: "1973")
 
     return EntityDetailView(
         entity: album,

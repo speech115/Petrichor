@@ -31,9 +31,9 @@ class AppCoordinator: ObservableObject {
     
     // MARK: - Initialization
     
-    init(cacheEntityArtwork: Bool = true, deferLaunchWork: Bool = false) {
+    init(deferLaunchWork: Bool = false) {
         // Initialize managers
-        libraryManager = LibraryManager(cacheEntityArtwork: cacheEntityArtwork, deferLaunchWork: deferLaunchWork)
+        libraryManager = LibraryManager(deferLaunchWork: deferLaunchWork)
         playlistManager = PlaylistManager()
         
         // Create audio player with dependencies

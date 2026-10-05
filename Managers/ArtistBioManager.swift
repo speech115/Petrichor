@@ -119,10 +119,6 @@ actor ArtistBioManager {
 
             Logger.info("Starting fetch for \(artists.count) artists")
 
-            var pendingUpdates: [(name: String, artworkData: Data)] = []
-            var lastUIUpdate = Date.distantPast
-            let uiUpdateInterval: TimeInterval = 2
-
             // Stop a doomed run (offline / APIs down) instead of timing out on every
             // artist. Only transport errors count: an empty answer means the artist
             // has no data there, which is stamped and retried in 7 days.
@@ -164,7 +160,6 @@ actor ArtistBioManager {
                         bio: bio,
                         bioSource: bio != nil ? "last.fm" : nil
                     )
-                    pendingUpdates.append((name: artist.name, artworkData: compressed))
                 } else if let bio {
                     databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: "last.fm")
                 }
@@ -185,18 +180,6 @@ actor ArtistBioManager {
                     if wantsBio && bio == nil { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
                     consecutiveFailures = 0
                 }
-
-                // Flush pending UI updates every 2 seconds
-                if !pendingUpdates.isEmpty && Date().timeIntervalSince(lastUIUpdate) >= uiUpdateInterval {
-                    await self.flushUIUpdates(pendingUpdates, using: libraryManager)
-                    pendingUpdates.removeAll()
-                    lastUIUpdate = Date()
-                }
-            }
-
-            // Flush remaining updates
-            if !pendingUpdates.isEmpty {
-                await self.flushUIUpdates(pendingUpdates, using: libraryManager)
             }
 
             Logger.info("Finished fetch")
@@ -466,19 +449,6 @@ actor ArtistBioManager {
             if error is URLError { networkErrors += 1 }
             Logger.error("Last.fm bio error for '\(name)': \(error.localizedDescription)")
             return nil
-        }
-    }
-
-    // MARK: - UI Updates
-
-    private func flushUIUpdates(
-        _ updates: [(name: String, artworkData: Data)],
-        using libraryManager: LibraryManager
-    ) async {
-        await MainActor.run {
-            for update in updates {
-                libraryManager.updateArtistEntityArtwork(name: update.name, artworkData: update.artworkData)
-            }
         }
     }
 

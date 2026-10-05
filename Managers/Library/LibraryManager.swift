@@ -77,7 +77,6 @@ class LibraryManager: ObservableObject {
     private let thresholdCheckInterval: TimeInterval = 1.0
     internal var cachedLibraryCategories: [LibraryFilterType: [LibraryFilterItem]] = [:]
     internal var libraryCategoriesLoaded = false
-    internal let cacheEntityArtwork: Bool
     internal let userDefaults = UserDefaults.standard
     internal let fileManager = FileManager.default
     internal var folderTrackCounts: [Int64: Int] = [:]
@@ -113,8 +112,7 @@ class LibraryManager: ObservableObject {
     /// - Parameter deferLaunchWork: The caller starts the category cache,
     ///   background migrations and artist images itself, via
     ///   `startLaunchWork(watchFolders:)`, once its first screen is up.
-    init(cacheEntityArtwork: Bool = true, deferLaunchWork: Bool = false) {
-        self.cacheEntityArtwork = cacheEntityArtwork
+    init(deferLaunchWork: Bool = false) {
         do {
             // Initialize database manager
             databaseManager = try DatabaseManager()

@@ -49,10 +49,6 @@ extension LibraryManager {
         databaseManager.getArtistArtworkAndBio(for: name)
     }
 
-    func getArtistBio(for name: String) -> String? {
-        databaseManager.getArtistBio(for: name)
-    }
-
     func getArtistId(for name: String) -> Int64? {
         databaseManager.getArtistId(for: name)
     }

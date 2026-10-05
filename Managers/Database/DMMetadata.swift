@@ -430,21 +430,6 @@ extension DatabaseManager {
         }
     }
 
-    func getArtistBio(for artistName: String) -> String? {
-        do {
-            return try dbQueue.read { db in
-                try Artist
-                    .filter(Artist.Columns.name == artistName)
-                    .fetchOne(db)?
-                    .bio
-            }
-        } catch {
-            Logger.error("Failed to get artist bio: \(error)")
-            return nil
-        }
-    }
-
-
     func updateFileProperties(_ track: inout FullTrack, at fileURL: URL) -> Bool {
         var hasChanges = false
 

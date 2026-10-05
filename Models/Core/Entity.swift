@@ -59,16 +59,10 @@ extension Entity {
     }
 }
 
-// MARK: - Shared Color Defaults
-
-extension Entity {
-}
-
 // MARK: - Artist Entity
 struct ArtistEntity: Entity {
     let id: UUID
     let name: String
-    let tracks: [Track]
     let trackCount: Int
     let artworkData: Data?
     let artworkThumbnail: Data?
@@ -82,7 +76,6 @@ struct ArtistEntity: Entity {
     init(name: String, trackCount: Int, artworkData: Data? = nil, artworkThumbnail: Data? = nil) {
         self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.artist)
         self.name = name
-        self.tracks = []
         self.trackCount = trackCount
         self.artworkData = artworkData
         self.artworkThumbnail = artworkThumbnail
@@ -93,15 +86,12 @@ struct ArtistEntity: Entity {
 struct AlbumEntity: Entity, Hashable {
     let id: UUID
     let name: String
-    let tracks: [Track]
     let trackCount: Int
     let artworkData: Data?
     let artworkThumbnail: Data?
     let albumId: Int64?
     let year: String?
-    let duration: Double?
     let artistName: String?
-    let dateAdded: Date?
 
     var displayName: String { LibraryFilterType.albums.localizedDisplay(name) }
 
@@ -116,9 +106,7 @@ struct AlbumEntity: Entity, Hashable {
         artworkThumbnail: Data? = nil,
         albumId: Int64? = nil,
         year: String? = nil,
-        duration: Double? = nil,
-        artistName: String? = nil,
-        dateAdded: Date? = nil
+        artistName: String? = nil
     ) {
         if let albumId = albumId {
             let uuidString = String(format: "00000000-0000-0000-0000-%012d", albumId)
@@ -127,15 +115,12 @@ struct AlbumEntity: Entity, Hashable {
             self.id = UUID(name: name.lowercased(), namespace: EntityNamespaces.album)
         }
         self.name = name
-        self.tracks = []
         self.trackCount = trackCount
         self.artworkData = artworkData
         self.artworkThumbnail = artworkThumbnail
         self.albumId = albumId
         self.year = year
-        self.duration = duration
         self.artistName = artistName
-        self.dateAdded = dateAdded
     }
 }
 

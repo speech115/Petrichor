@@ -51,7 +51,7 @@ struct PlaybackStartTests {
         let saved = try JSONEncoder().encode(state)
         defaults.set(saved, forKey: keys[0])
         defaults.set(try JSONEncoder().encode(state.createUIState(from: track)), forKey: keys[1])
-        let coordinator = AppCoordinator(cacheEntityArtwork: false)
+        let coordinator = AppCoordinator()
         let playback = coordinator.playbackManager
         defer { playback.stop() }
         // The count query is still in flight, exactly as on a large cold library.

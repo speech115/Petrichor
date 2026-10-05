@@ -39,21 +39,15 @@ extension DatabaseManager {
     // MARK: - Home - Entities
     
     /// Get all artist entities
-    func getArtistEntities(includeArtwork: Bool = true) -> [ArtistEntity] {
-        let isImageFetchEnabled = ArtistBioManager.shared.isArtistInfoFetchEnabled
-
+    func getArtistEntities() -> [ArtistEntity] {
         do {
             return try dbQueue.read { db in
                 // Live count honoring the hide-duplicates setting, so the grid matches the detail view.
                 let hideDuplicates = UserDefaults.standard.bool(forKey: "hideDuplicateTracks")
                 let duplicateClause = hideDuplicates ? "AND tracks.is_duplicate = 0" : ""
-                let artworkColumns = includeArtwork
-                    ? "artists.artwork_data, artists.artwork_thumbnail, artists.image_source"
-                    : "NULL AS artwork_data, NULL AS artwork_thumbnail, NULL AS image_source"
                 let sql = """
                     SELECT
                         artists.name,
-                        \(artworkColumns),
                         COUNT(DISTINCT track_artists.track_id) as trackCount
                     FROM artists
                     JOIN track_artists ON track_artists.artist_id = artists.id AND track_artists.role = 'artist'
@@ -63,34 +57,8 @@ extension DatabaseManager {
                     ORDER BY artists.sort_name
                 """
 
-                struct ArtistInfo: FetchableRecord {
-                    let name: String
-                    let artworkData: Data?
-                    let artworkThumbnail: Data?
-                    let imageSource: String?
-                    let trackCount: Int
-
-                    init(row: Row) throws {
-                        name = row["name"]
-                        artworkData = row["artwork_data"]
-                        artworkThumbnail = row["artwork_thumbnail"]
-                        imageSource = row["image_source"]
-                        trackCount = row["trackCount"] ?? 0
-                    }
-                }
-
-                return try ArtistInfo.fetchAll(db, sql: sql).map { info in
-                    // When fetch enabled: show fetched image or placeholder; when disabled: show album art
-                    let artworkData = includeArtwork && isImageFetchEnabled
-                        ? (info.imageSource != nil ? info.artworkData : nil)
-                        : info.artworkData
-
-                    return ArtistEntity(
-                        name: info.name,
-                        trackCount: info.trackCount,
-                        artworkData: artworkData,
-                        artworkThumbnail: info.artworkThumbnail
-                    )
+                return try Row.fetchAll(db, sql: sql).map { row in
+                    ArtistEntity(name: row["name"], trackCount: row["trackCount"] ?? 0)
                 }
             }
         } catch {
@@ -100,7 +68,7 @@ extension DatabaseManager {
     }
 
     /// Get all album entities without N+1 queries
-    func getAlbumEntities(includeArtwork: Bool = true) -> [AlbumEntity] {
+    func getAlbumEntities() -> [AlbumEntity] {
         do {
             return try dbQueue.read { db in
                 // Prefer the album's primary artist from the album_artists junction
@@ -110,17 +78,12 @@ extension DatabaseManager {
                 // honoring the hide-duplicates setting so the grid matches the detail view.
                 let hideDuplicates = UserDefaults.standard.bool(forKey: "hideDuplicateTracks")
                 let duplicateClause = hideDuplicates ? "AND tracks.is_duplicate = 0" : ""
-                let artworkColumns = includeArtwork
-                    ? "albums.artwork_data, albums.artwork_thumbnail"
-                    : "NULL AS artwork_data, NULL AS artwork_thumbnail"
                 let sql = """
                     SELECT
                         albums.id,
                         albums.title,
                         COUNT(tracks.id) as trackCount,
-                        \(artworkColumns),
                         albums.release_year,
-                        COALESCE(SUM(tracks.duration), 0) as totalDuration,
                         COALESCE(
                             (SELECT artists.name
                              FROM album_artists
@@ -131,52 +94,22 @@ extension DatabaseManager {
                              LIMIT 1),
                             NULLIF(MAX(tracks.album_artist), ''),
                             MAX(tracks.artist)
-                        ) as artistName,
-                        albums.created_at
+                        ) as artistName
                     FROM albums
                     LEFT JOIN tracks ON albums.id = tracks.album_id \(duplicateClause)
                     GROUP BY albums.id
                     HAVING trackCount > 0
                     ORDER BY albums.sort_title
                 """
-                
-                struct AlbumInfo: FetchableRecord {
-                    let id: Int64?
-                    let title: String
-                    let totalTracks: Int
-                    let artworkData: Data?
-                    let artworkThumbnail: Data?
-                    let releaseYear: Int?
-                    let totalDuration: Double
-                    let artistName: String?
-                    let createdAt: Date?
-                    
-                    init(row: Row) throws {
-                        id = row["id"]
-                        title = row["title"]
-                        totalTracks = row["trackCount"] ?? 0
-                        artworkData = row["artwork_data"]
-                        artworkThumbnail = row["artwork_thumbnail"]
-                        releaseYear = row["release_year"]
-                        totalDuration = row["totalDuration"] ?? 0
-                        artistName = row["artistName"]
-                        createdAt = row["created_at"]
-                    }
-                }
-                
-                let albumInfos = try AlbumInfo.fetchAll(db, sql: sql)
-                
-                return albumInfos.map { info in
+
+
+                return try Row.fetchAll(db, sql: sql).map { row in
                     AlbumEntity(
-                        name: info.title,
-                        trackCount: info.totalTracks,
-                        artworkData: info.artworkData,
-                        artworkThumbnail: info.artworkThumbnail,
-                        albumId: info.id,
-                        year: info.releaseYear.map { String($0) } ?? "",
-                        duration: info.totalDuration,
-                        artistName: info.artistName,
-                        dateAdded: info.createdAt
+                        name: row["title"],
+                        trackCount: row["trackCount"] ?? 0,
+                        albumId: row["id"],
+                        year: (row["release_year"] as Int?).map { String($0) } ?? "",
+                        artistName: row["artistName"]
                     )
                 }
             }
