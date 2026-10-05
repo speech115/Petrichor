@@ -39,11 +39,9 @@ struct PlaylistDetailView: View {
         if let playlist = playlist {
             VStack(spacing: 0) {
                 playlistHeader
-
-                Divider()
-
                 playlistContent
             }
+            .artworkWash(gradientColors)
             .task(id: playlistArtworkTaskID) {
                 let fresh = await playlist.warmArtworkCacheIfNeeded()
                 // nil with empty tracks means "not loaded yet", not "no artwork"
@@ -85,21 +83,17 @@ struct PlaylistDetailView: View {
     @ViewBuilder private var playlistHeader: some View {
         if playlist != nil {
             PlaylistHeader {
-                HStack(alignment: .top, spacing: 20) {
+                HStack(alignment: .bottom, spacing: 24) {
                     playlistArtwork
 
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 16) {
                         playlistInfo
                         playlistControls
                     }
 
                     Spacer()
                 }
-            }
-            .background {
-                if !gradientColors.isEmpty {
-                    GradientBackground(colors: gradientColors)
-                }
+                .fixedSize(horizontal: false, vertical: true)
             }
             .overlay(alignment: .bottomTrailing) {
                 HStack(spacing: 8) {
@@ -122,21 +116,21 @@ struct PlaylistDetailView: View {
                let platformImage = PlatformImage(data: artworkData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 120, height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                    .scaledToFill()
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 6)
             } else if let playlist, let cover = PlaylistCover.of(playlist) {
-                PlaylistCoverView(cover: cover, cornerRadius: 8)
-                    .frame(width: 120, height: 120)
-                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                PlaylistCoverView(cover: cover, cornerRadius: 10)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
+                    .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 6)
             } else {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(Color.secondary.opacity(0.2))
-                    .frame(width: 120, height: 120)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
                         SymbolImage(playlistIcon)
-                            .font(.system(size: 40))
+                            .font(.system(size: 64))
                             .foregroundColor(.secondary)
                     )
             }
@@ -150,9 +144,8 @@ struct PlaylistDetailView: View {
                 .foregroundColor(.secondary)
                 .fontWeight(.medium)
 
-            Text(playlist.map(DefaultPlaylists.displayName) ?? "")
-                .font(.title)
-                .fontWeight(.bold)
+            Text(playlist.map(PlaylistDisplay.name) ?? "")
+                .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
 
             if let playlist = playlist {
@@ -176,76 +169,23 @@ struct PlaylistDetailView: View {
     }
 
     private var playlistControls: some View {
-        let buttonWidth: CGFloat = 90
-        let verticalPadding: CGFloat = 6
-        let iconSize: CGFloat = 12
-        let textSize: CGFloat = 13
-        let buttonSpacing: CGFloat = 10
-        let iconTextSpacing: CGFloat = 4
-
-        return HStack(spacing: buttonSpacing) {
-            Button(action: pinPlaylist) {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: iconSize))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, verticalPadding)
-                    .padding(.horizontal, verticalPadding)
-            }
-            .adaptiveCircularButtonStyle()
-            .help(isPinned ? String(localized: "Remove from Home") : String(localized: "Pin to Home"))
-
-            Button(action: { playPlaylist() }, label: {
-                HStack(spacing: iconTextSpacing) {
-                    Image(systemName: Icons.playFill)
-                        .font(.system(size: iconSize))
-                    Text("Play")
-                        .font(.system(size: textSize, weight: .medium))
-                }
-                .frame(width: buttonWidth)
-                .padding(.vertical, verticalPadding)
-            })
-            .adaptiveButtonStyle(prominent: true)
-            .disabled(playlist?.trackCount == 0)
-
-            Button(action: { playPlaylist(shuffle: true) }, label: {
-                HStack(spacing: iconTextSpacing) {
-                    Image(systemName: Icons.shuffleFill)
-                        .font(.system(size: iconSize))
-                    Text("Shuffle")
-                        .font(.system(size: textSize, weight: .medium))
-                }
-                .frame(width: buttonWidth)
-                .padding(.vertical, verticalPadding)
-            })
-            .adaptiveButtonStyle()
-            .disabled(playlist?.trackCount == 0)
-
-            if playlist?.type == .regular {
-                Button(action: editRegularPlaylist) {
-                    HStack(spacing: iconTextSpacing) {
-                        Image(systemName: Icons.edit)
-                            .font(.system(size: iconSize))
-                        Text("Edit")
-                            .font(.system(size: textSize, weight: .medium))
+        PlayShuffleButtons(
+            onPlay: { playPlaylist() },
+            onShuffle: { playPlaylist(shuffle: true) },
+            isDisabled: playlist?.trackCount == 0,
+            // swiftlint:disable:next trailing_closure
+            extra: {
+                if playlist?.type == .regular {
+                    Button(action: editRegularPlaylist) {
+                        Label("Edit", systemImage: Icons.edit)
                     }
-                    .frame(width: buttonWidth)
-                    .padding(.vertical, verticalPadding)
-                }
-                .adaptiveButtonStyle()
-            } else if playlist?.type == .smart && playlist?.isUserEditable == true {
-                Button(action: editSmartPlaylistRules) {
-                    HStack(spacing: iconTextSpacing) {
-                        Image(systemName: Icons.edit)
-                            .font(.system(size: iconSize))
-                        Text("Edit")
-                            .font(.system(size: textSize, weight: .medium))
+                } else if playlist?.type == .smart && playlist?.isUserEditable == true {
+                    Button(action: editSmartPlaylistRules) {
+                        Label("Edit", systemImage: Icons.edit)
                     }
-                    .frame(width: buttonWidth)
-                    .padding(.vertical, verticalPadding)
                 }
-                .adaptiveButtonStyle()
             }
-        }
+        )
     }
 
     // MARK: - Playlist Content
@@ -362,10 +302,6 @@ struct PlaylistDetailView: View {
         return DefaultPlaylists.emptyStateText(for: playlist)
     }
 
-    private var isPinned: Bool {
-        playlistManager.isPlaylistPinned(playlist ?? Playlist(name: "", tracks: []))
-    }
-
     // MARK: - Action Methods
 
     /// Swaps in the selected playlist's cover/cached collage synchronously, so
@@ -412,8 +348,10 @@ struct PlaylistDetailView: View {
     private func loadSortPreference() {
         let sortManager = PlaylistSortManager.shared
 
-        // If user has explicitly set a sort preference, use it
-        if sortManager.hasSortPreference(for: playlistID) {
+        // Built-in smart playlists (Favorites) always open in their own order,
+        // the one the iPhone shows; a header click re-sorts only until reopened.
+        let isBuiltIn = playlist?.type == .smart && playlist?.isUserEditable == false
+        if !isBuiltIn, sortManager.hasSortPreference(for: playlistID) {
             let field = sortManager.getSortField(for: playlistID)
             if field == .custom {
                 NotificationCenter.default.post(
@@ -486,18 +424,6 @@ struct PlaylistDetailView: View {
             object: nil,
             userInfo: ["playlistID": playlist.id, "shuffle": shuffle]
         )
-    }
-
-    private func pinPlaylist() {
-        guard let playlist = playlist else { return }
-
-        Task {
-            if isPinned {
-                await playlistManager.unpinPlaylist(playlist)
-            } else {
-                await playlistManager.pinPlaylist(playlist)
-            }
-        }
     }
 
     private func editSmartPlaylistRules() {

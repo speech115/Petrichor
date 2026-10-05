@@ -17,7 +17,12 @@ extension DatabaseManager {
     func smartPlaylistFilteredQuery(
         _ criteria: SmartPlaylistCriteria
     ) -> QueryInterfaceRequest<Track> {
-        var query = applyDuplicateFilter(Track.all())
+        // Hiding duplicates never hides a starred copy: Favorites lists exactly
+        // the files that were marked, the same set on the Mac and the iPhone.
+        var query = Track.all()
+        if UserDefaults.standard.bool(forKey: "hideDuplicateTracks") {
+            query = query.filter(Track.Columns.isDuplicate == false || Track.Columns.isFavorite == true)
+        }
         if let whereClause = buildWhereClause(for: criteria) {
             query = query.filter(whereClause)
         }

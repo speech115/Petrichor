@@ -3,13 +3,13 @@ import SwiftUI
 struct EntityDetailView: View {
     let entity: any Entity
     let onBack: (() -> Void)?
-    let pinnedItem: PinnedItem?
 
     @EnvironmentObject var playlistManager: PlaylistManager
     @EnvironmentObject var libraryManager: LibraryManager
     @State private var tracks: [Track] = []
     @State private var selectedTrackID: String?
     @State private var isLoading = true
+    @State private var showsTrackNumbers = true
     @State private var isBackButtonHovered = false
     @State private var isArtworkHovered = false
     @State private var showingImagePicker = false
@@ -20,10 +20,9 @@ struct EntityDetailView: View {
     @State private var gradientRevision: UInt64 = 0
     @State private var gradientTask: Task<Void, Never>?
 
-    init(entity: any Entity, onBack: (() -> Void)? = nil, pinnedItem: PinnedItem? = nil) {
+    init(entity: any Entity, onBack: (() -> Void)? = nil) {
         self.entity = entity
         self.onBack = onBack
-        self.pinnedItem = pinnedItem
     }
 
     @AppStorage("useArtworkColors")
@@ -54,6 +53,8 @@ struct EntityDetailView: View {
                     playlistID: nil,
                     entityID: entity.id,
                     queueSource: queueSource,
+                    layout: entity is AlbumEntity ? .album : .standard,
+                    showsTrackNumbers: showsTrackNumbers,
                     sortOrder: $trackTableSortOrder,
                     onPlayTrack: { track in
                         playTrack(track)
@@ -68,7 +69,7 @@ struct EntityDetailView: View {
                 )
             }
         }
-        .background(Color(platformColor: .windowBackgroundColor))
+        .artworkWash(gradientColors)
         .onAppear {
             loadTracks()
             updateGradientColors()
@@ -97,54 +98,17 @@ struct EntityDetailView: View {
 
     private var entityHeader: some View {
         EntityHeader {
-            HStack(alignment: .top, spacing: 20) {
+            HStack(alignment: .bottom, spacing: 24) {
                 // Back button
                 if let onBack = onBack {
-                    if #available(macOS 26.0, *) {
-                        Button(action: onBack) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 28, height: 28)
-                        }
-                        .buttonStyle(.glass)
-                        .buttonBorderShape(.circle)
-                        .controlSize(.small)
-                        .help("Back")
-                    } else {
-                        #if os(macOS)
-                        Button {
-                            onBack()
-                        } label: {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(.primary)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .fill(isBackButtonHovered ? Color(platformColor: .controlAccentColor).opacity(0.15) : Color.clear)
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
-                                        .strokeBorder(
-                                            isBackButtonHovered ? Color(platformColor: .controlAccentColor).opacity(0.3) : Color.clear,
-                                            lineWidth: 1
-                                        )
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { hovering in
-                            isBackButtonHovered = hovering
-                        }
-                        .help("Back")
-                        #endif
-                    }
+                    backButton(onBack)
+                        .frame(maxHeight: .infinity, alignment: .top)
                 }
 
                 // Artwork
                 entityArtwork
                 // Info and controls
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     if entity is AlbumEntity {
                         albumEntityInfo
                     } else {
@@ -153,18 +117,10 @@ struct EntityDetailView: View {
 
                     entityControls
                 }
-                .frame(maxHeight: 120)
 
                 Spacer()
             }
-        }
-        .background {
-            if !gradientColors.isEmpty {
-                GradientBackground(colors: gradientColors)
-                    .transaction { $0.animation = nil }
-            } else {
-                Rectangle().fill(.regularMaterial)
-            }
+            .fixedSize(horizontal: false, vertical: true)
         }
         .overlay(alignment: .bottomTrailing) {
             HStack(spacing: 12) {
@@ -174,6 +130,49 @@ struct EntityDetailView: View {
                 )
             }
             .padding([.bottom, .trailing], 12)
+        }
+    }
+
+    @ViewBuilder
+    private func backButton(_ onBack: @escaping () -> Void) -> some View {
+        if #available(macOS 26.0, *) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.small)
+            .help("Back")
+        } else {
+            #if os(macOS)
+            Button {
+                onBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isBackButtonHovered ? Color(platformColor: .controlAccentColor).opacity(0.15) : Color.clear)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(
+                                isBackButtonHovered ? Color(platformColor: .controlAccentColor).opacity(0.3) : Color.clear,
+                                lineWidth: 1
+                            )
+                    )
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                isBackButtonHovered = hovering
+            }
+            .help("Back")
+            #endif
         }
     }
 
@@ -192,19 +191,19 @@ struct EntityDetailView: View {
                let platformImage = PlatformImage(data: artworkData) {
                 Image(platformImage: platformImage)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 120, height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                    .scaledToFill()
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 6)
             } else {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(Color.secondary.opacity(0.2))
-                    .frame(width: 120, height: 120)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
                         Group {
                             if isPersonEntity {
                                 Text(entity.name.artistInitials)
-                                    .font(.system(size: 36, weight: .medium, design: .rounded))
+                                    .font(.system(size: 64, weight: .medium, design: .rounded))
                                     .foregroundColor(.secondary)
                             } else if entity is CategoryEntity {
                                 Text(entity.name)
@@ -214,7 +213,7 @@ struct EntityDetailView: View {
                                     .padding(8)
                             } else {
                                 Image(systemName: Icons.opticalDiscFill)
-                                    .font(.system(size: 40))
+                                    .font(.system(size: 64))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -229,15 +228,15 @@ struct EntityDetailView: View {
         }
         .overlay {
             if isPersonEntity {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(Color.black.opacity(0.4))
-                    .frame(width: 120, height: 120)
+                    .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
                         VStack(spacing: 4) {
                             Image(systemName: "pencil")
-                                .font(.system(size: 20, weight: .medium))
+                                .font(.system(size: 24, weight: .medium))
                             Text("Update image")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 12, weight: .medium))
                         }
                         .foregroundStyle(.white)
                     )
@@ -273,11 +272,7 @@ struct EntityDetailView: View {
         if let category = entity as? CategoryEntity {
             return category.filterType.singularDisplayName
         }
-        switch pinnedItem?.filterType {
-        case .albumArtists: return String(localized: "Album Artist")
-        case .composers: return String(localized: "Composer")
-        default: return String(localized: "Artist")
-        }
+        return String(localized: "Artist")
     }
 
     private var artistEntityInfo: some View {
@@ -288,8 +283,7 @@ struct EntityDetailView: View {
                 .fontWeight(.medium)
 
             Text(entity.name)
-                .font(.title2)
-                .fontWeight(.bold)
+                .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
 
             if let bio = artistBio, !bio.isEmpty {
@@ -309,8 +303,7 @@ struct EntityDetailView: View {
 
         return VStack(alignment: .leading, spacing: 4) {
             Text(entity.name)
-                .font(.title)
-                .fontWeight(.bold)
+                .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
 
             if let artistName = albumEntity?.artistName, !artistName.isEmpty {
@@ -368,50 +361,11 @@ struct EntityDetailView: View {
     }
 
     private var entityControls: some View {
-        let buttonWidth: CGFloat = 90
-        let verticalPadding: CGFloat = 6
-        let iconSize: CGFloat = 12
-        let textSize: CGFloat = 13
-        let buttonSpacing: CGFloat = 10
-        let iconTextSpacing: CGFloat = 4
-
-        return HStack(spacing: buttonSpacing) {
-            Button(action: pinEntity) {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: iconSize))
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, verticalPadding)
-                    .padding(.horizontal, verticalPadding)
-            }
-            .adaptiveCircularButtonStyle()
-            .help(isPinned ? String(localized: "Remove from Home") : String(localized: "Pin to Home"))
-
-            Button(action: { playEntity() }, label: {
-                HStack(spacing: iconTextSpacing) {
-                    Image(systemName: Icons.playFill)
-                        .font(.system(size: iconSize))
-                    Text("Play")
-                        .font(.system(size: textSize, weight: .medium))
-                }
-                .frame(width: buttonWidth)
-                .padding(.vertical, verticalPadding)
-            })
-            .adaptiveButtonStyle(prominent: true)
-            .disabled(tracks.isEmpty)
-
-            Button(action: { playEntity(shuffle: true) }, label: {
-                HStack(spacing: iconTextSpacing) {
-                    Image(systemName: Icons.shuffleFill)
-                        .font(.system(size: iconSize))
-                    Text("Shuffle")
-                        .font(.system(size: textSize, weight: .medium))
-                }
-                .frame(width: buttonWidth)
-                .padding(.vertical, verticalPadding)
-            })
-            .adaptiveButtonStyle()
-            .disabled(tracks.isEmpty)
-        }
+        PlayShuffleButtons(
+            onPlay: { playEntity() },
+            onShuffle: { playEntity(shuffle: true) },
+            isDisabled: tracks.isEmpty
+        )
     }
 
     // MARK: - Views
@@ -462,25 +416,6 @@ struct EntityDetailView: View {
         guard entity is AlbumEntity, !tracks.isEmpty else { return false }
         return tracks.allSatisfy { $0.lossless == true }
     }
-
-    private var isPinned: Bool {
-        if let folder = entity as? FolderEntity {
-            return libraryManager.isFolderPinned(path: folder.path)
-        } else if let category = entity as? CategoryEntity {
-            return libraryManager.isLibraryItemPinned(filterType: category.filterType, filterValue: category.name)
-        } else if let artist = entity as? ArtistEntity {
-            if let pinnedItem = pinnedItem {
-                return libraryManager.isLibraryItemPinned(
-                    filterType: pinnedItem.filterType ?? .artists,
-                    filterValue: entity.name
-                )
-            }
-            return libraryManager.isEntityPinned(artist)
-        } else if let album = entity as? AlbumEntity {
-            return libraryManager.isEntityPinned(album)
-        }
-        return false
-    }
 }
 
 // MARK: - Methods
@@ -521,10 +456,7 @@ extension EntityDetailView {
 
         let fetchedTracks: [Track]
 
-        // When pinnedItem is provided, use the unified pinned item track loader
-        if let pinnedItem = pinnedItem {
-            fetchedTracks = libraryManager.getTracksForPinnedItem(pinnedItem)
-        } else if entity is ArtistEntity {
+        if entity is ArtistEntity {
             fetchedTracks = libraryManager.getTracksForArtist(entity.name)
         } else if let albumEntity = entity as? AlbumEntity {
             fetchedTracks = libraryManager.getTracksForAlbum(albumEntity)
@@ -532,10 +464,11 @@ extension EntityDetailView {
             fetchedTracks = []
         }
 
-        // Albums with full track numbering force disc/track ordering; everything
-        // else follows the user's saved global sort.
+        // Albums with real track numbering force disc/track ordering and show the
+        // numbers; everything else follows the user's saved global sort.
         let hasCompleteAlbumOrdering = entity is AlbumEntity
-            && fetchedTracks.allSatisfy { ($0.trackNumber ?? 0) > 0 }
+            && Track.hasPlausibleTrackNumbers(fetchedTracks)
+        showsTrackNumbers = hasCompleteAlbumOrdering
 
         if hasCompleteAlbumOrdering {
             trackTableSortOrder = [
@@ -559,40 +492,6 @@ extension EntityDetailView {
         }
 
         self.isLoading = false
-    }
-
-    private func pinEntity() {
-        Task {
-            if let folder = entity as? FolderEntity {
-                if isPinned {
-                    await libraryManager.unpinFolder(path: folder.path)
-                } else {
-                    await libraryManager.pinFolder(path: folder.path, name: folder.name)
-                }
-            } else if let category = entity as? CategoryEntity {
-                if isPinned {
-                    await libraryManager.unpinLibraryItem(filterType: category.filterType, filterValue: category.name)
-                } else {
-                    await libraryManager.pinLibraryItem(filterType: category.filterType, filterValue: category.name)
-                }
-            } else if entity is ArtistEntity, let pinnedItem = pinnedItem,
-                      let filterType = pinnedItem.filterType, filterType != .artists {
-                // Album artist or composer pinned as ArtistEntity
-                if isPinned {
-                    await libraryManager.unpinLibraryItem(filterType: filterType, filterValue: entity.name)
-                } else {
-                    await libraryManager.pinLibraryItem(filterType: filterType, filterValue: entity.name)
-                }
-            } else if isPinned {
-                await libraryManager.unpinEntity(entity)
-            } else {
-                if let artist = entity as? ArtistEntity {
-                    await libraryManager.pinArtistEntity(artist)
-                } else if let album = entity as? AlbumEntity {
-                    await libraryManager.pinAlbumEntity(album)
-                }
-            }
-        }
     }
 
     // Folders retain folder queue source; every other entity type plays as a library queue.

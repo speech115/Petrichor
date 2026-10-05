@@ -16,16 +16,6 @@ extension LibraryManager {
     // `ArtworkTile` loaders fetch thumbnails as they appear. The display-size
     // BLOB pass stays inside the database for detail/playback only.
 
-    func getTracksInFolder(_ folder: Folder) -> [Track] {
-        guard let folderId = folder.id else {
-            Logger.error("Folder has no ID")
-            return []
-        }
-
-        // macOS Folders view; carries full artwork for the track table.
-        return databaseManager.getTracksForFolder(folderId)
-    }
-
     nonisolated func getTracksBy(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) -> [Track] {
         if filterType.usesMultiArtistParsing && value != filterType.unknownPlaceholder {
             return databaseManager.getTracksByFilterTypeContaining(filterType, value: value)
@@ -70,6 +60,44 @@ extension LibraryManager {
     /// `nonisolated`: see `getTracksForArtist` above.
     nonisolated func getRecentlyPlayedTracks(limit: Int = 10, populateArtwork: Bool = true) -> [Track] {
         databaseManager.getRecentlyPlayedTracks(limit: limit, populateArtwork: populateArtwork)
+    }
+
+    /// Albums of the recently played tracks, most recent first, for the Home shelf on
+    /// both platforms. Tracks are grouped by album id in first-occurrence order; tracks
+    /// without an album are skipped. Counts from `trackCountsByAlbumID` (the entity
+    /// cache) win over the grouped subset, so an opened album shows its real count.
+    /// `nonisolated`: see `getTracksForArtist` above.
+    nonisolated func recentlyPlayedAlbums(
+        fetchLimit: Int = 100,
+        albumLimit: Int = 10,
+        trackCountsByAlbumID: [Int64: Int]
+    ) -> [AlbumEntity] {
+        let recent = getRecentlyPlayedTracks(limit: fetchLimit, populateArtwork: false)
+        var order: [Int64] = []
+        var grouped: [Int64: [Track]] = [:]
+        for track in recent {
+            guard let albumId = track.albumId else { continue }
+            if grouped[albumId] == nil {
+                guard order.count < albumLimit else { continue }
+                order.append(albumId)
+            }
+            grouped[albumId, default: []].append(track)
+        }
+        var tracks = order.flatMap { grouped[$0] ?? [] }
+        databaseManager.populateAlbumArtworkThumbnailsForTracks(&tracks)
+        let withArtwork = Dictionary(grouping: tracks) { $0.albumId ?? 0 }
+        return order.compactMap { albumId in
+            guard let tracks = withArtwork[albumId], let first = tracks.first else { return nil }
+            return AlbumEntity(
+                name: first.album,
+                trackCount: trackCountsByAlbumID[albumId] ?? tracks.count,
+                artworkData: tracks.first { $0.albumArtworkData != nil }?.albumArtworkData,
+                artworkThumbnail: tracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail,
+                albumId: albumId,
+                year: first.year,
+                artistName: first.albumArtist
+            )
+        }
     }
 
     /// `nonisolated`: see `getTracksForArtist` above.
@@ -167,10 +195,6 @@ extension LibraryManager {
             return items.first { $0.albumId == albumId }?.count ?? 0
         }
         return items.first { $0.name == value }?.count ?? 0
-    }
-
-    func getTrackCountsByFolderPath() -> [String: Int] {
-        databaseManager.getTrackCountsByFolderPath()
     }
 
     func updateSearchResults() {

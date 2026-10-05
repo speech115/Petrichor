@@ -48,7 +48,7 @@ struct PlaylistsTabView: View {
                     }
                 }
                 ForEach(PlaylistSource.allCases, id: \.title) { source in
-                    let playlists = sourcePlaylists[source] ?? []
+                    let playlists = source.members(of: displayPlaylists)
                     if !playlists.isEmpty {
                         Section {
                             playlistRows(playlists)
@@ -131,25 +131,6 @@ struct PlaylistsTabView: View {
             .filter { $0.type == .regular && !PlaylistSource.isHidden($0) }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         return smart + regular
-    }
-
-    /// Each source's playlists: the pinned ones first in their pinned order,
-    /// then whatever else matched the service by name, in the name order
-    /// `displayPlaylists` already established. Unpinned exports are appended
-    /// rather than dropped — a playlist that fell out of the pinned list is
-    /// still in the library and still has to be reachable.
-    private var sourcePlaylists: [PlaylistSource: [Playlist]] {
-        Dictionary(grouping: displayPlaylists.compactMap { playlist in
-            PlaylistSource.of(playlist).map { (source: $0, playlist: playlist) }
-        }, by: \.source).mapValues { pairs in
-            pairs.map(\.playlist).enumerated().sorted { lhs, rhs in
-                let source = PlaylistSource.of(lhs.element)
-                let left = source?.pinnedIndex(of: lhs.element) ?? Int.max
-                let right = source?.pinnedIndex(of: rhs.element) ?? Int.max
-                return left == right ? lhs.offset < rhs.offset : left < right
-            }
-            .map(\.element)
-        }
     }
 
     private var ownPlaylists: [Playlist] {

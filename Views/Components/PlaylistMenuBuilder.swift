@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Single source of truth for a playlist's options menu (Pin, Edit, Delete), so the Playlist
-/// sidebar and the Home sidebar (for pinned playlists) present the exact same menu. Editing
-/// (including renaming) happens through the editor sheet, so there's no inline-rename action.
+/// Single source of truth for a playlist's options menu (Edit, Delete), shared by the sidebar's
+/// context menu and kebab menu. Editing (including renaming) happens through the editor sheet,
+/// so there's no inline-rename action.
 enum PlaylistMenuBuilder {
     @MainActor
     static func items(
@@ -10,11 +10,9 @@ enum PlaylistMenuBuilder {
         playlistManager: PlaylistManager,
         onDelete: @escaping () -> Void
     ) -> [ContextMenuItem] {
-        var items: [ContextMenuItem] = [playlistManager.createPinContextMenuItem(for: playlist)]
+        guard playlist.isUserEditable else { return [] }
 
-        guard playlist.isUserEditable else { return items }
-
-        items.append(.divider)
+        var items: [ContextMenuItem] = []
 
         // "Edit" opens the editor sheet for both kinds (rules for smart, contents for regular);
         // the label is kept identical for consistency.

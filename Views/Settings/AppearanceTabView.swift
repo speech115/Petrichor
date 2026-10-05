@@ -4,12 +4,6 @@ struct AppearanceTabView: View {
     @AppStorage("colorMode")
     private var colorMode: ColorMode = .auto
 
-    @AppStorage("showFoldersTab")
-    private var showFoldersTab = false
-
-    @AppStorage("showTrackTechnicalInfo")
-    private var showTrackTechnicalInfo = true
-
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
 
@@ -25,25 +19,12 @@ struct AppearanceTabView: View {
     @AppStorage("miniPlayerAlwaysOnTop")
     private var miniPlayerAlwaysOnTop = false
 
-    @State private var showTrackInfoHelp = false
-
     /// Leading inset used to nest the options that depend on the master tint toggle.
     private let dependentIndent: CGFloat = 20
 
     var body: some View {
         Form {
             Section("Visibility") {
-                Toggle("Show folders tab in main window", isOn: $showFoldersTab)
-                    .help("Shows Folders tab within the main window to browse music directly from added folders")
-
-                Toggle(isOn: $showTrackTechnicalInfo) {
-                    HStack(spacing: 4) {
-                        Text("Show audio format details")
-                        infoButton
-                    }
-                }
-                .help("Shows the playing track's codec, bitrate, sample rate, and channels in the player")
-
                 Toggle("Keep Mini Player on top of all other windows", isOn: $miniPlayerAlwaysOnTop)
                     .help("Floats the Mini Player window above windows from other apps")
             }
@@ -95,21 +76,6 @@ struct AppearanceTabView: View {
         }
         .onAppear {
             colorMode.apply()
-        }
-    }
-
-    private var infoButton: some View {
-        Button { showTrackInfoHelp.toggle() } label: {
-            Image(systemName: "questionmark.circle")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showTrackInfoHelp, arrowEdge: .trailing) {
-            Text("Shows small badges under the playing track for its audio details like codec (FLAC, MP3, etc.), bitrate, sample rate, and channels.")
-                .font(.system(size: 12))
-                .padding(10)
-                .frame(width: 240)
         }
     }
 }

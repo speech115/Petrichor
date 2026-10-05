@@ -2,9 +2,8 @@
 // RecentAlbumsShelf (iOS)
 //
 // The Recently Played section of Home: a horizontal shelf of albums as large
-// 130 pt squares - a big square means a container, not a song. Tracks from
-// `getRecentlyPlayedTracks` are grouped by album id in memory, first
-// occurrence order preserved, capped at ~10 unique albums. A tap opens the
+// 130 pt squares - a big square means a container, not a song. The albums
+// come from `LibraryManager.recentlyPlayedAlbums`. A tap opens the
 // album's page; the section title links to the full "Top 25 Recently Played"
 // smart playlist.
 //
@@ -96,43 +95,6 @@ struct RecentAlbumsShelf: View {
             // shelves do, never cut in half by the screen edge.
             .contentMargins(.horizontal, 16, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
-        }
-    }
-}
-
-// MARK: - Grouping
-
-extension RecentAlbumsShelf {
-    /// Groups recently played tracks by album id, preserving first-occurrence
-    /// order and skipping tracks without an album. The first `limit` albums
-    /// come back as entities carrying thumbnails and the artist name. Counts
-    /// from the library's entity cache win over the grouped subset, so an
-    /// album opened from the shelf shows its real track count.
-    static nonisolated func albums(
-        from tracks: [Track],
-        limit: Int,
-        trackCountsByAlbumID: [Int64: Int] = [:]
-    ) -> [AlbumEntity] {
-        var order: [Int64] = []
-        var grouped: [Int64: [Track]] = [:]
-        for track in tracks {
-            guard let albumId = track.albumId else { continue }
-            if grouped[albumId] == nil {
-                order.append(albumId)
-            }
-            grouped[albumId, default: []].append(track)
-        }
-        return order.prefix(limit).compactMap { albumId in
-            guard let tracks = grouped[albumId], let first = tracks.first else { return nil }
-            return AlbumEntity(
-                name: first.album,
-                trackCount: trackCountsByAlbumID[albumId] ?? tracks.count,
-                artworkData: tracks.first { $0.albumArtworkData != nil }?.albumArtworkData,
-                artworkThumbnail: tracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail,
-                albumId: albumId,
-                year: first.year,
-                artistName: first.albumArtist
-            )
         }
     }
 }

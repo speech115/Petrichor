@@ -43,8 +43,6 @@ struct ContentView: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
 
-    @AppStorage("showFoldersTab")
-    private var showFoldersTab = false
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
     @AppStorage("tintNowPlayingBackground")
@@ -61,14 +59,14 @@ struct ContentView: View {
     // Toolbar state captured before immersive hides it, so closing restores it.
     @State private var immersiveToolbarWasVisible = true
     @State private var pendingLibraryFilter: LibraryFilterRequest?
+    /// An album or artist page shown over the current section, with a back button.
+    @State private var detailEntity: (any Entity)?
     @State private var windowDelegate = WindowDelegate()
     @State private var shouldFocusSearch = false
     @State private var showingExportPlaylistSheet = false
 
     // Sidebar selection state (owned here, passed as bindings to sidebars + content views)
-    @State private var selectedHomeSidebarItem: HomeSidebarItem?
     @State private var selectedPlaylist: Playlist?
-    @State private var selectedFolderNode: FolderNode?
     @AppStorage("librarySelectedFilterType")
     private var libraryFilterType: LibraryFilterType = .artists
     @State private var libraryFilterItem: LibraryFilterItem?
@@ -137,7 +135,7 @@ struct ContentView: View {
             shouldFocusSearch: $shouldFocusSearch,
             showingSettings: $showingSettings,
             selectedTab: $selectedTab,
-            pendingLibraryFilter: $pendingLibraryFilter,
+            goToLibraryFilter: goToLibraryFilter,
             showTrackDetail: showTrackDetail
         )
         .onChange(of: playbackManager.currentTrack?.id) { oldId, _ in
@@ -147,21 +145,22 @@ struct ContentView: View {
                 rightSidebarContent = .trackDetail(newTrack)
             }
         }
+        .onChange(of: selectedTab) {
+            // Any section change (a new playlist, a search) leaves the page.
+            detailEntity = nil
+        }
         .onChange(of: rightSidebarContent) { _, newValue in
             mainWindowPanelState = MainWindowPanelState(content: newValue)
         }
         .onChange(of: libraryManager.globalSearchText) { _, newValue in
-            if !newValue.isEmpty && selectedTab != .library {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    selectedTab = .library
-                }
+            if !newValue.isEmpty {
+                detailEntity = nil
             }
-        }
-        .onChange(of: showFoldersTab) { _, newValue in
-            if !newValue && selectedTab == .folders {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    selectedTab = .home
-                }
+            if !newValue.isEmpty && selectedTab != .search {
+                selectedTab = .search
+            } else if newValue.isEmpty && selectedTab == .search {
+                // Search has no sidebar row; a cleared search goes back home.
+                selectedTab = .home
             }
         }
         .background(WindowAccessor(windowDelegate: windowDelegate))
@@ -266,48 +265,58 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder private var leftSidebar: some View {
-        ZStack {
-            HomeSidebarView(selectedItem: $selectedHomeSidebarItem)
-                .opacity(selectedTab == .home ? 1 : 0)
-                .allowsHitTesting(selectedTab == .home)
-
-            if selectedTab == .library {
-                LibrarySidebarView(
-                    selectedFilterType: $libraryFilterType,
-                    selectedFilterItem: $libraryFilterItem,
-                    pendingSearchText: $libraryPendingSearchText,
-                    filteredItems: $libraryFilteredItems,
-                    selectedSidebarItem: $librarySelectedSidebarItem
-                )
-            }
-
-            if selectedTab == .playlists {
-                PlaylistSidebarView(selectedPlaylist: $selectedPlaylist)
-            }
-
-            if selectedTab == .folders {
-                FoldersSidebarView(selectedNode: $selectedFolderNode)
-            }
+    private var leftSidebar: some View {
+        MainSidebarView(
+            selectedTab: $selectedTab,
+            selectedPlaylist: $selectedPlaylist
+        ) {
+            detailEntity = nil
         }
     }
 
     private var sectionContent: some View {
         ZStack {
-            HomeView(selectedSidebarItem: $selectedHomeSidebarItem, isShowingEntities: .constant(false))
-                .opacity(selectedTab == .home ? 1 : 0)
-                .allowsHitTesting(selectedTab == .home)
+            // Kept alive while hidden: rebuilding the Discover table is slow.
+            DiscoverView()
+                .opacity(selectedTab == .discover ? 1 : 0)
+                .allowsHitTesting(selectedTab == .discover)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if selectedTab == .library {
-                LibraryView(
-                    selectedFilterType: $libraryFilterType,
-                    selectedFilterItem: $libraryFilterItem,
-                    pendingSearchText: $libraryPendingSearchText,
-                    cachedFilteredTracks: $libraryCachedTracks,
-                    pendingFilter: $pendingLibraryFilter
+            if selectedTab == .home {
+                HomePage(
+                    onOpenAlbum: { album in
+                        // The shelf's entity carries only a thumbnail; the library's has the cover.
+                        detailEntity = libraryManager.albumEntities.first { $0.albumId == album.albumId } ?? album
+                    },
+                    onOpenPlaylist: { playlist in
+                        selectedPlaylist = playlist
+                        selectedTab = .playlists
+                    }
                 )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            if selectedTab == .library {
+                PersistentSplitView(
+                    left: {
+                        LibrarySidebarView(
+                            selectedFilterType: $libraryFilterType,
+                            selectedFilterItem: $libraryFilterItem,
+                            pendingSearchText: $libraryPendingSearchText,
+                            filteredItems: $libraryFilteredItems,
+                            selectedSidebarItem: $librarySelectedSidebarItem
+                        )
+                    },
+                    main: {
+                        LibraryView(
+                            selectedFilterType: $libraryFilterType,
+                            selectedFilterItem: $libraryFilterItem,
+                            pendingSearchText: $libraryPendingSearchText,
+                            cachedFilteredTracks: $libraryCachedTracks,
+                            pendingFilter: $pendingLibraryFilter
+                        )
+                    },
+                    leftStorageKey: "libraryColumnSplitPosition"
+                )
             }
 
             if selectedTab == .playlists {
@@ -315,9 +324,15 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            if selectedTab == .folders && showFoldersTab {
-                FoldersView(selectedFolderNode: $selectedFolderNode)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if selectedTab == .search {
+                SearchPage { detailEntity = $0 }
+            }
+
+            if let entity = detailEntity {
+                EntityDetailView(entity: entity) {
+                    detailEntity = nil
+                }
+                .id(entity.id)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -360,15 +375,6 @@ struct ContentView: View {
     // MARK: - Toolbar
 
     @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            TabbedButtons(
-                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
-                selection: $selectedTab,
-                animation: .transform,
-                isDisabled: libraryManager.folders.isEmpty
-            )
-        }
-
         // Do not remove this spacer, it allows
         // for pushing toolbar items below to the
         // right-edge of window frame on macOS 14.x
@@ -393,16 +399,6 @@ struct ContentView: View {
 
     @available(macOS 26.0, *)
     @ToolbarContentBuilder private var modernToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            TabbedButtons(
-                items: Sections.allCases.filter { $0 != .folders || showFoldersTab },
-                selection: $selectedTab,
-                style: .modern,
-                animation: .transform,
-                isDisabled: libraryManager.folders.isEmpty
-            )
-        }
-
         ToolbarItem(placement: .confirmationAction) {
             NotificationTray()
                 .frame(width: 34, height: 30)
@@ -507,6 +503,35 @@ struct ContentView: View {
 
     // MARK: - Helper Methods
 
+    /// Artists and albums open their own page, as on the iPhone; other filters
+    /// (genres, years, composers) open the column browser.
+    private func goToLibraryFilter(_ filterType: LibraryFilterType, value: String, albumId: Int64?) {
+        if let entity = detailPage(for: filterType, value: value, albumId: albumId) {
+            detailEntity = entity
+            return
+        }
+        detailEntity = nil
+        withAnimation(.easeInOut(duration: AnimationDuration.standardDuration)) {
+            selectedTab = .library
+            pendingLibraryFilter = LibraryFilterRequest(filterType: filterType, value: value)
+        }
+    }
+
+    private func detailPage(for filterType: LibraryFilterType, value: String, albumId: Int64?) -> (any Entity)? {
+        switch filterType {
+        case .artists:
+            return libraryManager.artistEntities.first { $0.name == value }
+                ?? ArtistEntity(name: value, trackCount: 0)
+        case .albums:
+            if let albumId, let album = libraryManager.albumEntities.first(where: { $0.albumId == albumId }) {
+                return album
+            }
+            return libraryManager.albumEntities.first { $0.name == value }
+        default:
+            return nil
+        }
+    }
+
     private func showTrackDetail(for track: Track) {
         rightSidebarContent = .trackDetail(track)
     }
@@ -533,7 +558,7 @@ extension View {
         shouldFocusSearch: Binding<Bool>,
         showingSettings: Binding<Bool>,
         selectedTab: Binding<Sections>,
-        pendingLibraryFilter: Binding<LibraryFilterRequest?>,
+        goToLibraryFilter: @escaping (LibraryFilterType, String, Int64?) -> Void,
         showTrackDetail: @escaping (Track) -> Void
     ) -> some View {
         self
@@ -543,10 +568,7 @@ extension View {
             .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
                 if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,
                    let filterValue = notification.userInfo?["filterValue"] as? String {
-                    withAnimation(.easeInOut(duration: AnimationDuration.standardDuration)) {
-                        selectedTab.wrappedValue = .library
-                        pendingLibraryFilter.wrappedValue = LibraryFilterRequest(filterType: filterType, value: filterValue)
-                    }
+                    goToLibraryFilter(filterType, filterValue, notification.userInfo?["albumId"] as? Int64)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowTrackInfo"))) { notification in

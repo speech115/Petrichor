@@ -340,11 +340,6 @@ extension DatabaseManager {
         }
     }
 
-    func getTracksInFolder(_ folder: Folder) -> [Track] {
-        guard let folderId = folder.id else { return [] }
-        return getTracksForFolder(folderId)
-    }
-    
     func countFilesInFolder(_ folder: Folder, supportedExtensions: [String]) async -> Int {
         guard let enumerator = FileManager.default.enumerator(
             at: folder.url,
