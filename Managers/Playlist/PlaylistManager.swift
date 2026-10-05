@@ -129,7 +129,6 @@ class PlaylistManager: ObservableObject {
 
     enum QueueSource {
         case library
-        case folder
         case playlist
     }
 

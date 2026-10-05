@@ -68,8 +68,6 @@ struct PlaybackState: Codable, Sendable {
         switch queueSource {
         case .library:
             self.queueSource = "library"
-        case .folder:
-            self.queueSource = "folder"
         case .playlist:
             self.queueSource = "playlist"
         }
@@ -136,7 +134,6 @@ struct PlaybackState: Codable, Sendable {
     // Helper to convert back to QueueSource enum
     var queueSourceEnum: PlaylistManager.QueueSource {
         switch queueSource {
-        case "folder": return .folder
         case "playlist": return .playlist
         default: return .library
         }

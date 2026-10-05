@@ -172,8 +172,6 @@ extension TrackRow: Equatable {
         switch (lhs, rhs) {
         case (.library, .library):
             return true
-        case (.folder(let left), .folder(let right)):
-            return left.id == right.id && left.url == right.url
         case (.playlist(let left), .playlist(let right)):
             return left.id == right.id
                 && left.dateModified == right.dateModified

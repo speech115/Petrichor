@@ -141,7 +141,6 @@ class AppCoordinator: ObservableObject {
         let queue: [Track]
         let queueIndex: Int
         let queueSource: PlaylistManager.QueueSource
-        let folderURL: URL?
         let playlistID: String?
         let volume: Float
         let shuffleEnabled: Bool
@@ -149,18 +148,12 @@ class AppCoordinator: ObservableObject {
     }
 
     private func snapshotInput(currentTrack: Track) -> SnapshotInput {
-        // A folder stores its path relative to the library root, like every
-        // other persisted path; the playlist by its id.
-        let folderURL = currentTrack.folderId.flatMap { folderId in
-            libraryManager.folders.first { $0.id == folderId }?.url
-        }
-        return SnapshotInput(
+        SnapshotInput(
             currentTrack: currentTrack,
             position: playbackManager.currentTime,
             queue: playlistManager.currentQueue,
             queueIndex: playlistManager.currentQueueIndex,
             queueSource: playlistManager.currentQueueSource,
-            folderURL: folderURL,
             playlistID: playlistManager.currentPlaylist?.id.uuidString,
             volume: playbackManager.volume,
             shuffleEnabled: playlistManager.isShuffleEnabled,
@@ -169,15 +162,7 @@ class AppCoordinator: ObservableObject {
     }
 
     nonisolated private static func snapshot(from input: SnapshotInput) -> PlaybackStateSnapshot {
-        let sourceIdentifier: String?
-        switch input.queueSource {
-        case .folder:
-            sourceIdentifier = input.folderURL.map(LibraryPathStore.storedPath(for:))
-        case .playlist:
-            sourceIdentifier = input.playlistID
-        default:
-            sourceIdentifier = nil
-        }
+        let sourceIdentifier = input.queueSource == .playlist ? input.playlistID : nil
 
         let state = PlaybackState(
             currentTrack: input.currentTrack,
