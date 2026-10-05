@@ -222,7 +222,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: url)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -263,7 +263,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: lookupURL)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -310,7 +310,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: url)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -373,7 +373,7 @@ actor ArtistBioManager {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -420,7 +420,7 @@ actor ArtistBioManager {
         request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, _) = try await AppInfo.urlSession.data(for: request)
+            let (data, _) = try await fetch(request)
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return json?["also_known_as"] as? [String] ?? []
         } catch {
@@ -450,7 +450,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: url)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
                 return nil
@@ -489,7 +489,7 @@ actor ArtistBioManager {
 
     private func downloadImageData(from urlString: String) async -> Data? {
         guard let url = URL(string: urlString) else { return nil }
-        guard let (data, response) = try? await AppInfo.urlSession.data(from: url),
+        guard let (data, response) = try? await fetch(URLRequest(url: url)),
               let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200,
               data.count >= Self.minimumImageSize else {
@@ -501,6 +501,17 @@ actor ArtistBioManager {
     /// Same name, ignoring case, accents and character width ("Tyler， The
     /// Creator" from a fullwidth-comma tag is "Tyler, The Creator"). The whole
     /// name, not a substring: "Pilo" must not land on an actor called Kristaq Pilo.
+    /// `URLSession` throws only for transport failures. A 429 or 5xx is the
+    /// service being unavailable too, not an answer, so it also counts toward
+    /// the offline breaker instead of stamping the artist as a miss.
+    private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let (data, response) = try await AppInfo.urlSession.data(for: request)
+        if let status = (response as? HTTPURLResponse)?.statusCode, status == 429 || status >= 500 {
+            networkErrors += 1
+        }
+        return (data, response)
+    }
+
     private func isNameMatch(query: String, result: String) -> Bool {
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
         return query.compare(result, options: options) == .orderedSame
