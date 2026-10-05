@@ -474,11 +474,12 @@ actor ArtistBioManager {
     }
 
     /// Check if the API result name is a close match to the search query.
-    /// Accepts exact matches (case-insensitive) or when one name contains the other.
+    /// Accepts exact matches or when one name contains the other, ignoring
+    /// case, accents and character width ("Tyler， The Creator" from a
+    /// fullwidth-comma tag is "Tyler, The Creator").
     private func isNameMatch(query: String, result: String) -> Bool {
-        let q = query.lowercased()
-        let r = result.lowercased()
-        return q == r || q.contains(r) || r.contains(q)
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        return query.range(of: result, options: options) != nil || result.range(of: query, options: options) != nil
     }
 
     // MARK: - Rate Limiting
