@@ -141,10 +141,14 @@ actor ArtistBioManager {
 
                 // Fetch image and bio, then write once
                 Logger.info("Fetching info for '\(artist.name)' (image: \(wantsImage), bio: \(wantsBio))")
-                let errorsBefore = await self.networkErrors
+                // Failures are tracked per field, so a bio that arrived doesn't turn an
+                // image request that failed in transit into a seven-day miss.
+                var errorsBefore = await self.networkErrors
                 let imageResult = wantsImage ? await self.fetchArtistImage(name: artist.name) : nil
+                let imageFailed = await self.networkErrors != errorsBefore
+                errorsBefore = await self.networkErrors
                 let bio = wantsBio ? await self.fetchArtistBio(name: artist.name) : nil
-                let networkFailed = await self.networkErrors != errorsBefore
+                let bioFailed = await self.networkErrors != errorsBefore
 
                 // A cancel mid-fetch surfaces as nil results; bail before treating them
                 // as misses so we don't stamp an interrupted artist as failed.
@@ -165,7 +169,7 @@ actor ArtistBioManager {
                     databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: "last.fm")
                 }
 
-                if networkFailed && imageResult == nil && bio == nil {
+                if (imageFailed || bioFailed) && imageResult == nil && bio == nil {
                     // Nothing came back and a request failed in transit: leave the
                     // artist unstamped for a later retry and count toward the breaker.
                     consecutiveFailures += 1
@@ -177,8 +181,10 @@ actor ArtistBioManager {
                     // A miss = an attempted fetch that got an empty remote response.
                     // (A downloaded image that fails local compression is not a miss; it
                     // stays unstamped so it retries rather than being skipped for 7 days.)
-                    if wantsImage && imageResult == nil { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
-                    if wantsBio && bio == nil { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
+                    if wantsImage && imageResult == nil && !imageFailed {
+                        databaseManager.markArtistImageFetchFailed(artistId: artist.id)
+                    }
+                    if wantsBio && bio == nil && !bioFailed { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
                     consecutiveFailures = 0
                 }
             }

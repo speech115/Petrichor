@@ -58,7 +58,9 @@ struct EntityTile: View {
     }
 
     private func loadThumbnail() async -> Data? {
-        if let data = entity.displayArtwork { return data }
+        // Artwork embedded in the entity is a snapshot: after a change, read the database.
+        let embedded = entity.displayArtwork
+        if artworkVersion == 0, let embedded { return embedded }
         let database = libraryManager.databaseManager
         let name = entity.name
         let albumId = (entity as? AlbumEntity)?.albumId
@@ -68,7 +70,7 @@ struct EntityTile: View {
             guard let albumId else { return nil }
             return database.getAlbumArtworkThumbnail(albumId: albumId)
                 ?? database.getArtworkData(albumId: albumId, trackId: nil)
-        }.value
+        }.value ?? embedded
     }
 
     @ViewBuilder private var artwork: some View {
