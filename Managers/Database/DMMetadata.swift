@@ -317,6 +317,7 @@ extension DatabaseManager {
                     .filter(Artist.Columns.id == artistId)
                     .updateAll(db, assignments)
             }
+            if imageData != nil { NotificationCenter.default.post(name: .artistArtworkDidChange, object: nil) }
         } catch {
             Logger.error("Failed to update artist info for ID \(artistId): \(error)")
         }
@@ -337,6 +338,7 @@ extension DatabaseManager {
                         Artist.Columns.updatedAt.set(to: Date())
                     )
             }
+            NotificationCenter.default.post(name: .artistArtworkDidChange, object: nil)
         } catch {
             Logger.error("Failed to delete artist image for ID \(artistId): \(error)")
         }

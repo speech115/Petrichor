@@ -141,10 +141,14 @@ actor ArtistBioManager {
 
                 // Fetch image and bio, then write once
                 Logger.info("Fetching info for '\(artist.name)' (image: \(wantsImage), bio: \(wantsBio))")
-                let errorsBefore = await self.networkErrors
+                // Failures are tracked per field, so a bio that arrived doesn't turn an
+                // image request that failed in transit into a seven-day miss.
+                var errorsBefore = await self.networkErrors
                 let imageResult = wantsImage ? await self.fetchArtistImage(name: artist.name) : nil
+                let imageFailed = await self.networkErrors != errorsBefore
+                errorsBefore = await self.networkErrors
                 let bio = wantsBio ? await self.fetchArtistBio(name: artist.name) : nil
-                let networkFailed = await self.networkErrors != errorsBefore
+                let bioFailed = await self.networkErrors != errorsBefore
 
                 // A cancel mid-fetch surfaces as nil results; bail before treating them
                 // as misses so we don't stamp an interrupted artist as failed.
@@ -165,7 +169,7 @@ actor ArtistBioManager {
                     databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: "last.fm")
                 }
 
-                if networkFailed && imageResult == nil && bio == nil {
+                if (imageFailed || bioFailed) && imageResult == nil && bio == nil {
                     // Nothing came back and a request failed in transit: leave the
                     // artist unstamped for a later retry and count toward the breaker.
                     consecutiveFailures += 1
@@ -177,8 +181,10 @@ actor ArtistBioManager {
                     // A miss = an attempted fetch that got an empty remote response.
                     // (A downloaded image that fails local compression is not a miss; it
                     // stays unstamped so it retries rather than being skipped for 7 days.)
-                    if wantsImage && imageResult == nil { databaseManager.markArtistImageFetchFailed(artistId: artist.id) }
-                    if wantsBio && bio == nil { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
+                    if wantsImage && imageResult == nil && !imageFailed {
+                        databaseManager.markArtistImageFetchFailed(artistId: artist.id)
+                    }
+                    if wantsBio && bio == nil && !bioFailed { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
                     consecutiveFailures = 0
                 }
             }
@@ -222,7 +228,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: url)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -263,7 +269,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: lookupURL)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -310,7 +316,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: url)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -373,7 +379,7 @@ actor ArtistBioManager {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -420,7 +426,7 @@ actor ArtistBioManager {
         request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
         do {
-            let (data, _) = try await AppInfo.urlSession.data(for: request)
+            let (data, _) = try await fetch(request)
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return json?["also_known_as"] as? [String] ?? []
         } catch {
@@ -450,7 +456,7 @@ actor ArtistBioManager {
             var request = URLRequest(url: url)
             request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
 
-            let (data, response) = try await AppInfo.urlSession.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
                 return nil
@@ -489,7 +495,7 @@ actor ArtistBioManager {
 
     private func downloadImageData(from urlString: String) async -> Data? {
         guard let url = URL(string: urlString) else { return nil }
-        guard let (data, response) = try? await AppInfo.urlSession.data(from: url),
+        guard let (data, response) = try? await fetch(URLRequest(url: url)),
               let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200,
               data.count >= Self.minimumImageSize else {
@@ -501,6 +507,17 @@ actor ArtistBioManager {
     /// Same name, ignoring case, accents and character width ("Tyler， The
     /// Creator" from a fullwidth-comma tag is "Tyler, The Creator"). The whole
     /// name, not a substring: "Pilo" must not land on an actor called Kristaq Pilo.
+    /// `URLSession` throws only for transport failures. A 429 or 5xx is the
+    /// service being unavailable too, not an answer, so it also counts toward
+    /// the offline breaker instead of stamping the artist as a miss.
+    private func fetch(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let (data, response) = try await AppInfo.urlSession.data(for: request)
+        if let status = (response as? HTTPURLResponse)?.statusCode, status == 429 || status >= 500 {
+            networkErrors += 1
+        }
+        return (data, response)
+    }
+
     private func isNameMatch(query: String, result: String) -> Bool {
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
         return query.compare(result, options: options) == .orderedSame

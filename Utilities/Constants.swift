@@ -284,6 +284,8 @@ extension Notification.Name {
     static let foldersAddedToDatabase = Notification.Name("foldersAddedToDatabase")
 
     static let libraryDataDidChange = Notification.Name("LibraryDataDidChange")
+    /// An artist's photo was written or removed; posted off the main thread.
+    static let artistArtworkDidChange = Notification.Name("ArtistArtworkDidChange")
     /// The database was wiped and re-migrated (`DatabaseManager.resetDatabase()`
     /// via `LibraryManager.resetAllData()`): row ids restart from 1, so a
     /// listener that tracks state keyed by id (`iOS/SpotlightIndexer.swift`)

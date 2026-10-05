@@ -13,6 +13,8 @@ struct EntityTile: View {
 
     @EnvironmentObject private var libraryManager: LibraryManager
     @State private var image: PlatformImage?
+    /// Bumped when the artwork behind this tile may have changed, to rerun the load.
+    @State private var artworkVersion = 0
 
     private var isArtist: Bool { entity is ArtistEntity }
 
@@ -39,13 +41,26 @@ struct EntityTile: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .task(id: entity.id) {
-            image = await loadThumbnail().flatMap(PlatformImage.init(data:))
+        .task(id: [entity.id.hashValue, artworkVersion]) {
+            let data = await loadThumbnail()
+            // The detached read can't be cancelled; drop its result if the tile moved on.
+            guard !Task.isCancelled else { return }
+            image = data.flatMap(PlatformImage.init(data:))
+        }
+        // ponytail: every artist tile reloads on any artist photo change; filter by
+        // name if the background fetch makes visible shelves stutter.
+        .onReceive(NotificationCenter.default.publisher(for: .artistArtworkDidChange).receive(on: RunLoop.main)) { _ in
+            if isArtist { artworkVersion += 1 }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .libraryDataDidChange).receive(on: RunLoop.main)) { _ in
+            artworkVersion += 1
         }
     }
 
     private func loadThumbnail() async -> Data? {
-        if let data = entity.displayArtwork { return data }
+        // Artwork embedded in the entity is a snapshot: after a change, read the database.
+        let embedded = entity.displayArtwork
+        if artworkVersion == 0, let embedded { return embedded }
         let database = libraryManager.databaseManager
         let name = entity.name
         let albumId = (entity as? AlbumEntity)?.albumId
@@ -55,7 +70,7 @@ struct EntityTile: View {
             guard let albumId else { return nil }
             return database.getAlbumArtworkThumbnail(albumId: albumId)
                 ?? database.getArtworkData(albumId: albumId, trackId: nil)
-        }.value
+        }.value ?? embedded
     }
 
     @ViewBuilder private var artwork: some View {
