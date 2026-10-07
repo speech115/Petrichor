@@ -70,7 +70,7 @@ struct ContentView: View {
     @AppStorage("librarySelectedFilterType")
     private var libraryFilterType: LibraryFilterType = .artists
     @State private var libraryFilterItem: LibraryFilterItem?
-    @State private var libraryPendingSearchText: String?
+    @State private var libraryPendingSelection: LibraryFilterRequest?
     @State private var libraryFilteredItems: [LibraryFilterItem] = []
     @State private var libraryCachedTracks: [Track] = []
     @State private var librarySelectedSidebarItem: LibrarySidebarItem?
@@ -122,10 +122,12 @@ struct ContentView: View {
             }
         }
         .onChange(of: isImmersiveActive) { _, active in
-            // Restore the toolbar at the start of the close, while immersive still
-            // covers the window, so its reflow stays off-screen.
-            if !active {
-                WindowManager.shared.mainWindow?.toolbar?.isVisible = immersiveToolbarWasVisible
+            guard !active else { return }
+
+            let shouldRestoreToolbar = immersiveToolbarWasVisible
+            DispatchQueue.main.asyncAfter(deadline: .now() + AnimationDuration.immersiveTransition) {
+                guard !isImmersiveActive else { return }
+                WindowManager.shared.mainWindow?.toolbar?.isVisible = shouldRestoreToolbar
             }
         }
         .onAppear(perform: handleOnAppear)
@@ -299,7 +301,7 @@ struct ContentView: View {
                         LibrarySidebarView(
                             selectedFilterType: $libraryFilterType,
                             selectedFilterItem: $libraryFilterItem,
-                            pendingSearchText: $libraryPendingSearchText,
+                            pendingSelection: $libraryPendingSelection,
                             filteredItems: $libraryFilteredItems,
                             selectedSidebarItem: $librarySelectedSidebarItem
                         )
@@ -308,7 +310,7 @@ struct ContentView: View {
                         LibraryView(
                             selectedFilterType: $libraryFilterType,
                             selectedFilterItem: $libraryFilterItem,
-                            pendingSearchText: $libraryPendingSearchText,
+                            pendingSelection: $libraryPendingSelection,
                             cachedFilteredTracks: $libraryCachedTracks,
                             pendingFilter: $pendingLibraryFilter
                         )
@@ -511,7 +513,7 @@ struct ContentView: View {
         detailEntity = nil
         withAnimation(.easeInOut(duration: AnimationDuration.standardDuration)) {
             selectedTab = .library
-            pendingLibraryFilter = LibraryFilterRequest(filterType: filterType, value: value)
+            pendingLibraryFilter = LibraryFilterRequest(filterType: filterType, value: value, albumId: albumId)
         }
     }
 

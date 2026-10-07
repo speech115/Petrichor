@@ -170,9 +170,12 @@ extension DatabaseManager {
                 .filter((Artist.Columns.name == albumArtist) || (Artist.Columns.normalizedName == normalizedArtist))
                 .fetchOne(db),
                let artistId = artist.id {
-                // Find albums that have this artist as an album artist
+                // Album identity comes from the primary artist. A featured artist may own a
+                // separate album with the same title.
                 let albumIdsWithArtist = try AlbumArtist
                     .filter(AlbumArtist.Columns.artistId == artistId)
+                    .filter(AlbumArtist.Columns.role == AlbumArtist.Role.primary)
+                    .filter(AlbumArtist.Columns.position == 0)
                     .select(AlbumArtist.Columns.albumId, as: Int64.self)
                     .fetchSet(db)
 
@@ -186,8 +189,15 @@ extension DatabaseManager {
                 }
             }
         } else {
-            // No album artist info, fall back to title-only matching
-            if let existingAlbum = try query.fetchOne(db) {
+            // An unowned album may be reused, but an arbitrary artist-owned album must not be
+            // claimed merely because its title matches.
+            let albumIdsWithPrimaryArtist = try AlbumArtist
+                .filter(AlbumArtist.Columns.role == AlbumArtist.Role.primary)
+                .select(AlbumArtist.Columns.albumId, as: Int64.self)
+                .fetchSet(db)
+            if let existingAlbum = try query
+                .filter(!albumIdsWithPrimaryArtist.contains(Album.Columns.id))
+                .fetchOne(db) {
                 cache?.albums[cacheKey] = existingAlbum
                 return existingAlbum
             }

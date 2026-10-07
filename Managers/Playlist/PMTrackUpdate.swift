@@ -14,6 +14,29 @@ extension PlaylistManager {
         AppCoordinator.shared?.playbackJournal
     }
 
+    func reconcileRelocatedTracks() {
+        var trackIds = Set(currentQueue.compactMap(\.trackId))
+        if let currentTrackId = audioPlayer?.currentTrack?.trackId {
+            trackIds.insert(currentTrackId)
+        }
+        guard !trackIds.isEmpty else { return }
+
+        let relocatedTracks = libraryManager?.databaseManager.getTracks(byIds: Array(trackIds)) ?? []
+        let tracksById = Dictionary(uniqueKeysWithValues: relocatedTracks.compactMap { track in
+            track.trackId.map { ($0, track) }
+        })
+        for index in currentQueue.indices {
+            guard let trackId = currentQueue[index].trackId,
+                  let relocatedTrack = tracksById[trackId] else { continue }
+            currentQueue[index] = relocatedTrack
+        }
+
+        if let trackId = audioPlayer?.currentTrack?.trackId,
+           let relocatedTrack = tracksById[trackId] {
+            audioPlayer?.currentTrack = relocatedTrack
+        }
+    }
+
     func updateTrackFavoriteStatus(track: Track, isFavorite: Bool) async {
         guard let trackId = track.trackId else {
             Logger.error("Cannot update favorite - track has no database ID")

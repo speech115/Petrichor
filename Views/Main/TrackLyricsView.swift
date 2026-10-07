@@ -46,6 +46,7 @@ struct TrackLyricsContent: View {
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playbackManager: PlaybackManager
+    @ObservedObject private var lyricsStore = LyricsStore.shared
 
     @State private var lyricLines: [LyricLine] = []
     @State private var isLoading = true
@@ -82,6 +83,10 @@ struct TrackLyricsContent: View {
         // Listen for playback time changes and update the current line in real time.
         .onReceive(playbackManager.playbackProgressState.$currentTime) { newTime in
             updateCurrentLine(for: newTime)
+        }
+        .onReceive(lyricsStore.$cached) { lyrics in
+            guard let lyrics, currentTrack?.id == lyrics.trackId else { return }
+            apply(lyrics)
         }
     }
 
@@ -137,16 +142,30 @@ struct TrackLyricsContent: View {
             ScrollView {
                 VStack(spacing: fontSize * 0.7) {
                     ForEach(Array(lyricLines.enumerated()), id: \.offset) { index, line in
-                        Text(line.text.isEmpty ? " " : line.text)
-                            .font(.system(size: fontSize))
-                            // Only apply highlight styles if lyrics are timed
-                            .fontWeight(hasTimedLyrics && currentLineIndex == index ? .bold : .regular)
-                            .scaleEffect(hasTimedLyrics && currentLineIndex == index ? 1.1 : 1.0)
-                            .foregroundColor(hasTimedLyrics && currentLineIndex == index ? activeColor : inactiveColor)
-                            .multilineTextAlignment(.center)
-                            .lineSpacing(6)
-                            .id(index)   // For scrollTo
-                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentLineIndex)
+                        let isActive = hasTimedLyrics && currentLineIndex == index
+                        let lyricText = line.text.isEmpty ? " " : line.text
+
+                        ZStack {
+                            Text(lyricText)
+                                .font(.system(size: fontSize))
+                                .foregroundColor(inactiveColor)
+                                .opacity(isActive ? 0.0 : 1.0)
+                                .accessibilityHidden(true)
+
+                            Text(lyricText)
+                                .font(.system(size: fontSize, weight: .bold))
+                                .foregroundColor(activeColor)
+                                .opacity(isActive ? 1.0 : 0.0)
+                                .accessibilityHidden(true)
+                                .allowsHitTesting(false)
+                        }
+                        .scaleEffect(isActive ? 1.05 : 1.0)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(6)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(lyricText)
+                        .id(index)
+                        .animation(.smooth(duration: 0.25), value: isActive)
                     }
                 }
                 .padding(20)
@@ -155,9 +174,8 @@ struct TrackLyricsContent: View {
             }
             .scrollIndicators(.never)
             .onChange(of: currentLineIndex) { _, newIndex in
-                // Auto-scroll only for timed lyrics
-                guard hasTimedLyrics else { return }
-                withAnimation {
+                guard hasTimedLyrics, newIndex >= 0 else { return }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                     proxy.scrollTo(newIndex, anchor: .center)
                 }
             }
@@ -178,11 +196,7 @@ struct TrackLyricsContent: View {
         let loadedTrackId = track.id
 
         if !forceReload, let cached = libraryManager.cachedLyrics(for: loadedTrackId) {
-            lyricLines = cached.lines
-            hasTimedLyrics = cached.hasTimed
-            isLoading = false
-            fetchFailed = false
-            updateCurrentLine(for: playbackManager.playbackProgressState.currentTime)
+            apply(cached)
             return
         }
 
@@ -202,11 +216,10 @@ struct TrackLyricsContent: View {
 
                 await MainActor.run {
                     guard currentTrack?.id == loadedTrackId else { return }
-                    lyricLines = result.lines
-                    hasTimedLyrics = result.hasTimed
-                    isLoading = false
-                    fetchFailed = false
+                    apply(result)
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 await MainActor.run {
                     guard currentTrack?.id == loadedTrackId else { return }
@@ -219,6 +232,15 @@ struct TrackLyricsContent: View {
         }
     }
 
+    private func apply(_ lyrics: LyricsStore.Lyrics) {
+        lyricLines = lyrics.lines
+        hasTimedLyrics = lyrics.hasTimed
+        isLoading = false
+        fetchFailed = false
+        currentLineIndex = -1
+        updateCurrentLine(for: playbackManager.playbackProgressState.currentTime)
+    }
+
     /// Determine the current lyric line based on playback time.
     /// Only executed for timed lyrics; for untimed lyrics this does nothing.
     private func updateCurrentLine(for time: TimeInterval) {
@@ -228,9 +250,7 @@ struct TrackLyricsContent: View {
         let newIndex = LyricsTimeline.activeLineIndex(in: lyricLines, at: time)
 
         if newIndex != currentLineIndex {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                currentLineIndex = newIndex
-            }
+            currentLineIndex = newIndex
         }
     }
 }

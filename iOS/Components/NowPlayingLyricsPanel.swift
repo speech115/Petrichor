@@ -76,6 +76,15 @@ struct NowPlayingLyricsPanel: View {
         .onReceive(playbackProgressState.$currentTime) { newTime in
             updateCurrentLine(for: newTime)
         }
+        // Untimed lyrics can be upgraded to timed ones in the background.
+        .onReceive(LyricsStore.shared.$cached) { lyrics in
+            guard let lyrics, currentTrack?.id == lyrics.trackId else { return }
+            lyricLines = lyrics.lines
+            hasTimedLyrics = lyrics.hasTimed
+            isLoading = false
+            fetchError = nil
+            updateCurrentLine(for: playbackProgressState.currentTime)
+        }
     }
 
     // MARK: - Loading View
@@ -319,6 +328,8 @@ struct NowPlayingLyricsPanel: View {
                     isLoading = false
                     fetchError = nil
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 await MainActor.run {
                     guard currentTrack?.id == loadedTrackId else { return }
