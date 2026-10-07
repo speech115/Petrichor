@@ -54,7 +54,8 @@ enum FilesystemUtils {
             entries.append((relativePath, modDate, size))
         }
 
-        guard !entries.isEmpty else { return nil }
+        // An empty folder still hashes: nil means "can't tell" and forced a full
+        // rescan of the library on every auto-scan tick.
 
         // Sort by path for deterministic ordering
         entries.sort { $0.path < $1.path }

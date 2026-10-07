@@ -190,10 +190,15 @@ enum PlaylistDisplay {
     /// "2000s Hits" keeps its name and "05 Spotify" loses its "05". This is
     /// what pinned entries match on — never the renamed title.
     static func storedName(for playlist: Playlist) -> String {
+        // Hand-rolled `^\d{1,3}[ ._-]+`: the sidebar calls this per playlist
+        // several times a render, and a Swift Regex match dominated it.
         let stored = DefaultPlaylists.displayName(for: playlist)
-        guard let match = stored.firstMatch(of: /^\d{1,3}[ ._-]+/) else { return stored }
-        let stripped = stored[match.range.upperBound...]
-        return stripped.isEmpty ? stored : String(stripped)
+        let digits = stored.prefix { $0.isASCII && $0.isNumber }
+        guard (1...3).contains(digits.count) else { return stored }
+        let rest = stored[digits.endIndex...]
+        let stripped = rest.drop { " ._-".contains($0) }
+        guard stripped.startIndex != rest.startIndex, !stripped.isEmpty else { return stored }
+        return String(stripped)
     }
 }
 
