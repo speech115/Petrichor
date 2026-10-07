@@ -27,6 +27,7 @@ struct TrackTableView: View {
     @State private var selection: Set<Track.ID> = []
     @State private var sortedTracks: [Track] = []
     @State private var trackFavorites: [Int64: Bool] = [:]
+    @FocusState private var isTableFocused: Bool
 
     @State private var isCustomSort: Bool = false
     @State private var hasInitializedCustomization = false
@@ -84,6 +85,12 @@ struct TrackTableView: View {
 
     var body: some View {
         content
+            .focused($isTableFocused)
+            // Arrow keys only move the selection while the table holds focus.
+            .onChange(of: selection) { oldValue, newValue in
+                guard oldValue != newValue, !newValue.isEmpty else { return }
+                isTableFocused = true
+            }
             .onChange(of: columnCustomization) { _, newValue in
                 if hasInitializedCustomization {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

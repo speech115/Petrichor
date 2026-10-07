@@ -6,7 +6,7 @@ struct LibraryView: View {
 
     @Binding var selectedFilterType: LibraryFilterType
     @Binding var selectedFilterItem: LibraryFilterItem?
-    @Binding var pendingSearchText: String?
+    @Binding var pendingSelection: LibraryFilterRequest?
     @Binding var cachedFilteredTracks: [Track]
 
     @AppStorage("trackTableRowSize")
@@ -70,7 +70,7 @@ struct LibraryView: View {
 
         pendingFilter = nil
         selectedFilterType = request.filterType
-        pendingSearchText = request.value
+        pendingSelection = request
     }
 
     private func handleGlobalSearch() {
@@ -87,13 +87,13 @@ struct LibraryView: View {
     init(
         selectedFilterType: Binding<LibraryFilterType>,
         selectedFilterItem: Binding<LibraryFilterItem?>,
-        pendingSearchText: Binding<String?>,
+        pendingSelection: Binding<LibraryFilterRequest?>,
         cachedFilteredTracks: Binding<[Track]>,
         pendingFilter: Binding<LibraryFilterRequest?> = .constant(nil)
     ) {
         self._selectedFilterType = selectedFilterType
         self._selectedFilterItem = selectedFilterItem
-        self._pendingSearchText = pendingSearchText
+        self._pendingSelection = pendingSelection
         self._cachedFilteredTracks = cachedFilteredTracks
         self._pendingFilter = pendingFilter
     }
@@ -244,13 +244,13 @@ struct LibraryView: View {
 #Preview {
     @Previewable @State var filterType: LibraryFilterType = .artists
     @Previewable @State var filterItem: LibraryFilterItem?
-    @Previewable @State var searchText: String?
+    @Previewable @State var pendingSelection: LibraryFilterRequest?
     @Previewable @State var cachedTracks: [Track] = []
 
     LibraryView(
         selectedFilterType: $filterType,
         selectedFilterItem: $filterItem,
-        pendingSearchText: $searchText,
+        pendingSelection: $pendingSelection,
         cachedFilteredTracks: $cachedTracks
     )
         .environmentObject({

@@ -67,12 +67,33 @@ actor GlobalScanState {
     }
 }
 
+private enum FolderRelocationError: LocalizedError {
+    case missingFolderID
+    case destinationAlreadyWatched(String)
+    case trackOutsideFolder(String)
+    case trackPathConflict(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingFolderID:
+            return "Cannot relocate a folder without a database ID"
+        case .destinationAlreadyWatched(let path):
+            return "A watched folder already exists at \(path)"
+        case .trackOutsideFolder(let path):
+            return "Track path is outside its watched folder: \(path)"
+        case .trackPathConflict(let path):
+            return "A track already exists at the relocated path: \(path)"
+        }
+    }
+}
+
 /// Result of a single-pass folder enumeration
 struct FolderEnumerationResult {
     let musicFiles: [URL]
     let unsupportedFiles: [(url: URL, extension: String)]
     let artworkMap: [URL: Data]
     let artworkPaths: [URL: URL]   // directory -> artwork file URL (for deferred loading on slow FS)
+    let failedPaths: [String]
 }
 
 extension DatabaseManager {
@@ -291,10 +312,92 @@ extension DatabaseManager {
         }
     }
 
-    func updateFolderBookmark(_ folderId: Int64, bookmarkData: Data) async throws {
+    /// Rebase a watched folder after its bookmark follows a filesystem rename.
+    /// Existing IDs and scan metadata are preserved, so relocation does not re-ingest tracks.
+    func relocateFolder(_ folder: Folder, to resolvedURL: URL, bookmarkData: Data) throws -> Folder {
+        guard let folderId = folder.id else {
+            throw FolderRelocationError.missingFolderID
+        }
+
+        let oldPath = LibraryPathStore.storedPath(for: folder.url)
+        let newURL = resolvedURL.standardizedFileURL
+        let newPath = LibraryPathStore.storedPath(for: newURL)
+        guard oldPath != newPath else { return folder }
+
+        return try dbQueue.write { db in
+            let destinationIsWatched = try Folder
+                .filter(Folder.Columns.path == newPath)
+                .filter(Folder.Columns.id != folderId)
+                .fetchCount(db) > 0
+            guard !destinationIsWatched else {
+                throw FolderRelocationError.destinationAlreadyWatched(newPath)
+            }
+
+            let tracks = try Track
+                .select(Track.Columns.trackId, Track.Columns.path)
+                .filter(Track.Columns.folderId == folderId)
+                .asRequest(of: Row.self)
+                .fetchAll(db)
+            var relocatedTracks: [(id: Int64, path: String)] = []
+            relocatedTracks.reserveCapacity(tracks.count)
+
+            for track in tracks {
+                let trackId: Int64 = track["id"]
+                let trackPath: String = track["path"]
+                guard let relocatedPath = rebasedPath(trackPath, from: oldPath, to: newPath) else {
+                    throw FolderRelocationError.trackOutsideFolder(trackPath)
+                }
+                relocatedTracks.append((trackId, relocatedPath))
+            }
+
+            for chunk in relocatedTracks.chunked(into: 500) {
+                let paths = chunk.map(\.path)
+                let conflictingPath = try Track
+                    .select(Track.Columns.path)
+                    .filter(paths.contains(Track.Columns.path))
+                    .filter(Track.Columns.folderId != folderId)
+                    .asRequest(of: String.self)
+                    .fetchOne(db)
+                guard let conflictingPath else { continue }
+                throw FolderRelocationError.trackPathConflict(conflictingPath)
+            }
+
+            let relocatedPathExpression = SQL(
+                "\(newPath) || substr(\(Track.Columns.path), length(\(oldPath)) + 1)"
+            ).sqlExpression
+            try Track
+                .filter(Track.Columns.folderId == folderId)
+                .updateAll(db, Track.Columns.path.set(to: relocatedPathExpression))
+
+            var relocatedFolder = Folder(url: newURL, id: folderId, bookmarkData: bookmarkData)
+            relocatedFolder.trackCount = folder.trackCount
+            relocatedFolder.dateAdded = folder.dateAdded
+            relocatedFolder.dateUpdated = folder.dateUpdated
+            relocatedFolder.shasumHash = folder.shasumHash
+            try relocatedFolder.update(db)
+            return relocatedFolder
+        }
+    }
+
+    private func rebasedPath(_ path: String, from oldRoot: String, to newRoot: String) -> String? {
+        if path == oldRoot {
+            return newRoot
+        }
+
+        let descendantPrefix = oldRoot.hasSuffix("/") ? oldRoot : "\(oldRoot)/"
+        guard path.hasPrefix(descendantPrefix) else { return nil }
+
+        return URL(fileURLWithPath: newRoot, isDirectory: true)
+            .appendingPathComponent(String(path.dropFirst(descendantPrefix.count)))
+            .standardizedFileURL
+            .path
+    }
+
+    func updateFolderBookmark(_ folderId: Int64, expectedPath: String, bookmarkData: Data) async throws {
         _ = try await dbQueue.write { db in
             try Folder
                 .filter(Folder.Columns.id == folderId)
+                .filter(Folder.Columns.path == expectedPath)
                 .updateAll(db, Folder.Columns.bookmarkData.set(to: bookmarkData))
         }
     }
@@ -350,9 +453,13 @@ extension DatabaseManager {
         var count = 0
         while let fileURL = enumerator.nextObject() as? URL {
             let ext = fileURL.pathExtension.lowercased()
-            if !ext.isEmpty && supportedExtensions.contains(ext) {
-                count += 1
+            guard !ext.isEmpty, supportedExtensions.contains(ext),
+                  let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey]),
+                  values.isRegularFile == true,
+                  FileManager.default.isReadableFile(atPath: fileURL.path) else {
+                continue
             }
+            count += 1
         }
         return count
     }
@@ -574,6 +681,14 @@ extension DatabaseManager {
         let artworkMap = enumeration.artworkMap
         let artworkPaths = enumeration.artworkPaths
 
+        // Upstream aborts here because its scan deletes rows for files it did
+        // not see. This scan never deletes (ADR-0001), so unreadable entries
+        // only cost those files; the readable rest is still added.
+        if !enumeration.failedPaths.isEmpty {
+            let sample = enumeration.failedPaths.prefix(3).joined(separator: ", ")
+            Logger.warning("Incomplete scan of \(folder.name); skipped unreadable paths: \(sample)")
+        }
+
         await scanState.addSkippedFiles(enumeration.unsupportedFiles)
 
         let artworkCount = artworkMap.count + artworkPaths.count
@@ -586,9 +701,20 @@ extension DatabaseManager {
             let tracks = try Track
                 .filter(Track.Columns.folderId == folderId)
                 .fetchAll(db)
-            return Dictionary(uniqueKeysWithValues: tracks.map {
-                (LibraryPathStore.storedPath(for: $0.url), $0)
-            })
+
+            var tracksByPath: [String: Track] = [:]
+            for track in tracks.sorted(by: { ($0.trackId ?? .max) < ($1.trackId ?? .max) }) {
+                let path = LibraryPathStore.storedPath(for: track.url)
+                if let existing = tracksByPath[path] {
+                    Logger.warning(
+                        "Duplicate normalized track path in folder \(folder.name): \(path) "
+                            + "(keeping ID \(existing.trackId ?? -1), ignoring ID \(track.trackId ?? -1))"
+                    )
+                    continue
+                }
+                tracksByPath[path] = track
+            }
+            return tracksByPath
         }
 
         // Tracks whose file is gone from disk are not removed: the row
@@ -631,10 +757,26 @@ extension DatabaseManager {
     ) throws -> FolderEnumerationResult {
         let fileManager = FileManager.default
 
+        let rootValues: URLResourceValues
+        do {
+            rootValues = try folderURL.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey])
+        } catch {
+            throw DatabaseError.scanFailed("Folder is unavailable or unreadable")
+        }
+        guard rootValues.isDirectory == true, rootValues.isReadable == true else {
+            throw DatabaseError.scanFailed("Folder is unavailable or unreadable")
+        }
+
+        var failedPaths: [String] = []
         guard let enumerator = fileManager.enumerator(
             at: folderURL,
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            options: [.skipsHiddenFiles, .skipsPackageDescendants],
+            errorHandler: { url, error in
+                failedPaths.append(url.path)
+                Logger.warning("Failed to enumerate \(url.path): \(error)")
+                return true
+            }
         ) else {
             throw DatabaseError.scanFailed("Unable to enumerate folder contents")
         }
@@ -644,15 +786,44 @@ extension DatabaseManager {
         var artworkMap: [URL: Data] = [:]
         var artworkPaths: [URL: URL] = [:]
         var directoriesWithArtwork: Set<URL> = []
+        var musicPaths: Set<String> = []
 
         while let fileURL = enumerator.nextObject() as? URL {
             let fileExtension = fileURL.pathExtension.lowercased()
+            let filename = fileURL.deletingPathExtension().lastPathComponent
+            let isSupportedAudio = supportedExtensions.contains(fileExtension)
+            let isArtwork = AlbumArtFormat.knownFilenames.contains(filename)
+                && AlbumArtFormat.isSupported(fileExtension)
+            let isUnsupportedAudio = AudioFormat.isNotSupported(fileExtension)
+            guard isSupportedAudio || isArtwork || isUnsupportedAudio else { continue }
+
+            let resourceValues: URLResourceValues
+            do {
+                resourceValues = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
+            } catch {
+                failedPaths.append(fileURL.path)
+                Logger.warning("Failed to inspect \(fileURL.path): \(error)")
+                continue
+            }
+
+            guard resourceValues.isRegularFile == true else { continue }
 
             guard !fileExtension.isEmpty else { continue }
 
-            if supportedExtensions.contains(fileExtension) {
-                musicFiles.append(fileURL)
-            } else if AudioFormat.isNotSupported(fileExtension) {
+            if isSupportedAudio {
+                guard fileManager.isReadableFile(atPath: fileURL.path) else {
+                    failedPaths.append(fileURL.path)
+                    Logger.warning("Audio file is unreadable: \(fileURL.path)")
+                    continue
+                }
+
+                let path = fileURL.path
+                if musicPaths.insert(path).inserted {
+                    musicFiles.append(fileURL)
+                } else {
+                    Logger.warning("Skipping duplicate normalized file path while scanning: \(path)")
+                }
+            } else if isUnsupportedAudio {
                 unsupportedFiles.append((url: fileURL, extension: fileExtension))
                 Logger.info("Skipped unsupported audio file: \(fileURL.lastPathComponent) (.\(fileExtension))")
             }
@@ -660,9 +831,7 @@ extension DatabaseManager {
             // Check for artwork files (cover.jpg, folder.png, etc.)
             let directory = fileURL.deletingLastPathComponent()
             if !directoriesWithArtwork.contains(directory) {
-                let filename = fileURL.deletingPathExtension().lastPathComponent
-                if AlbumArtFormat.knownFilenames.contains(filename)
-                    && AlbumArtFormat.isSupported(fileExtension) {
+                if isArtwork {
                     directoriesWithArtwork.insert(directory)
                     if deferArtworkLoading {
                         // On slow FS, just record the path for lazy loading later
@@ -681,11 +850,22 @@ extension DatabaseManager {
             }
         }
 
+        let finalRootValues: URLResourceValues
+        do {
+            finalRootValues = try folderURL.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey])
+        } catch {
+            throw DatabaseError.scanFailed("Folder became unavailable during scanning")
+        }
+        guard finalRootValues.isDirectory == true, finalRootValues.isReadable == true else {
+            throw DatabaseError.scanFailed("Folder became unavailable during scanning")
+        }
+
         return FolderEnumerationResult(
             musicFiles: musicFiles,
             unsupportedFiles: unsupportedFiles,
             artworkMap: artworkMap,
-            artworkPaths: artworkPaths
+            artworkPaths: artworkPaths,
+            failedPaths: failedPaths
         )
     }
 

@@ -278,4 +278,11 @@ enum LibraryFilterType: String, CaseIterable, Sendable {
 struct LibraryFilterRequest: Equatable {
     let filterType: LibraryFilterType
     let value: String
+    let albumId: Int64?
+
+    init(filterType: LibraryFilterType, value: String, albumId: Int64? = nil) {
+        self.filterType = filterType
+        self.value = value
+        self.albumId = albumId
+    }
 }

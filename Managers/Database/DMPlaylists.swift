@@ -208,17 +208,17 @@ extension DatabaseManager {
                 // date_added, so no dictionary or manual re-sorting is needed.
                 // Duplicate track_ids would naturally produce two rows.
                 let columns = Track.lightweightSelection.map { "tracks.\($0.name)" }.joined(separator: ", ")
-                var sql = """
+                let sql = """
                     SELECT \(columns), tracks.duplicate_group_id,
                            playlist_tracks.date_added AS playlist_date_added
                     FROM playlist_tracks
                     JOIN tracks ON tracks.id = playlist_tracks.track_id
                     WHERE playlist_tracks.playlist_id = ?
+                    ORDER BY playlist_tracks.position
                     """
-                if UserDefaults.standard.bool(forKey: "hideDuplicateTracks") {
-                    sql += " AND tracks.is_duplicate = 0"
-                }
-                sql += " ORDER BY playlist_tracks.position"
+                // Explicit and frozen playlist snapshots preserve their exact
+                // membership even when duplicate copies are hidden elsewhere in
+                // the library.
 
                 // A cursor, not `Row.fetchAll`: copied rows resolve every
                 // column name by a linear scan, cursor rows by the statement's
@@ -297,7 +297,7 @@ extension DatabaseManager {
                     guard !trackIds.isEmpty else { return [] }
 
                     var trackDict: [Int64: Track] = [:]
-                    for track in try applyDuplicateFilter(Track.all())
+                    for track in try Track
                         .filter(trackIds.contains(Track.Columns.trackId))
                         .fetchAll(db) {
                         if let trackId = track.trackId {

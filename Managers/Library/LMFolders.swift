@@ -10,6 +10,17 @@ import Foundation
 import AppKit
 #endif
 
+private enum FolderAccessError: LocalizedError {
+    case unavailable(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailable(let name):
+            return "Folder '\(name)' is unavailable or cannot be read"
+        }
+    }
+}
+
 extension LibraryManager {
     #if os(macOS)
     func addFolder() {
@@ -72,6 +83,7 @@ extension LibraryManager {
             switch result {
             case .success:
                 Logger.info("Successfully removed folder: \(folder.name)")
+                self.releaseSecurityScopedAccess(for: folder)
                 // Remove from local array
                 self.folders.removeAll { $0.id == folder.id }
                 // Reload library immediately
@@ -91,30 +103,36 @@ extension LibraryManager {
     }
 
     func refreshFolder(_ folder: Folder, hardRefresh: Bool = false) {
-        // First, ensure we have a valid bookmark
         Task { [weak self] in
             guard let self = self else { return }
 
-            // Every successful start must be paired with a stop; track whether we took a ref.
-            let startedAccess = folder.bookmarkData != nil
-                && folder.url.startAccessingSecurityScopedResource()
-            if !startedAccess {
-                await self.refreshBookmarkForFolder(folder)
+            let scanFolder: Folder
+            do {
+                scanFolder = try await self.prepareFolderForScanning(folder)
+            } catch {
+                Logger.error("Cannot refresh folder \(folder.name): \(error)")
+                await MainActor.run {
+                    NotificationManager.shared.addMessage(
+                        .error,
+                        String(localized: "Folder '\(folder.name)' is currently unavailable")
+                    )
+                }
+                return
             }
 
             // Show the indicator before counting: enumerating a large folder can take
             // a moment, and refreshLibrary() starts activity before counting too.
             await MainActor.run {
-                NotificationManager.shared.startActivity(String(localized: "Refreshing \(folder.name)..."))
+                NotificationManager.shared.startActivity(String(localized: "Refreshing \(scanFolder.name)..."))
             }
 
             // Pre-count files so the progress bar can advance (needs a
             // GlobalScanState); skip on slow filesystems, like refreshLibrary().
-            let isSlowFS = FilesystemUtils.isSlowFilesystem(url: folder.url)
+            let isSlowFS = FilesystemUtils.isSlowFilesystem(url: scanFolder.url)
             let totalFiles = isSlowFS
                 ? 0
                 : await self.databaseManager.countFilesInFolder(
-                    folder,
+                    scanFolder,
                     supportedExtensions: AudioFormat.supportedExtensions
                 )
             let globalScanState = GlobalScanState(totalFiles: totalFiles)
@@ -131,21 +149,20 @@ extension LibraryManager {
 
             // completion runs on the main actor (see DMFolders.refreshFolder)
             self.databaseManager.refreshFolder(
-                folder,
+                scanFolder,
                 hardRefresh: hardRefresh,
                 manageActivityIndicator: false,
                 globalScanState: globalScanState
             ) { result in
-                if startedAccess { folder.url.stopAccessingSecurityScopedResource() }
                 NotificationManager.shared.stopActivity()
                 switch result {
                 case .success:
-                    Logger.info("Successfully refreshed folder \(folder.name)")
+                    Logger.info("Successfully refreshed folder \(scanFolder.name)")
                     // Reload the library to reflect changes
                     self.refreshLibraryCategories()
                     self.loadMusicLibrary()
                 case .failure(let error):
-                    Logger.error("Failed to refresh folder \(folder.name): \(error)")
+                    Logger.error("Failed to refresh folder \(scanFolder.name): \(error)")
                 }
             }
         }
@@ -163,110 +180,138 @@ extension LibraryManager {
         return summary
     }
 
-    func optimizeDatabase(notifyUser: Bool = false) {
+    func optimizeDatabase() {
         let sizeBefore = DatabaseFactory.databaseFileSize() ?? 0
-        var foldersToRemove: [Folder] = []
-            
-        for folder in folders where !fileManager.fileExists(atPath: folder.url.path) {
-            foldersToRemove.append(folder)
-        }
-        
-        if foldersToRemove.isEmpty {
-            Logger.info("No missing folders found during optimization")
-            
-            if notifyUser {
-                performDatabaseOptimization(sizeBefore: sizeBefore, context: "optimization")
+        performDatabaseOptimization(sizeBefore: sizeBefore, context: "optimization")
+    }
+
+    internal func resolveBookmark(for folder: Folder) throws -> (url: URL, isStale: Bool) {
+        guard let bookmarkData = folder.bookmarkData else { throw CocoaError(.fileReadNoPermission) }
+        var isStale = false
+        let url = try URL(
+            resolvingBookmarkData: bookmarkData,
+            options: LibraryPathStore.bookmarkResolutionOptions,
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        )
+        return (url.standardizedFileURL, isStale)
+    }
+
+    internal func retainSecurityScopedAccess(
+        to url: URL,
+        for folder: Folder,
+        restartExisting: Bool = false
+    ) -> Bool {
+        guard let folderId = folder.id else { return false }
+        let standardizedURL = url.standardizedFileURL
+        securityScopedFolderURLsLock.lock()
+        defer { securityScopedFolderURLsLock.unlock() }
+        if !restartExisting, securityScopedFolderURLs[folderId]?.path == standardizedURL.path { return true }
+        guard standardizedURL.startAccessingSecurityScopedResource() else { return false }
+        let previousURL = securityScopedFolderURLs.updateValue(standardizedURL, forKey: folderId)
+        previousURL?.stopAccessingSecurityScopedResource()
+        return true
+    }
+
+    internal func prepareFolderForScanning(_ folder: Folder) async throws -> Folder {
+        var effectiveFolder = folder
+
+        if let bookmarkData = folder.bookmarkData {
+            let resolvedBookmark = try resolveBookmark(for: folder)
+            let resolvedURL = resolvedBookmark.url
+            guard retainSecurityScopedAccess(to: resolvedURL, for: folder, restartExisting: true) else {
+                throw FolderAccessError.unavailable(folder.name)
             }
-            return
-        }
-        
-        Logger.info("Found \(foldersToRemove.count) missing folders to optimize")
-        NotificationManager.shared.startActivity(String(localized: "Optimizing database..."))
-        
-        let group = DispatchGroup()
-        var removedFolders: [String] = []
-        var failedRemovals: [String] = []
-        
-        for folder in foldersToRemove {
-            group.enter()
-            databaseManager.removeFolder(folder) { result in
-                switch result {
-                case .success:
-                    Logger.info("Successfully removed missing folder: \(folder.name)")
-                    removedFolders.append(folder.name)
-                case .failure(let error):
-                    Logger.error("Failed to remove missing folder \(folder.name): \(error)")
-                    failedRemovals.append(folder.name)
+            try validateFolderForScanning(resolvedURL, name: folder.name)
+
+            let refreshedBookmark: Data
+            if resolvedBookmark.isStale || resolvedURL.path != folder.url.standardizedFileURL.path {
+                refreshedBookmark = try resolvedURL.bookmarkData(
+                    options: LibraryPathStore.bookmarkCreationOptions,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+            } else {
+                refreshedBookmark = bookmarkData
+            }
+
+            if resolvedURL.path != folder.url.standardizedFileURL.path {
+                effectiveFolder = try databaseManager.relocateFolder(
+                    folder,
+                    to: resolvedURL,
+                    bookmarkData: refreshedBookmark
+                )
+                let relocatedFolder = effectiveFolder
+                await MainActor.run {
+                    if let index = folders.firstIndex(where: { $0.id == folder.id }) {
+                        folders[index] = relocatedFolder
+                    }
+                    AppCoordinator.shared?.playlistManager.reconcileRelocatedTracks()
+                    NotificationManager.shared.addMessage(
+                        .info,
+                        String(localized: "Updated the location of '\(relocatedFolder.name)'")
+                    )
                 }
-                group.leave()
+            } else if resolvedBookmark.isStale, let folderId = folder.id {
+                try await databaseManager.updateFolderBookmark(
+                    folderId,
+                    expectedPath: folder.url.path,
+                    bookmarkData: refreshedBookmark
+                )
+                effectiveFolder.bookmarkData = refreshedBookmark
+                let refreshedFolder = effectiveFolder
+                await MainActor.run {
+                    if let index = folders.firstIndex(where: { $0.id == folder.id }) {
+                        folders[index] = refreshedFolder
+                    }
+                }
             }
         }
-        
-        group.notify(queue: .main) { [weak self] in
-            guard let self = self else { return }
-            
-            NotificationManager.shared.stopActivity()
-            
-            if !removedFolders.isEmpty {
-                let message = removedFolders.count == 1
-                    ? String(localized: "Folder '\(removedFolders[0])' was removed as it no longer exists")
-                    : String(localized: "\(removedFolders.count) folders were removed as they no longer exist")
-                NotificationManager.shared.addMessage(.info, message)
-            }
-            
-            if !failedRemovals.isEmpty {
-                let message = String(localized: "Failed to remove \(failedRemovals.count) missing folders")
-                NotificationManager.shared.addMessage(.error, message)
-            }
-            
-            self.performDatabaseOptimization(sizeBefore: sizeBefore, context: "optimization after folder cleanup")
-            self.refreshLibraryCategories()
-            self.loadMusicLibrary()
+
+        try validateFolderForScanning(effectiveFolder.url, name: effectiveFolder.name)
+        return effectiveFolder
+    }
+
+    internal func validateFolderForScanning(_ url: URL, name: String) throws {
+        let values: URLResourceValues
+        do {
+            values = try url.resourceValues(forKeys: [.isDirectoryKey, .isReadableKey])
+        } catch {
+            throw FolderAccessError.unavailable(name)
+        }
+        guard values.isDirectory == true, values.isReadable == true else {
+            throw FolderAccessError.unavailable(name)
         }
     }
 
-    func refreshBookmarkForFolder(_ folder: Folder) async {
-        // Only refresh if we can access the folder. iCloud Drive items may be
-        // cloud-only and report as missing until downloaded, so request the
-        // download first and fall back to a path check.
-        if FileManager.default.isUbiquitousItem(at: folder.url) {
-            do {
-                try FileManager.default.startDownloadingUbiquitousItem(at: folder.url)
-                Logger.info("Requested iCloud download for \(folder.name)")
-            } catch {
-                Logger.error("Failed to request iCloud download for \(folder.name): \(error)")
-            }
-            // Give iCloud a moment to materialize the item before bookmarking.
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+    internal func releaseSecurityScopedAccess(for folder: Folder) {
+        guard let folderId = folder.id else { return }
+        securityScopedFolderURLsLock.lock()
+        let url = securityScopedFolderURLs.removeValue(forKey: folderId)
+        securityScopedFolderURLsLock.unlock()
+        guard let url else { return }
+        url.stopAccessingSecurityScopedResource()
+    }
+
+    internal func releaseSecurityScopedFolderAccess() {
+        securityScopedFolderURLsLock.lock()
+        let urls = Array(securityScopedFolderURLs.values)
+        securityScopedFolderURLs.removeAll()
+        securityScopedFolderURLsLock.unlock()
+        for url in urls {
+            url.stopAccessingSecurityScopedResource()
         }
+    }
 
-        guard FileManager.default.fileExists(atPath: folder.url.path) else {
-            Logger.warning("Folder no longer exists at \(folder.url.path)")
-            return
+    internal func releaseSecurityScopedAccess(except folderIDs: Set<Int64>) {
+        securityScopedFolderURLsLock.lock()
+        let removedURLs = securityScopedFolderURLs.compactMap { folderId, url in
+            folderIDs.contains(folderId) ? nil : url
         }
-
-        do {
-            let newBookmarkData = try folder.url.bookmarkData(
-                options: LibraryPathStore.bookmarkCreationOptions,
-                includingResourceValuesForKeys: nil,
-                relativeTo: nil
-            )
-
-            // Update the folder with new bookmark
-            var updatedFolder = folder
-            updatedFolder.bookmarkData = newBookmarkData
-
-            guard let folderId = folder.id else {
-                Logger.error("Failed to refresh bookmark for \(folder.name): folder has no database ID")
-                return
-            }
-
-            // Save to database
-            try await databaseManager.updateFolderBookmark(folderId, bookmarkData: newBookmarkData)
-
-            Logger.info("Successfully refreshed bookmark for \(folder.name)")
-        } catch {
-            Logger.error("Failed to refresh bookmark for \(folder.name): \(error)")
+        securityScopedFolderURLs = securityScopedFolderURLs.filter { folderIDs.contains($0.key) }
+        securityScopedFolderURLsLock.unlock()
+        for url in removedURLs {
+            url.stopAccessingSecurityScopedResource()
         }
     }
     

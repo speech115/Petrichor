@@ -80,6 +80,8 @@ class LibraryManager: ObservableObject {
     internal let userDefaults = UserDefaults.standard
     internal let fileManager = FileManager.default
     internal var folderTrackCounts: [Int64: Int] = [:]
+    internal var securityScopedFolderURLs: [Int64: URL] = [:]
+    internal let securityScopedFolderURLsLock = NSLock()
     private var pendingLibraryReload: DispatchWorkItem?
     /// Serializes launch/foreground reconciliation. Scene-phase transitions can
     /// arrive again while the filesystem walk is still running; without this
@@ -177,10 +179,7 @@ class LibraryManager: ObservableObject {
 
     isolated deinit {
         fileWatcherTimer?.invalidate()
-        // Stop accessing all security scoped resources.
-        for folder in folders where folder.bookmarkData != nil {
-            folder.url.stopAccessingSecurityScopedResource()
-        }
+        releaseSecurityScopedFolderAccess()
     }
     
     internal func updateTotalCounts(notify: Bool = true) {
@@ -257,9 +256,7 @@ class LibraryManager: ObservableObject {
                 returning: [LibraryFilterType: [LibraryFilterItem]].self
             ) { group in
                 for category in categories {
-                    group.addTask { [weak self] in
-                        guard let self = self else { return (category, []) }
-                        
+                    group.addTask {
                         let items = self.getLibraryFilterItemsFromDatabase(for: category)
                         return (category, items)
                     }
@@ -432,6 +429,7 @@ class LibraryManager: ObservableObject {
     // MARK: - Database Management
 
     func resetAllData() async throws {
+        releaseSecurityScopedFolderAccess()
         // Use the existing resetDatabase method
         try databaseManager.resetDatabase()
 

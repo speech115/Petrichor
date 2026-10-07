@@ -298,7 +298,7 @@ struct LibraryTabView: View {
 
             Spacer()
 
-            Button(action: { libraryManager.optimizeDatabase(notifyUser: true) }, label: {
+            Button(action: { libraryManager.optimizeDatabase() }, label: {
                 Label("Optimize", systemImage: "sparkles")
             })
             .disabled(isLibraryUpdateInProgress)
