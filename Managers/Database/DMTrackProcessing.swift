@@ -424,14 +424,24 @@ extension DatabaseManager {
     func detectAndMarkDuplicates() async {
         do {
             try await dbQueue.write { db in
-                // First, reset all duplicate flags using FullTrack
-                try FullTrack.updateAll(
+                // Only rows whose marking changes are written. Artwork BLOBs live
+                // in the track row, so a blanket UPDATE rewrote the whole table
+                // (and fired the FTS trigger per row) on every hourly scan.
+                struct Marking: Equatable {
+                    var isDuplicate = false
+                    var primaryId: Int64?
+                    var groupId: String?
+                }
+                var current: [Int64: Marking] = [:]
+                let rows = try Row.fetchCursor(
                     db,
-                    FullTrack.Columns.isDuplicate.set(to: false),
-                    FullTrack.Columns.primaryTrackId.set(to: nil),
-                    FullTrack.Columns.duplicateGroupId.set(to: nil)
+                    sql: "SELECT id, is_duplicate, primary_track_id, duplicate_group_id FROM tracks"
                 )
-                
+                while let row = try rows.next() {
+                    current[row[0]] = Marking(isDuplicate: row[1], primaryId: row[2], groupId: row[3])
+                }
+                var desired: [Int64: Marking] = [:]
+
                 // Get all tracks (use lightweight Track for efficiency)
                 let allTracks = try Track
                     .select(Track.lightweightSelection)
@@ -458,44 +468,35 @@ extension DatabaseManager {
                             .fetchOne(db)
                     }
                     
-                    // Sort by quality score (highest first)
-                    let sortedTracks = fullTracks.sorted { $0.qualityScore > $1.qualityScore }
-                    
+                    // Sort by quality score (highest first); id breaks ties so
+                    // the primary doesn't flip between scans.
+                    let sortedTracks = fullTracks.sorted {
+                        ($0.qualityScore, -($0.trackId ?? 0)) > ($1.qualityScore, -($1.trackId ?? 0))
+                    }
+
                     // The first track is the primary (highest quality)
                     guard let primaryTrack = sortedTracks.first,
                           let primaryId = primaryTrack.trackId else { continue }
-                    
-                    // Generate a unique group ID
-                    let groupId = UUID().uuidString
-                    
-                    // Update all tracks in the group
+
+                    // Stable across scans, so unchanged groups aren't rewritten
+                    let groupId = String(primaryId)
+
                     for fullTrack in sortedTracks {
                         guard let trackId = fullTrack.trackId else { continue }
-                        
-                        if trackId == primaryId {
-                            // This is the primary track
-                            try FullTrack
-                                .filter(FullTrack.Columns.trackId == trackId)
-                                .updateAll(
-                                    db,
-                                    FullTrack.Columns.isDuplicate.set(to: false),
-                                    FullTrack.Columns.primaryTrackId.set(to: nil),
-                                    FullTrack.Columns.duplicateGroupId.set(to: groupId)
-                                )
-                        } else {
-                            // This is a duplicate
-                            try FullTrack
-                                .filter(FullTrack.Columns.trackId == trackId)
-                                .updateAll(
-                                    db,
-                                    FullTrack.Columns.isDuplicate.set(to: true),
-                                    FullTrack.Columns.primaryTrackId.set(to: primaryId),
-                                    FullTrack.Columns.duplicateGroupId.set(to: groupId)
-                                )
-                        }
+                        desired[trackId] = trackId == primaryId
+                            ? Marking(groupId: groupId)
+                            : Marking(isDuplicate: true, primaryId: primaryId, groupId: groupId)
                     }
                 }
-                
+
+                for (trackId, marking) in current where marking != (desired[trackId] ?? Marking()) {
+                    let target = desired[trackId] ?? Marking()
+                    try db.execute(
+                        sql: "UPDATE tracks SET is_duplicate = ?, primary_track_id = ?, duplicate_group_id = ? WHERE id = ?",
+                        arguments: [target.isDuplicate, target.primaryId, target.groupId, trackId]
+                    )
+                }
+
                 // Log results
                 let duplicateCount = try Track.filter(Track.Columns.isDuplicate == true).fetchCount(db)
                 let groupCount = try Track

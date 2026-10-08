@@ -20,20 +20,22 @@ struct MainSidebarView: View {
 
     var body: some View {
         List {
+            let displayed = displayedPlaylists
+
             Section {
                 sectionRow(.home)
                 sectionRow(.discover)
             }
 
             Section {
-                playlistRows(displayedPlaylists.filter { !$0.isUserEditable })
-                playlistRows(displayedPlaylists.filter { $0.isUserEditable && !PlaylistSource.isImported($0) })
+                playlistRows(displayed.filter { !$0.isUserEditable })
+                playlistRows(displayed.filter { $0.isUserEditable && !PlaylistSource.isImported($0) })
             } header: {
                 playlistsHeader
             }
 
             ForEach(PlaylistSource.allCases, id: \.title) { source in
-                let playlists = source.members(of: displayedPlaylists)
+                let playlists = source.members(of: displayed)
                 if !playlists.isEmpty {
                     Section(source.title) {
                         playlistRows(playlists, movable: false)
@@ -41,7 +43,7 @@ struct MainSidebarView: View {
                 }
             }
 
-            let otherImports = displayedPlaylists.filter {
+            let otherImports = displayed.filter {
                 PlaylistSource.isImported($0) && PlaylistSource.of($0) == nil
             }
             if !otherImports.isEmpty {
