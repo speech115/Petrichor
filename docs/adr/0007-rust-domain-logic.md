@@ -58,3 +58,22 @@ Production library data is copied with SQLite backup for local evals. It is not
 checked into the repository and is never rebuilt from audio files. UI evidence
 uses separately identified evaluation applications and an identical snapshot.
 Compilation, parity tests, timings and visual checks are reported separately.
+
+## FFI hot paths
+
+Swift keeps a memo of already-lifted artist results so cache hits do not serialize
+strings and allocate the same array through UniFFI again. Parsing, normalization,
+alias resolution and lookup state remain in Rust. One Swift lock covers memo hits,
+misses and all Rust lookup mutations; a lookup change invalidates the parse memo
+before another caller can read it. Normalized values do not depend on lookup state.
+The Rust caches still serve computations within the domain; the bridge memo also
+retains Swift values. `Scripts/check-artist-bridge.sh` checks invalidation and
+concurrent mutations through real generated bindings on macOS CI.
+
+Query construction retains one lifted static predicate, keyed by all rules and
+match type. It caches no selected rows; GRDB always executes against current data.
+Rules using dateAdded/lastPlayedDate bypass this memo so clock/calendar-dependent
+bounds are rebuilt. Queue storage stays in Swift: the adapter finds the first
+matching Track identity and sends count, cursor and existing index (-1 if absent)
+as scalars. Rust validates those positions and decides replacement, deduplication
+and cursor movement; the full ID array no longer crosses FFI for each edit.

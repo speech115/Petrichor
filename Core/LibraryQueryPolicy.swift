@@ -2,16 +2,38 @@
 import Foundation
 import GRDB
 #if os(macOS)
+import os
 import PetrichorCore
 #endif
 
 enum LibraryQueryPolicy {
 #if os(macOS)
+    private struct CachedFilter {
+        let rules: [SmartPlaylistCriteria.Rule]
+        let matchType: SmartPlaylistCriteria.MatchType
+        let expression: SQLExpression?
+    }
+    private static let filterCache = OSAllocatedUnfairLock(initialState: CachedFilter?.none)
     static func buildFTS5Query(_ searchText: String) -> String {
         libraryFtsQuery(text: searchText)
     }
 
     static func buildWhereClause(for criteria: SmartPlaylistCriteria) -> SQLExpression? {
+        // Dates depend on the clock/calendar; only immutable Rust results are reused.
+        if criteria.rules.contains(where: { $0.field == "dateAdded" || $0.field == "lastPlayedDate" }) {
+            return makeWhereClause(for: criteria)
+        }
+        return filterCache.withLock { cache in
+            if let cache, cache.rules == criteria.rules, cache.matchType == criteria.matchType {
+                return cache.expression
+            }
+            let expression = makeWhereClause(for: criteria)
+            cache = CachedFilter(rules: criteria.rules, matchType: criteria.matchType, expression: expression)
+            return expression
+        }
+    }
+
+    private static func makeWhereClause(for criteria: SmartPlaylistCriteria) -> SQLExpression? {
         let rules = criteria.rules.map { rule -> QueryRule in
             var start: Date?
             var end: Date?

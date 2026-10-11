@@ -72,9 +72,13 @@ pub fn queue_playable_candidates(count: i64, index: i64, mode: QueueRepeat) -> V
 }
 
 #[uniffi::export]
-pub fn queue_play_next_plan(ids: Vec<String>, cursor: i64, id: String) -> Option<QueueInsertion> {
-    let count = i64::try_from(ids.len()).ok()?;
-    if !valid_cursor(count, cursor) {
+pub fn queue_play_next_plan(
+    count: i64,
+    cursor: i64,
+    existing_index: i64,
+) -> Option<QueueInsertion> {
+    // -1 means absent, matching the unseated cursor convention without an FFI buffer.
+    if !valid_cursor(count, cursor) || (existing_index != -1 && !valid(count, existing_index)) {
         return None;
     }
     if count == 0 || cursor == -1 {
@@ -85,10 +89,7 @@ pub fn queue_play_next_plan(ids: Vec<String>, cursor: i64, id: String) -> Option
             cursor_after_removal: 0,
         });
     }
-    let existing = ids
-        .iter()
-        .position(|item| *item == id)
-        .map(|index| index as i64);
+    let existing = (existing_index != -1).then_some(existing_index);
     if existing == Some(cursor) {
         return None;
     }
@@ -102,8 +103,8 @@ pub fn queue_play_next_plan(ids: Vec<String>, cursor: i64, id: String) -> Option
 }
 
 #[uniffi::export]
-pub fn queue_should_append(ids: Vec<String>, id: String) -> bool {
-    !ids.iter().any(|item| *item == id)
+pub fn queue_should_append(count: i64, existing_index: i64) -> bool {
+    count >= 0 && existing_index == -1
 }
 
 #[uniffi::export]
@@ -168,8 +169,7 @@ mod tests {
     }
     #[test]
     fn edits_preserve_playing_identity() {
-        let ids = ["a", "b", "c"].map(String::from).to_vec();
-        let plan = queue_play_next_plan(ids.clone(), 1, "a".into()).unwrap();
+        let plan = queue_play_next_plan(3, 1, 0).unwrap();
         assert_eq!(
             plan,
             QueueInsertion {
@@ -179,12 +179,11 @@ mod tests {
                 cursor_after_removal: 0
             }
         );
-        assert!(queue_play_next_plan(ids.clone(), 1, "b".into()).is_none());
-        assert!(!queue_should_append(ids, "c".into()));
+        assert!(queue_play_next_plan(3, 1, 1).is_none());
+        assert!(!queue_should_append(3, 2));
         // Duplicate rows are legal in imported playlist contexts: match the first,
         // preserving the original playing entry when that first match precedes it.
-        let duplicate =
-            queue_play_next_plan(vec!["a".into(), "b".into(), "a".into()], 2, "a".into()).unwrap();
+        let duplicate = queue_play_next_plan(3, 2, 0).unwrap();
         assert_eq!(duplicate.remove_index, Some(0));
         assert_eq!(duplicate.cursor_after_removal, 1);
         assert_eq!(duplicate.insertion_index, 2);
@@ -224,11 +223,14 @@ mod tests {
         for index in [i64::MIN, -2, 3, i64::MAX] {
             assert_eq!(queue_next_index(3, index, QueueRepeat::All), None);
             assert_eq!(queue_previous_index(3, index, QueueRepeat::All), None);
-            assert_eq!(
-                queue_play_next_plan(vec!["a".into()], index, "b".into()),
-                None
-            );
+            assert_eq!(queue_play_next_plan(1, index, -1), None);
         }
+        for index in [i64::MIN, -2, 3, i64::MAX] {
+            assert!(queue_play_next_plan(3, 0, index).is_none());
+        }
+        assert!(!queue_should_append(-1, -1));
+        assert!(queue_should_append(0, -1));
+        assert!(queue_should_append(3, -1));
         assert_eq!(
             queue_next_index(i64::MAX, i64::MAX - 1, QueueRepeat::All),
             Some(0)

@@ -124,6 +124,9 @@ jobs:
       - name: Build Rust core
         run: Scripts/build-rust-core.sh
 
+      - name: Check Swift artist cache seam
+        run: Scripts/check-artist-bridge.sh
+
       - name: Resolve dependencies
         run: |
           xcodebuild -resolvePackageDependencies \

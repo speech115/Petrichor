@@ -55,9 +55,13 @@ enum QueuePolicy {
         #endif
     }
 
-    static func playNextPlan(ids: [String], cursor: Int, id: String) -> Insertion? {
+    static func playNextPlan(tracks: [Track], cursor: Int, id: String) -> Insertion? {
+        // Read identity positions from Swift-owned storage; Rust decides the edit.
+        let existing = tracks.firstIndex { $0.id == id }
         #if os(macOS)
-        guard let plan = queuePlayNextPlan(ids: ids, cursor: Int64(cursor), id: id) else { return nil }
+        guard let plan = queuePlayNextPlan(
+            count: Int64(tracks.count), cursor: Int64(cursor), existingIndex: existing.map(Int64.init) ?? -1
+        ) else { return nil }
         return Insertion(
             replace: plan.replace,
             removeIndex: plan.removeIndex.map(Int.init),
@@ -65,11 +69,10 @@ enum QueuePolicy {
             cursorAfterRemoval: Int(plan.cursorAfterRemoval)
         )
         #else
-        guard cursor >= -1, cursor < ids.count else { return nil }
-        if ids.isEmpty || cursor == -1 {
+        guard cursor >= -1, cursor < tracks.count else { return nil }
+        if tracks.isEmpty || cursor == -1 {
             return Insertion(replace: true, removeIndex: nil, insertionIndex: 0, cursorAfterRemoval: 0)
         }
-        let existing = ids.firstIndex(of: id)
         guard existing != cursor else { return nil }
         let adjusted = cursor - ((existing.map { $0 < cursor } ?? false) ? 1 : 0)
         return Insertion(
@@ -78,11 +81,12 @@ enum QueuePolicy {
         #endif
     }
 
-    static func shouldAppend(ids: [String], id: String) -> Bool {
+    static func shouldAppend(tracks: [Track], id: String) -> Bool {
+        let existing = tracks.firstIndex { $0.id == id }
         #if os(macOS)
-        return queueShouldAppend(ids: ids, id: id)
+        return queueShouldAppend(count: Int64(tracks.count), existingIndex: existing.map(Int64.init) ?? -1)
         #else
-        return !ids.contains(id)
+        return existing == nil
         #endif
     }
 

@@ -1,12 +1,30 @@
 #if os(macOS)
 import Foundation
+import os
 import PetrichorCore
 
 enum ArtistParser {
     private static let domain = ArtistDomain()
 
+    private struct ParseKey: Hashable {
+        let text: String
+        let placeholder: String
+        let role: String?
+    }
+    private struct BridgeCache {
+        var normalized: [String: String] = [:]
+        var parsed: [ParseKey: [String]] = [:]
+    }
+    // Reuse lifted Swift values; lookup mutations and cache misses share this lock.
+    private static let bridgeCache = OSAllocatedUnfairLock(initialState: BridgeCache())
+
     static func normalizeArtistName(_ name: String) -> String {
-        domain.normalizeArtistName(name: name)
+        bridgeCache.withLock { cache in
+            if let value = cache.normalized[name] { return value }
+            let value = domain.normalizeArtistName(name: name)
+            cache.normalized[name] = value
+            return value
+        }
     }
 
     static func parse(
@@ -14,11 +32,22 @@ enum ArtistParser {
         unknownPlaceholder: String = "Unknown Artist",
         role: String?
     ) -> [String] {
-        domain.parse(artistString: artistString, unknownPlaceholder: unknownPlaceholder, role: role)
+        let key = ParseKey(text: artistString, placeholder: unknownPlaceholder, role: role)
+        return bridgeCache.withLock { cache in
+            if let value = cache.parsed[key] { return value }
+            let value = domain.parse(artistString: artistString, unknownPlaceholder: unknownPlaceholder, role: role)
+            cache.parsed[key] = value
+            return value
+        }
     }
 
     static func setLibraryArtists(_ namesByRole: [String: [String: String]]) {
-        guard domain.setLibraryArtists(namesByRole: namesByRole) else { return }
+        let changed = bridgeCache.withLock { cache in
+            guard domain.setLibraryArtists(namesByRole: namesByRole) else { return false }
+            cache.parsed.removeAll(keepingCapacity: true)
+            return true
+        }
+        guard changed else { return }
         let total = namesByRole.values.reduce(0) { $0 + $1.count }
         Logger.info("Artist lookup updated with \(total) library names across \(namesByRole.count) roles")
     }
@@ -26,7 +55,11 @@ enum ArtistParser {
     static func loadKnownArtists() {
         let url = findKnownArtistsFile()
         let content = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-        let count = domain.loadKnownArtists(content: content)
+        let count = bridgeCache.withLock { cache in
+            let count = domain.loadKnownArtists(content: content)
+            cache.parsed.removeAll(keepingCapacity: true)
+            return count
+        }
         if count > 0 {
             Logger.info("Loaded \(count) known artists from \(url?.lastPathComponent ?? "bundle")")
         } else if content == nil {
@@ -36,7 +69,11 @@ enum ArtistParser {
     }
 
     static func unloadKnownArtists() {
-        let count = domain.unloadKnownArtists()
+        let count = bridgeCache.withLock { cache in
+            let count = domain.unloadKnownArtists()
+            cache.parsed.removeAll(keepingCapacity: true)
+            return count
+        }
         guard count > 0 else { return }
         Logger.info("Unloaded \(count) known artists from memory")
     }
