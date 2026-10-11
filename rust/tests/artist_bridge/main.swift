@@ -45,5 +45,5 @@ ArtistParser.unloadKnownArtists()
 precondition(ArtistParser.parse("Mumford & Sons", role: nil) == ["Mumford & Sons"])
 ArtistParser.unloadKnownArtists()
 precondition(Set(ArtistParser.parse("Mumford & Sons", role: nil)) == ["Mumford", "Sons"])
-// swiftlint:disable:next no_print_statements -- standalone test runner output
+// swiftlint:disable:next no_print_statements
 print("PASS artist bridge cache: roles, placeholders, replacement, Unicode, concurrent mutations, retain/release")
