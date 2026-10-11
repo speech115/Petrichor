@@ -102,7 +102,10 @@ enum MetadataEngine {
     /// scanner's import filter from this, so it cannot drift from what actually plays.
     static var supportedFileExtensions: [String] {
         #if os(macOS)
-        CrescendoMetadataReader.supportedFileExtensions
+        // Crescendo plays more than lofty reads (WMA, DSD, AC3...); importing those
+        // would give tracks without tags or duration, so import only both.
+        let readable = Set(LoftyMetadataReader.supportedFileExtensions)
+        return CrescendoPlaybackBackend.supportedFileExtensions.filter(readable.contains)
         #else
         AVAssetMetadataReader.supportedFileExtensions
         #endif
@@ -114,7 +117,7 @@ enum MetadataEngine {
         if let readerOverride { return readerOverride }
         #endif
         #if os(macOS)
-        return CrescendoMetadataReader()
+        return LoftyMetadataReader()
         #else
         return AVAssetMetadataReader()
         #endif

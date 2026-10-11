@@ -65,12 +65,28 @@ jobs:
       - name: Run actionlint
         run: docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:1.7.12 -color
 
+  rust-test:
+    name: Rust Domain Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --check
+      - name: Test domain seams
+        run: cargo test --locked --manifest-path rust/Cargo.toml --lib
+
   # Single macOS job: compile once, analyze in the same pass.
   build-analyze:
     name: Build & Analyze (Debug)
     runs-on: macos-26
     timeout-minutes: 45
-    needs: [lint, actionlint]
+    needs: [lint, actionlint, rust-test]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -102,6 +118,14 @@ jobs:
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
+
+      - name: Check Swift artist cache seam
+        run: Scripts/check-artist-bridge.sh
 
       - name: Resolve dependencies
         run: |
@@ -143,7 +167,7 @@ jobs:
     name: iOS Build & Test
     runs-on: macos-26
     timeout-minutes: 45
-    needs: [lint, actionlint]
+    needs: [lint, actionlint, rust-test]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -204,6 +228,11 @@ jobs:
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
 
       - name: Resolve dependencies
         run: |
@@ -326,6 +355,11 @@ jobs:
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
+
       - name: Resolve dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
@@ -388,6 +422,11 @@ jobs:
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
 
       - name: Resolve dependencies
         run: |

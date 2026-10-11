@@ -1,0 +1,25 @@
+[package]
+name = "petrichor_core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
+[dependencies]
+lofty = "0.25"
+regex = "1.13.1"
+thiserror = "2"
+unicode-general-category = "1.1.0"
+unicode-normalization = "0.1.25"
+unicode-segmentation = "1.13.3"
+uniffi = { version = "0.32", features = ["cli"] }
+
+[profile.release]
+lto = true
+strip = true

@@ -1,3 +1,99 @@
+#if os(macOS)
+import Foundation
+import os
+import PetrichorCore
+
+enum ArtistParser {
+    private static let domain = ArtistDomain()
+
+    private struct ParseKey: Hashable {
+        let text: String
+        let placeholder: String
+        let role: String?
+    }
+    private struct BridgeCache {
+        var normalized: [String: String] = [:]
+        var parsed: [ParseKey: [String]] = [:]
+    }
+    // Reuse lifted Swift values; lookup mutations and cache misses share this lock.
+    private static let bridgeCache = OSAllocatedUnfairLock(initialState: BridgeCache())
+
+    static func normalizeArtistName(_ name: String) -> String {
+        bridgeCache.withLock { cache in
+            if let value = cache.normalized[name] { return value }
+            let value = domain.normalizeArtistName(name: name)
+            cache.normalized[name] = value
+            return value
+        }
+    }
+
+    static func parse(
+        _ artistString: String,
+        unknownPlaceholder: String = "Unknown Artist",
+        role: String?
+    ) -> [String] {
+        let key = ParseKey(text: artistString, placeholder: unknownPlaceholder, role: role)
+        return bridgeCache.withLock { cache in
+            if let value = cache.parsed[key] { return value }
+            let value = domain.parse(artistString: artistString, unknownPlaceholder: unknownPlaceholder, role: role)
+            cache.parsed[key] = value
+            return value
+        }
+    }
+
+    static func setLibraryArtists(_ namesByRole: [String: [String: String]]) {
+        let changed = bridgeCache.withLock { cache in
+            guard domain.setLibraryArtists(namesByRole: namesByRole) else { return false }
+            cache.parsed.removeAll(keepingCapacity: true)
+            return true
+        }
+        guard changed else { return }
+        let total = namesByRole.values.reduce(0) { $0 + $1.count }
+        Logger.info("Artist lookup updated with \(total) library names across \(namesByRole.count) roles")
+    }
+
+    static func loadKnownArtists() {
+        let url = findKnownArtistsFile()
+        let content = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        let count = bridgeCache.withLock { cache in
+            let count = domain.loadKnownArtists(content: content)
+            cache.parsed.removeAll(keepingCapacity: true)
+            return count
+        }
+        if count > 0 {
+            Logger.info("Loaded \(count) known artists from \(url?.lastPathComponent ?? "bundle")")
+        } else if content == nil {
+            Logger.warning(url.map { "Failed to read known artists file: \($0.lastPathComponent)" }
+                ?? "No known artists data file found in bundle")
+        }
+    }
+
+    static func unloadKnownArtists() {
+        let count = bridgeCache.withLock { cache in
+            let count = domain.unloadKnownArtists()
+            cache.parsed.removeAll(keepingCapacity: true)
+            return count
+        }
+        guard count > 0 else { return }
+        Logger.info("Unloaded \(count) known artists from memory")
+    }
+
+    private static func findKnownArtistsFile() -> URL? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: URL(fileURLWithPath: resourcePath), includingPropertiesForKeys: nil
+        ) else { return nil }
+
+        return contents
+            .filter {
+                $0.lastPathComponent.hasPrefix("known_artists_") &&
+                $0.lastPathComponent.hasSuffix(".txt") &&
+                $0.lastPathComponent != About.knownArtistsSampleFile
+            }
+            .max { $0.lastPathComponent < $1.lastPathComponent }
+    }
+}
+#else
 import Foundation
 import os
 
@@ -521,3 +617,5 @@ extension String {
         return result
     }
 }
+
+#endif

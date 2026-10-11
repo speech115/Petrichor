@@ -14,6 +14,11 @@ import Crescendo
 import Foundation
 
 final class CrescendoPlaybackBackend: PlaybackBackend, CrescendoPlayerDelegate {
+    /// Every file extension Crescendo can decode.
+    nonisolated static var supportedFileExtensions: [String] {
+        CrescendoPlayer.supportedFormats.map(\.fileExtension)
+    }
+
     // MARK: - Backend Surface
 
     weak var backendDelegate: PlaybackBackendDelegate?

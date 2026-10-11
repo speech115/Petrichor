@@ -30,28 +30,23 @@ extension PlaylistManager {
     }
 
     func playNext(_ track: Track) {
-        if currentQueue.isEmpty || currentQueueIndex < 0 {
+        guard let plan = QueuePolicy.playNextPlan(
+            tracks: currentQueue, cursor: currentQueueIndex, id: track.id
+        ) else { return }
+        if plan.replace {
             replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
         }
 
-        if let existingIndex = currentQueue.firstIndex(where: { $0.id == track.id }) {
-            // The playing track is already "next" in the only sense that matters, and
-            // removing the engine's current entry would make it advance or stop.
-            guard existingIndex != currentQueueIndex else { return }
-
+        if let existingIndex = plan.removeIndex {
             currentQueue.remove(at: existingIndex)
-            if existingIndex <= currentQueueIndex {
-                currentQueueIndex -= 1
-            }
-            // After the cursor: the mirror re-primes the repeat lookahead from it,
-            // and a stale cursor indexes past the end of the shortened queue.
+            if currentQueueIndex != plan.cursorAfterRemoval { currentQueueIndex = plan.cursorAfterRemoval }
+            // Publish the adjusted cursor before the mirror re-primes lookahead.
             audioPlayer?.queueDidRemove(at: existingIndex)
         }
 
-        // Read after the dedupe removal, which can shift the cursor down by one.
-        let position = min(currentQueueIndex + 1, currentQueue.count)
+        let position = plan.insertionIndex
         let lightTrack = track.withoutArtwork()
         insertCurrentQueueEntry(track, at: position)
         audioPlayer?.queueDidInsert(lightTrack, at: position)
@@ -65,7 +60,7 @@ extension PlaylistManager {
             return
         }
 
-        if !currentQueue.contains(where: { $0.id == track.id }) {
+        if QueuePolicy.shouldAppend(tracks: currentQueue, id: track.id) {
             let lightTrack = track.withoutArtwork()
             appendCurrentQueueEntry(track)
             audioPlayer?.queueDidAppend(lightTrack)
@@ -74,16 +69,11 @@ extension PlaylistManager {
     }
 
     func removeFromQueue(at index: Int) {
-        guard index >= 0 && index < currentQueue.count else { return }
-
-        if index == currentQueueIndex {
-            return
-        }
-
+        guard let cursor = QueuePolicy.removalCursor(
+            count: currentQueue.count, cursor: currentQueueIndex, index: index, allowCurrent: false
+        ) else { return }
         currentQueue.remove(at: index)
-        if index < currentQueueIndex {
-            currentQueueIndex -= 1
-        }
+        if currentQueueIndex != cursor { currentQueueIndex = cursor }
         // After the cursor: the mirror re-primes the repeat lookahead from it, and a
         // stale cursor indexes past the end of the shortened queue.
         audioPlayer?.queueDidRemove(at: index)
@@ -93,30 +83,20 @@ extension PlaylistManager {
     /// Drops a row the engine has already discarded, adjusting the cursor. The engine
     /// and mirror are updated by the caller, so this does not notify them back.
     func dropQueueEntry(at index: Int) {
-        guard index >= 0, index < currentQueue.count else { return }
+        guard let cursor = QueuePolicy.removalCursor(
+            count: currentQueue.count, cursor: currentQueueIndex, index: index, allowCurrent: true
+        ) else { return }
         currentQueue.remove(at: index)
-        if index < currentQueueIndex {
-            currentQueueIndex -= 1
-        } else if index == currentQueueIndex {
-            currentQueueIndex = min(currentQueueIndex, currentQueue.count - 1)
-        }
+        if index == currentQueueIndex || currentQueueIndex != cursor { currentQueueIndex = cursor }
     }
 
     func moveInQueue(from sourceIndex: Int, to destinationIndex: Int) {
-        guard sourceIndex >= 0, sourceIndex < currentQueue.count,
-              destinationIndex >= 0, destinationIndex < currentQueue.count,
-              sourceIndex != destinationIndex else { return }
-
+        guard let cursor = QueuePolicy.moveCursor(
+            count: currentQueue.count, cursor: currentQueueIndex, source: sourceIndex, destination: destinationIndex
+        ) else { return }
         let track = currentQueue.remove(at: sourceIndex)
         currentQueue.insert(track, at: destinationIndex)
-
-        if sourceIndex == currentQueueIndex {
-            currentQueueIndex = destinationIndex
-        } else if sourceIndex < currentQueueIndex && destinationIndex >= currentQueueIndex {
-            currentQueueIndex -= 1
-        } else if sourceIndex > currentQueueIndex && destinationIndex <= currentQueueIndex {
-            currentQueueIndex += 1
-        }
+        if currentQueueIndex != cursor { currentQueueIndex = cursor }
         // After the cursor, so the mirror's repeat lookahead is primed from the
         // position the moved entry actually left behind.
         audioPlayer?.queueDidMove(from: sourceIndex, to: destinationIndex)

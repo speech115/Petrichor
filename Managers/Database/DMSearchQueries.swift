@@ -12,7 +12,7 @@ extension DatabaseManager {
     func searchTracksUsingFTS(_ searchText: String, populateArtwork: Bool = true) -> [Track] {
         do {
             var tracks = try dbQueue.read { db in
-                let ftsQuery = buildFTS5Query(searchText)
+                let ftsQuery = LibraryQueryPolicy.buildFTS5Query(searchText)
 
                 let matchingTrackIds = try Int64.fetchAll(
                     db,
@@ -47,29 +47,6 @@ extension DatabaseManager {
     }
 
     // MARK: - Helper Methods
-    
-    /// FTS query builder with support for handling special characters
-    private func buildFTS5Query(_ searchText: String) -> String {
-        let tokens = searchText.split(separator: " ").map { String($0) }
-        
-        let processedTokens = tokens.map { token -> String in
-            let tokenStr = String(token)
-            
-            let problematicChars = CharacterSet(charactersIn: "\"*^:()[]{}~-")
-            
-            if tokenStr.rangeOfCharacter(from: problematicChars) != nil {
-                let escaped = tokenStr.replacingOccurrences(of: "\"", with: "\"\"")
-                return "\"\(escaped)\""
-            } else if tokenStr.contains(".") {
-                let escaped = tokenStr.replacingOccurrences(of: "\"", with: "\"\"")
-                return "\"\(escaped)\" OR \"\(escaped)\"*"
-            } else {
-                return "\(tokenStr)*"
-            }
-        }
-        
-        return processedTokens.joined(separator: " AND ")
-    }
     
     /// Generate SQL placeholders for IN clause
     func databaseQuestionMarks(count: Int) -> String {
