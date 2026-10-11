@@ -118,8 +118,8 @@ impl LibraryDatabase {
         let processed=counts[..i].iter().sum::<u64>()+c.query_row(&format!("SELECT COUNT(*) FROM {table} WHERE id<=? AND {filter} IS NOT NULL"),[last.clone()],|r|r.get::<_,i64>(0).map(|value|value as u64))?;
         let last=match last {DatabaseCell::Integer{value}=>serde_json::json!(value),DatabaseCell::Text{value}=>serde_json::json!(value),_=>return Err(invalid("Invalid artwork identity"))};
         let items=r.rows.into_iter().map(|row| {
-            let original=match &row[2]{DatabaseCell::Blob{value}=>value.clone(),_=>Vec::new()};
-            let thumbnail=match &row[3]{DatabaseCell::Blob{value}=>Some(value.clone()),_=>None};
+            let original=match &row[2]{DatabaseCell::Blob{value}=>value.0.clone(),_=>Vec::new()};
+            let thumbnail=match &row[3]{DatabaseCell::Blob{value}=>Some(value.0.clone()),_=>None};
             let label=match &row[1]{DatabaseCell::Text{value}=>value.clone(),_=>String::new()};
             BackgroundArtwork{id:row[0].clone(),label,original,thumbnail}
         }).collect();

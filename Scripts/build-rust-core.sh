@@ -24,6 +24,7 @@ cargo run --release --bin uniffi-bindgen -- generate \
     --library "target/aarch64-apple-darwin/release/libpetrichor_core.dylib" \
     --language swift --out-dir "$OUT/generated"
 mv "$OUT/generated/"*.swift "$OUT/swift/"
+python3 ../Scripts/optimize-uniffi-swift-readers.py "$OUT/swift/petrichor_core.swift"
 mv "$OUT/generated/"*.h "$OUT/headers/"
 mv "$OUT/generated/"*.modulemap "$OUT/headers/module.modulemap"
 rm -rf "$OUT/generated"

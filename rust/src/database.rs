@@ -8,13 +8,68 @@ use std::{
     time::Duration,
 };
 
+/// Same UniFFI byte-array metadata and wire format, with a bulk byte copy.
+/// UniFFI's generic Vec<T> lowering writes artwork one byte at a time.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DatabaseBlob(pub Vec<u8>);
+impl DatabaseBlob {
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
+}
+impl From<Vec<u8>> for DatabaseBlob {
+    fn from(value: Vec<u8>) -> Self {
+        Self(value)
+    }
+}
+// SAFETY: RustBuffer ownership and the i32 big-endian length + raw byte
+// representation are exactly those of Vec<u8>. Every read checks its bounds.
+unsafe impl uniffi::FfiConverter<crate::UniFfiTag> for DatabaseBlob {
+    type FfiType = uniffi::RustBuffer;
+    const TYPE_ID_META: uniffi::MetadataBuffer =
+        <Vec<u8> as uniffi::TypeId<crate::UniFfiTag>>::TYPE_ID_META;
+    fn lower(value: Self) -> Self::FfiType {
+        let mut bytes = Vec::with_capacity(
+            value
+                .0
+                .len()
+                .checked_add(4)
+                .expect("Byte buffer size overflow"),
+        );
+        Self::write(value, &mut bytes);
+        uniffi::RustBuffer::from_vec(bytes)
+    }
+    fn try_lift(value: Self::FfiType) -> uniffi::Result<Self> {
+        let bytes = value.destroy_into_vec();
+        let mut cursor = bytes.as_slice();
+        let result = Self::try_read(&mut cursor)?;
+        uniffi::deps::anyhow::ensure!(cursor.is_empty(), "Trailing blob bytes");
+        Ok(result)
+    }
+    fn write(value: Self, bytes: &mut Vec<u8>) {
+        let length = i32::try_from(value.0.len()).expect("Byte buffer exceeds i32::MAX");
+        bytes.extend_from_slice(&length.to_be_bytes());
+        bytes.extend_from_slice(&value.0);
+    }
+    fn try_read(bytes: &mut &[u8]) -> uniffi::Result<Self> {
+        uniffi::deps::anyhow::ensure!(bytes.len() >= 4, "Truncated blob length");
+        let length = i32::from_be_bytes(bytes[..4].try_into()?);
+        let length = usize::try_from(length)?;
+        uniffi::deps::anyhow::ensure!(length <= bytes.len() - 4, "Truncated blob bytes");
+        let value = Self(bytes[4..4 + length].to_vec());
+        *bytes = &bytes[4 + length..];
+        Ok(value)
+    }
+}
+uniffi::derive_ffi_traits!(local DatabaseBlob);
+
 #[derive(Clone, Debug, PartialEq, uniffi::Enum)]
 pub enum DatabaseCell {
     Null,
     Integer { value: i64 },
     Real { value: f64 },
     Text { value: String },
-    Blob { value: Vec<u8> },
+    Blob { value: DatabaseBlob },
 }
 impl ToSql for DatabaseCell {
     fn to_sql(&self) -> rusqlite::Result<ToSqlOutput<'_>> {
@@ -214,7 +269,7 @@ pub(crate) fn query_rows(
                                 .into(),
                         },
                         ValueRef::Blob(value) => DatabaseCell::Blob {
-                            value: value.into(),
+                            value: value.to_vec().into(),
                         },
                     })
                 })
@@ -472,5 +527,54 @@ mod reset_tests {
             Ok(())
         })
         .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod database_blob_tests {
+    use super::DatabaseBlob;
+    use uniffi::{FfiConverter, Lower};
+    #[test]
+    fn bulk_converter_has_identical_byte_wire_and_checked_reads() {
+        for payload in [
+            vec![],
+            vec![0, 128, 255, 195, 169],
+            vec![42; 2 * 1024 * 1024],
+        ] {
+            let mut bulk = Vec::new();
+            <DatabaseBlob as FfiConverter<crate::UniFfiTag>>::write(
+                DatabaseBlob(payload.clone()),
+                &mut bulk,
+            );
+            let mut generic = Vec::new();
+            <Vec<u8> as Lower<crate::UniFfiTag>>::write(payload.clone(), &mut generic);
+            assert_eq!(bulk, generic);
+            let mut cursor = bulk.as_slice();
+            let decoded =
+                <DatabaseBlob as FfiConverter<crate::UniFfiTag>>::try_read(&mut cursor).unwrap();
+            assert_eq!(decoded.0, payload);
+            assert!(cursor.is_empty());
+            let buffer = <DatabaseBlob as FfiConverter<crate::UniFfiTag>>::lower(decoded);
+            assert_eq!(
+                <DatabaseBlob as FfiConverter<crate::UniFfiTag>>::try_lift(buffer)
+                    .unwrap()
+                    .0,
+                payload
+            );
+        }
+        for invalid in [vec![], vec![0, 0, 0], vec![255; 4], vec![0, 0, 0, 2, 1]] {
+            let mut cursor = invalid.as_slice();
+            assert!(
+                <DatabaseBlob as FfiConverter<crate::UniFfiTag>>::try_read(&mut cursor).is_err()
+            );
+            assert_eq!(cursor, invalid.as_slice());
+        }
+        let mut trailing = vec![0, 0, 0, 0, 1];
+        assert!(
+            <DatabaseBlob as FfiConverter<crate::UniFfiTag>>::try_lift(
+                uniffi::RustBuffer::from_vec(std::mem::take(&mut trailing))
+            )
+            .is_err()
+        );
     }
 }

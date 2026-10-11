@@ -31,6 +31,13 @@ that constructs a GRDB Row without opening a connection. Artwork is fetched only
 when requested and shared by album within each result. Rust domain methods execute
 closed operations; callers cannot send arbitrary SQL across the bridge.
 
+Database BLOBs use the same UniFFI byte-array wire format with a bulk Rust copy.
+The build applies checked substitutions to the pinned Swift reader templates to
+avoid temporary byte arrays; changed generator templates fail the build. Decoded
+strings and images own their storage, and the source Rust buffer is freed on
+success or error. Wire-format tests and an AddressSanitizer reader check cover
+this boundary.
+
 ## Existing data
 
 The existing bundle-specific database file is opened in place. No model

@@ -88,14 +88,14 @@ extension DatabaseManager {
     }
 
     func getArtworkData(albumId: Int64?, trackId: Int64?) -> Data? {
-        do { return try core.artwork(albumId: albumId, trackId: trackId).map { Data($0) } } catch {
+        do { return try core.artwork(albumId: albumId, trackId: trackId) } catch {
             Logger.error("Failed to fetch artwork: \(error)")
             return nil
         }
     }
 
     func getAlbumArtworkThumbnail(albumId: Int64) -> Data? {
-        do { return try core.albumThumbnail(id: albumId).map { Data($0) } } catch {
+        do { return try core.albumThumbnail(id: albumId) } catch {
             Logger.error("Failed to fetch album thumbnail: \(error)")
             return nil
         }
@@ -103,7 +103,7 @@ extension DatabaseManager {
 
     func getArtistArtworkThumbnail(name: String) -> Data? {
         do {
-            return try core.artistThumbnail(name: name, requiresFetchedImage: ArtistBioManager.shared.isArtistInfoFetchEnabled).map { Data($0) }
+            return try core.artistThumbnail(name: name, requiresFetchedImage: ArtistBioManager.shared.isArtistInfoFetchEnabled)
         } catch {
             Logger.error("Failed to fetch artist thumbnail: \(error)")
             return nil
@@ -367,7 +367,7 @@ extension Track {
         case let .integer(number): value = number.databaseValue
         case let .real(number): value = number.databaseValue
         case let .text(text): value = text.databaseValue
-        case let .blob(bytes): value = Data(bytes).databaseValue
+        case let .blob(bytes): value = bytes.databaseValue
         }
         return Date.fromDatabaseValue(value)
     }

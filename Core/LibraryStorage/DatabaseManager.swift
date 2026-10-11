@@ -50,7 +50,7 @@ final class DatabaseManager: Sendable {
                 case let .integer(value): return value.databaseValue
                 case let .real(value): return value.databaseValue
                 case let .text(value): return value.databaseValue
-                case let .blob(value): return Data(value).databaseValue
+                case let .blob(value): return value.databaseValue
                 }
             }
             return Row(Dictionary(uniqueKeysWithValues: zip(result.columns, values)))

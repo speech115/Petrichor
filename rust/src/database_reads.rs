@@ -658,7 +658,12 @@ mod tests {
         assert!(light.artworks.rows.is_empty());
         assert_eq!(ids(light), vec![3, 1]);
         let stale = db.artwork_batch(vec![], vec![1], vec![None]).unwrap();
-        assert_eq!(stale.rows[0][2], DatabaseCell::Blob { value: vec![9] });
+        assert_eq!(
+            stale.rows[0][2],
+            DatabaseCell::Blob {
+                value: vec![9].into()
+            }
+        );
         let batch = db
             .artwork_batch(vec![1], vec![1, 3], vec![Some(1), Some(2)])
             .unwrap();
@@ -676,11 +681,15 @@ mod tests {
         let artwork = db.tracks_by_ids(vec![1, 3], true).unwrap();
         assert_eq!(
             artwork.artworks.rows[0].last(),
-            Some(&DatabaseCell::Blob { value: vec![1, 2] })
+            Some(&DatabaseCell::Blob {
+                value: vec![1, 2].into()
+            })
         );
         assert_eq!(
             artwork.artworks.rows[1].last(),
-            Some(&DatabaseCell::Blob { value: vec![7] })
+            Some(&DatabaseCell::Blob {
+                value: vec![7].into()
+            })
         );
         assert_eq!(
             ids(db
