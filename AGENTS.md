@@ -50,6 +50,7 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 | Журнал прослушиваний | `PlaybackJournal` | nil (apply JSONL вручную) | `JSONLPlaybackJournal` |
 | Цветовая схема | `AppearanceApplier` | `NSApp.appearance` | `UIWindow.overrideUserInterfaceStyle` |
 | Предметная логика | `Core/` algorithm seams (ADR-0007) | Rust через UniFFI | Swift |
+| База и библиотека | `DatabaseManager` (ADR-0008) | `Core/LibraryStorage` → Rust SQLite | `Managers/Database` → GRDB |
 
 **Новые `#if os(...)` вне этих швов и вне `Views/` — нарушение дизайна.** Если
 различие не влезает в существующий шов, нужен новый шов, а не разветвление по
@@ -72,7 +73,7 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 шести файлах вне `Views` — разводится директивами внутри существующих файлов,
 без копий и параллельных иерархий.
 
-GRDB привязана к обоим таргетам. `PetrichorCore` (Rust, `rust/`) — только к
+GRDB привязана к обоим таргетам: на macOS декодирует значения строк, на iOS владеет SQLite. `PetrichorCore` (Rust, `rust/`) — только к
 macOS; новые куски ядра встают за существующие швы (ADR-0006). Crescendo остаётся macOS-only; вместе с ним
 на iOS уходит FFmpeg, а с ним FLAC. Sparkle удалён: его лента — апстримная, а
 форк обновления апстрима сам не принимает (ADR-0005).

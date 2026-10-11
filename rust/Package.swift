@@ -10,6 +10,9 @@ let package = Package(
     ],
     targets: [
         .binaryTarget(name: "petrichor_coreFFI", path: "build/PetrichorCoreFFI.xcframework"),
-        .target(name: "PetrichorCore", dependencies: ["petrichor_coreFFI"], path: "build/swift"),
+        .target(
+            name: "PetrichorCore", dependencies: ["petrichor_coreFFI"], path: "build/swift",
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
     ]
 )

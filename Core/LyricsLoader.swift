@@ -1,17 +1,14 @@
 import Foundation
-import GRDB
 
 enum LyricsLoader {
     /// Load structured lyrics for a track
     /// - Parameters:
     ///   - track: The track to load lyrics for
-    ///   - dbQueue: Database queue for fetching embedded lyrics
-    ///   - databaseManager: Database manager for online lyrics storage (optional)
+    ///   - databaseManager: Database owner for embedded and online lyrics
     /// - Returns: Tuple containing parsed lyrics lines and source type
     static func loadLyrics(
         for track: Track,
-        using dbQueue: any DatabaseReader,
-        databaseManager: DatabaseManager? = nil
+        using databaseManager: DatabaseManager
     ) async throws -> (lyrics: [LyricLine], source: LyricsSource, fullTrack: FullTrack?) {
         var lines: [LyricLine]?
         var source: LyricsSource = .none
@@ -23,7 +20,7 @@ enum LyricsLoader {
         }
         
         // 2. Embedded lyrics from database
-        let fullTrack = try? await track.fullTrack(using: dbQueue)
+        let fullTrack = try? await track.fullTrack(using: databaseManager)
         if lines == nil,
            let fullTrack = fullTrack,
            let embeddedText = fullTrack.extendedMetadata?.lyrics,
@@ -35,7 +32,6 @@ enum LyricsLoader {
         // 3. Online lyrics
         if lines == nil,
            let fullTrack = fullTrack,
-           let databaseManager = databaseManager,
            let onlineText = try await LyricsManager.shared.fetchLyrics(for: fullTrack, using: databaseManager) {
             lines = parseAnyLyrics(onlineText)
             source = .online

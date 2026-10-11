@@ -78,7 +78,7 @@ enum ArtistParser {
         Logger.info("Unloaded \(count) known artists from memory")
     }
 
-    private static func findKnownArtistsFile() -> URL? {
+    static func findKnownArtistsFile() -> URL? {
         guard let resourcePath = Bundle.main.resourcePath else { return nil }
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: URL(fileURLWithPath: resourcePath), includingPropertiesForKeys: nil
@@ -309,7 +309,7 @@ enum ArtistParser {
     }
 
     /// Find the known artists data file in the bundle (known_artists_YYYYMMDD.txt).
-    private static func findKnownArtistsFile() -> URL? {
+    static func findKnownArtistsFile() -> URL? {
         guard let resourcePath = Bundle.main.resourcePath else { return nil }
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: URL(fileURLWithPath: resourcePath), includingPropertiesForKeys: nil

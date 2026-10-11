@@ -27,7 +27,7 @@ static SEPARATORS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
         .collect()
 });
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct State {
     known: HashSet<String>,
     retains: u64,
@@ -38,6 +38,17 @@ struct State {
 #[derive(uniffi::Object, Default)]
 pub struct ArtistDomain {
     state: Mutex<State>,
+}
+impl ArtistDomain {
+    /// Snapshot known-name policy without sharing a database's role lookup.
+    pub(crate) fn database_snapshot(&self) -> Arc<Self> {
+        let mut state = self.state.lock().expect("artist state").clone();
+        state.library.clear();
+        state.parse.clear();
+        Arc::new(Self {
+            state: Mutex::new(state),
+        })
+    }
 }
 #[uniffi::export]
 impl ArtistDomain {
