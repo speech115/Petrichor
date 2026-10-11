@@ -103,6 +103,11 @@ jobs:
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
+
       - name: Resolve dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
@@ -204,6 +209,11 @@ jobs:
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
 
       - name: Resolve dependencies
         run: |
@@ -326,6 +336,11 @@ jobs:
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
+
       - name: Resolve dependencies
         run: |
           xcodebuild -resolvePackageDependencies \
@@ -388,6 +403,11 @@ jobs:
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # The local `rust` package wraps a prebuilt xcframework; package
+      # resolution fails without it.
+      - name: Build Rust core
+        run: Scripts/build-rust-core.sh
 
       - name: Resolve dependencies
         run: |

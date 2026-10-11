@@ -44,7 +44,7 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 | Шов | Интерфейс | macOS | iOS |
 |---|---|---|---|
 | Воспроизведение | `PlaybackBackend` | `CrescendoPlaybackBackend` | `AVQueuePlayerBackend` |
-| Чтение метаданных | `MetadataEngine` | `CrescendoMetadataReader` | `AVAssetMetadataReader` |
+| Чтение метаданных | `MetadataEngine` | `LoftyMetadataReader` (Rust, `rust/`) | `AVAssetMetadataReader` |
 | Изображения | `PlatformImage` | `NSImage` | `UIImage` |
 | Пути к файлам | `LibraryPathStore` | абсолютный путь | путь от `Documents` |
 | Журнал прослушиваний | `PlaybackJournal` | nil (apply JSONL вручную) | `JSONLPlaybackJournal` |
@@ -71,7 +71,8 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 шести файлах вне `Views` — разводится директивами внутри существующих файлов,
 без копий и параллельных иерархий.
 
-GRDB привязана к обоим таргетам. Crescendo остаётся macOS-only; вместе с ним
+GRDB привязана к обоим таргетам. `PetrichorCore` (Rust, `rust/`) — только к
+macOS; новые куски ядра встают за существующие швы (ADR-0006). Crescendo остаётся macOS-only; вместе с ним
 на iOS уходит FFmpeg, а с ним FLAC. Sparkle удалён: его лента — апстримная, а
 форк обновления апстрима сам не принимает (ADR-0005).
 
@@ -110,7 +111,12 @@ SwiftUI-вьюхи тестами не покрываются. Их провер
 
 ## Сборка
 
+Rust-ядро макоси (`rust/`, ADR-0006) собирается отдельно — после чекаута и
+после правок в `rust/src`. Пакет `PetrichorCore` подключён к проекту, поэтому
+без сборки не резолвится ни одна схема, включая iOS:
+
 ```bash
+Scripts/build-rust-core.sh
 xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
 ```
