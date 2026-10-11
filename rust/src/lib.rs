@@ -343,3 +343,12 @@ fn mp4_codec(path: &str) -> &'static str {
         _ => "aac",
     }
 }
+
+mod artists;
+mod filename;
+mod lyrics;
+mod m3u;
+
+mod queue;
+
+mod query;

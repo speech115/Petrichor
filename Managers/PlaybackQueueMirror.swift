@@ -208,17 +208,9 @@ extension PlaybackManager {
     /// most once: recursing through `playNextTrack` would spin forever on repeat-one
     /// and cycle forever on repeat-all.
     private func firstPlayableIndex(in tracks: [Track], from index: Int) -> Int? {
-        // Repeat-one never moves off the chosen entry, so there is nothing to fall
-        // back to; repeat-all wraps to the front, repeat-off stops at the end.
-        let candidates: [Int]
-        switch playlistManager.repeatMode {
-        case .one:
-            candidates = [index]
-        case .all:
-            candidates = (0..<tracks.count).map { (index + $0) % tracks.count }
-        case .off:
-            candidates = Array(index..<tracks.count)
-        }
+        let candidates = QueuePolicy.playableCandidates(
+            count: tracks.count, index: index, mode: playlistManager.repeatMode
+        )
 
         for candidate in candidates {
             if FileManager.default.fileExists(atPath: tracks[candidate].url.path) {

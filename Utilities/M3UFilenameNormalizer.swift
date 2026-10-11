@@ -26,22 +26,6 @@ enum M3UFilenameNormalizer {
     /// 4. the key is lowercased — the filesystem is case-insensitive, so the
     ///    M3U entry and the stored filename must match despite case drift.
     static func normalize(_ filename: String) -> String {
-        var name = filename
-
-        if let digitsEnd = name.firstIndex(where: { !$0.isNumber }), digitsEnd != name.startIndex {
-            let remainder = name[digitsEnd...]
-            if remainder.hasPrefix(" - ") {
-                name = String(remainder.dropFirst(3))
-            }
-        }
-
-        name = name.replacingOccurrences(of: ";", with: ",")
-        name = name.replacingOccurrences(of: ", ", with: ",")
-        name = name.replacingOccurrences(of: " ,", with: ",")
-        name = name.components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        return name.lowercased()
+        M3UTrackResolver.normalizeFilename(filename)
     }
 }

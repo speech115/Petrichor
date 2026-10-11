@@ -76,13 +76,6 @@ struct BulkExportResult {
     }
 }
 
-private enum M3UFormat {
-    static let header = "#EXTM3U"
-    static let infoPrefix = "#EXTINF:"
-    static let commentPrefix = "#"
-    static let lineEnding = "\r\n"
-}
-
 // MARK: - PlaylistManager Extension
 
 extension PlaylistManager {
@@ -244,24 +237,11 @@ extension PlaylistManager {
     /// ordered track entries, keeping numeric prefixes and relative paths
     /// exactly as written. Non-empty, non-comment lines in file order.
     func parseM3UContent(_ content: String) -> [String] {
-        content.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.hasPrefix(M3UFormat.commentPrefix) }
+        M3UPlaylistCodec.parse(content)
     }
-    
+
     private func generateUniquePlaylistName(baseName: String, existingNames: Set<String>) -> String {
-        guard existingNames.contains(baseName.lowercased()) else {
-            return baseName
-        }
-        
-        let baseNameLower = baseName.lowercased()
-        let highestNumber = existingNames.reduce(1) { currentMax, name in
-            guard name.hasPrefix(baseNameLower + " ") else { return currentMax }
-            let suffix = String(name.dropFirst(baseNameLower.count + 1))
-            return max(currentMax, Int(suffix) ?? 0)
-        }
-        
-        return "\(baseName) \(highestNumber + 1)"
+        M3UPlaylistCodec.uniqueName(baseName: baseName, existingNames: existingNames)
     }
 
     /// The regular playlist an auto-imported M3U updates: same name,
@@ -302,7 +282,7 @@ extension PlaylistManager {
         var results: [PlaylistExportResult] = []
         
         for playlist in playlists {
-            let filename = FilesystemUtils.sanitizeFilename(playlist.name) + ".m3u"
+            let filename = M3UPlaylistCodec.exportFilename(playlist.name)
             let fileURL = directoryURL.appendingPathComponent(filename)
             let result = await exportSinglePlaylist(playlist, to: fileURL)
             results.append(result)
@@ -334,15 +314,6 @@ extension PlaylistManager {
     }
     
     private func generateM3UContent(for tracks: [Track]) -> String {
-        var lines = [M3UFormat.header]
-        
-        for track in tracks {
-            let durationSeconds = Int(track.duration)
-            let artistTitle = "\(track.artist) - \(track.title)"
-            lines.append("\(M3UFormat.infoPrefix)\(durationSeconds),\(artistTitle)")
-            lines.append(track.url.path)
-        }
-        
-        return lines.joined(separator: M3UFormat.lineEnding)
+        M3UPlaylistCodec.generate(tracks)
     }
 }
