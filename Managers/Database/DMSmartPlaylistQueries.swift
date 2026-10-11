@@ -47,7 +47,7 @@ extension DatabaseManager {
     func countMatchesForCriteria(_ criteria: SmartPlaylistCriteria) async -> Int {
         do {
             return try await dbQueue.read { db in
-                return try self.smartPlaylistFilteredQuery(criteria).fetchCount(db)
+                try self.smartPlaylistFilteredQuery(criteria).fetchCount(db)
             }
         } catch {
             Logger.error("Failed to count smart playlist matches: \(error)")
@@ -62,7 +62,6 @@ extension DatabaseManager {
         db: Database,
         populateArtwork: Bool = true
     ) throws -> [Track] {
-
         var query = smartPlaylistFilteredQuery(criteria)
         query = LibraryQueryPolicy.applySorting(to: query, criteria: criteria)
         if let limit = criteria.limit {

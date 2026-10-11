@@ -24,6 +24,16 @@ fn normalized(s: &str) -> String {
     s.replace("\r\n", "\n").replace('\r', "\n")
 }
 
+fn compare_times(a: f64, b: f64) -> std::cmp::Ordering {
+    // Overflow can produce either NaN sign depending on the architecture.
+    match (a.is_nan(), b.is_nan()) {
+        (true, true) => std::cmp::Ordering::Equal,
+        (true, false) => std::cmp::Ordering::Greater,
+        (false, true) => std::cmp::Ordering::Less,
+        (false, false) => a.total_cmp(&b),
+    }
+}
+
 #[uniffi::export]
 pub fn parse_lrc(input: String) -> Vec<ParsedLyricLine> {
     static TIME: OnceLock<Result<Regex, regex::Error>> = OnceLock::new();
@@ -52,8 +62,8 @@ pub fn parse_lrc(input: String) -> Vec<ParsedLyricLine> {
             });
         }
     }
-    // Stable sorting retains translations; total ordering also tolerates overflowing (NaN) decimals.
-    result.sort_by(|a, b| a.start_time.total_cmp(&b.start_time));
+    // Stable sorting retains translations; overflowing (NaN) decimals sort after valid timestamps.
+    result.sort_by(|a, b| compare_times(a.start_time, b.start_time));
     for i in (0..result.len().saturating_sub(1)).rev() {
         result[i].end_time = if result[i].start_time == result[i + 1].start_time {
             result[i + 1].end_time
@@ -101,13 +111,28 @@ pub fn parse_srt(input: String) -> Vec<ParsedLyricLine> {
             end_time: Some(end_time),
         });
     }
-    result.sort_by(|a, b| a.start_time.total_cmp(&b.start_time));
+    result.sort_by(|a, b| compare_times(a.start_time, b.start_time));
     result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn both_nan_signs_sort_last_and_preserve_authored_order() {
+        let mut times = [
+            (-f64::NAN, "negative"),
+            (2.0, "two"),
+            (f64::NAN, "positive"),
+            (1.0, "one"),
+        ];
+        times.sort_by(|a, b| compare_times(a.0, b.0));
+        assert_eq!(
+            times.map(|entry| entry.1),
+            ["one", "two", "negative", "positive"]
+        );
+    }
+
     #[test]
     fn translations_share_next_distinct_window_and_newlines_normalize() {
         let rows = parse_lrc(
