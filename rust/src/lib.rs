@@ -352,3 +352,19 @@ mod m3u;
 mod queue;
 
 mod query;
+
+mod database;
+mod database_background;
+mod database_schema;
+
+mod database_folders;
+mod database_journal;
+mod database_library;
+mod database_merge;
+mod database_mutations;
+mod database_normalization;
+mod database_playlists;
+mod database_reads;
+mod database_smart;
+
+pub use database_reads::{DatabaseLightTrack, DatabaseTrackRows};

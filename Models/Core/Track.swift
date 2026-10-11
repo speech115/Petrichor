@@ -365,17 +365,10 @@ extension Track {
 // MARK: - Full Track Loading
 
 extension Track {
-    /// Async version for fetching FullTrack
-    /// - Parameter dbQueue: Any database reader (a `DatabaseQueue` or `DatabasePool`)
-    /// - Returns: FullTrack with all metadata, or nil if not found
-    func fullTrack(using dbQueue: any DatabaseReader) async throws -> FullTrack? {
-        guard let trackId = trackId else { return nil }
-
-        return try await dbQueue.read { db in
-            try FullTrack
-                .filter(FullTrack.Columns.trackId == trackId)
-                .fetchOne(db)
-        }
+    /// Load the full record through the platform database owner.
+    func fullTrack(using databaseManager: DatabaseManager) async throws -> FullTrack? {
+        guard let trackId else { return nil }
+        return try await databaseManager.fullTrack(trackId: trackId)
     }
 }
 

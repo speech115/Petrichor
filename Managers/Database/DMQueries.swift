@@ -9,6 +9,12 @@ import Foundation
 import GRDB
 
 extension DatabaseManager {
+    func fullTrack(trackId: Int64) async throws -> FullTrack? {
+        try await dbQueue.read { db in
+            try FullTrack.filter(FullTrack.Columns.trackId == trackId).fetchOne(db)
+        }
+    }
+
     /// Populate track album art from albums table, falling back to track's own artwork
     func populateAlbumArtworkForTracks(_ tracks: inout [Track], db: Database) throws {
         // Populate from albums table
