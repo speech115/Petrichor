@@ -39,8 +39,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         app.launch()
 
         let favorites = app.buttons["home.favorites"]
-        // CI cold fixture loading can take ~80s before the Home audit can start.
-        XCTAssertTrue(favorites.waitForExistence(timeout: 120), "избранное не появилось (Documents пуст?)")
+        XCTAssertTrue(favorites.waitForExistence(timeout: 60), "избранное не появилось (Documents пуст?)")
 
         let noMusic = app.staticTexts["No Music"]
         if noMusic.exists {

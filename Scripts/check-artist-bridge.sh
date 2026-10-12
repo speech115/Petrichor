@@ -7,7 +7,6 @@ trap 'rm -rf "$work"' EXIT
 swiftc -O -emit-library -emit-module -module-name PetrichorCore \
     -I rust/build/headers rust/build/swift/petrichor_core.swift \
     rust/build/PetrichorCoreFFI.xcframework/macos-arm64_x86_64/libpetrichor_core.a \
-    -lsqlite3 \
     -emit-module-path "$work/PetrichorCore.swiftmodule" \
     -o "$work/libPetrichorCore.dylib"
 swiftc -Onone -g -swift-version 6 -I "$work" -I rust/build/headers \

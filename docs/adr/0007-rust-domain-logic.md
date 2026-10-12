@@ -35,13 +35,12 @@ boundaries, file encoding detection and system media integration. Crescendo
 still performs macOS audio playback, decoding and effects; this change does not
 replace it with a Rust decoder.
 
-At this stage GRDB retained ownership of database connections, migrations, transactions,
+GRDB retains ownership of database connections, migrations, transactions,
 record decoding and persistence orchestration. Rust returns SQL with bound
 arguments and whitelisted columns; it does not open a second connection inside
 an existing transaction. Dates return as typed timestamps and Swift binds them
 using GRDB's existing Date representation. Artwork processing remains with
-the platform image implementation. ADR-0008 supersedes this persistence boundary
-for macOS: Rust owns execution and GRDB only decodes returned row values.
+the platform image implementation.
 
 This is a domain-logic migration, not a claim that every non-view Swift file or
 every database operation has been rewritten in Rust.

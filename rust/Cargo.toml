@@ -20,11 +20,6 @@ unicode-normalization = "0.1.25"
 unicode-segmentation = "1.13.3"
 uniffi = { version = "0.32", features = ["cli"] }
 
-rusqlite = "0.38"
-chrono = "0.4"
-serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
-
 [profile.release]
 lto = true
 strip = true

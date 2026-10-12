@@ -45,7 +45,7 @@ enum DatabaseFactory {
     /// Файл прод-базы: `Application Support/<bundle-id>/petrichor[-debug].db`.
     /// Папка создаётся только по запросу — запрос размера файла не должен
     /// материализовывать каталог.
-    static func databaseURL(createDirectory: Bool) throws -> URL {
+    private static func databaseURL(createDirectory: Bool) throws -> URL {
         let appSupport = try FileManager.default.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,

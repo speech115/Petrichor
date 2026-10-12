@@ -157,7 +157,7 @@ extension PlaybackManager {
     func loadFullTrack(for track: Track) {
         Task { [weak self] in
             guard let self else { return }
-            let full = try? await track.fullTrack(using: self.libraryManager.databaseManager)
+            let full = try? await track.fullTrack(using: self.libraryManager.databaseManager.dbQueue)
             await MainActor.run {
                 if self.currentTrack?.url == track.url { self.currentFullTrack = full }
             }

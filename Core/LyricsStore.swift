@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import GRDB
 
 /// Single-flight, single-entry lyrics cache shared by every `TrackLyricsContent`
 /// instance (main window, mini player, immersive mode).
@@ -32,7 +33,8 @@ final class LyricsStore: ObservableObject {
 
     func lyrics(
         for track: Track,
-        using databaseManager: DatabaseManager,
+        using dbQueue: any DatabaseReader,
+        databaseManager: DatabaseManager?,
         forceReload: Bool = false
     ) async throws -> Lyrics {
         if !forceReload, let cached, cached.trackId == track.id {
@@ -59,7 +61,8 @@ final class LyricsStore: ObservableObject {
         let task = Task { () throws -> LoadResult in
             let result = try await LyricsLoader.loadLyrics(
                 for: track,
-                using: databaseManager
+                using: dbQueue,
+                databaseManager: databaseManager
             )
             let lyrics = Lyrics(trackId: trackId, lines: result.lyrics, hasTimed: result.lyrics.hasTimedLyrics)
             return LoadResult(lyrics: lyrics, source: result.source, fullTrack: result.fullTrack)

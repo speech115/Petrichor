@@ -175,49 +175,10 @@
 		55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				LibraryStorage/DMArtistMetadata.swift,
-				LibraryStorage/DMBackgroundMigration.swift,
-				LibraryStorage/DMCategoryQueries.swift,
-				LibraryStorage/DMCleanup.swift,
-				LibraryStorage/DMFolders.swift,
-				LibraryStorage/DMMerge.swift,
-				LibraryStorage/DMMetadata.swift,
-				LibraryStorage/DMNormalization.swift,
-				LibraryStorage/DMPlaylists.swift,
-				LibraryStorage/DMQueries.swift,
-				LibraryStorage/DMSearchQueries.swift,
-				LibraryStorage/DMSmartPlaylistQueries.swift,
-				LibraryStorage/DMTrackProcessing.swift,
-				LibraryStorage/DMTrackUpdate.swift,
-				LibraryStorage/DatabaseManager.swift,
-				LibraryStorage/PlaybackJournalApplier.swift,
 				Metadata/LoftyMetadataReader.swift,
 				Playback/CrescendoPlaybackBackend.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
-		};
-		55A000000000000000000014 /* Exceptions for "Managers" folder in "Petrichor" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Database/DMBackgroundMigration.swift,
-				Database/DMCategoryQueries.swift,
-				Database/DMCleanup.swift,
-				Database/DMFolders.swift,
-				Database/DMMerge.swift,
-				Database/DMMetadata.swift,
-				Database/DMNormalization.swift,
-				Database/DMPlaylists.swift,
-				Database/DMQueries.swift,
-				Database/DMSearchQueries.swift,
-				Database/DMSetup.swift,
-				Database/DMSmartPlaylistQueries.swift,
-				Database/DMTrackProcessing.swift,
-				Database/DMTrackUpdate.swift,
-				Database/DatabaseManager.swift,
-				Database/DatabaseMigration.swift,
-				PlaybackJournalApplier.swift,
-			);
-			target = 550F4A0D2DB45B1A005F794E /* Petrichor */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -252,7 +213,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */,
-				55A000000000000000000014 /* Exceptions for "Managers" folder in "Petrichor" target */,
 			);
 			path = Managers;
 			sourceTree = "<group>";

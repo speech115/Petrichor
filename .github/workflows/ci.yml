@@ -126,8 +126,6 @@ jobs:
 
       - name: Check Swift artist cache seam
         run: Scripts/check-artist-bridge.sh
-      - name: Check Swift UniFFI reader seam
-        run: python3 Scripts/test-uniffi-swift-readers.py --sanitize
 
       - name: Resolve dependencies
         run: |
