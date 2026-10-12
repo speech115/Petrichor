@@ -1,16 +1,15 @@
-//! Filename policy receives the URL basename from Swift; no platform path handling.
+//! Filename policy for the import, on the basename Swift extracted; no platform path handling.
 use crate::lyrics::whitespace;
 use crate::m3u::is_swift_number;
 use unicode_segmentation::UnicodeSegmentation;
 
-#[derive(Debug, PartialEq, uniffi::Record)]
+#[derive(Debug, PartialEq)]
 pub struct FilenameMetadata {
     pub artist: Option<String>,
     pub title: String,
 }
 
-#[uniffi::export]
-pub fn filename_metadata_fallback(base: String) -> FilenameMetadata {
+pub fn filename_metadata_fallback(base: &str) -> FilenameMetadata {
     let base = base.trim_matches(whitespace);
     let mut parts = base.split(" - ");
     let first = parts.next().unwrap_or("");
@@ -62,7 +61,7 @@ mod tests {
         ] {
             let base = format!("{prefix} - Исполнитель - Название");
             assert_eq!(
-                filename_metadata_fallback(base.clone()),
+                filename_metadata_fallback(&base),
                 FilenameMetadata {
                     artist: Some("Исполнитель".into()),
                     title: base
@@ -73,17 +72,14 @@ mod tests {
     #[test]
     fn ordinary_and_missing_artist() {
         assert_eq!(
-            filename_metadata_fallback(" Artist - Title - remix ".into()),
+            filename_metadata_fallback(" Artist - Title - remix "),
             FilenameMetadata {
                 artist: Some("Artist".into()),
                 title: "Title - remix".into()
             }
         );
-        assert_eq!(
-            filename_metadata_fallback("123 - title".into()).artist,
-            None
-        );
-        assert_eq!(filename_metadata_fallback(" - title".into()).artist, None);
-        assert_eq!(filename_metadata_fallback("".into()).title, "");
+        assert_eq!(filename_metadata_fallback("123 - title").artist, None);
+        assert_eq!(filename_metadata_fallback(" - title").artist, None);
+        assert_eq!(filename_metadata_fallback("").title, "");
     }
 }

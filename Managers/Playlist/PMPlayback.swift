@@ -26,7 +26,7 @@ extension PlaylistManager {
             currentQueueSource = .library
             playTrack(track, fromTracks: context)
         case .playlist(let playlist):
-            guard let index = playlist.tracks.firstIndex(where: { $0.id == track.id }) else { return }
+            guard let index = playlist.tracks.firstIndex(of: track) else { return }
             playTrackFromPlaylist(playlist, at: index)
         }
     }
@@ -99,7 +99,7 @@ extension PlaylistManager {
     /// the list the user is looking at; with shuffle on the chosen track leads and the
     /// rest follow in random order.
     private func beginPlayback(of track: Track, in contextTracks: [Track]) {
-        guard let index = contextTracks.firstIndex(where: { $0.id == track.id }) else {
+        guard let index = contextTracks.firstIndex(of: track) else {
             replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
