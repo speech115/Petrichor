@@ -12,9 +12,6 @@
 // отсутствует.
 
 import Foundation
-#if os(macOS)
-import PetrichorCore
-#endif
 
 enum FilenameMetadataFallback {
     private static let separator = " - "
@@ -22,10 +19,6 @@ enum FilenameMetadataFallback {
     static func parse(_ url: URL) -> (artist: String?, title: String) {
         let base = url.deletingPathExtension().lastPathComponent
             .trimmingCharacters(in: .whitespaces)
-        #if os(macOS)
-        let result = filenameMetadataFallback(base: base)
-        return (result.artist, result.title)
-        #else
         let parts = base.components(separatedBy: separator)
 
         guard parts.count >= 2 else {
@@ -47,6 +40,5 @@ enum FilenameMetadataFallback {
         let title = parts.dropFirst().joined(separator: separator)
             .trimmingCharacters(in: .whitespaces)
         return (artist, title)
-        #endif
     }
 }

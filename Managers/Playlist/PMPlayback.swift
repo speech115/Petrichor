@@ -125,7 +125,17 @@ extension PlaylistManager {
     /// order. The single source of truth for "what plays next", shared by
     /// `playNextTrack` (which advances) and `peekNextTrack` (which only looks).
     private func nextQueueIndex() -> Int? {
-        QueuePolicy.nextIndex(count: currentQueue.count, cursor: currentQueueIndex, mode: repeatMode)
+        guard !currentQueue.isEmpty else { return nil }
+
+        switch repeatMode {
+        case .one:
+            return currentQueueIndex
+        case .all:
+            return (currentQueueIndex + 1) % currentQueue.count
+        case .off:
+            let nextIndex = currentQueueIndex + 1
+            return nextIndex < currentQueue.count ? nextIndex : nil
+        }
     }
 
     func playNextTrack() {
@@ -170,11 +180,19 @@ extension PlaylistManager {
             return
         }
 
-        guard let prevIndex = QueuePolicy.previousIndex(
-            count: currentQueue.count, cursor: currentQueueIndex, mode: repeatMode
-        ) else {
-            audioPlayer?.seekTo(time: 0)
-            return
+        var prevIndex: Int
+
+        switch repeatMode {
+        case .one:
+            prevIndex = currentQueueIndex
+        case .all:
+            prevIndex = currentQueueIndex > 0 ? currentQueueIndex - 1 : currentQueue.count - 1
+        case .off:
+            prevIndex = currentQueueIndex - 1
+            if prevIndex < 0 {
+                audioPlayer?.seekTo(time: 0)
+                return
+            }
         }
 
         currentQueueIndex = prevIndex
