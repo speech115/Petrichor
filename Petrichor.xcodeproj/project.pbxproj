@@ -13,7 +13,6 @@
 		55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55A000000000000000000040 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55A000000000000000000051 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
-		55A000000000000000000200 /* PetrichorCore in Frameworks */ = {isa = PBXBuildFile; productRef = 55A000000000000000000202 /* PetrichorCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -175,50 +174,10 @@
 		55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				LibraryStorage/ArtworkBytesData.swift,
-				LibraryStorage/DMArtistMetadata.swift,
-				LibraryStorage/DMBackgroundMigration.swift,
-				LibraryStorage/DMCategoryQueries.swift,
-				LibraryStorage/DMCleanup.swift,
-				LibraryStorage/DMFolders.swift,
-				LibraryStorage/DMMerge.swift,
-				LibraryStorage/DMMetadata.swift,
-				LibraryStorage/DMNormalization.swift,
-				LibraryStorage/DMPlaylists.swift,
-				LibraryStorage/DMQueries.swift,
-				LibraryStorage/DMSearchQueries.swift,
-				LibraryStorage/DMSmartPlaylistQueries.swift,
-				LibraryStorage/DMTrackProcessing.swift,
-				LibraryStorage/DMTrackUpdate.swift,
-				LibraryStorage/DatabaseManager.swift,
-				LibraryStorage/PlaybackJournalApplier.swift,
-				Metadata/LoftyMetadataReader.swift,
+				Metadata/CrescendoMetadataReader.swift,
 				Playback/CrescendoPlaybackBackend.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
-		};
-		55A000000000000000000014 /* Exceptions for "Managers" folder in "Petrichor" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Database/DMBackgroundMigration.swift,
-				Database/DMCategoryQueries.swift,
-				Database/DMCleanup.swift,
-				Database/DMFolders.swift,
-				Database/DMMerge.swift,
-				Database/DMMetadata.swift,
-				Database/DMNormalization.swift,
-				Database/DMPlaylists.swift,
-				Database/DMQueries.swift,
-				Database/DMSearchQueries.swift,
-				Database/DMSetup.swift,
-				Database/DMSmartPlaylistQueries.swift,
-				Database/DMTrackProcessing.swift,
-				Database/DMTrackUpdate.swift,
-				Database/DatabaseManager.swift,
-				Database/DatabaseMigration.swift,
-				PlaybackJournalApplier.swift,
-			);
-			target = 550F4A0D2DB45B1A005F794E /* Petrichor */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -253,7 +212,6 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				55A000000000000000000011 /* Exceptions for "Managers" folder in "PetrichoriOS" target */,
-				55A000000000000000000014 /* Exceptions for "Managers" folder in "Petrichor" target */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -329,7 +287,6 @@
 			files = (
 				55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */,
 				552CE3E52FE3263900A5C93D /* Crescendo in Frameworks */,
-				55A000000000000000000200 /* PetrichorCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,7 +393,6 @@
 			packageProductDependencies = (
 				55B0DEC02DE3A58400A41ED9 /* GRDB */,
 				552CE3E42FE3263900A5C93D /* Crescendo */,
-				55A000000000000000000202 /* PetrichorCore */,
 			);
 			productName = Petrichor;
 			productReference = 550F4A0E2DB45B1A005F794E /* Petrichor Dev.app */;
@@ -564,7 +520,6 @@
 			packageReferences = (
 				55B0DEBF2DE3A58400A41ED9 /* XCRemoteSwiftPackageReference "GRDB" */,
 				552CE3E32FE3263900A5C93D /* XCRemoteSwiftPackageReference "CrescendoKit" */,
-				55A000000000000000000201 /* XCLocalSwiftPackageReference "rust" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 550F4A052DB45B1A005F794E;
@@ -1383,13 +1338,6 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		55A000000000000000000201 /* XCLocalSwiftPackageReference "rust" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = rust;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
 		552CE3E32FE3263900A5C93D /* XCRemoteSwiftPackageReference "CrescendoKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -1419,11 +1367,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 55B0DEBF2DE3A58400A41ED9 /* XCRemoteSwiftPackageReference "GRDB" */;
 			productName = GRDB;
-		};
-		55A000000000000000000202 /* PetrichorCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 55A000000000000000000201 /* XCLocalSwiftPackageReference "rust" */;
-			productName = PetrichorCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

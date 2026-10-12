@@ -97,16 +97,6 @@ struct FolderEnumerationResult {
 }
 
 extension DatabaseManager {
-    func folderRefreshNeedsHash(hardRefresh: Bool, timestampChanged: Bool, storedHash: String?) -> Bool {
-        !hardRefresh && !timestampChanged && storedHash != nil
-    }
-
-    func folderNeedsRefresh(
-        hardRefresh: Bool, timestampChanged: Bool, storedHash: String?, currentHash: String?
-    ) -> Bool {
-        hardRefresh || timestampChanged || storedHash == nil || currentHash == nil || storedHash != currentHash
-    }
-
     func addFolders(
         _ urls: [URL],
         bookmarkDataMap: [URL: Data],

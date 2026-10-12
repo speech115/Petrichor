@@ -244,10 +244,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     // MARK: - Equatable
     
     static func == (lhs: Track, rhs: Track) -> Bool {
-        // Same answer as comparing `id`, without formatting `trackId` into a new String
-        // per comparison: queue scans compare every row of a library-sized queue.
-        if lhs.trackId != nil || rhs.trackId != nil { return lhs.trackId == rhs.trackId }
-        return lhs.url.absoluteString == rhs.url.absoluteString
+        lhs.id == rhs.id
     }
     
     // MARK: - Hashable
@@ -368,10 +365,17 @@ extension Track {
 // MARK: - Full Track Loading
 
 extension Track {
-    /// Load the full record through the platform database owner.
-    func fullTrack(using databaseManager: DatabaseManager) async throws -> FullTrack? {
-        guard let trackId else { return nil }
-        return try await databaseManager.fullTrack(trackId: trackId)
+    /// Async version for fetching FullTrack
+    /// - Parameter dbQueue: Any database reader (a `DatabaseQueue` or `DatabasePool`)
+    /// - Returns: FullTrack with all metadata, or nil if not found
+    func fullTrack(using dbQueue: any DatabaseReader) async throws -> FullTrack? {
+        guard let trackId = trackId else { return nil }
+
+        return try await dbQueue.read { db in
+            try FullTrack
+                .filter(FullTrack.Columns.trackId == trackId)
+                .fetchOne(db)
+        }
     }
 }
 

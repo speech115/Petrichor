@@ -20,9 +20,6 @@
 //
 
 import Foundation
-#if os(macOS)
-import PetrichorCore
-#endif
 
 enum M3UTrackResolver {
     /// Узкий интерфейс к библиотеке: то, что трём стадиям нужно от базы, и
@@ -43,17 +40,6 @@ enum M3UTrackResolver {
     /// как фолбэки. Первая вариация — то, с чем `findTrackByPath` сравнивает
     /// сохранённый в базе (Documents-относительный) путь.
     static func pathVariations(for path: String, sourceDirectory: URL? = nil) -> [String] {
-        #if os(macOS)
-        var variations = m3uPathVariations(path: path)
-        if let normalized = variations.first, !normalized.hasPrefix("/"), let sourceDirectory {
-            var relativePath = normalized
-            while relativePath.hasPrefix("./") {
-                relativePath = String(relativePath.dropFirst(2))
-            }
-            variations.insert(sourceDirectory.appendingPathComponent(relativePath).standardizedFileURL.path, at: 0)
-        }
-        return variations
-        #else
         var normalized = path
 
         for scheme in ["file://", "smb://", "afp://", "nfs://"] where normalized.lowercased().hasPrefix(scheme) {
@@ -87,7 +73,6 @@ enum M3UTrackResolver {
         }
 
         return variations
-        #endif
     }
 
     /// Матчит записи M3U против библиотеки. Результат — один элемент на
@@ -159,30 +144,6 @@ enum M3UTrackResolver {
         return resolved
     }
 
-    static func normalizeFilename(_ filename: String) -> String {
-        #if os(macOS)
-        return m3uNormalizeFilename(filename: filename)
-        #else
-        var name = filename
-
-        if let digitsEnd = name.firstIndex(where: { !$0.isNumber }), digitsEnd != name.startIndex {
-            let remainder = name[digitsEnd...]
-            if remainder.hasPrefix(" - ") {
-                name = String(remainder.dropFirst(3))
-            }
-        }
-
-        name = name.replacingOccurrences(of: ";", with: ",")
-        name = name.replacingOccurrences(of: ", ", with: ",")
-        name = name.replacingOccurrences(of: " ,", with: ",")
-        name = name.components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        return name.lowercased()
-        #endif
-    }
-
     // MARK: - Policy helpers
 
     /// Имя файла (lowercased) → единственный трек, по одному батч-запросу.
@@ -194,13 +155,6 @@ enum M3UTrackResolver {
         using query: Query
     ) async -> [String: Track] {
         let tracks = await query.tracksByFilenames(filenames)
-        #if os(macOS)
-        let indices = m3uUniqueFilenameIndices(filenames: tracks.map { $0.url.lastPathComponent })
-        return indices.reduce(into: [:]) { result, entry in
-            guard entry.value < UInt64(tracks.count) else { return }
-            result[entry.key] = tracks[Int(entry.value)]
-        }
-        #else
         var result: [String: Track] = [:]
         var ambiguous: Set<String> = []
         for track in tracks {
@@ -215,7 +169,6 @@ enum M3UTrackResolver {
             result.removeValue(forKey: key)
         }
         return result
-        #endif
     }
 
     /// Маппит запрошенное имя на единственного кандидата с тем же
@@ -228,9 +181,6 @@ enum M3UTrackResolver {
         _ filenames: [String],
         against candidates: [String]
     ) -> [String: String] {
-        #if os(macOS)
-        return m3uResolveNormalizedFilenames(filenames: filenames, candidates: candidates)
-        #else
         var keyToName: [String: String] = [:]
         var blockedKeys: Set<String> = []
         for candidate in candidates {
@@ -254,6 +204,5 @@ enum M3UTrackResolver {
             }
         }
         return resolved
-        #endif
     }
 }

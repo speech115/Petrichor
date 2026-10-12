@@ -157,7 +157,7 @@ extension PlaybackManager {
     func loadFullTrack(for track: Track) {
         Task { [weak self] in
             guard let self else { return }
-            let full = try? await track.fullTrack(using: self.libraryManager.databaseManager)
+            let full = try? await track.fullTrack(using: self.libraryManager.databaseManager.dbQueue)
             await MainActor.run {
                 if self.currentTrack?.url == track.url { self.currentFullTrack = full }
             }
@@ -208,9 +208,17 @@ extension PlaybackManager {
     /// most once: recursing through `playNextTrack` would spin forever on repeat-one
     /// and cycle forever on repeat-all.
     private func firstPlayableIndex(in tracks: [Track], from index: Int) -> Int? {
-        let candidates = QueuePolicy.playableCandidates(
-            count: tracks.count, index: index, mode: playlistManager.repeatMode
-        )
+        // Repeat-one never moves off the chosen entry, so there is nothing to fall
+        // back to; repeat-all wraps to the front, repeat-off stops at the end.
+        let candidates: [Int]
+        switch playlistManager.repeatMode {
+        case .one:
+            candidates = [index]
+        case .all:
+            candidates = (0..<tracks.count).map { (index + $0) % tracks.count }
+        case .off:
+            candidates = Array(index..<tracks.count)
+        }
 
         for candidate in candidates {
             if FileManager.default.fileExists(atPath: tracks[candidate].url.path) {

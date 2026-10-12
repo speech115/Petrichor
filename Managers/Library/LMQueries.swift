@@ -116,7 +116,7 @@ extension LibraryManager {
     }
 
     func fullTrack(for track: Track) async throws -> FullTrack? {
-        guard var loaded = try await track.fullTrack(using: databaseManager) else { return nil }
+        guard var loaded = try await track.fullTrack(using: databaseManager.dbQueue) else { return nil }
         databaseManager.populateAlbumArtworkForFullTrack(&loaded)
         return loaded
     }
@@ -152,7 +152,8 @@ extension LibraryManager {
     func lyrics(for track: Track, forceReload: Bool = false) async throws -> LyricsStore.Lyrics {
         try await LyricsStore.shared.lyrics(
             for: track,
-            using: databaseManager,
+            using: databaseManager.dbQueue,
+            databaseManager: databaseManager,
             forceReload: forceReload
         )
     }

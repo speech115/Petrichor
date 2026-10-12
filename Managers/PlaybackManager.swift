@@ -183,7 +183,7 @@ class PlaybackManager: NSObject, ObservableObject {
 
         Task {
             do {
-                guard let fullTrack = try await track.fullTrack(using: libraryManager.databaseManager) else {
+                guard let fullTrack = try await track.fullTrack(using: libraryManager.databaseManager.dbQueue) else {
                     await MainActor.run {
                         Logger.error("Failed to fetch track data for restoration")
                         self.abandonPendingPlayOnRestore()

@@ -442,20 +442,45 @@ extension LibraryManager {
                 continue
             }
 
-            let timestampChanged = !hardRefresh && FilesystemUtils.modificationTimestampChanged(
+            if hardRefresh {
+                Logger.info("Folder \(scanFolder.name): Hard refresh requested, marking for refresh")
+                foldersToRefresh.append(scanFolder)
+                continue
+            }
+
+            // Step 1: Check modification timestamp
+            let timestampChanged = FilesystemUtils.modificationTimestampChanged(
                 for: scanFolder.url,
                 comparedTo: scanFolder.dateUpdated
             )
-            let needsHash = databaseManager.folderRefreshNeedsHash(
-                hardRefresh: hardRefresh, timestampChanged: timestampChanged, storedHash: scanFolder.shasumHash
-            )
-            let currentHash = needsHash ? await FilesystemUtils.computeFolderHash(for: scanFolder.url) : nil
-            if databaseManager.folderNeedsRefresh(
-                hardRefresh: hardRefresh,
-                timestampChanged: timestampChanged,
-                storedHash: scanFolder.shasumHash,
-                currentHash: currentHash
-            ) {
+
+            if timestampChanged {
+                Logger.info("Folder \(scanFolder.name): Timestamp changed, marking for refresh")
+                foldersToRefresh.append(scanFolder)
+                continue
+            }
+            
+            // Step 2: If timestamp hasn't changed, check content hash
+            Logger.info("Folder \(scanFolder.name): Timestamp unchanged, checking content hash...")
+
+            // If no hash stored yet, we need to scan
+            guard let storedHash = scanFolder.shasumHash else {
+                Logger.info("Folder \(scanFolder.name): No hash stored, marking for refresh")
+                foldersToRefresh.append(scanFolder)
+                continue
+            }
+
+            // Calculate current hash
+            if let currentHash = await FilesystemUtils.computeFolderHash(for: scanFolder.url) {
+                if currentHash != storedHash {
+                    Logger.info("Folder \(scanFolder.name): Content changed (hash mismatch), marking for refresh")
+                    foldersToRefresh.append(scanFolder)
+                } else {
+                    Logger.info("Folder \(scanFolder.name): No changes detected, skipping")
+                }
+            } else {
+                // If hash calculation fails, scan to be safe
+                Logger.warning("Folder \(scanFolder.name): Hash calculation failed, marking for refresh")
                 foldersToRefresh.append(scanFolder)
             }
         }

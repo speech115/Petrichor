@@ -26,7 +26,7 @@ extension PlaylistManager {
             currentQueueSource = .library
             playTrack(track, fromTracks: context)
         case .playlist(let playlist):
-            guard let index = playlist.tracks.firstIndex(of: track) else { return }
+            guard let index = playlist.tracks.firstIndex(where: { $0.id == track.id }) else { return }
             playTrackFromPlaylist(playlist, at: index)
         }
     }
@@ -99,7 +99,7 @@ extension PlaylistManager {
     /// the list the user is looking at; with shuffle on the chosen track leads and the
     /// rest follow in random order.
     private func beginPlayback(of track: Track, in contextTracks: [Track]) {
-        guard let index = contextTracks.firstIndex(of: track) else {
+        guard let index = contextTracks.firstIndex(where: { $0.id == track.id }) else {
             replaceCurrentQueue([track], index: 0)
             audioPlayer?.startQueue(at: 0)
             return
@@ -125,7 +125,17 @@ extension PlaylistManager {
     /// order. The single source of truth for "what plays next", shared by
     /// `playNextTrack` (which advances) and `peekNextTrack` (which only looks).
     private func nextQueueIndex() -> Int? {
-        QueuePolicy.nextIndex(count: currentQueue.count, cursor: currentQueueIndex, mode: repeatMode)
+        guard !currentQueue.isEmpty else { return nil }
+
+        switch repeatMode {
+        case .one:
+            return currentQueueIndex
+        case .all:
+            return (currentQueueIndex + 1) % currentQueue.count
+        case .off:
+            let nextIndex = currentQueueIndex + 1
+            return nextIndex < currentQueue.count ? nextIndex : nil
+        }
     }
 
     func playNextTrack() {
@@ -170,11 +180,19 @@ extension PlaylistManager {
             return
         }
 
-        guard let prevIndex = QueuePolicy.previousIndex(
-            count: currentQueue.count, cursor: currentQueueIndex, mode: repeatMode
-        ) else {
-            audioPlayer?.seekTo(time: 0)
-            return
+        var prevIndex: Int
+
+        switch repeatMode {
+        case .one:
+            prevIndex = currentQueueIndex
+        case .all:
+            prevIndex = currentQueueIndex > 0 ? currentQueueIndex - 1 : currentQueue.count - 1
+        case .off:
+            prevIndex = currentQueueIndex - 1
+            if prevIndex < 0 {
+                audioPlayer?.seekTo(time: 0)
+                return
+            }
         }
 
         currentQueueIndex = prevIndex
