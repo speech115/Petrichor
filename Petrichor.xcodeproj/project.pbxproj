@@ -175,7 +175,6 @@
 		55A000000000000000000013 /* Exceptions for "Core" folder in "PetrichoriOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				LibraryStorage/ArtworkBytesData.swift,
 				LibraryStorage/DMArtistMetadata.swift,
 				LibraryStorage/DMBackgroundMigration.swift,
 				LibraryStorage/DMCategoryQueries.swift,

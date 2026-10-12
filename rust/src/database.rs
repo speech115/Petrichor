@@ -63,59 +63,6 @@ unsafe impl uniffi::FfiConverter<crate::UniFfiTag> for DatabaseBlob {
 }
 uniffi::derive_ffi_traits!(local DatabaseBlob);
 
-/// Artwork bytes Swift wraps with `Data(bytesNoCopy:)`, so a cover crosses the
-/// boundary without the RustBuffer and Swift copies. Rust never reads the
-/// bytes after construction; the Swift Data keeps this object until released.
-#[derive(uniffi::Object)]
-pub struct ArtworkBytes {
-    pointer: *mut u8,
-    length: usize,
-}
-// SAFETY: the allocation is uniquely owned and freed only in Drop.
-unsafe impl Send for ArtworkBytes {}
-unsafe impl Sync for ArtworkBytes {}
-impl From<Vec<u8>> for ArtworkBytes {
-    fn from(bytes: Vec<u8>) -> Self {
-        let bytes = Box::into_raw(bytes.into_boxed_slice());
-        Self {
-            pointer: bytes.cast(),
-            length: bytes.len(),
-        }
-    }
-}
-impl Drop for ArtworkBytes {
-    fn drop(&mut self) {
-        // SAFETY: rebuilds exactly the boxed slice leaked in From.
-        drop(unsafe {
-            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                self.pointer,
-                self.length,
-            ))
-        });
-    }
-}
-impl std::fmt::Debug for ArtworkBytes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ArtworkBytes({} bytes)", self.length)
-    }
-}
-#[uniffi::export]
-impl ArtworkBytes {
-    pub fn address(&self) -> u64 {
-        self.pointer as u64
-    }
-    pub fn length(&self) -> u64 {
-        self.length as u64
-    }
-}
-#[cfg(test)]
-impl ArtworkBytes {
-    pub fn as_slice(&self) -> &[u8] {
-        // SAFETY: the pointer and length describe the live boxed slice.
-        unsafe { std::slice::from_raw_parts(self.pointer, self.length) }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, uniffi::Enum)]
 pub enum DatabaseCell {
     Null,
