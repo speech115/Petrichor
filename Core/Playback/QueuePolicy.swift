@@ -18,7 +18,7 @@ enum QueuePolicy {
 
     static func nextIndex(count: Int, cursor: Int, mode: RepeatMode) -> Int? {
         #if os(macOS)
-        return queueNextIndex(count: Int64(count), cursor: Int64(cursor), mode: rustMode(mode)).map(Int.init)
+        return answer(queueNextIndex(count: Int64(count), cursor: Int64(cursor), mode: rustMode(mode)))
         #else
         guard count > 0, cursor >= -1, cursor < count else { return nil }
         switch mode {
@@ -31,7 +31,7 @@ enum QueuePolicy {
 
     static func previousIndex(count: Int, cursor: Int, mode: RepeatMode) -> Int? {
         #if os(macOS)
-        return queuePreviousIndex(count: Int64(count), cursor: Int64(cursor), mode: rustMode(mode)).map(Int.init)
+        return answer(queuePreviousIndex(count: Int64(count), cursor: Int64(cursor), mode: rustMode(mode)))
         #else
         guard count > 0, cursor >= -1, cursor < count else { return nil }
         switch mode {
@@ -55,19 +55,19 @@ enum QueuePolicy {
         #endif
     }
 
-    static func playNextPlan(tracks: [Track], cursor: Int, id: String) -> Insertion? {
+    static func playNextPlan(tracks: [Track], cursor: Int, track: Track) -> Insertion? {
         // Read identity positions from Swift-owned storage; Rust decides the edit.
-        let existing = tracks.firstIndex { $0.id == id }
+        let existing = tracks.firstIndex(of: track)
         #if os(macOS)
-        guard let plan = queuePlayNextPlan(
+        // Rust's code: none, -1 to replace the queue, or the cursor after removing `existing`.
+        let code = queuePlayNextCursor(
             count: Int64(tracks.count), cursor: Int64(cursor), existingIndex: existing.map(Int64.init) ?? -1
-        ) else { return nil }
-        return Insertion(
-            replace: plan.replace,
-            removeIndex: plan.removeIndex.map(Int.init),
-            insertionIndex: Int(plan.insertionIndex),
-            cursorAfterRemoval: Int(plan.cursorAfterRemoval)
         )
+        guard let cursor = answer(code) else { return nil }
+        if cursor == -1 {
+            return Insertion(replace: true, removeIndex: nil, insertionIndex: 0, cursorAfterRemoval: 0)
+        }
+        return Insertion(replace: false, removeIndex: existing, insertionIndex: cursor + 1, cursorAfterRemoval: cursor)
         #else
         guard cursor >= -1, cursor < tracks.count else { return nil }
         if tracks.isEmpty || cursor == -1 {
@@ -81,8 +81,8 @@ enum QueuePolicy {
         #endif
     }
 
-    static func shouldAppend(tracks: [Track], id: String) -> Bool {
-        let existing = tracks.firstIndex { $0.id == id }
+    static func shouldAppend(tracks: [Track], track: Track) -> Bool {
+        let existing = tracks.firstIndex(of: track)
         #if os(macOS)
         return queueShouldAppend(count: Int64(tracks.count), existingIndex: existing.map(Int64.init) ?? -1)
         #else
@@ -92,9 +92,9 @@ enum QueuePolicy {
 
     static func removalCursor(count: Int, cursor: Int, index: Int, allowCurrent: Bool) -> Int? {
         #if os(macOS)
-        return queueRemovalCursor(
+        return answer(queueRemovalCursor(
             count: Int64(count), cursor: Int64(cursor), index: Int64(index), allowCurrent: allowCurrent
-        ).map(Int.init)
+        ))
         #else
         guard index >= 0, index < count, cursor >= -1, cursor < count,
               allowCurrent || index != cursor else { return nil }
@@ -106,9 +106,9 @@ enum QueuePolicy {
 
     static func moveCursor(count: Int, cursor: Int, source: Int, destination: Int) -> Int? {
         #if os(macOS)
-        return queueMoveCursor(
+        return answer(queueMoveCursor(
             count: Int64(count), cursor: Int64(cursor), source: Int64(source), destination: Int64(destination)
-        ).map(Int.init)
+        ))
         #else
         guard cursor >= -1, cursor < count, source >= 0, source < count,
               destination >= 0, destination < count, source != destination else { return nil }
@@ -120,11 +120,17 @@ enum QueuePolicy {
     }
 
     #if os(macOS)
-    private static func rustMode(_ mode: RepeatMode) -> QueueRepeat {
+    /// Rust returns `Int64.min` for "no answer" so the call needs no FFI buffer.
+    private static func answer(_ value: Int64) -> Int? {
+        value == .min ? nil : Int(value)
+    }
+
+    /// Rust's `QueueRepeat` codes.
+    private static func rustMode(_ mode: RepeatMode) -> UInt8 {
         switch mode {
-        case .off: return .off
-        case .one: return .one
-        case .all: return .all
+        case .off: return 0
+        case .one: return 1
+        case .all: return 2
         }
     }
     #endif

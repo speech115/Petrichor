@@ -10,11 +10,11 @@
 // заголовка) и обычный `Исполнитель - Название` без префикса — именно этот
 // второй случай встречается чаще всего там, где тег исполнителя реально
 // отсутствует.
+//
+// macOS применяет то же правило в Rust при импорте (`filename.rs`), без
+// отдельного вызова через FFI; этот файл обслуживает iOS.
 
 import Foundation
-#if os(macOS)
-import PetrichorCore
-#endif
 
 enum FilenameMetadataFallback {
     private static let separator = " - "
@@ -22,10 +22,6 @@ enum FilenameMetadataFallback {
     static func parse(_ url: URL) -> (artist: String?, title: String) {
         let base = url.deletingPathExtension().lastPathComponent
             .trimmingCharacters(in: .whitespaces)
-        #if os(macOS)
-        let result = filenameMetadataFallback(base: base)
-        return (result.artist, result.title)
-        #else
         let parts = base.components(separatedBy: separator)
 
         guard parts.count >= 2 else {
@@ -47,6 +43,5 @@ enum FilenameMetadataFallback {
         let title = parts.dropFirst().joined(separator: separator)
             .trimmingCharacters(in: .whitespaces)
         return (artist, title)
-        #endif
     }
 }

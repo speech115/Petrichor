@@ -244,7 +244,10 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     // MARK: - Equatable
     
     static func == (lhs: Track, rhs: Track) -> Bool {
-        lhs.id == rhs.id
+        // Same answer as comparing `id`, without formatting `trackId` into a new String
+        // per comparison: queue scans compare every row of a library-sized queue.
+        if lhs.trackId != nil || rhs.trackId != nil { return lhs.trackId == rhs.trackId }
+        return lhs.url.absoluteString == rhs.url.absoluteString
     }
     
     // MARK: - Hashable
