@@ -120,7 +120,7 @@ fn ingest(
             |r| r.get::<_, i64>(0),
         )
         .optional()?;
-    let fallback = crate::filename::filename_metadata_fallback(&input.basename);
+    let fallback = crate::filename::filename_metadata_fallback(input.basename.clone());
     let nonempty = |value: &Option<String>| value.as_ref().filter(|s| !s.is_empty()).cloned();
     let initial = |value: &Option<String>| {
         value

@@ -31,7 +31,7 @@ extension PlaylistManager {
 
     func playNext(_ track: Track) {
         guard let plan = QueuePolicy.playNextPlan(
-            tracks: currentQueue, cursor: currentQueueIndex, track: track
+            tracks: currentQueue, cursor: currentQueueIndex, id: track.id
         ) else { return }
         if plan.replace {
             replaceCurrentQueue([track], index: 0)
@@ -60,7 +60,7 @@ extension PlaylistManager {
             return
         }
 
-        if QueuePolicy.shouldAppend(tracks: currentQueue, track: track) {
+        if QueuePolicy.shouldAppend(tracks: currentQueue, id: track.id) {
             let lightTrack = track.withoutArtwork()
             appendCurrentQueueEntry(track)
             audioPlayer?.queueDidAppend(lightTrack)
