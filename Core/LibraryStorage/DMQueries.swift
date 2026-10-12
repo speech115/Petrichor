@@ -11,14 +11,8 @@ extension DatabaseManager {
 
     func tracks(_ result: DatabaseTrackRows) throws -> [Track] {
         var tracks = try result.tracks.map(Track.init(storageProjection:))
-        guard !result.artworks.rows.isEmpty else { return tracks }
-        var artworkByAlbum: [Int64: Data] = [:]
-        var artworkByTrack: [Int64: Data] = [:]
-        for row in try rows(result.artworks) {
-            guard let id: Int64 = row["id"], let data: Data = row["artwork"] else { continue }
-            let kind: String = row["kind"]
-            if kind == "album" { artworkByAlbum[id] = data } else { artworkByTrack[id] = data }
-        }
+        guard !result.artworks.isEmpty else { return tracks }
+        let (artworkByAlbum, artworkByTrack) = artworkMaps(result.artworks)
         for index in tracks.indices {
             if let id = tracks[index].albumId, let data = artworkByAlbum[id] {
                 tracks[index].albumArtworkData = data
@@ -27,6 +21,15 @@ extension DatabaseManager {
             }
         }
         return tracks
+    }
+
+    private func artworkMaps(_ artworks: [DatabaseArtwork]) -> (album: [Int64: Data], track: [Int64: Data]) {
+        var artworkByAlbum: [Int64: Data] = [:]
+        var artworkByTrack: [Int64: Data] = [:]
+        for artwork in artworks {
+            if artwork.album { artworkByAlbum[artwork.id] = artwork.bytes.data } else { artworkByTrack[artwork.id] = artwork.bytes.data }
+        }
+        return (artworkByAlbum, artworkByTrack)
     }
 
     private func readTracks(_ operation: () throws -> DatabaseTrackRows) -> [Track] {
@@ -39,18 +42,11 @@ extension DatabaseManager {
     func populateAlbumArtworkForTracks(_ tracks: inout [Track]) {
         do {
             let fallbackTracks = tracks.filter { $0.albumArtworkData == nil && $0.trackId != nil }
-            let result = try core.artworkBatch(
+            let (artworkByAlbum, artworkByTrack) = try artworkMaps(core.artworkBatch(
                 albumIds: tracks.compactMap(\.albumId).removingDuplicates(),
                 trackIds: fallbackTracks.compactMap(\.trackId),
                 trackAlbumIds: fallbackTracks.map(\.albumId)
-            )
-            var artworkByAlbum: [Int64: Data] = [:]
-            var artworkByTrack: [Int64: Data] = [:]
-            for row in try rows(result) {
-                guard let id: Int64 = row["id"], let data: Data = row["artwork"] else { continue }
-                let kind: String = row["kind"]
-                if kind == "album" { artworkByAlbum[id] = data } else { artworkByTrack[id] = data }
-            }
+            ))
             for index in tracks.indices {
                 if let id = tracks[index].albumId, let data = artworkByAlbum[id] {
                     tracks[index].albumArtworkData = data
@@ -72,10 +68,7 @@ extension DatabaseManager {
         }
         guard !ids.isEmpty else { return }
         do {
-            var thumbnails: [Int64: Data] = [:]
-            for row in try rows(core.albumArtworks(ids: ids, thumbnail: true)) {
-                if let id: Int64 = row["id"], let data: Data = row["artwork"] { thumbnails[id] = data }
-            }
+            let thumbnails = try artworkMaps(core.albumArtworks(ids: ids, thumbnail: true)).album
             var filled = 0
             for index in tracks.indices {
                 if let limit, filled >= limit { break }

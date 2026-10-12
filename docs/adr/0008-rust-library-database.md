@@ -38,6 +38,14 @@ strings and images own their storage, and the source Rust buffer is freed on
 success or error. Wire-format tests and an AddressSanitizer reader check cover
 this boundary.
 
+Bulk artwork reads (track lists with artwork, artwork batches, album thumbnails)
+bypass that wire format. Each cover is copied once from SQLite into a Rust
+allocation that crosses as an `ArtworkBytes` object; Swift wraps it in
+`Data(bytesNoCopy:)` whose deallocator holds the object. This matches GRDB's
+single copy: serializing covers into the RustBuffer and copying them out again
+made loading the library's ~232 MB of artwork about 45% slower than GRDB. The
+AddressSanitizer check also covers this Data lifetime.
+
 ## Existing data
 
 The existing bundle-specific database file is opened in place. No model
