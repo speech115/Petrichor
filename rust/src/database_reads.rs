@@ -1,6 +1,9 @@
 //! Closed library read operations. List projections deliberately exclude embedded metadata/art.
-use crate::database::{DatabaseCell, DatabaseRows, DbResult, LibraryDatabase, query_rows};
-use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
+use crate::database::{
+    ArtworkBytes, DatabaseCell, DatabaseRows, DbResult, LibraryDatabase, query_rows,
+};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::ValueRef};
+use std::sync::Arc;
 
 pub(crate) const LIGHT_TRACK_COLUMNS: &str = "id,folder_id,path,title,artist,album,composer,genre,year,duration,format,lossless,codec,bitrate,sample_rate,channels,date_added,is_favorite,date_favorited,play_count,last_played_date,album_artist,track_number,disc_number,album_id,is_duplicate";
 #[derive(Clone, Debug, uniffi::Record)]
@@ -36,7 +39,34 @@ pub struct DatabaseLightTrack {
 #[derive(Clone, Debug, uniffi::Record)]
 pub struct DatabaseTrackRows {
     pub tracks: Vec<DatabaseLightTrack>,
-    pub artworks: DatabaseRows,
+    pub artworks: Vec<DatabaseArtwork>,
+}
+#[derive(Clone, Debug, uniffi::Record)]
+pub struct DatabaseArtwork {
+    pub album: bool,
+    pub id: i64,
+    pub bytes: Arc<ArtworkBytes>,
+}
+/// Reads `kind,id,artwork` rows straight into owned artwork; NULL artwork is skipped.
+fn artworks(
+    conn: &Connection,
+    sql: &str,
+    params: impl rusqlite::Params,
+) -> DbResult<Vec<DatabaseArtwork>> {
+    let mut statement = conn.prepare(sql)?;
+    let mut rows = statement.query(params)?;
+    let mut result = Vec::new();
+    while let Some(row) = rows.next()? {
+        let (ValueRef::Blob(bytes) | ValueRef::Text(bytes)) = row.get_ref(2)? else {
+            continue;
+        };
+        result.push(DatabaseArtwork {
+            album: matches!(row.get_ref(0)?, ValueRef::Text(b"album")),
+            id: row.get(1)?,
+            bytes: Arc::new(bytes.to_vec().into()),
+        });
+    }
+    Ok(result)
 }
 fn light_track(row: &[DatabaseCell], playlist_date: Option<usize>) -> DbResult<DatabaseLightTrack> {
     let string = |index: usize| -> DbResult<String> {
@@ -124,10 +154,7 @@ pub(crate) fn decorate_tracks(
     rows: DatabaseRows,
     artwork: bool,
 ) -> DbResult<DatabaseTrackRows> {
-    let mut artworks = DatabaseRows {
-        columns: vec!["kind".into(), "id".into(), "artwork".into()],
-        rows: vec![],
-    };
+    let mut decorations = Vec::new();
     if artwork {
         let album_column = rows
             .columns
@@ -145,7 +172,7 @@ pub(crate) fn decorate_tracks(
                 album_ids.insert(value);
             }
         }
-        let albums = query_rows(
+        let albums = artworks(
             conn,
             &format!(
                 "SELECT 'album' AS kind,id,artwork_data AS artwork FROM albums WHERE id IN ({}) AND artwork_data IS NOT NULL",
@@ -154,18 +181,11 @@ pub(crate) fn decorate_tracks(
             params_from_iter(album_ids),
         )?;
         let covered = albums
-            .rows
             .iter()
-            .filter_map(|r| {
-                if let DatabaseCell::Integer { value } = r[1] {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
+            .map(|artwork| artwork.id)
             .collect::<std::collections::HashSet<_>>();
         let track_ids=rows.rows.iter().filter(|r|!matches!(r[album_column],DatabaseCell::Integer{value} if covered.contains(&value))).map(|r|r[id_column].clone()).collect::<Vec<_>>();
-        let fallback = query_rows(
+        let fallback = artworks(
             conn,
             &format!(
                 "SELECT 'track' AS kind,id,track_artwork_data AS artwork FROM tracks WHERE id IN ({}) AND track_artwork_data IS NOT NULL",
@@ -173,8 +193,8 @@ pub(crate) fn decorate_tracks(
             ),
             params_from_iter(track_ids),
         )?;
-        artworks.rows = albums.rows;
-        artworks.rows.extend(fallback.rows);
+        decorations = albums;
+        decorations.extend(fallback);
     }
     Ok(DatabaseTrackRows {
         tracks: rows
@@ -189,7 +209,7 @@ pub(crate) fn decorate_tracks(
                 )
             })
             .collect::<DbResult<_>>()?,
-        artworks,
+        artworks: decorations,
     })
 }
 pub(crate) fn tracks(
@@ -540,7 +560,7 @@ impl LibraryDatabase {
         album_ids: Vec<i64>,
         track_ids: Vec<i64>,
         track_album_ids: Vec<Option<i64>>,
-    ) -> DbResult<DatabaseRows> {
+    ) -> DbResult<Vec<DatabaseArtwork>> {
         if track_ids.len() != track_album_ids.len() {
             return Err(crate::database::invalid(
                 "Artwork IDs have different widths",
@@ -552,15 +572,15 @@ impl LibraryDatabase {
             let mut args=Vec::new();
             for (id,album_id) in track_ids.into_iter().zip(track_album_ids) {args.push(integer(id));args.push(album_id.map(integer).unwrap_or(DatabaseCell::Null));}
             args.extend(album_ids.into_iter().map(integer));
-            query_rows(c,&sql,params_from_iter(args))
+            artworks(c,&sql,params_from_iter(args))
         })
     }
-    pub fn album_artworks(&self, ids: Vec<i64>, thumbnail: bool) -> DbResult<DatabaseRows> {
+    pub fn album_artworks(&self, ids: Vec<i64>, thumbnail: bool) -> DbResult<Vec<DatabaseArtwork>> {
         self.read(|c| {
-            query_rows(
+            artworks(
                 c,
                 &format!(
-                    "SELECT id,{} AS artwork FROM albums WHERE id IN ({})",
+                    "SELECT 'album' AS kind,id,{} AS artwork FROM albums WHERE id IN ({})",
                     if thumbnail {
                         "artwork_thumbnail"
                     } else {
@@ -655,41 +675,38 @@ mod tests {
         let db = fixture();
         let light = db.all_tracks(true, false).unwrap();
         assert_eq!(LIGHT_TRACK_COLUMNS.split(',').count(), 26);
-        assert!(light.artworks.rows.is_empty());
+        assert!(light.artworks.is_empty());
         assert_eq!(ids(light), vec![3, 1]);
+        let summary = |artworks: Vec<DatabaseArtwork>| {
+            artworks
+                .iter()
+                .map(|a| (a.album, a.id, a.bytes.as_slice().to_vec()))
+                .collect::<Vec<_>>()
+        };
         let stale = db.artwork_batch(vec![], vec![1], vec![None]).unwrap();
-        assert_eq!(
-            stale.rows[0][2],
-            DatabaseCell::Blob {
-                value: vec![9].into()
-            }
-        );
+        assert_eq!(summary(stale), vec![(false, 1, vec![9])]);
         let batch = db
             .artwork_batch(vec![1], vec![1, 3], vec![Some(1), Some(2)])
             .unwrap();
-        assert_eq!(batch.rows.len(), 2);
+        assert_eq!(
+            summary(batch),
+            vec![(true, 1, vec![1, 2]), (false, 3, vec![7])]
+        );
         assert!(db.artwork_batch(vec![], vec![1], vec![]).is_err());
         assert_eq!(ids(db.tracks_by_ids(vec![2], false).unwrap()), vec![2]);
         assert_eq!(
-            db.tracks_by_ids(vec![1, 2], true)
-                .unwrap()
-                .artworks
-                .rows
-                .len(),
+            db.tracks_by_ids(vec![1, 2], true).unwrap().artworks.len(),
             1
         );
         let artwork = db.tracks_by_ids(vec![1, 3], true).unwrap();
         assert_eq!(
-            artwork.artworks.rows[0].last(),
-            Some(&DatabaseCell::Blob {
-                value: vec![1, 2].into()
-            })
+            summary(artwork.artworks),
+            vec![(true, 1, vec![1, 2]), (false, 3, vec![7])]
         );
+        // Album 2 has NULL artwork and is skipped rather than returned empty.
         assert_eq!(
-            artwork.artworks.rows[1].last(),
-            Some(&DatabaseCell::Blob {
-                value: vec![7].into()
-            })
+            summary(db.album_artworks(vec![1, 2], true).unwrap()),
+            vec![(true, 1, vec![3])]
         );
         assert_eq!(
             ids(db
