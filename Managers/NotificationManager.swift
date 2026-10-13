@@ -1,16 +1,13 @@
 //
 // NotificationManager
 //
-// In-app notification tray state: transient error/warning/info messages plus
-// the long-running "activity in progress" flag scan/optimize code drives.
-// Shared by both platforms (`DM*`/`LM*` scan code and `PlaybackManager` post
-// through it, iOS's `SettingsScreen` reads its activity state directly), so
-// it lives here rather than in `Views/Components/Widgets/NotificationTray.swift`,
-// which now holds only the macOS tray UI (`NotificationTray`, `NotificationPopover`,
-// `NotificationRow`) that renders it.
+// The "activity in progress" flag scan/optimize code drives, plus a message
+// sink for scan and playback errors. Messages go to the log only: the macOS
+// toolbar notifications popover was removed.
 //
 
-import SwiftUI
+import Combine
+import Foundation
 
 // MARK: - Notification Types
 
@@ -18,35 +15,6 @@ enum NotificationType {
     case info
     case warning
     case error
-
-    var icon: String {
-        switch self {
-        case .info: return "info.circle.fill"
-        case .warning: return "exclamationmark.triangle.fill"
-        case .error: return "xmark.circle.fill"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .info: return .accentColor
-        case .warning: return .orange
-        case .error: return .red
-        }
-    }
-}
-
-struct NotificationMessage: Identifiable {
-    let id = UUID()
-    let type: NotificationType
-    let title: String
-    let timestamp: Date
-
-    init(type: NotificationType, title: String) {
-        self.type = type
-        self.title = title
-        self.timestamp = Date()
-    }
 }
 
 // MARK: - Notification Manager
@@ -58,7 +26,6 @@ class NotificationManager: ObservableObject {
     @Published var isActivityInProgress = false
     @Published var activityMessage = ""
     @Published var activityProgress: ActivityProgress?
-    @Published var messages: [NotificationMessage] = []
 
     private var lastProgressUpdateTime: Date = .distantPast
     private let progressUpdateInterval: TimeInterval = 0.5
@@ -74,10 +41,9 @@ class NotificationManager: ObservableObject {
         }
     }
 
-    private let messagesKey = "NotificationTrayMessages"
-
     private init() {
-        loadPersistedMessages()
+        // Drop messages persisted by the removed notifications popover
+        UserDefaults.standard.removeObject(forKey: "NotificationTrayMessages")
     }
 
     // MARK: - Activity Management
@@ -110,63 +76,10 @@ class NotificationManager: ObservableObject {
     // MARK: - Message Management
 
     func addMessage(_ type: NotificationType, _ title: String) {
-        let message = NotificationMessage(type: type, title: title)
-        messages.append(message)
-        saveMessages()
-    }
-
-    func clearMessages() {
-        messages.removeAll()
-        saveMessages()
-    }
-
-    func removeMessage(_ message: NotificationMessage) {
-        messages.removeAll { $0.id == message.id }
-        saveMessages()
-    }
-
-    // MARK: - Persistence
-
-    private func saveMessages() {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-
-        if let encoded = try? encoder.encode(messages) {
-            UserDefaults.standard.set(encoded, forKey: messagesKey)
-        }
-    }
-
-    private func loadPersistedMessages() {
-        guard let data = UserDefaults.standard.data(forKey: messagesKey) else { return }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        if let decoded = try? decoder.decode([NotificationMessage].self, from: data) {
-            messages = decoded
+        switch type {
+        case .info: Logger.info(title)
+        case .warning: Logger.warning(title)
+        case .error: Logger.error(title)
         }
     }
 }
-
-// Make NotificationMessage conform to Codable for persistence
-extension NotificationMessage: Codable {
-    enum CodingKeys: String, CodingKey {
-        case type, title, timestamp
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(type, forKey: .type)
-        try container.encode(title, forKey: .title)
-        try container.encode(timestamp, forKey: .timestamp)
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.type = try container.decode(NotificationType.self, forKey: .type)
-        self.title = try container.decode(String.self, forKey: .title)
-        self.timestamp = try container.decode(Date.self, forKey: .timestamp)
-    }
-}
-
-extension NotificationType: Codable {}

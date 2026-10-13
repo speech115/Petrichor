@@ -394,7 +394,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "closeToMenubar": true,
             "startAtLogin": false,
             "hideDuplicateTracks": true,
-            "autoScanInterval": "every60Minutes",
             "colorMode": "Auto",
             "showFoldersTab": false,
             "showTrackTechnicalInfo": true,
