@@ -10,16 +10,20 @@ struct MainSidebarView: View {
 
     @Binding var selectedTab: Sections
     @Binding var selectedPlaylist: Playlist?
-    /// Called on every row click, including the already selected row.
+    /// An album or artist page covers the center: no row is selected then,
+    /// so clicking the row it came from opens that row again.
+    let isShowingPage: Bool
+    /// Called whenever a row is picked.
     let onSelect: () -> Void
 
-    @State private var hoveredItemID: UUID?
     @State private var collageArtwork: [UUID: SidebarItemArtwork] = [:]
     @State private var playlistToDelete: Playlist?
     @State private var showingDeleteConfirmation = false
 
     var body: some View {
-        List {
+        // Native selection, as the Music app's sidebar: the whole row takes the
+        // click and selects on mouse down, with the system highlight and arrow keys.
+        List(selection: selection) {
             let displayed = displayedPlaylists
 
             Section {
@@ -85,11 +89,37 @@ struct MainSidebarView: View {
 
     // MARK: - Rows
 
-    private func sectionRow(_ section: Sections) -> some View {
-        row(SectionSidebarItem(section: section), isSelected: selectedTab == section) {
-            selectedTab = section
+    private enum Selection: Hashable {
+        case section(Sections)
+        case playlist(UUID)
+    }
+
+    private var selection: Binding<Selection?> {
+        Binding {
+            guard !isShowingPage else { return nil }
+            switch selectedTab {
+            case .home, .discover: return .section(selectedTab)
+            case .playlists: return selectedPlaylist.map { .playlist($0.id) }
+            case .library, .search: return nil
+            }
+        } set: { newValue in
+            switch newValue {
+            case .section(let section):
+                selectedTab = section
+            case .playlist(let id):
+                guard let playlist = playlistManager.playlists.first(where: { $0.id == id }) else { return }
+                selectedPlaylist = playlist
+                selectedTab = .playlists
+            case nil:
+                return
+            }
             onSelect()
         }
+    }
+
+    private func sectionRow(_ section: Sections) -> some View {
+        SidebarRowLabel(item: SectionSidebarItem(section: section))
+            .tag(Selection.section(section))
     }
 
     /// Service sections keep their pinned order, as on the iPhone, so only
@@ -99,36 +129,20 @@ struct MainSidebarView: View {
             PlaylistSidebarItem(playlist: $0, artworkOverride: collageArtwork[$0.id])
         }
         return ForEach(items) { item in
-            row(item, isSelected: selectedTab == .playlists && selectedPlaylist?.id == item.playlist.id) {
-                selectedPlaylist = item.playlist
-                selectedTab = .playlists
-                onSelect()
-            }
-            .moveDisabled(!movable || !item.playlist.isUserEditable)
-            .contextMenu {
-                ForEach(playlistMenuItems(for: item.playlist), id: \.id) { menuItem in
-                    ContextMenuItemView(item: menuItem)
+            SidebarRowLabel(item: item)
+                .tag(Selection.playlist(item.playlist.id))
+                .moveDisabled(!movable || !item.playlist.isUserEditable)
+                .contextMenu {
+                    ForEach(playlistMenuItems(for: item.playlist), id: \.id) { menuItem in
+                        ContextMenuItemView(item: menuItem)
+                    }
                 }
-            }
         }
         .onMove { offsets, destination in
             var reordered = items.map(\.playlist)
             reordered.move(fromOffsets: offsets, toOffset: destination)
             handlePlaylistReorder(reordered)
         }
-    }
-
-    private func row<Item: SidebarItem>(_ item: Item, isSelected: Bool, onTap: @escaping () -> Void) -> some View {
-        SidebarItemRow(
-            item: item,
-            isSelected: isSelected,
-            isHovered: hoveredItemID == item.id,
-            showCount: false,
-            onTap: onTap,
-            // swiftlint:disable:next trailing_closure
-            onHover: { hoveredItemID = $0 ? item.id : nil }
-        )
-        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
     }
 
     private var playlistsHeader: some View {
@@ -248,4 +262,44 @@ private struct SectionSidebarItem: SidebarItem {
     var title: String { section.label }
     var subtitle: String? { nil }
     var icon: String? { section.icon }
+}
+
+/// A sidebar row's content; the list draws the highlight.
+private struct SidebarRowLabel<Item: SidebarItem>: View {
+    let item: Item
+
+    var body: some View {
+        Label {
+            Text(item.title)
+                .lineLimit(1)
+                .help(item.title)
+        } icon: {
+            switch item.artwork {
+            case .data(let data):
+                if let image = PlatformImage(data: data) {
+                    Image(platformImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 20, height: 20)
+                        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                } else {
+                    symbol
+                }
+            case .playlistCover(let cover):
+                PlaylistCoverView(cover: cover, cornerRadius: 3)
+                    .frame(width: 20, height: 20)
+            case nil:
+                symbol
+            }
+        }
+    }
+
+    @ViewBuilder private var symbol: some View {
+        let icon = item.icon ?? Icons.musicNoteList
+        if icon.hasPrefix("custom.") {
+            Image(icon)
+        } else {
+            Image(systemName: icon)
+        }
+    }
 }
