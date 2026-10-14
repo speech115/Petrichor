@@ -253,6 +253,27 @@ struct QueueBackendTests {
     }
 }
 
+/// The mini player, full player and remote commands all read the manager's
+/// `isPlaying`, which follows these callbacks. A resume that reached the
+/// delegate only once audio started (and never, if it fell back to paused)
+/// left the app showing the wrong button after a relaunch or a background
+/// return.
+@Test func resumeAndPauseReachTheDelegateImmediately() throws {
+    try withFixture { url in
+        let backend = AVQueuePlayerBackend()
+        let delegate = NowPlayingTestDelegate()
+        backend.backendDelegate = delegate
+        defer { backend.stop() }
+        backend.setQueue([makeEntry("a", url: url)], startingAt: 0, startPaused: true)
+        #expect(delegate.states.last == .paused)
+        backend.resume()
+        #expect(delegate.states.last == .playing, "resume сообщает playing сразу, не дожидаясь звука")
+        #expect(backend.state == .playing)
+        backend.pause()
+        #expect(delegate.states.last == .paused)
+    }
+}
+
 @Test func automaticTrackAdvanceKeepsLockScreenSeekable() async throws {
     let first = try makeSilentWAV(seconds: 1)
     let second = try makeSilentWAV(seconds: 6)
@@ -300,12 +321,13 @@ struct QueueBackendTests {
 private final class NowPlayingTestDelegate: PlaybackBackendDelegate {
     weak var backend: AVQueuePlayerBackend?
     var currentID: String?
+    var states: [AudioPlayerState] = []
 
     func backendDidStartPlaying(with entryId: AudioEntryId) {
         currentID = entryId.id
         backend?.setNowPlayingMetadata(NowPlayingMetadata(title: entryId.id))
     }
-    func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) {}
+    func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) { states.append(newState) }
     func backendDidFinishPlaying(entryId: AudioEntryId, stopReason: AudioPlayerStopReason, progress: Double, duration: Double) {}
     func backendUnexpectedError(error: AudioPlayerError) { Issue.record("Unexpected playback error: \(error)") }
     func backendDidFinishBuffering(with entryId: AudioEntryId) {}

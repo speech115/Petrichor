@@ -515,9 +515,9 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private func notifyStateIfChanged(observedStatus: ObservedTimeControlStatus) {
         let newState: AudioPlayerState
         switch observedStatus {
-        case .playing:
-            newState = .playing
-        case .paused, .waiting, .unknown:
+        case .playing, .waiting:
+            newState = entries.isEmpty ? .stopped : .playing
+        case .paused, .unknown:
             newState = entries.isEmpty ? .stopped : .paused
         }
         guard newState != previousState else { return }
@@ -529,11 +529,17 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// `AVPlayer.TimeControlStatus` has no "stopped" case of its own - an empty
     /// queue is what `AudioPlayerState.stopped` means here, same as `.paused`
     /// with nothing queued in `AVAudioPlaybackBackend`.
+    ///
+    /// `.waitingToPlayAtSpecifiedRate` is the intent to play (`rate` is already
+    /// 1, and the lock screen is published that way). Folding it into `.paused`
+    /// hid `resume()` from the delegate until playback actually started, and a
+    /// play that then fell back to `.paused` was deduplicated away, leaving the
+    /// app's play/pause state stuck on "playing" over a silent player.
     private func mapState(_ status: AVPlayer.TimeControlStatus) -> AudioPlayerState {
         switch status {
-        case .playing:
-            return .playing
-        case .paused, .waitingToPlayAtSpecifiedRate:
+        case .playing, .waitingToPlayAtSpecifiedRate:
+            return entries.isEmpty ? .stopped : .playing
+        case .paused:
             return entries.isEmpty ? .stopped : .paused
         @unknown default:
             return entries.isEmpty ? .stopped : .paused
@@ -682,7 +688,7 @@ extension AVQueuePlayerBackend {
     }
 
     func togglePlayPause() {
-        if player.timeControlStatus == .playing {
+        if state == .playing {
             player.pause()
         } else {
             activateSessionIfNeeded()

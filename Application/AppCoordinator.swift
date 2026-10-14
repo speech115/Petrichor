@@ -87,6 +87,9 @@ class AppCoordinator: ObservableObject {
         UserDefaults.standard.removeObject(forKey: playbackUIStateKey)
         playbackManager.restoredUITrack = nil
         playbackManager.currentTrack = nil
+        // Play pressed on the restored UI track latches until the restore lands;
+        // a restore that is dropped instead must not leave it showing "playing".
+        playbackManager.abandonPendingPlayOnRestore()
     }
     
     func savePlaybackState() {
@@ -259,6 +262,7 @@ class AppCoordinator: ObservableObject {
         
         // Don't restore if we didn't have folders at startup
         if !hadFoldersAtStartup {
+            playbackManager.abandonPendingPlayOnRestore()
             isRestoringPlayback = false
             return
         }
@@ -276,6 +280,7 @@ class AppCoordinator: ObservableObject {
     
     private func performActualRestoration() {
         guard let data = UserDefaults.standard.data(forKey: playbackStateKey) else {
+            playbackManager.abandonPendingPlayOnRestore()
             isRestoringPlayback = false
             return
         }
@@ -412,6 +417,8 @@ class AppCoordinator: ObservableObject {
             playbackManager.restoredUITrack = nil
             playbackManager.prepareTrackForRestoration(currentTrack, at: state.playbackPosition)
             Logger.info("Playback state restored")
+        } else {
+            playbackManager.abandonPendingPlayOnRestore()
         }
     }
     
