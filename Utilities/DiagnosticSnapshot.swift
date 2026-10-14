@@ -204,51 +204,9 @@ enum DiagnosticSnapshot {
         return sysctlbyname(name, &value, &size, nil, 0) == 0 ? Int(value) : nil
     }
 
-    /// Default visible track-table columns in their default arrangement.
-    /// Mirrors `TrackTableView`'s `.defaultVisibility(.visible)` columns in
-    /// declaration order. Keep in sync if columns are added/reordered there.
-    private static let defaultTrackColumns: [String] = [
-        "title", "artist", "album", "year", "duration"
-    ]
-
-    /// Extracts the user's track table column setup from SwiftUI's
-    /// `TableColumnCustomization` blob. Returns visible columns; hidden
-    /// columns are omitted. Falls back to the defaults when the user has
-    /// not customized columns yet.
-    ///
-    /// Note: array order reflects SwiftUI's internal customization storage
-    /// (roughly the order columns were last touched), not the visual
-    /// left-to-right order in the UI. SwiftUI does not expose visual
-    /// column order through any public API on macOS 14/15. Treat this as
-    /// a visibility report only.
+    /// The track table's visible columns, as `TrackTable` stores them.
     private static func trackColumns(from defaults: UserDefaults) -> [String] {
-        guard let data = defaults.data(forKey: "trackTableColumnCustomizationData"),
-              !data.isEmpty,
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let perColumnState = json["perColumnState"] as? [[String: Any]],
-              !perColumnState.isEmpty else {
-            return defaultTrackColumns
-        }
-
-        var result: [String] = []
-        var pendingId: String?
-
-        for entry in perColumnState {
-            if let base = entry["base"] as? [String: Any],
-               let explicit = base["explicit"] as? [String: Any],
-               let id = explicit["_0"] as? String {
-                pendingId = id
-            } else if let id = pendingId {
-                let visibility = entry["visibility"] as? [String: Any]
-                let isHidden = visibility?["hidden"] != nil
-                if !isHidden {
-                    result.append(id)
-                }
-                pendingId = nil
-            }
-        }
-
-        return result.isEmpty ? defaultTrackColumns : result
+        defaults.stringArray(forKey: "trackTableVisibleColumns") ?? ["title", "artist", "album", "year", "duration"]
     }
 
     /// Returns a stable, anonymous identifier for this installation.

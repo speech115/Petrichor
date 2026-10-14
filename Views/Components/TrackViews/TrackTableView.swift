@@ -23,43 +23,19 @@ struct TrackTableView: View {
 
     @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var playlistManager: PlaylistManager
+    @EnvironmentObject var libraryManager: LibraryManager
 
     @State private var selection: Set<Track.ID> = []
     @State private var sortedTracks: [Track] = []
     @State private var trackFavorites: [Int64: Bool] = [:]
-    @FocusState private var isTableFocused: Bool
 
     @State private var isCustomSort: Bool = false
-    @State private var hasInitializedCustomization = false
-    @State private var columnCustomization: TableColumnCustomization<Track> = {
-        if let data = UserDefaults.standard.data(forKey: "trackTableColumnCustomizationData"),
-           !data.isEmpty,
-           let decoded = try? JSONDecoder().decode(TableColumnCustomization<Track>.self, from: data) {
-            return decoded
-        }
-        return TableColumnCustomization<Track>()
-    }()
-
-    @AppStorage("trackTableColumnCustomizationData")
-    private var columnCustomizationData = Data()
-
-    // ponytail: album column changes last until the page closes; persist them
-    // under their own key if people start customizing album pages.
-    @State private var albumColumnCustomization: TableColumnCustomization<Track> = {
-        var customization = TableColumnCustomization<Track>()
-        customization[visibility: "trackNumber"] = .visible
-        customization[visibility: "album"] = .hidden
-        customization[visibility: "year"] = .hidden
-        return customization
-    }()
+    @State private var sortGeneration = 0
 
     /// Album rows carry no artwork: the cover is already in the page header.
     private var rowSize: TableRowSize {
         layout == .album ? .compact : tableRowSize
     }
-
-    private static let trackFont = Font.system(size: 13, weight: .regular)
-    private static let currentTrackFont = Font.system(size: 13, weight: .medium)
 
     private func isCurrentTrack(_ track: Track) -> Bool {
         guard let currentTrack = playbackManager.currentTrack else { return false }
@@ -67,10 +43,6 @@ struct TrackTableView: View {
             return currentId == trackId
         }
         return currentTrack.url.path == track.url.path
-    }
-
-    private func isPlaying(_ track: Track) -> Bool {
-        isCurrentTrack(track) && playbackManager.isPlaying
     }
 
     private func isFavorite(_ track: Track) -> Bool {
@@ -84,276 +56,102 @@ struct TrackTableView: View {
     }
 
     var body: some View {
-        content
-            .focused($isTableFocused)
-            // Arrow keys only move the selection while the table holds focus.
-            .onChange(of: selection) { oldValue, newValue in
-                guard oldValue != newValue, !newValue.isEmpty else { return }
-                isTableFocused = true
-            }
-            .onChange(of: columnCustomization) { _, newValue in
-                if hasInitializedCustomization {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.saveColumnCustomization(newValue)
-                    }
-                }
-            }
-            .onChange(of: sortOrder) { oldValue, newValue in
-                if oldValue != newValue {
-                    // Table column header click overrides custom sort
-                    if isCustomSort {
-                        isCustomSort = false
-                    }
-
-                    if let playlistID = playlistID {
-                        PlaylistSortManager.shared.setSortField(TrackSortField.detect(from: newValue), for: playlistID)
-                        PlaylistSortManager.shared.setSortAscending(TrackSortField.isAscending(from: newValue), for: playlistID)
-                    }
-
-                    performBackgroundSort(with: newValue)
-
-                    saveSortOrderToUserDefaults(newValue, key: "trackTableSortOrder")
-
-                    NotificationCenter.default.post(
-                        name: .trackTableSortChanged,
-                        object: nil,
-                        userInfo: ["sortOrder": newValue, "fromTable": true]
-                    )
-                }
-            }
-            .onChange(of: tracks) { _, newTracks in
-                if !newTracks.isEmpty {
-                    // Re-sync custom sort state for the current playlist
-                    if let playlistID = playlistID {
-                        isCustomSort = PlaylistSortManager.shared.getSortField(for: playlistID) == .custom
-                    }
-
-                    if isCustomSort {
-                        sortedTracks = newTracks
-                    } else {
-                        performBackgroundSort(with: sortOrder)
-                    }
-
-                    trackFavorites = Dictionary(uniqueKeysWithValues:
-                        newTracks.compactMap { track in
-                            guard let trackId = track.trackId else { return nil }
-                            return (trackId, track.isFavorite)
-                        }
-                    )
-                }
-            }
-            .onAppear {
-                initializeSortedTracks()
-                hasInitializedCustomization = true
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .playEntityTracks)) { notification in
-                handlePlayEntityNotification(notification)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .playPlaylistTracks)) { notification in
-                handlePlayPlaylistNotification(notification)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .trackTableSortChanged)) { notification in
-                handleSortChangedNotification(notification)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .trackTableRowSizeChanged)) { notification in
-                handleRowSizeChangedNotification(notification)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { notification in
-                handleTrackFavoriteStatusChanged(notification)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .createPlaylistFromSelection)) { _ in
-                if !selection.isEmpty {
-                    let selectedTracks = sortedTracks.filter { selection.contains($0.id) }
-                    if !selectedTracks.isEmpty {
-                        playlistManager.showCreatePlaylistModal(with: selectedTracks)
-                    }
-                }
-            }
-    }
-
-    private var tableView: some View {
-        Table(
-            sortedTracks,
+        TrackTable(
+            listID: playlistID ?? entityID,
+            tracks: sortedTracks,
             selection: $selection,
             sortOrder: $sortOrder,
-            columnCustomization: layout == .album ? $albumColumnCustomization : $columnCustomization
-        ) {
-            Group {
-                // Track Number
-                TableColumn("#", value: \.sortableTrackNumber) { track in
-                    Text(showsTrackNumbers ? track.trackNumber.map(String.init) ?? "" : "")
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+            isCustomSort: isCustomSort,
+            layout: layout,
+            rowSize: rowSize,
+            showsTrackNumbers: showsTrackNumbers,
+            database: libraryManager.databaseManager,
+            currentTrack: playbackManager.currentTrack,
+            isPlaying: playbackManager.isPlaying,
+            isFavorite: isFavorite,
+            onPlayTrack: handlePlayTrack,
+            onTogglePlayPause: { playbackManager.togglePlayPause() },
+            onPrimaryAction: handleDoubleTap,
+            onToggleFavorite: { track, isFavorite in
+                playlistManager.toggleFavorite(for: track, currentState: isFavorite)
+            },
+            contextMenuItems: { contextMenuItems($0, playbackManager) }
+        )
+        .onChange(of: sortOrder) { oldValue, newValue in
+            if oldValue != newValue {
+                // Table column header click overrides custom sort
+                if isCustomSort {
+                    isCustomSort = false
                 }
-                .width(min: 20, ideal: 28, max: 44)
-                .customizationID("trackNumber")
-                .defaultVisibility(.hidden)
 
-                // Favorite
-                TableColumn("★", value: \.sortableIsFavorite) { track in
-                    FavoriteButtonCell(
-                        track: track,
-                        isFavorite: isFavorite(track)
-                    )
-                    .frame(maxWidth: .infinity, alignment: .center)
+                if let playlistID = playlistID {
+                    PlaylistSortManager.shared.setSortField(TrackSortField.detect(from: newValue), for: playlistID)
+                    PlaylistSortManager.shared.setSortAscending(TrackSortField.isAscending(from: newValue), for: playlistID)
                 }
-                .width(15)
-                .customizationID("favorite")
-                .defaultVisibility(.hidden)
 
-                // Disc Number
-                TableColumn("Disc", value: \.sortableDiscNumber) { track in
-                    Text(track.discNumber.map(String.init) ?? "")
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 20)
-                .customizationID("discNumber")
-                .defaultVisibility(.hidden)
-            }
+                performBackgroundSort(with: newValue)
 
-            Group {
-                // Title
-                TableColumn("Title", value: \.title) { track in
-                    TrackTitleCell(
-                        tableRowSize: rowSize,
-                        track: track,
-                        isCurrentTrack: isCurrentTrack(track),
-                        isPlaying: isPlaying(track),
-                        isSelected: selection.contains(track.id),
-                        handlePlayTrack: handlePlayTrack
-                    ) { playbackManager.togglePlayPause() }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 200)
-                .customizationID("title")
-                .defaultVisibility(.visible)
+                saveSortOrderToUserDefaults(newValue, key: "trackTableSortOrder")
 
-                // Artist
-                TableColumn("Artist", value: \.artist) { track in
-                    Text(track.displayArtist)
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .lineLimit(1)
-                        .link { TrackContextMenu.goToArtist(of: track) }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 100)
-                .customizationID("artist")
-                .defaultVisibility(.visible)
-
-                // Album
-                TableColumn("Album", value: \.album) { track in
-                    Text(track.displayAlbum)
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .lineLimit(1)
-                        .link { TrackContextMenu.goToAlbum(of: track) }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 100)
-                .customizationID("album")
-                .defaultVisibility(.visible)
-
-                // Genre
-                TableColumn("Genre", value: \.genre) { track in
-                    Text(track.displayGenre)
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 80)
-                .customizationID("genre")
-                .defaultVisibility(.hidden)
-
-                // Year
-                TableColumn("Year", value: \.year) { track in
-                    Text(track.displayYear)
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 40)
-                .customizationID("year")
-                .defaultVisibility(.visible)
-
-                // Composer
-                TableColumn("Composer", value: \.composer) { track in
-                    Text(track.displayComposer)
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 100)
-                .customizationID("composer")
-                .defaultVisibility(.hidden)
-            }
-
-            Group {
-                // Filename
-                TableColumn("Filename", value: \.filename) { track in
-                    Text(track.filename)
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 200)
-                .customizationID("filename")
-                .defaultVisibility(.hidden)
-
-                // Date Added
-                TableColumn("Date Added", value: \.sortableDateAdded) { track in
-                    Text(track.dateAdded.map(formatDate) ?? "")
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 100)
-                .customizationID("dateAdded")
-                .defaultVisibility(.hidden)
-
-                // Duration
-                TableColumn("Duration", value: \.duration) { track in
-                    Text(HelperUtils.formattedDuration(track.duration))
-                        .font(isCurrentTrack(track) ? Self.currentTrackFont : Self.trackFont)
-                        .foregroundColor(.secondary)
-                        .monospacedDigit()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .width(min: 40, ideal: 50, max: 100)
-                .customizationID("duration")
-                .defaultVisibility(.visible)
+                NotificationCenter.default.post(
+                    name: .trackTableSortChanged,
+                    object: nil,
+                    userInfo: ["sortOrder": newValue, "fromTable": true]
+                )
             }
         }
-        .scrollContentBackground(.hidden)
-        .tableColumnHeaders(layout == .album ? .hidden : .visible)
-        .alternatingRowBackgrounds(layout == .album ? .disabled : .enabled)
-        .environment(\.defaultMinListRowHeight, rowSize.rowHeight)
-    }
-
-    // MARK: - Content
-
-    private var content: some View {
-        tableView
-            #if os(macOS)
-            .contextMenu(forSelectionType: Track.ID.self) { selectedIDs in
-                let selectedTracks = sortedTracks.filter { selectedIDs.contains($0.id) }
-                if !selectedTracks.isEmpty {
-                    ForEach(contextMenuItems(selectedTracks, playbackManager), id: \.id) { item in
-                        contextMenuItem(item)
-                    }
+        .onChange(of: tracks) { _, newTracks in
+            if !newTracks.isEmpty {
+                // Re-sync custom sort state for the current playlist
+                if let playlistID = playlistID {
+                    isCustomSort = PlaylistSortManager.shared.getSortField(for: playlistID) == .custom
                 }
-            } primaryAction: { selectedIDs in
-                if let trackID = selectedIDs.first,
-                   let track = tracks.first(where: { $0.id == trackID }) {
-                    handleDoubleTap(on: track)
+
+                if isCustomSort {
+                    sortedTracks = newTracks
+                } else {
+                    performBackgroundSort(with: sortOrder)
+                }
+
+                trackFavorites = Dictionary(uniqueKeysWithValues:
+                    newTracks.compactMap { track in
+                        guard let trackId = track.trackId else { return nil }
+                        return (trackId, track.isFavorite)
+                    }
+                )
+            }
+        }
+        .onAppear {
+            initializeSortedTracks()
+        }
+        // A playlist page keeps this table when another playlist opens; the
+        // new tracks arrive through `onChange(of: tracks)`.
+        .onChange(of: playlistID) {
+            selection = []
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .playEntityTracks)) { notification in
+            handlePlayEntityNotification(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .playPlaylistTracks)) { notification in
+            handlePlayPlaylistNotification(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .trackTableSortChanged)) { notification in
+            handleSortChangedNotification(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .trackTableRowSizeChanged)) { notification in
+            handleRowSizeChangedNotification(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .trackFavoriteStatusChanged)) { notification in
+            handleTrackFavoriteStatusChanged(notification)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .createPlaylistFromSelection)) { _ in
+            if !selection.isEmpty {
+                let selectedTracks = sortedTracks.filter { selection.contains($0.id) }
+                if !selectedTracks.isEmpty {
+                    playlistManager.showCreatePlaylistModal(with: selectedTracks)
                 }
             }
-            #endif
+        }
     }
 
     // MARK: - Helper Methods
@@ -369,7 +167,7 @@ struct TrackTableView: View {
 
         // Follow overridden sort order for entities and playlists
         if entityID != nil || playlistID != nil {
-            sortedTracks = tracks.sorted(using: sortOrder)
+            performBackgroundSort(with: sortOrder)
             return
         }
 
@@ -379,14 +177,15 @@ struct TrackTableView: View {
            let field = TrackSortField.from(storageKey: key) {
             let comparator = field.getComparator(ascending: ascending)
             sortOrder = [comparator]
-            sortedTracks = tracks.sorted(using: [comparator])
+            performBackgroundSort(with: [comparator])
             return
         }
 
         let defaultComparator = KeyPathComparator(\Track.title, order: .forward)
         sortOrder = [defaultComparator]
-        sortedTracks = tracks.sorted(using: [defaultComparator])
+        performBackgroundSort(with: [defaultComparator])
     }
+
 
     private func handleDoubleTap(on track: Track) {
         if isCurrentTrack(track) {
@@ -408,35 +207,24 @@ struct TrackTableView: View {
         }
     }
 
-    private static let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter
-    }()
-
-    private func formatDate(_ date: Date) -> String {
-        Self.dateFormatter.string(from: date)
-    }
-
-    @ViewBuilder
-    private func contextMenuItem(_ item: ContextMenuItem) -> some View {
-        ContextMenuItemView(item: item)
-    }
-
     // MARK: - Sorting Helpers
 
+    /// Sorts off the main thread: comparing titles of a few thousand tracks
+    /// takes ~50 ms. Only the latest request's result is shown.
     private func performBackgroundSort(with newSortOrder: [KeyPathComparator<Track>]) {
+        sortGeneration &+= 1
         if isCustomSort {
             sortedTracks = tracks
             return
         }
 
+        let generation = sortGeneration
         let initialTracks = tracks
 
         Task.detached(priority: .userInitiated) {
             let sorted = initialTracks.sorted(using: newSortOrder)
             await MainActor.run {
+                guard generation == self.sortGeneration else { return }
                 self.sortedTracks = sorted
             }
         }
@@ -447,17 +235,6 @@ struct TrackTableView: View {
         let ascending = TrackSortField.isAscending(from: sortOrder)
         let storage: [String: Any] = ["key": field.storageKey, "ascending": ascending]
         UserDefaults.standard.set(storage, forKey: key)
-    }
-
-    // MARK: - Column Customization Persistence
-
-    private func saveColumnCustomization(_ newValue: TableColumnCustomization<Track>) {
-        do {
-            let data = try JSONEncoder().encode(newValue)
-            columnCustomizationData = data
-        } catch {
-            Logger.warning("Failed to encode TableColumnCustomization: \(error)")
-        }
     }
 
     // MARK: - Notification Handlers
@@ -554,221 +331,6 @@ struct TrackTableView: View {
     }
 }
 
-// MARK: - Track Artwork Cache
-
-private final class TrackArtworkCache: @unchecked Sendable {
-    static let shared = TrackArtworkCache()
-    private let cache = NSCache<NSString, PlatformImage>()
-    private let loadQueue: OperationQueue = {
-        let queue = OperationQueue()
-        queue.maxConcurrentOperationCount = max(2, ProcessInfo.processInfo.activeProcessorCount / 2)
-        queue.qualityOfService = .utility
-        return queue
-    }()
-
-    private static let pixelSize = Int(ViewDefaults.listArtworkSize * 2)
-    private static let bytesPerImage = pixelSize * pixelSize * 4
-
-    init() {
-        cache.countLimit = 500
-        cache.totalCostLimit = 32 * 1024 * 1024
-    }
-
-    private func cacheKey(for track: Track) -> NSString {
-        "\(track.trackId?.description ?? track.url.path)-trackCell" as NSString
-    }
-
-    func getCachedImage(for track: Track) -> PlatformImage? {
-        cache.object(forKey: cacheKey(for: track))
-    }
-
-    func loadImage(for track: Track, artworkLoader: (() -> Data?)? = nil) async -> PlatformImage? {
-        let key = cacheKey(for: track)
-
-        if let cached = cache.object(forKey: key) {
-            return cached
-        }
-
-        return await loadQueue.renderArtwork { [self] in
-            // Re-check cache — another operation may have loaded it while queued
-            if let cached = cache.object(forKey: key) {
-                return cached
-            }
-
-            // Decode and resize via CGContext to avoid CGImageSource errors
-            // under concurrent load from rapid scrolling. Playlist list rows
-            // arrive without display-size BLOBs; use the thumbnail when present,
-            // otherwise fetch the album/track artwork on demand.
-            guard let data = track.displayArtwork ?? artworkLoader?(),
-                  let platformImage = PlatformImage(data: data),
-                  let cgImage = platformImage.cgImage else {
-                return nil
-            }
-
-            let size = Int(ViewDefaults.listArtworkSize * 2)
-            guard let context = CGContext(
-                data: nil,
-                width: size,
-                height: size,
-                bitsPerComponent: 8,
-                bytesPerRow: 0,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-            ) else { return nil }
-
-            context.interpolationQuality = .high
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: size, height: size))
-
-            guard let resizedCG = context.makeImage() else { return nil }
-
-            let result = platformImageFrom(cgImage: resizedCG, size: size)
-            cache.setObject(result, forKey: key, cost: Self.bytesPerImage)
-            return result
-        }
-    }
-}
-
-// MARK: - Title Cell with Artwork & Playback Controls
-
-private struct TrackTitleCell: View {
-    let tableRowSize: TableRowSize
-    let track: Track
-    let isCurrentTrack: Bool
-    let isPlaying: Bool
-    let isSelected: Bool
-    let handlePlayTrack: (Track) -> Void
-    let handleTogglePlayPause: () -> Void
-
-    @EnvironmentObject private var libraryManager: LibraryManager
-    @State private var artworkImage: PlatformImage?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if tableRowSize == .expanded {
-                ZStack {
-                    if let image = artworkImage {
-                        Image(platformImage: image)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: ViewDefaults.listArtworkSize, height: ViewDefaults.listArtworkSize)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    } else {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: ViewDefaults.listArtworkSize, height: ViewDefaults.listArtworkSize)
-                            .overlay(
-                                Image(systemName: Icons.musicNote)
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.secondary)
-                            )
-                    }
-
-                    if isCurrentTrack || isSelected {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.black.opacity(0.5))
-                            .frame(width: ViewDefaults.listArtworkSize, height: ViewDefaults.listArtworkSize)
-
-                        Button(action: handleButtonAction) {
-                            Image(systemName: buttonIcon)
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .frame(width: ViewDefaults.listArtworkSize, height: ViewDefaults.listArtworkSize)
-                .animation(.none, value: isSelected)
-            } else if tableRowSize == .compact {
-                ZStack {
-                    Image(systemName: Icons.playFill)
-                        .font(.system(size: 14))
-                        .foregroundColor(.clear)
-                        .frame(width: 20, height: 20)
-
-                    if isSelected || isCurrentTrack {
-                        Button(action: handleButtonAction) {
-                            Image(systemName: buttonIcon)
-                                .font(.system(size: 14))
-                                .foregroundColor(.primary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .animation(.none, value: isSelected)
-            }
-
-            // Title text
-            Text(track.title)
-                .font(.system(size: 13, weight: isCurrentTrack ? .bold : .regular))
-                .lineLimit(1)
-                .animation(.none, value: isSelected)
-
-            Spacer()
-        }
-        .task(id: track.trackId) {
-            await loadArtwork()
-        }
-    }
-
-    // MARK: - Private Helpers
-
-    private func loadArtwork() async {
-        // Serve from cache synchronously to avoid flicker on re-render
-        if let cached = TrackArtworkCache.shared.getCachedImage(for: track) {
-            artworkImage = cached
-            return
-        }
-
-        let albumId = track.albumId
-        let trackId = track.trackId
-        let database = libraryManager.databaseManager
-        let image = await TrackArtworkCache.shared.loadImage(for: track) {
-            database.getArtworkData(albumId: albumId, trackId: trackId)
-        }
-
-        if !Task.isCancelled {
-            artworkImage = image
-        }
-    }
-
-    private func handleButtonAction() {
-        if isCurrentTrack {
-            handleTogglePlayPause()
-        } else {
-            handlePlayTrack(track)
-        }
-    }
-
-    private var buttonIcon: String {
-        if isCurrentTrack && isPlaying {
-            return Icons.pauseFill
-        } else {
-            return Icons.playFill
-        }
-    }
-}
-
-// MARK: - Favorite Button Cell
-
-private struct FavoriteButtonCell: View {
-    let track: Track
-    let isFavorite: Bool
-
-    @EnvironmentObject var playlistManager: PlaylistManager
-
-    var body: some View {
-        Button(action: {
-            playlistManager.toggleFavorite(for: track, currentState: isFavorite)
-        }, label: {
-            Image(systemName: isFavorite ? Icons.starFill : Icons.star)
-                .font(.system(size: 13))
-                .foregroundColor(isFavorite ? .yellow : .secondary)
-        })
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - Track Extension for Sorting
 
 extension Track {
@@ -791,12 +353,4 @@ extension Track {
     var sortableIsFavorite: Int {
         isFavorite ? 0 : 1
     }
-}
-
-private func platformImageFrom(cgImage: CGImage, size: Int) -> PlatformImage {
-    #if os(macOS)
-    return NSImage(cgImage: cgImage, size: NSSize(width: size, height: size))
-    #else
-    return UIImage(cgImage: cgImage)
-    #endif
 }
