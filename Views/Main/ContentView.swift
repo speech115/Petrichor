@@ -268,7 +268,8 @@ struct ContentView: View {
     private var leftSidebar: some View {
         MainSidebarView(
             selectedTab: $selectedTab,
-            selectedPlaylist: $selectedPlaylist
+            selectedPlaylist: $selectedPlaylist,
+            isShowingPage: detailEntity != nil
         ) {
             detailEntity = nil
         }
