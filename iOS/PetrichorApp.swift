@@ -125,7 +125,7 @@ struct PetrichorApp: App {
                     // database readers and CPU the preparation above needs. The
                     // iOS library is the app's own Documents folder, registered
                     // and reconciled on every launch; it has no folder watcher.
-                    library.startLaunchWork(watchFolders: false)
+                    library.startLaunchWork()
                     library.reconcileInBackground()
                 }
                 .environmentObject(appCoordinator.playbackManager)

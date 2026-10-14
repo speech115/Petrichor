@@ -381,30 +381,19 @@ struct ContentView: View {
         ToolbarItem { Spacer() }
 
         ToolbarItem(placement: .confirmationAction) {
-            HStack(spacing: 8) {
-                NotificationTray()
-                    .frame(width: 24, height: 24)
-
-                SearchInputField(
-                    text: $libraryManager.globalSearchText,
-                    placeholder: String(localized: "Search"),
-                    fontSize: 12,
-                    shouldFocus: shouldFocusSearch
-                )
-                .frame(width: 280)
-                .disabled(!libraryManager.shouldShowMainUI)
-            }
+            SearchInputField(
+                text: $libraryManager.globalSearchText,
+                placeholder: String(localized: "Search"),
+                fontSize: 12,
+                shouldFocus: shouldFocusSearch
+            )
+            .frame(width: 280)
+            .disabled(!libraryManager.shouldShowMainUI)
         }
     }
 
     @available(macOS 26.0, *)
     @ToolbarContentBuilder private var modernToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .confirmationAction) {
-            NotificationTray()
-                .frame(width: 34, height: 30)
-        }
-        .sharedBackgroundVisibility(.hidden)
-
         ToolbarItem(placement: .confirmationAction) {
             SearchInputField(
                 text: $libraryManager.globalSearchText,

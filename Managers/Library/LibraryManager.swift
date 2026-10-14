@@ -38,7 +38,7 @@ class LibraryManager: ObservableObject {
     @Published private(set) var albumCount: Int = 0
     @Published private(set) var countsLoaded = false
     @Published internal var entitiesLoaded = false
-    /// Set by `startLaunchWork(watchFolders:)`; screens hold back their own
+    /// Set by `startLaunchWork()`; screens hold back their own
     /// background warming until then.
     @Published private(set) var launchWorkStarted = false
     
@@ -65,14 +65,6 @@ class LibraryManager: ObservableObject {
     }
 
     // MARK: - Private/Internal Properties
-    private var fileWatcherTimer: Timer?
-    private var hasPerformedInitialScan = false
-    /// Tracks the auto-scan interval across `autoScanIntervalDidChange` calls,
-    /// distinguishing "never observed" from "observed and unchanged". An
-    /// instance property rather than a function-local static: a local `static
-    /// var` is still process-global storage to the concurrency checker, and
-    /// this one only needs to live as long as `LibraryManager` does anyway.
-    private var lastObservedAutoScanInterval: AutoScanInterval?
     private var lastThresholdCheckTime: Date = .distantPast
     private let thresholdCheckInterval: TimeInterval = 1.0
     internal var cachedLibraryCategories: [LibraryFilterType: [LibraryFilterItem]] = [:]
@@ -100,20 +92,10 @@ class LibraryManager: ObservableObject {
     // a hop back to the main actor for what is, underneath, a GRDB read.
     nonisolated let databaseManager: DatabaseManager
 
-    // Keys for UserDefaults
-    internal enum UserDefaultsKeys {
-        static let autoScanInterval = "autoScanInterval"
-    }
-
-    private var autoScanInterval: AutoScanInterval {
-        let rawValue = userDefaults.string(forKey: UserDefaultsKeys.autoScanInterval) ?? AutoScanInterval.every60Minutes.rawValue
-        return AutoScanInterval(rawValue: rawValue) ?? .every60Minutes
-    }
-
     // MARK: - Initialization
     /// - Parameter deferLaunchWork: The caller starts the category cache,
     ///   background migrations and artist images itself, via
-    ///   `startLaunchWork(watchFolders:)`, once its first screen is up.
+    ///   `startLaunchWork()`, once its first screen is up.
     init(deferLaunchWork: Bool = false) {
         do {
             // Initialize database manager
@@ -136,17 +118,9 @@ class LibraryManager: ObservableObject {
         loadMusicLibrary()
 
         if !deferLaunchWork {
-            startLaunchWork(watchFolders: true)
+            startLaunchWork()
         }
 
-        // Observe auto-scan interval changes
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(autoScanIntervalDidChange),
-            name: UserDefaults.didChangeNotification,
-            object: nil
-        )
-        
         // Observe initial scan events
         NotificationCenter.default.addObserver(
             self,
@@ -178,7 +152,6 @@ class LibraryManager: ObservableObject {
     }
 
     isolated deinit {
-        fileWatcherTimer?.invalidate()
         releaseSecurityScopedFolderAccess()
     }
     
@@ -323,24 +296,15 @@ class LibraryManager: ObservableObject {
         }
     }
 
-    // MARK: - File Watching
+    // MARK: - Launch Work
 
     /// Launch work no first frame depends on. It competes with first-screen
     /// preparation for the database's reader connections and the CPU, so a
     /// caller that defers it runs it only after that screen is presented.
-    /// `watchFolders: false` skips the periodic folder refresh for a platform
-    /// that reconciles its library on its own.
-    func startLaunchWork(watchFolders: Bool) {
+    func startLaunchWork() {
         guard !launchWorkStarted else { return }
         launchWorkStarted = true
         loadLibraryCategories()
-
-        if watchFolders {
-            Task {
-                try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
-                startFileWatcher()
-            }
-        }
 
         Task {
             try? await Task.sleep(nanoseconds: TimeConstants.fiftyMilliseconds)
@@ -358,72 +322,6 @@ class LibraryManager: ObservableObject {
             }
             ArtistBioManager.shared.fetchMissingArtistImages(using: self)
         }
-    }
-
-    private func startFileWatcher() {
-        // Cancel any existing timer
-        fileWatcherTimer?.invalidate()
-        fileWatcherTimer = nil
-
-        // Get current auto-scan interval
-        let currentInterval = autoScanInterval
-
-        // Handle "only on launch" setting
-        if currentInterval == .onlyOnLaunch {
-            Logger.info("Auto-scan set to only on launch, performing initial scan...")
-            
-            // Skip if we already performed initial scan (within this app session)
-            guard !hasPerformedInitialScan else {
-                Logger.info("Initial scan already performed in this session, skipping")
-                return
-            }
-            
-            hasPerformedInitialScan = true
-            
-            // Always perform scan on launch when set to "onlyOnLaunch"
-            // Perform scan after a short delay to let the UI initialize
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                guard let self = self else { return }
-                
-                // Only refresh if we're not already scanning
-                if !self.isScanning && !NotificationManager.shared.isActivityInProgress {
-                    Logger.info("Starting auto-scan on launch")
-                    self.refreshLibrary()
-                }
-            }
-            return
-        }
-        
-        if currentInterval == .manually {
-            Logger.info("Auto-scan set to manual, no automatic scanning will occur")
-            return
-        }
-
-        // Only start a timer if auto-scan has a time interval
-        guard let interval = currentInterval.timeInterval else {
-            Logger.info("No auto-scan timer needed")
-            return
-        }
-
-        Logger.info("LibraryManager: Starting auto-scan timer with interval: \(interval) seconds (\(currentInterval.displayName))")
-
-        fileWatcherTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-
-                // Only refresh if we're not currently scanning
-                if !self.isScanning && !NotificationManager.shared.isActivityInProgress {
-                    Logger.info("Starting periodic refresh...")
-                    self.refreshLibrary()
-                }
-            }
-        }
-    }
-
-    private func handleAutoScanIntervalChange() {
-        Logger.info("Auto-scan interval changed to: \(autoScanInterval.displayName)")
-        // Restart the file watcher with new interval
-        startFileWatcher()
     }
 
     // MARK: - Database Management
@@ -452,25 +350,6 @@ class LibraryManager: ObservableObject {
         NotificationCenter.default.post(name: .libraryDataDidReset, object: nil)
     }
 
-    @objc
-    private func autoScanIntervalDidChange() {
-        let newInterval = autoScanInterval
-
-        guard let previousInterval = lastObservedAutoScanInterval else {
-            lastObservedAutoScanInterval = newInterval
-            return
-        }
-
-        // Only proceed if the interval actually changed
-        guard previousInterval != newInterval else { return }
-        lastObservedAutoScanInterval = newInterval
-
-        // Check if the auto-scan interval specifically changed
-        DispatchQueue.main.async { [weak self] in
-            self?.handleAutoScanIntervalChange()
-        }
-    }
-    
     @objc
     private func handleInitialScanStarted() {
         DispatchQueue.main.async {

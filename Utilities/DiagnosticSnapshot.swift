@@ -130,7 +130,6 @@ enum DiagnosticSnapshot {
                 "tintNowPlayingBackground": defaults.boolOrNull("tintNowPlayingBackground")
             ],
             "library": [
-                "autoScanInterval": defaults.stringOrNull("autoScanInterval"),
                 "discoverUpdateInterval": defaults.stringOrNull("discoverUpdateInterval"),
                 "discoverTrackCount": defaults.intOrNull("discoverTrackCount")
             ],

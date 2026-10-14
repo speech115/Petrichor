@@ -142,7 +142,7 @@ extension LibraryManager {
         libraryRevision += 1
 
         // Before launch work starts the category cache is left to
-        // `startLaunchWork(watchFolders:)`.
+        // `startLaunchWork()`.
         if launchWorkStarted {
             loadLibraryCategories()
         }

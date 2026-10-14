@@ -127,7 +127,6 @@
 				Components/TrackViews/TrackTableView.swift,
 				Components/ViewExtensions.swift,
 				Components/Widgets/MarqueeText.swift,
-				Components/Widgets/NotificationTray.swift,
 				Components/Widgets/SearchInputField.swift,
 				Components/Widgets/TabbedButtons.swift,
 				Components/Widgets/VerticalSlider.swift,

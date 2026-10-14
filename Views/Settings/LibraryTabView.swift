@@ -8,9 +8,6 @@ struct LibraryTabView: View {
     @Environment(\.dismiss)
     var dismiss
 
-    @AppStorage("autoScanInterval")
-    private var autoScanInterval: AutoScanInterval = .every60Minutes
-
     @AppStorage("discoverUpdateInterval")
     private var discoverUpdateInterval: DiscoverUpdateInterval = .weekly
 
@@ -42,14 +39,6 @@ struct LibraryTabView: View {
     var body: some View {
         Form {
             Section("Discover & Scanning") {
-                Picker("Refresh added folders for changes", selection: $autoScanInterval) {
-                    ForEach(AutoScanInterval.allCases, id: \.self) { interval in
-                        Text(interval.displayName).tag(interval)
-                    }
-                }
-                .help("Automatically scan for new music in the library on selected interval")
-                .pickerStyle(.menu)
-
                 Picker("Refresh Discover tracks", selection: $discoverUpdateInterval) {
                     ForEach(DiscoverUpdateInterval.allCases, id: \.self) { interval in
                         Text(interval.displayName).tag(interval)
