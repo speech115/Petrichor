@@ -123,6 +123,7 @@
 				Components/Sidebar/SidebarProtocol.swift,
 				Components/SidebarView.swift,
 				Components/TrackView.swift,
+				Components/TrackViews/TrackTable.swift,
 				Components/TrackViews/TrackTableOptionsDropdown.swift,
 				Components/TrackViews/TrackTableView.swift,
 				Components/ViewExtensions.swift,

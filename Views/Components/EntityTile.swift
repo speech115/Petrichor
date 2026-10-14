@@ -18,6 +18,15 @@ struct EntityTile: View {
 
     private var isArtist: Bool { entity is ArtistEntity }
 
+    /// Decoded covers by album id or artist name: a shelf shown again draws them
+    /// at once instead of reading the database and filling in tile by tile.
+    @MainActor private static let imageCache = NSCache<NSString, PlatformImage>()
+
+    private var cacheKey: NSString {
+        if isArtist { return "artist-\(entity.name)" as NSString }
+        return "album-\((entity as? AlbumEntity)?.albumId.map(String.init) ?? entity.name)" as NSString
+    }
+
     var body: some View {
         Button(action: onOpen) {
             VStack(alignment: isArtist ? .center : .leading, spacing: 6) {
@@ -42,10 +51,15 @@ struct EntityTile: View {
         }
         .buttonStyle(.plain)
         .task(id: [entity.id.hashValue, artworkVersion]) {
+            if artworkVersion == 0, let cached = Self.imageCache.object(forKey: cacheKey) {
+                image = cached
+                return
+            }
             let data = await loadThumbnail()
             // The detached read can't be cancelled; drop its result if the tile moved on.
             guard !Task.isCancelled else { return }
             image = data.flatMap(PlatformImage.init(data:))
+            if let image { Self.imageCache.setObject(image, forKey: cacheKey) }
         }
         // ponytail: every artist tile reloads on any artist photo change; filter by
         // name if the background fetch makes visible shelves stutter.
@@ -74,7 +88,7 @@ struct EntityTile: View {
     }
 
     @ViewBuilder private var artwork: some View {
-        if let image {
+        if let image = image ?? (artworkVersion == 0 ? Self.imageCache.object(forKey: cacheKey) : nil) {
             Image(platformImage: image)
                 .resizable()
                 .scaledToFill()

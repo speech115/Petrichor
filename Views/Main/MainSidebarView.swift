@@ -55,6 +55,7 @@ struct MainSidebarView: View {
         .listStyle(.sidebar)
         .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
+            await preloadPlaylistTracks()
         }
         .onReceive(NotificationCenter.default.publisher(for: .selectPlaylist)) { notification in
             if let playlistID = notification.userInfo?["playlistID"] as? UUID,
@@ -188,6 +189,19 @@ struct MainSidebarView: View {
         }
         guard !updates.isEmpty else { return }
         collageArtwork.merge(updates) { _, new in new }
+    }
+
+    /// Loads every sidebar playlist's tracks in the background, so opening one
+    /// shows its table at once instead of waiting on the database.
+    private func preloadPlaylistTracks() async {
+        for playlist in displayedPlaylists where playlist.tracks.isEmpty {
+            guard !Task.isCancelled else { return }
+            if playlist.type == .smart {
+                await playlistManager.loadSmartPlaylistTracks(playlist)
+            } else {
+                await playlistManager.loadPlaylistTracks(for: playlist.id)
+            }
+        }
     }
 
     /// Reorders one section's playlists; every other playlist keeps its slot.

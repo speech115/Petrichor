@@ -10,7 +10,9 @@ struct HomePage: View {
     let onOpenAlbum: (AlbumEntity) -> Void
     let onOpenPlaylist: (Playlist) -> Void
 
-    @State private var recentAlbums: [AlbumEntity] = []
+    /// The last shelf, so Home shows it at once while the fresh one loads.
+    @MainActor private static var lastRecentAlbums: [AlbumEntity] = []
+    @State private var recentAlbums: [AlbumEntity] = HomePage.lastRecentAlbums
 
     var body: some View {
         ScrollView {
@@ -108,6 +110,10 @@ struct HomePage: View {
             library.recentlyPlayedAlbums(trackCountsByAlbumID: counts)
         }.value
         guard !Task.isCancelled else { return }
+        Self.lastRecentAlbums = albums
+        // Same shelf: keep the tiles instead of rebuilding them.
+        let shelf = { (albums: [AlbumEntity]) in albums.map { "\($0.albumId ?? 0)|\($0.name)|\($0.trackCount)" } }
+        guard shelf(albums) != shelf(recentAlbums) else { return }
         recentAlbums = albums
     }
 }

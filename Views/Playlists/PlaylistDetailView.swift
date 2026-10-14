@@ -213,7 +213,6 @@ struct PlaylistDetailView: View {
                         )
                     }
                 )
-                .id(playlistID)
             } else {
                 emptyPlaylistView
             }
