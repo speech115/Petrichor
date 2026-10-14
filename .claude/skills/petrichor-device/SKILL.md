@@ -24,6 +24,19 @@ tests and `--console` for device logs.
 Reinstall the same `org.Petrichor.ios` bundle; never delete the app to refresh
 signing. Reinstallation preserves its data; deletion removes the music library.
 
+## Automatic re-signing
+
+A free Apple account profile lasts 7 days. On Sergei's Mac the LaunchAgent
+`local.sereja.petrichor-resign` runs `~/bin/petrichor-resign.sh` daily at 13:00
+(outside this repo). It builds `origin/main` in its own worktree
+`~/Library/Caches/petrichor-resign/main` with separate DerivedData, renews when
+fewer than 2 days remain, moves the old Petrichor profiles aside to force new
+ones and installs on "iPhone 228". Expiry of the last install:
+`~/Library/Caches/petrichor-resign/installed-expiry`. Log:
+`~/Library/Logs/petrichor-resign.log`. Renew now: `~/bin/petrichor-resign.sh --force`.
+A manual `deploy.sh` install of another branch replaces that build on the phone
+until the next renewal.
+
 ## Verify and recover
 
 - For signing refreshes, read `CreationDate` and `ExpirationDate` with
