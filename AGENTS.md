@@ -13,8 +13,12 @@
 - `main` — единственная долгоживущая ветка. Новая работа начинается в короткой
   тематической ветке от актуального `main` и возвращается PR-ом в `main`.
 - PR открывается draft-ом после первого цельного коммита и становится ready
-  после обязательных macOS/iOS checks. Изменения SwiftUI дополнительно
-  проверяются в симуляторе или на устройстве.
+  после зелёного CI: SwiftLint, actionlint, macOS Build & Analyze, iOS Build &
+  Test и Release Build Check. Изменения SwiftUI дополнительно проверяются в
+  симуляторе или на устройстве.
+- Агент сам мёржит свой PR после зелёного CI (`gh pr merge`). Если PR меняет
+  поведение приложения, сначала ставь сборку на телефон и жди, пока Сергей
+  подтвердит исправление на устройстве.
 - PR служит для diff, ревью и проверок. Трекер задач остаётся локальным в
   `.scratch/`; GitHub Issues для этого не используются.
 - Обновления апстрима берутся из remote `upstream`
@@ -115,7 +119,8 @@ xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone
 xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max'
 ```
 
-Выход на реальный телефон — через скилл `.claude/skills/petrichor-device/`.
+Выход на реальный телефон — через скилл `.claude/skills/petrichor-device/`;
+там же про автоматическое переподписание.
 Обычный device destination на этой машине не работает: Xcode 26.6 против iOS 27
 beta на устройстве. Не чините его, читайте скилл.
 
