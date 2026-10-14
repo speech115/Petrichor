@@ -108,6 +108,7 @@ struct TrackTableView: View {
                 }
 
                 if isCustomSort {
+                    sortGeneration &+= 1
                     sortedTracks = newTracks
                 } else {
                     performBackgroundSort(with: sortOrder)
@@ -161,6 +162,7 @@ struct TrackTableView: View {
         if let playlistID = playlistID,
            PlaylistSortManager.shared.getSortField(for: playlistID) == .custom {
             isCustomSort = true
+            sortGeneration &+= 1
             sortedTracks = tracks
             return
         }
@@ -210,7 +212,8 @@ struct TrackTableView: View {
     // MARK: - Sorting Helpers
 
     /// Sorts off the main thread: comparing titles of a few thousand tracks
-    /// takes ~50 ms. Only the latest request's result is shown.
+    /// takes ~50 ms. Every write to `sortedTracks` bumps `sortGeneration`, so a
+    /// slower, older sort never replaces a newer list.
     private func performBackgroundSort(with newSortOrder: [KeyPathComparator<Track>]) {
         sortGeneration &+= 1
         if isCustomSort {
@@ -284,6 +287,7 @@ struct TrackTableView: View {
         if let customSort = notification.userInfo?["isCustomSort"] as? Bool {
             isCustomSort = customSort
             if customSort {
+                sortGeneration &+= 1
                 sortedTracks = tracks
                 return
             }
@@ -323,6 +327,7 @@ struct TrackTableView: View {
             var updatedTracks = sortedTracks
             updatedTracks[index].isFavorite = updatedTrack.isFavorite
             updatedTracks[index].dateFavorited = updatedTrack.dateFavorited
+            sortGeneration &+= 1
             sortedTracks = updatedTracks.sorted(using: sortOrder)
         } else {
             sortedTracks[index].isFavorite = updatedTrack.isFavorite

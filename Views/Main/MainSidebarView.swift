@@ -195,6 +195,7 @@ struct MainSidebarView: View {
     /// shows its table at once instead of waiting on the database.
     private func preloadPlaylistTracks() async {
         for playlist in displayedPlaylists where playlist.tracks.isEmpty {
+            guard !Task.isCancelled else { return }
             if playlist.type == .smart {
                 await playlistManager.loadSmartPlaylistTracks(playlist)
             } else {

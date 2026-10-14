@@ -132,7 +132,10 @@ struct TrackTable: NSViewRepresentable {
         /// tears every row down and rebuilds it, which is most of a list switch.
         private func reloadAll() {
             guard let table else { return }
+            // Rows dropped past the new end must not report a selection change.
+            isApplyingState = true
             table.noteNumberOfRowsChanged()
+            isApplyingState = false
             if scrollsToTopOnLoad, !tracks.isEmpty {
                 scrollsToTopOnLoad = false
                 table.scrollRowToVisible(0)
