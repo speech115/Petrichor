@@ -218,7 +218,7 @@ class PlaybackManager: NSObject, ObservableObject {
     }
 
     /// Resets a latched play when the restore it was waiting on failed.
-    private func abandonPendingPlayOnRestore() {
+    func abandonPendingPlayOnRestore() {
         guard pendingPlayOnRestore else { return }
         pendingPlayOnRestore = false
         isPlaying = false
@@ -235,9 +235,10 @@ class PlaybackManager: NSObject, ObservableObject {
         } else if audioPlayer.state == .paused {
             // A loaded, paused session always just resumes. Checked first because the
             // full track is fetched asynchronously after every advance and jump, so it
-            // is briefly nil for a track that is perfectly resumable.
+            // is briefly nil for a track that is perfectly resumable. isPlaying follows
+            // the engine's state callback: setting it here would stick on "playing"
+            // when the resume does not take.
             audioPlayer.resume()
-            isPlaying = true
         } else if let fullTrack = currentFullTrack, let track = currentTrack {
             startPlayback(of: fullTrack, lightweightTrack: track)
         } else if currentTrack != nil {
@@ -246,7 +247,6 @@ class PlaybackManager: NSObject, ObservableObject {
             isPlaying = true
         } else {
             audioPlayer.resume()
-            isPlaying = true
         }
     }
     
