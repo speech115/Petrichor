@@ -597,11 +597,16 @@ private final class LinkCellView: TextCellView {
         didSet { if oldValue != isHovered { render() } }
     }
     private var trackingArea: NSTrackingArea?
+    /// Measured once per configure: AppKit asks for tracking areas and cursor
+    /// rects on every scroll step, and laying out the text each time showed
+    /// up in scrolling profiles.
+    private var textWidth: CGFloat = 0
 
     func configure(text: String, font: NSFont, action: @escaping () -> Void) {
         self.text = text
         self.font = font
         self.action = action
+        textWidth = NSAttributedString(string: text, attributes: [.font: font]).size().width
         isHovered = false
         render()
         needsLayout = true
@@ -615,7 +620,7 @@ private final class LinkCellView: TextCellView {
     }
 
     private var textRect: NSRect {
-        let width = min(label.attributedStringValue.size().width + 4, label.frame.width)
+        let width = min(textWidth + 4, label.frame.width)
         return NSRect(x: label.frame.minX, y: label.frame.minY, width: width, height: label.frame.height)
     }
 
