@@ -544,18 +544,22 @@ extension DatabaseManager {
     /// nil means the read failed, which callers must not treat as a library with no artists:
     /// installing an empty lookup silently re-enables blind separator splitting.
     func getArtistNamesByRole() -> [String: [String: String]]? {
-        // DISTINCT because the join is per track-artist link; without it a large library returns
-        // a row per track. The two halves can't collide: a merged-away name is deleted from
-        // `artists` as its alias is written, and `artists.normalized_name` is unique.
+        // `roles` is DISTINCT because track_artists has a row per track-artist link. The two
+        // halves can't collide: a merged-away name is deleted from `artists` as its alias is
+        // written, and `artists.normalized_name` is unique. Names come through
+        // `idx_artists_listing`, not the artwork-heavy rows (140 ms cold -> 6 ms).
         let sql = """
-            SELECT DISTINCT ta.role AS role, a.normalized_name AS lookup, a.name AS canonical
-            FROM artists a
-            JOIN track_artists ta ON ta.artist_id = a.id
+            WITH roles AS (SELECT DISTINCT artist_id, role FROM track_artists)
+            SELECT roles.role AS role, a.normalized_name AS lookup, a.name AS canonical
+            FROM artists a INDEXED BY idx_artists_listing
+            JOIN roles ON roles.artist_id = a.id
+            WHERE a.total_tracks >= 0
             UNION ALL
-            SELECT DISTINCT ta.role, al.normalized_alias, a.name
+            SELECT roles.role, al.normalized_alias, a.name
             FROM artist_aliases al
-            JOIN artists a ON a.id = al.canonical_artist_id
-            JOIN track_artists ta ON ta.artist_id = a.id
+            JOIN artists a INDEXED BY idx_artists_listing ON a.id = al.canonical_artist_id
+            JOIN roles ON roles.artist_id = a.id
+            WHERE a.total_tracks >= 0
             """
 
         do {

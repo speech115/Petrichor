@@ -44,17 +44,13 @@ extension DatabaseManager {
             return try dbQueue.read { db in
                 // Live count honoring the hide-duplicates setting, so the grid matches the detail view.
                 let hideDuplicates = UserDefaults.standard.bool(forKey: "hideDuplicateTracks")
-                let duplicateClause = hideDuplicates ? "AND tracks.is_duplicate = 0" : ""
                 let sql = """
-                    SELECT
-                        artists.name,
-                        COUNT(DISTINCT track_artists.track_id) as trackCount
-                    FROM artists
-                    JOIN track_artists ON track_artists.artist_id = artists.id AND track_artists.role = 'artist'
-                    JOIN tracks ON tracks.id = track_artists.track_id \(duplicateClause)
-                    GROUP BY artists.id
-                    HAVING trackCount > 0
-                    ORDER BY artists.sort_name
+                    SELECT a.name, counts.trackCount
+                    FROM artists a INDEXED BY idx_artists_listing
+                    JOIN (\(Self.artistTrackCounts(role: "artist", hideDuplicates: hideDuplicates))) counts
+                        ON counts.artist_id = a.id
+                    WHERE a.total_tracks >= 0
+                    ORDER BY a.sort_name, a.id
                 """
 
                 return try Row.fetchAll(db, sql: sql).map { row in
@@ -77,31 +73,41 @@ extension DatabaseManager {
                 // Count live joined tracks (not albums.total_tracks, which drifts with duplicates),
                 // honoring the hide-duplicates setting so the grid matches the detail view.
                 let hideDuplicates = UserDefaults.standard.bool(forKey: "hideDuplicateTracks")
-                let duplicateClause = hideDuplicates ? "AND tracks.is_duplicate = 0" : ""
+                // `+` keeps the planner on the covering album_id index.
+                let duplicateClause = hideDuplicates ? "AND +is_duplicate = 0" : ""
+                // Driven by the covering indexes, never the album or artist
+                // rows themselves: each spans a page or more of artwork, and
+                // grouping the joined rows read ~1,600 of them (~250 ms cold).
+                // The per-track tag fallback runs only for albums without a
+                // primary artist.
                 let sql = """
                     SELECT
-                        albums.id,
-                        albums.title,
-                        COUNT(tracks.id) as trackCount,
-                        albums.release_year,
+                        a.id,
+                        a.title,
+                        counts.trackCount,
+                        a.release_year,
                         COALESCE(
-                            (SELECT artists.name
-                             FROM album_artists
-                             JOIN artists ON artists.id = album_artists.artist_id
-                             WHERE album_artists.album_id = albums.id
-                               AND album_artists.role = 'primary'
-                             ORDER BY album_artists.position
-                             LIMIT 1),
-                            NULLIF(MAX(tracks.album_artist), ''),
-                            MAX(tracks.artist)
-                        ) as artistName
-                    FROM albums
-                    LEFT JOIN tracks ON albums.id = tracks.album_id \(duplicateClause)
-                    GROUP BY albums.id
-                    HAVING trackCount > 0
-                    ORDER BY albums.sort_title
+                            primaryArtist.name,
+                            (SELECT COALESCE(NULLIF(MAX(album_artist), ''), MAX(artist))
+                             FROM tracks WHERE album_id = a.id \(duplicateClause))
+                        ) AS artistName
+                    FROM albums a INDEXED BY idx_albums_listing
+                    JOIN (
+                        SELECT album_id, COUNT(*) AS trackCount
+                        FROM tracks
+                        WHERE album_id IS NOT NULL \(duplicateClause)
+                        GROUP BY album_id
+                    ) counts ON counts.album_id = a.id
+                    LEFT JOIN (
+                        SELECT album_artists.album_id, artists.name, MIN(album_artists.position)
+                        FROM album_artists
+                        JOIN artists INDEXED BY idx_artists_listing ON artists.id = album_artists.artist_id
+                        WHERE album_artists.role = 'primary' AND artists.total_tracks >= 0
+                        GROUP BY album_artists.album_id
+                    ) primaryArtist ON primaryArtist.album_id = a.id
+                    WHERE a.total_tracks >= 0
+                    ORDER BY a.sort_title, a.id
                 """
-
 
                 return try Row.fetchAll(db, sql: sql).map { row in
                     AlbumEntity(
@@ -119,6 +125,20 @@ extension DatabaseManager {
         }
     }
 
+    /// Tracks per artist in one role, counted on the narrow join table. The
+    /// artist lists then read names through `idx_artists_listing`: reaching
+    /// each artist row itself means a page of artwork per artist (~170 ms
+    /// cold for the whole list). Foreign keys keep every `track_id` live.
+    static func artistTrackCounts(role: String, hideDuplicates: Bool) -> String {
+        let duplicateClause = hideDuplicates ? "AND track_id IN (SELECT id FROM tracks WHERE is_duplicate = 0)" : ""
+        return """
+            SELECT artist_id, COUNT(DISTINCT track_id) AS trackCount
+            FROM track_artists
+            WHERE role = '\(role)' \(duplicateClause)
+            GROUP BY artist_id
+            """
+    }
+
     // MARK: - Library - Filter Items
     
     /// Get artist filter items with counts
@@ -129,16 +149,11 @@ extension DatabaseManager {
                 let duplicateClause = hideDuplicates ? "AND t.is_duplicate = 0" : ""
                 
                 let sql = """
-                    SELECT
-                        a.name,
-                        a.sort_name,
-                        COUNT(DISTINCT ta.track_id) as track_count
-                    FROM artists a
-                    INNER JOIN track_artists ta ON a.id = ta.artist_id
-                    INNER JOIN tracks t ON ta.track_id = t.id
-                    WHERE ta.role = 'artist' \(duplicateClause)
-                    GROUP BY a.id, a.name, a.sort_name
-                    HAVING track_count > 0
+                    SELECT a.name, a.sort_name, counts.trackCount AS track_count
+                    FROM artists a INDEXED BY idx_artists_listing
+                    JOIN (\(Self.artistTrackCounts(role: "artist", hideDuplicates: hideDuplicates))) counts
+                        ON counts.artist_id = a.id
+                    WHERE a.total_tracks >= 0
                     
                     UNION ALL
                     
@@ -231,16 +246,11 @@ extension DatabaseManager {
                 let duplicateClause = hideDuplicates ? "AND t.is_duplicate = 0" : ""
                 
                 let sql = """
-                    SELECT
-                        a.name,
-                        a.sort_name,
-                        COUNT(DISTINCT ta.track_id) as track_count
-                    FROM artists a
-                    INNER JOIN track_artists ta ON a.id = ta.artist_id
-                    INNER JOIN tracks t ON ta.track_id = t.id
-                    WHERE ta.role = 'album_artist' \(duplicateClause)
-                    GROUP BY a.id, a.name, a.sort_name
-                    HAVING track_count > 0
+                    SELECT a.name, a.sort_name, counts.trackCount AS track_count
+                    FROM artists a INDEXED BY idx_artists_listing
+                    JOIN (\(Self.artistTrackCounts(role: "album_artist", hideDuplicates: hideDuplicates))) counts
+                        ON counts.artist_id = a.id
+                    WHERE a.total_tracks >= 0
                     
                     UNION ALL
                     
@@ -272,16 +282,11 @@ extension DatabaseManager {
                 let duplicateClause = hideDuplicates ? "AND t.is_duplicate = 0" : ""
                 
                 let sql = """
-                    SELECT
-                        a.name,
-                        a.sort_name,
-                        COUNT(DISTINCT ta.track_id) as track_count
-                    FROM artists a
-                    INNER JOIN track_artists ta ON a.id = ta.artist_id
-                    INNER JOIN tracks t ON ta.track_id = t.id
-                    WHERE ta.role = 'composer' \(duplicateClause)
-                    GROUP BY a.id, a.name, a.sort_name
-                    HAVING track_count > 0
+                    SELECT a.name, a.sort_name, counts.trackCount AS track_count
+                    FROM artists a INDEXED BY idx_artists_listing
+                    JOIN (\(Self.artistTrackCounts(role: "composer", hideDuplicates: hideDuplicates))) counts
+                        ON counts.artist_id = a.id
+                    WHERE a.total_tracks >= 0
                     
                     UNION ALL
                     

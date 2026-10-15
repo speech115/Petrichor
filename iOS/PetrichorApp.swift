@@ -74,11 +74,6 @@ struct PetrichorApp: App {
         PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
             playlistManager.playNextTrack()
         }
-
-        // Catches the search-index deletions reconciliation never causes on
-        // its own: folder removal and entity merges, both of which post
-        // `.libraryDataDidChange`. See `SpotlightIndexer.observeLibraryChanges()`.
-        SpotlightIndexer.observeLibraryChanges()
     }
 
     var body: some Scene {
@@ -125,6 +120,13 @@ struct PetrichorApp: App {
                     // database readers and CPU the preparation above needs. The
                     // iOS library is the app's own Documents folder, registered
                     // and reconciled on every launch; it has no folder watcher.
+                    // Catches the search-index deletions reconciliation never
+                    // causes on its own: folder removal and entity merges, both
+                    // of which post `.libraryDataDidChange`. Registered only
+                    // now: launch's own entity load posts it too, and checking
+                    // the index then read every album and artist row cold while
+                    // Home was preparing. See `SpotlightIndexer.observeLibraryChanges()`.
+                    SpotlightIndexer.observeLibraryChanges()
                     library.startLaunchWork()
                     library.reconcileInBackground()
                 }

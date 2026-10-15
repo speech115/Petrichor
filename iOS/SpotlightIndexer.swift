@@ -135,7 +135,7 @@ final actor SpotlightIndexer {
     /// removes are ones no longer present there (ADR-0001 - a file merely
     /// missing from disk never triggers this notification on its own).
     ///
-    /// Called once from `PetrichorApp.init()`. Idempotent.
+    /// Called once from `PetrichorApp`'s launch task, after Home is prepared. Idempotent.
     nonisolated static func observeLibraryChanges() {
         Task {
             await SpotlightIndexer.shared.registerLibraryChangeObservers()
@@ -251,12 +251,12 @@ final actor SpotlightIndexer {
 
         let totalIndexed = trackChanges.indexed + albumChanges.indexed + artistChanges.indexed
         let totalDeleted = trackChanges.deleted + albumChanges.deleted + artistChanges.deleted
+        let elapsed = Date().timeIntervalSince(startedAt)
         if totalIndexed == 0 && totalDeleted == 0 {
-            Logger.info("Spotlight: library unchanged, nothing to index")
+            Logger.info(String(format: "Spotlight: library unchanged, checked in %.2f s", elapsed))
             return
         }
 
-        let elapsed = Date().timeIntervalSince(startedAt)
         Logger.info(
             String(
                 format: "Spotlight: indexed %d items (%d tracks, %d albums, %d artists), deleted %d, in %.1f s",
@@ -448,41 +448,38 @@ final actor SpotlightIndexer {
 
     // MARK: - Albums
 
+    /// The digests run on every launch, so they carry the thumbnail's byte
+    /// count rather than the BLOB, and count tracks before joining: grouping
+    /// the joined rows walked each cover's overflow pages once per track and
+    /// took 1.7 s next to the first screens. Only changed rows fetch covers.
     private struct ArtistDigest {
         let trackCount: Int
-        let thumbnail: Data?
+        let thumbnailSize: Int
 
-        var fingerprint: String { "\(trackCount)|\(thumbnail?.count ?? 0)" }
+        var fingerprint: String { "\(trackCount)|\(thumbnailSize)" }
     }
 
     private struct AlbumDigest {
         let title: String
         let trackCount: Int
-        let thumbnail: Data?
+        let thumbnailSize: Int
 
-        var fingerprint: String { "\(title)|\(trackCount)|\(thumbnail?.count ?? 0)" }
+        var fingerprint: String { "\(title)|\(trackCount)|\(thumbnailSize)" }
     }
 
     private func syncAlbums(databaseManager: DatabaseManager) async throws -> Changes {
-        // id -> digest. The digest query carries everything needed to build
-        // the item, so a changed fingerprint re-indexes in one pass.
         let current = try await databaseManager.dbQueue.read { db -> [Int64: AlbumDigest] in
             let sql = """
-                SELECT a.id, a.title, a.artwork_thumbnail, COUNT(t.id) AS trackCount
-                FROM albums a
-                LEFT JOIN tracks t ON t.album_id = a.id
-                GROUP BY a.id
-                HAVING trackCount > 0
+                SELECT a.id, a.title, IFNULL(LENGTH(a.artwork_thumbnail), 0) AS thumbnailSize, counts.trackCount
+                FROM (SELECT album_id, COUNT(*) AS trackCount FROM tracks WHERE album_id IS NOT NULL GROUP BY album_id) counts
+                JOIN albums a ON a.id = counts.album_id
                 """
             let rows = try Row.fetchAll(db, sql: sql)
             var result: [Int64: AlbumDigest] = [:]
             result.reserveCapacity(rows.count)
             for row in rows {
                 let id: Int64 = row["id"]
-                let title: String = row["title"]
-                let count: Int = row["trackCount"] ?? 0
-                let thumbnail: Data? = row["artwork_thumbnail"]
-                result[id] = AlbumDigest(title: title, trackCount: count, thumbnail: thumbnail)
+                result[id] = AlbumDigest(title: row["title"], trackCount: row["trackCount"] ?? 0, thumbnailSize: row["thumbnailSize"])
             }
             return result
         }
@@ -494,11 +491,20 @@ final actor SpotlightIndexer {
             keyString: { String($0) },
             current: current.mapValues { $0.fingerprint }
         ) { ids in
-            ids.compactMap { id -> CSSearchableItem? in
+            let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ",")
+            let thumbnails = try await databaseManager.dbQueue.read { db -> [Int64: Data] in
+                var result: [Int64: Data] = [:]
+                let sql = "SELECT id, artwork_thumbnail FROM albums WHERE artwork_thumbnail IS NOT NULL AND id IN (\(placeholders))"
+                for row in try Row.fetchAll(db, sql: sql, arguments: StatementArguments(ids)) {
+                    result[row["id"]] = row["artwork_thumbnail"]
+                }
+                return result
+            }
+            return ids.compactMap { id -> CSSearchableItem? in
                 guard let digest = current[id] else { return nil }
                 let attributeSet = CSSearchableItemAttributeSet()
                 attributeSet.title = digest.title
-                if let thumbnail = digest.thumbnail {
+                if let thumbnail = thumbnails[id] {
                     attributeSet.thumbnailData = thumbnail
                 }
                 return CSSearchableItem(
@@ -518,21 +524,22 @@ final actor SpotlightIndexer {
         // identifier and the snapshot key are both the name.
         let current = try await databaseManager.dbQueue.read { db -> [String: ArtistDigest] in
             let sql = """
-                SELECT artists.name, artists.artwork_thumbnail, COUNT(DISTINCT track_artists.track_id) AS trackCount
-                FROM artists
-                JOIN track_artists ON track_artists.artist_id = artists.id AND track_artists.role = 'artist'
-                JOIN tracks ON tracks.id = track_artists.track_id
-                GROUP BY artists.id
-                HAVING trackCount > 0
+                SELECT a.name, IFNULL(LENGTH(a.artwork_thumbnail), 0) AS thumbnailSize, counts.trackCount
+                FROM (
+                    SELECT ta.artist_id, COUNT(DISTINCT ta.track_id) AS trackCount
+                    FROM track_artists ta
+                    JOIN tracks t ON t.id = ta.track_id
+                    WHERE ta.role = 'artist'
+                    GROUP BY ta.artist_id
+                ) counts
+                JOIN artists a ON a.id = counts.artist_id
                 """
             let rows = try Row.fetchAll(db, sql: sql)
             var result: [String: ArtistDigest] = [:]
             result.reserveCapacity(rows.count)
             for row in rows {
                 let name: String = row["name"]
-                let count: Int = row["trackCount"] ?? 0
-                let thumbnail: Data? = row["artwork_thumbnail"]
-                result[name] = ArtistDigest(trackCount: count, thumbnail: thumbnail)
+                result[name] = ArtistDigest(trackCount: row["trackCount"] ?? 0, thumbnailSize: row["thumbnailSize"])
             }
             return result
         }
@@ -544,11 +551,20 @@ final actor SpotlightIndexer {
             keyString: { $0 },
             current: current.mapValues { $0.fingerprint }
         ) { names in
-            names.compactMap { name -> CSSearchableItem? in
-                guard let digest = current[name] else { return nil }
+            let placeholders = Array(repeating: "?", count: names.count).joined(separator: ",")
+            let thumbnails = try await databaseManager.dbQueue.read { db -> [String: Data] in
+                var result: [String: Data] = [:]
+                let sql = "SELECT name, artwork_thumbnail FROM artists WHERE artwork_thumbnail IS NOT NULL AND name IN (\(placeholders))"
+                for row in try Row.fetchAll(db, sql: sql, arguments: StatementArguments(names)) {
+                    result[row["name"]] = row["artwork_thumbnail"]
+                }
+                return result
+            }
+            return names.compactMap { name -> CSSearchableItem? in
+                guard current[name] != nil else { return nil }
                 let attributeSet = CSSearchableItemAttributeSet()
                 attributeSet.title = name
-                if let thumbnail = digest.thumbnail {
+                if let thumbnail = thumbnails[name] {
                     attributeSet.thumbnailData = thumbnail
                 }
                 return CSSearchableItem(

@@ -10,14 +10,15 @@ import Foundation
 /// Bookmark create/resolve options live here too: macOS needs security scope
 /// to reopen folders outside the sandbox; iOS music stays in the container.
 enum LibraryPathStore {
-    /// Корень, относительно которого хранятся пути.
-    static var libraryRoot: URL {
+    /// Корень, относительно которого хранятся пути. Every track row decodes its
+    /// URL from here, so the directory lookup runs once per process.
+    static let libraryRoot: URL = {
         #if os(iOS)
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         #else
         URL(fileURLWithPath: "/")
         #endif
-    }
+    }()
 
     /// Options for `URL.bookmarkData(options:…)` when persisting a library folder.
     static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
@@ -68,9 +69,11 @@ enum LibraryPathStore {
         #endif
     }
 
-    /// Рабочий `URL` из того, что лежит в базе.
-    static func url(fromStored path: String) -> URL {
-        guard !path.hasPrefix("/") else { return URL(fileURLWithPath: path) }
-        return libraryRoot.appendingPathComponent(path)
+    /// Рабочий `URL` из того, что лежит в базе. Track rows pass `.notDirectory`:
+    /// the default asks the file system whether each path is a folder, one
+    /// `stat` per row of every track list.
+    static func url(fromStored path: String, directoryHint: URL.DirectoryHint = .checkFileSystem) -> URL {
+        guard !path.hasPrefix("/") else { return URL(filePath: path, directoryHint: directoryHint) }
+        return libraryRoot.appending(path: path, directoryHint: directoryHint)
     }
 }
