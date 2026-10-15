@@ -21,6 +21,12 @@ struct QueueBackendTests {
         (0..<count).map { makeEntry("t\($0)", url: url) }
     }
 
+    private func withFixtureAsync(_ body: (URL) async throws -> Void) async throws {
+        let url = try makeSilentWAV(seconds: 1)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try await body(url)
+    }
+
     private func withFixture(_ body: (URL) throws -> Void) throws {
         let url = try makeSilentWAV(seconds: 1)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -312,6 +318,68 @@ struct QueueBackendTests {
     #expect(abs(elapsed - 3) < 0.3)
 }
 
+/// The last track of the queue ends on a stopped player. Before, the backend
+/// kept reporting `.playing`, so the app showed "pause" over silence and the
+/// next tap on play only reached the finished item.
+@Test func endOfQueueReportsPaused() async throws {
+    try await withFixtureAsync { url in
+        let backend = AVQueuePlayerBackend()
+        let delegate = NowPlayingTestDelegate()
+        delegate.backend = backend
+        backend.backendDelegate = delegate
+        defer { backend.stop(); backend.setNowPlayingMetadata(nil) }
+        backend.setQueue([makeEntry("only", url: url)], startingAt: 0, startPaused: false)
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline, delegate.finished.isEmpty || delegate.states.last != .paused {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(delegate.finished == ["only"])
+        #expect(delegate.states.last == .paused)
+        #expect(backend.state == .paused)
+        let rate = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] as? Double
+        #expect(rate == 0)
+    }
+}
+
+/// After a media services reset the old player is dead. Recovery keeps the
+/// queue and position and leaves the app paused, with the tile saying so.
+@Test func mediaServicesResetRebuildsPausedAtTheSamePlace() async throws {
+    let first = try makeSilentWAV(seconds: 6)
+    let second = try makeSilentWAV(seconds: 6)
+    defer {
+        try? FileManager.default.removeItem(at: first)
+        try? FileManager.default.removeItem(at: second)
+    }
+    let backend = AVQueuePlayerBackend()
+    let delegate = NowPlayingTestDelegate()
+    delegate.backend = backend
+    backend.backendDelegate = delegate
+    defer { backend.stop(); backend.setNowPlayingMetadata(nil) }
+    backend.setQueue([
+        makeEntry("first", url: first), makeEntry("second", url: second)
+    ], startingAt: 0, startPaused: false)
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, backend.currentPlaybackProgress < 1 {
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    let before = backend.preloadedItemIdentities
+    let position = backend.currentPlaybackProgress
+
+    backend.recoverFromMediaServicesReset()
+
+    #expect(delegate.states.last == .paused)
+    #expect(backend.state == .paused)
+    #expect(backend.queue.map(\.id) == ["first", "second"])
+    #expect(Set(backend.preloadedItemIdentities).isDisjoint(with: before))
+    let seekDeadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < seekDeadline, abs(backend.currentPlaybackProgress - position) > 0.3 {
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(abs(backend.currentPlaybackProgress - position) < 0.3)
+    let rate = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyPlaybackRate] as? Double
+    #expect(rate == 0)
+}
+
 }
 
 
@@ -322,13 +390,16 @@ private final class NowPlayingTestDelegate: PlaybackBackendDelegate {
     weak var backend: AVQueuePlayerBackend?
     var currentID: String?
     var states: [AudioPlayerState] = []
+    var finished: [String] = []
 
     func backendDidStartPlaying(with entryId: AudioEntryId) {
         currentID = entryId.id
         backend?.setNowPlayingMetadata(NowPlayingMetadata(title: entryId.id))
     }
     func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) { states.append(newState) }
-    func backendDidFinishPlaying(entryId: AudioEntryId, stopReason: AudioPlayerStopReason, progress: Double, duration: Double) {}
+    func backendDidFinishPlaying(entryId: AudioEntryId, stopReason: AudioPlayerStopReason, progress: Double, duration: Double) {
+        finished.append(entryId.id)
+    }
     func backendUnexpectedError(error: AudioPlayerError) { Issue.record("Unexpected playback error: \(error)") }
     func backendDidFinishBuffering(with entryId: AudioEntryId) {}
     func backendDidSkipQueueEntry(entryId: AudioEntryId) { Issue.record("Unexpected skip: \(entryId.id)") }
