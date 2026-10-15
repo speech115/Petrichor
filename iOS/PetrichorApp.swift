@@ -62,6 +62,9 @@ struct PetrichorApp: App {
         }
         #endif
 
+        // Settings shows this toggle on by default; without the registered
+        // default, track queries read it as off and list duplicates.
+        UserDefaults.standard.register(defaults: ["hideDuplicateTracks": true])
         GestureTips.configure()
 
         let coordinator = AppCoordinator(deferLaunchWork: true)
