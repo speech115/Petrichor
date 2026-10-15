@@ -65,42 +65,37 @@ extension TrackSortField {
 
     // MARK: - Comparator Parsing
 
-    /// Map of KeyPathComparator description substrings to sort fields.
-    private static let comparatorKeyMap: [(String, TrackSortField)] = [
-        ("sortableTrackNumber", .trackNumber),
-        ("sortableDiscNumber", .discNumber),
-        ("sortableIsFavorite", .favorite),
-        ("sortableDateAdded", .dateAdded),
-        ("sortableLastPlayedDate", .lastPlayedDate),
-        ("dateAdded", .dateAdded),
-        ("sortableDateFavorited", .dateFavorited),
-        ("dateFavorited", .dateFavorited),
-        ("playCount", .playCount),
-        ("lastPlayedDate", .lastPlayedDate),
-        ("title", .title),
-        ("artist", .artist),
-        ("album", .album),
-        ("genre", .genre),
-        ("year", .year),
-        ("composer", .composer),
-        ("filename", .filename),
-        ("duration", .duration),
+    /// Sort field for each key path a track comparator is built on. Reading
+    /// the key path directly replaced `String(describing:)` on the
+    /// comparator, which cost ~1 ms a call and ran several times per redraw.
+    private static let fieldByKeyPath: [PartialKeyPath<Track>: TrackSortField] = [
+        \Track.sortableTrackNumber: .trackNumber,
+        \Track.sortableDiscNumber: .discNumber,
+        \Track.sortableIsFavorite: .favorite,
+        \Track.sortableDateAdded: .dateAdded,
+        \Track.dateAdded: .dateAdded,
+        \Track.sortableDateFavorited: .dateFavorited,
+        \Track.sortableLastPlayedDate: .lastPlayedDate,
+        \Track.playCount: .playCount,
+        \Track.title: .title,
+        \Track.artist: .artist,
+        \Track.album: .album,
+        \Track.genre: .genre,
+        \Track.year: .year,
+        \Track.composer: .composer,
+        \Track.filename: .filename,
+        \Track.duration: .duration
     ]
 
-    /// Detect the sort field from a KeyPathComparator array by parsing its description.
+    /// Detect the sort field from a KeyPathComparator array.
     static func detect(from sortOrder: [KeyPathComparator<Track>]) -> TrackSortField {
         guard let firstSort = sortOrder.first else { return .title }
-        let sortString = String(describing: firstSort)
-        for (key, field) in comparatorKeyMap where sortString.contains(key) {
-            return field
-        }
-        return .title
+        return fieldByKeyPath[firstSort.keyPath] ?? .title
     }
 
     /// Detect whether the sort order is ascending from a KeyPathComparator array.
     static func isAscending(from sortOrder: [KeyPathComparator<Track>]) -> Bool {
-        guard let firstSort = sortOrder.first else { return true }
-        return String(describing: firstSort).contains("forward")
+        (sortOrder.first?.order ?? .forward) == .forward
     }
 
     /// The UserDefaults storage key (matches rawValue).

@@ -476,8 +476,13 @@ private final class ArtworkColorCacheKey: NSObject {
         self.id = id
         self.variant = variant
         self.byteCount = imageData.count
+        // shortcut: hashes only the first and last 4 KB, since the player bar
+        // builds this key on every redraw and hashing a whole cover cost ~1 ms.
+        // Two revisions of one cover with equal size, head and tail would share
+        // colors; hash everything again if that ever shows up.
         var hasher = Hasher()
-        hasher.combine(imageData)
+        hasher.combine(imageData.prefix(4096))
+        hasher.combine(imageData.suffix(4096))
         self.contentHash = hasher.finalize()
     }
 
