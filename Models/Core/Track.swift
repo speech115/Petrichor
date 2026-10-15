@@ -173,7 +173,7 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     init(row: Row) throws {
         // Extract path and create URL
         let path: String = row[Columns.path]
-        self.url = LibraryPathStore.url(fromStored: path)
+        self.url = LibraryPathStore.url(fromStored: path, directoryHint: .notDirectory)
         self.format = row[Columns.format]
         
         // Core properties
