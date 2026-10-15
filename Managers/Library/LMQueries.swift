@@ -185,13 +185,17 @@ extension LibraryManager {
         return items
     }
 
+    /// Runs on every keystroke in the toolbar search field. The FTS query and
+    /// its artwork read used to run here on the main thread (~40 ms a key on
+    /// a 3,000-track library); now a newer keystroke cancels the older search.
     func updateSearchResults() {
+        searchTask?.cancel()
         if globalSearchText.isEmpty {
             // When not searching, don't populate searchResults with all tracks
             searchResults = []
         } else {
-            // Use LibrarySearch which uses FTS from database
-            searchResults = LibrarySearch.searchTracks(tracks, with: globalSearchText, databaseManager: databaseManager)
+            let query = globalSearchText
+            searchTask = Task { await search(query: query) }
         }
     }
 

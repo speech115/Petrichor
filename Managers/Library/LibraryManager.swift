@@ -30,6 +30,7 @@ class LibraryManager: ObservableObject {
     @Published var searchResults: [Track] = []
     @Published var discoverTracks: [Track] = []
     var discoverLoadTask: Task<Void, Never>?
+    var searchTask: Task<Void, Never>?
     @Published var pendingMergeRequest: MergeRequest?
     @Published internal var cachedArtistEntities: [ArtistEntity] = []
     @Published internal var cachedAlbumEntities: [AlbumEntity] = []
