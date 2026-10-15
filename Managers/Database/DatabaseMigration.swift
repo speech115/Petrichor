@@ -279,8 +279,24 @@ enum DatabaseMigrator {
             Logger.info("v17_drop_pinned_items: dropped pinned_items table")
         }
 
+        migrator.registerMigration("v18_listing_indexes") { db in
+            // Album and artist rows each span a page or more because of their
+            // artwork, so the launch-time counts and lists read ~1,600
+            // scattered pages cold (100-250 ms per query). These covering
+            // indexes answer them from a few dense pages. Home's recently
+            // played shelf and the Most Played count scanned every track:
+            // databases created before `createIndices` listed the recency and
+            // playlist-membership indexes never got them.
+            try db.execute(sql: "CREATE INDEX idx_albums_listing ON albums(total_tracks, title, sort_title, release_year)")
+            try db.execute(sql: "CREATE INDEX idx_artists_listing ON artists(total_tracks, name, sort_name, normalized_name)")
+            try db.execute(sql: "CREATE INDEX idx_tracks_play_count ON tracks(play_count)")
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_tracks_last_played_date ON tracks(last_played_date)")
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_playlist_tracks_track_id ON playlist_tracks(track_id)")
+            Logger.info("v18_listing_indexes: covering indexes for library lists, recency and play count")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v18_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v19_description") { db in ... }
         // A column added to albums, artists or tracks lands after their artwork
         // BLOBs; reading it then walks every BLOB's overflow pages. Rebuild with
         // `moveColumnsToEnd` instead of a plain ADD COLUMN on those tables.

@@ -135,7 +135,7 @@ final actor SpotlightIndexer {
     /// removes are ones no longer present there (ADR-0001 - a file merely
     /// missing from disk never triggers this notification on its own).
     ///
-    /// Called once from `PetrichorApp.init()`. Idempotent.
+    /// Called once from `PetrichorApp`'s launch task, after Home is prepared. Idempotent.
     nonisolated static func observeLibraryChanges() {
         Task {
             await SpotlightIndexer.shared.registerLibraryChangeObservers()
