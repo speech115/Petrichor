@@ -90,14 +90,28 @@ struct SearchView: View {
         }
     }
 
+    /// An artist whose name is the query, or starts with it ("salu" finds
+    /// SALUKI), leads the results as in Apple Music; the one with more songs
+    /// wins a tie. `localizedStandardCompare` is not used here: its forced
+    /// ordering tells "Saluki" from "SALUKI".
     private var topArtist: ArtistEntity? {
         guard scope == .all else { return nil }
-        return artistResults.first { $0.name.localizedStandardCompare(trimmedQuery) == .orderedSame }
+        return artistResults.first { matches($0.name, exactly: true) }
+            ?? artistResults
+                .filter { matches($0.name, exactly: false) }
+                .max { $0.trackCount < $1.trackCount }
     }
 
     private var topAlbum: AlbumEntity? {
         guard scope == .all, topArtist == nil else { return nil }
-        return albumResults.first { $0.name.localizedStandardCompare(trimmedQuery) == .orderedSame }
+        return albumResults.first { matches($0.name, exactly: true) }
+    }
+
+    private func matches(_ name: String, exactly: Bool) -> Bool {
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        return exactly
+            ? name.compare(trimmedQuery, options: options) == .orderedSame
+            : name.range(of: trimmedQuery, options: options.union(.anchored)) != nil
     }
 
     private var topTrack: Track? {
