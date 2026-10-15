@@ -157,7 +157,7 @@ struct SearchView: View {
                 .task(id: "\(libraryManager.libraryRevision)-\(query)") {
                     let results = await libraryManager.search(query: query)
                     guard !Task.isCancelled else { return }
-                    foundTracks = results
+                    foundTracks = LibrarySearch.collapsingRepeatedSongs(results)
                     // A query that stood still for a moment and found something
                     // is one worth coming back to; keystrokes on the way there
                     // are not, and `remember` folds them into it.
