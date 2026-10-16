@@ -7,9 +7,6 @@ struct AppearanceTabView: View {
     @AppStorage("useArtworkColors")
     private var useArtworkColors = true
 
-    @AppStorage("playerBarBackgroundStyle")
-    private var playerBarBackgroundStyle: PlayerBarBackgroundStyle = .fullWidth
-
     @AppStorage("tintPlaybackControls")
     private var tintPlaybackControls = true
 
@@ -43,19 +40,6 @@ struct AppearanceTabView: View {
 
                 Toggle("Tint interface with album artwork colors", isOn: $useArtworkColors)
                     .help("Applies a gradient background derived from album artwork colors across the app")
-
-                Picker("Player bar background style", selection: $playerBarBackgroundStyle) {
-                    ForEach(PlayerBarBackgroundStyle.allCases, id: \.self) { style in
-                        Text(style.displayName).tag(style)
-                    }
-                }
-                #if os(macOS)
-                .pickerStyle(.radioGroup)
-                #else
-                .pickerStyle(.menu)
-                #endif
-                .disabled(!useArtworkColors)
-                .padding(.leading, dependentIndent)
 
                 Toggle("Color playback and audio controls", isOn: $tintPlaybackControls)
                     .help("Uses the album artwork's dominant color for playback and volume controls in the player, Mini Player, and Immersive mode")

@@ -1,49 +1,6 @@
 import SwiftUI
 import Foundation
 
-/// How the artwork-derived gradient behind the main player bar is drawn. Only takes
-/// effect while "Tint interface with album artwork colors" is enabled.
-enum PlayerBarBackgroundStyle: String, CaseIterable {
-    case behindArtwork = "Behind album art"
-    case fullWidth = "Full width"
-
-    var displayName: String {
-        switch self {
-        case .behindArtwork: return String(localized: "Behind album art")
-        case .fullWidth: return String(localized: "Full width")
-        }
-    }
-}
-
-/// Artwork-tinted backdrop for the main player bar. Kept separate (and Equatable) so
-/// it only re-renders when the colors or style actually change, not on the play/pause
-/// and progress-time updates that re-render the surrounding PlayerView body.
-private struct PlayerBarBackground: View, Equatable {
-    let colors: [Color]
-    let style: PlayerBarBackgroundStyle
-
-    var body: some View {
-        if !colors.isEmpty {
-            GeometryReader { geometry in
-                if style == .fullWidth {
-                    // Spread the artwork colors across the whole bar as a soft wash
-                    // (mesh on macOS 15+, radial fallback below).
-                    GradientBackground(colors: colors)
-                } else {
-                    RadialGradient(
-                        colors: colors + [.clear],
-                        center: .leading,
-                        startRadius: 0,
-                        endRadius: geometry.size.width * 0.25
-                    )
-                    .overlay(FocusStableMaterial())
-                }
-            }
-            .animation(.easeInOut(duration: AnimationDuration.standardDuration), value: colors)
-        }
-    }
-}
-
 /// The player bar's seek bar (time labels + slider), extracted so it alone carries the
 /// `playbackProgressState` subscription. That keeps the ~10Hz progress ticks from
 /// re-rendering the whole player bar during playback, matching NowPlayingProgressBar.
@@ -189,9 +146,6 @@ struct PlayerView: View {
     @AppStorage("tintPlaybackControls")
     private var tintPlaybackControls = true
 
-    @AppStorage("playerBarBackgroundStyle")
-    private var playerBarBackgroundStyle: PlayerBarBackgroundStyle = .fullWidth
-
     @State private var gradientColors: [Color] = []
     @State private var gradientRevision: UInt64 = 0
     @State private var playButtonPressed = false
@@ -200,32 +154,24 @@ struct PlayerView: View {
     @State private var isDraggingVolume = false
 
     var body: some View {
-        ZStack {
-            // Artwork-tinted backdrop, isolated into its own equatable view so the
-            // frequent play/pause and progress-time re-renders of this body don't
-            // re-evaluate (and visibly flash) the gradient and material.
-            PlayerBarBackground(colors: gradientColors, style: playerBarBackgroundStyle)
-                .equatable()
+        HStack(spacing: 20) {
+            // Left section: Album art and track info
+            leftSection
 
-            // Content layer
-            HStack(spacing: 20) {
-                // Left section: Album art and track info
-                leftSection
+            Spacer()
 
-                Spacer()
+            // Center section: Playback controls and progress
+            centerSection
 
-                // Center section: Playback controls and progress
-                centerSection
+            Spacer()
 
-                Spacer()
-
-                // Right section: Volume and queue controls
-                rightSection
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            // Right section: Volume and queue controls
+            rightSection
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
+        .playerGlass(tint: gradientColors.first)
         .onAppear {
             setupInitialState()
         }
@@ -787,7 +733,7 @@ private struct AlbumArtworkImage: View {
             // Static image content
             AlbumArtworkContent(trackInfo: trackInfo)
         }
-        .frame(width: 76, height: 76)
+        .frame(width: 64, height: 64)
         .shadow(
             color: .black.opacity(isHovered ? 0.4 : 0.2),
             radius: isHovered ? 6 : 2,
@@ -812,7 +758,7 @@ private struct AlbumArtworkContent: View {
             Image(platformImage: platformImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
-                .frame(width: 76, height: 76)
+                .frame(width: 64, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         } else {
             RoundedRectangle(cornerRadius: 5)
@@ -854,4 +800,20 @@ struct ControlButtonStyle: ButtonStyle {
     }
 
     return PreviewWrapper()
+}
+
+// MARK: - Glass
+
+private extension View {
+    /// The player floats over the content as a Liquid Glass panel, as in the
+    /// Music app, tinted with the artwork's color when that setting is on.
+    @ViewBuilder
+    func playerGlass(tint: Color?) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+        if #available(macOS 26, *) {
+            glassEffect(.regular.tint(tint?.opacity(0.3)), in: shape)
+        } else {
+            background(.regularMaterial, in: shape)
+        }
+    }
 }

@@ -256,17 +256,17 @@ struct ContentView: View {
                         max: SplitViewConstants.leftSidebarMaxWidth
                     )
             } detail: {
-                VStack(spacing: 0) {
-                    PersistentSplitView(
-                        main: {
-                            sectionContent
-                        },
-                        right: {
-                            sidePanel
-                        }
-                    )
-                    .frame(minHeight: 0, maxHeight: .infinity)
-
+                PersistentSplitView(
+                    main: {
+                        sectionContent
+                    },
+                    right: {
+                        sidePanel
+                    }
+                )
+                .frame(minHeight: 0, maxHeight: .infinity)
+                // Content scrolls under the floating glass player, as in the Music app.
+                .safeAreaInset(edge: .bottom, spacing: 0) {
                     playerControls
                 }
                 // Keeps a widened sidebar from squeezing the player bar's fixed sections.
@@ -377,9 +377,8 @@ struct ContentView: View {
             PlayerView(
                 rightSidebarContent: $rightSidebarContent
             )
-            .frame(height: 110)
-            .background(.windowBackground)
-            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: -4)
+            .frame(height: 88)
+            .padding([.horizontal, .bottom], 12)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
