@@ -57,6 +57,12 @@ struct MainSidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        // The desktop shows through the sidebar, also while the window is not key.
+        .scrollContentBackground(.hidden)
+        .background {
+            FocusStableMaterial(material: .sidebar, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+        }
         .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
             await preloadPlaylistTracks()
