@@ -178,6 +178,13 @@ jobs:
             exit 1
           }
 
+      # Boot before the build so the simulator's first-boot work overlaps it instead
+      # of the UI tests: on a just-booted device the accessibility audits hit their
+      # internal timeout (Code=-56), and the one-time "Ready for Apple Intelligence"
+      # banner covers the Home title and fails its contrast audit.
+      - name: Boot iOS simulator
+        run: xcrun simctl boot "iPhone 17 Pro Max"
+
       - name: Cache SwiftPM
         uses: actions/cache@v5
         with:
@@ -212,6 +219,9 @@ jobs:
             -scheme "$IOS_SCHEME" \
             -clonedSourcePackagesDirPath .spm
 
+      # A failed test runs once more: the audits' Code=-56 is a capacity timeout of
+      # this 3-core VM, not a finding, while a real accessibility regression fails
+      # both runs and still fails the job.
       - name: Build and test iOS
         run: |
           set -o pipefail
@@ -223,6 +233,8 @@ jobs:
             -clonedSourcePackagesDirPath .spm \
             -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
             -resultBundlePath "$RUNNER_TEMP/iOS.xcresult" \
+            -retry-tests-on-failure \
+            -test-iterations 2 \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
