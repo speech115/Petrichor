@@ -60,7 +60,7 @@ struct MainSidebarView: View {
         // The desktop shows through the sidebar, also while the window is not key.
         .scrollContentBackground(.hidden)
         .background {
-            FocusStableMaterial(material: .sidebar, blendingMode: .behindWindow)
+            FocusStableMaterial(material: .fullScreenUI, blendingMode: .behindWindow)
                 .ignoresSafeArea()
         }
         .task(id: displayedPlaylists.map(\.id)) {
