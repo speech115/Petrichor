@@ -124,6 +124,8 @@ struct EntityShelf<Content: View>: View {
                     content()
                 }
             }
+            // A horizontal ScrollView is greedy vertically; keep the shelf at its tiles' height.
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
