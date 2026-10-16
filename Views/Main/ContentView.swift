@@ -269,6 +269,8 @@ struct ContentView: View {
 
                     playerControls
                 }
+                // The window itself is clear so the sidebar can show the desktop.
+                .background(.windowBackground)
                 // Keeps a widened sidebar from squeezing the player bar's fixed sections.
                 .navigationSplitViewColumnWidth(min: playerMinWidth, ideal: playerMinWidth)
             }

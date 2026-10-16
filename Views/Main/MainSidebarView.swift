@@ -57,12 +57,8 @@ struct MainSidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        // The desktop shows through the sidebar, also while the window is not key.
         .scrollContentBackground(.hidden)
-        .background {
-            FocusStableMaterial(material: .fullScreenUI, blendingMode: .behindWindow)
-                .ignoresSafeArea()
-        }
+        .background(SeeThroughSidebar())
         .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
             await preloadPlaylistTracks()
@@ -306,6 +302,32 @@ private struct SidebarRowLabel<Item: SidebarItem>: View {
             Image(icon)
         } else {
             Image(systemName: icon)
+        }
+    }
+}
+
+/// Lets the desktop show through the sidebar like glass. The system sidebar's
+/// vibrancy alone stays nearly opaque, so the window stops drawing its own
+/// background and the sidebar's vibrancy view is made half transparent;
+/// the detail column paints the window background itself.
+private struct SeeThroughSidebar: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { Probe() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class Probe: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            window.isOpaque = false
+            window.backgroundColor = .clear
+
+            var ancestor = superview
+            while let view = ancestor, !(view is NSVisualEffectView) {
+                ancestor = view.superview
+            }
+            guard let vibrancy = ancestor as? NSVisualEffectView else { return }
+            vibrancy.state = .active
+            vibrancy.alphaValue = 0.5
         }
     }
 }
