@@ -97,7 +97,8 @@ struct ContentView: View {
 
             return .ignored
         }
-        .frame(minWidth: 1000, minHeight: 600)
+        // The player bar needs 1000 pt beside the sidebar.
+        .frame(minWidth: 1000 + SplitViewConstants.leftSidebarMinWidth, minHeight: 600)
         .overlay {
             if isImmersiveActive {
                 ImmersiveView(
