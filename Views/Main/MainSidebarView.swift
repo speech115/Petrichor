@@ -306,10 +306,8 @@ private struct SidebarRowLabel<Item: SidebarItem>: View {
     }
 }
 
-/// Lets the desktop show through the sidebar like glass. The system sidebar's
-/// vibrancy alone stays nearly opaque, so the window stops drawing its own
-/// background and the sidebar's vibrancy view is made half transparent;
-/// the detail column paints the window background itself.
+/// The system draws the sidebar on an `NSGlassEffectView` in its regular,
+/// frosted style; the clear style lets far more of what is behind show through.
 private struct SeeThroughSidebar: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { Probe() }
     func updateNSView(_ nsView: NSView, context: Context) {}
@@ -317,17 +315,12 @@ private struct SeeThroughSidebar: NSViewRepresentable {
     private final class Probe: NSView {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard let window else { return }
-            window.isOpaque = false
-            window.backgroundColor = .clear
-
+            guard #available(macOS 26, *) else { return }
             var ancestor = superview
-            while let view = ancestor, !(view is NSVisualEffectView) {
+            while let view = ancestor, !(view is NSGlassEffectView) {
                 ancestor = view.superview
             }
-            guard let vibrancy = ancestor as? NSVisualEffectView else { return }
-            vibrancy.state = .active
-            vibrancy.alphaValue = 0.5
+            (ancestor as? NSGlassEffectView)?.style = .clear
         }
     }
 }
