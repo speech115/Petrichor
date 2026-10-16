@@ -37,6 +37,8 @@ private enum MainWindowPanelState: String {
 }
 
 private let mainWindowPanelStateKey = "mainWindowPanelState"
+/// The player bar's fixed left and right sections and controls fit in this width.
+private let playerMinWidth: CGFloat = 1000
 
 struct ContentView: View {
     @EnvironmentObject var playbackManager: PlaybackManager
@@ -97,8 +99,8 @@ struct ContentView: View {
 
             return .ignored
         }
-        // The player bar needs 1000 pt beside the sidebar.
-        .frame(minWidth: 1000 + SplitViewConstants.leftSidebarMinWidth, minHeight: 600)
+        // The window can't read the detail column's minimum, so it adds the sidebar's.
+        .frame(minWidth: playerMinWidth + SplitViewConstants.leftSidebarMinWidth, minHeight: 600)
         .overlay {
             if isImmersiveActive {
                 ImmersiveView(
@@ -267,6 +269,8 @@ struct ContentView: View {
 
                     playerControls
                 }
+                // Keeps a widened sidebar from squeezing the player bar's fixed sections.
+                .navigationSplitViewColumnWidth(min: playerMinWidth, ideal: playerMinWidth)
             }
         }
     }
