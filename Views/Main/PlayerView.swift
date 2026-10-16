@@ -613,7 +613,8 @@ struct PlayerTrackDetailsView: View, Equatable {
     private let titleFontSize: CGFloat = 16
     private let artistFontSize: CGFloat = 14
     private let albumFontSize: CGFloat = 13
-    private let rowSpacing: CGFloat = 10
+    // 20 + 18 + 18 + 2 × 4 = 64, the artwork's height in the glass panel.
+    private let rowSpacing: CGFloat = 4
     private let titleRowHeight: CGFloat = 20
     private let textRowHeight: CGFloat = 18
 
