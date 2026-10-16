@@ -175,8 +175,12 @@ extension PlaylistManager {
 
         // Update current track if it's the one being updated
         if let currentTrack = audioPlayer?.currentTrack, currentTrack.trackId == track.trackId {
+            // List copies arrive without artwork; keep what the player already loaded.
+            var updatedTrack = track
+            updatedTrack.albumArtworkData = currentTrack.albumArtworkData
+            updatedTrack.albumArtworkThumbnail = currentTrack.albumArtworkThumbnail
             await MainActor.run {
-                self.audioPlayer?.currentTrack = track
+                self.audioPlayer?.currentTrack = updatedTrack
             }
         }
     }
