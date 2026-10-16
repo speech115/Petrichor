@@ -82,14 +82,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-            // Main Content Area with Queue
-            mainContentArea
-
-            playerControls
-                .animation(.easeInOut(duration: 0.3), value: libraryManager.folders.isEmpty)
-        }
+        mainContentArea
         .onKeyPress(.space) {
             if isCurrentlyEditingText() {
                 return .ignored
@@ -250,37 +243,40 @@ struct ContentView: View {
             NoMusicEmptyStateView(context: .mainWindow)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            PersistentSplitView(
-                left: {
-                    leftSidebar
-                },
-                center: {
-                    sectionContent
-                },
-                right: {
-                    sidePanel
+            // The system sidebar, full window height as in Finder; the player
+            // and the side panel live in the detail column.
+            NavigationSplitView {
+                leftSidebar
+                    .navigationSplitViewColumnWidth(
+                        min: SplitViewConstants.leftSidebarMinWidth,
+                        ideal: SplitViewConstants.leftSidebarDefaultWidth,
+                        max: SplitViewConstants.leftSidebarMaxWidth
+                    )
+            } detail: {
+                VStack(spacing: 0) {
+                    PersistentSplitView(
+                        main: {
+                            sectionContent
+                        },
+                        right: {
+                            sidePanel
+                        }
+                    )
+                    .frame(minHeight: 0, maxHeight: .infinity)
+
+                    playerControls
                 }
-            )
-            .frame(minHeight: 0, maxHeight: .infinity)
+            }
         }
     }
 
-    @ViewBuilder private var leftSidebar: some View {
-        let sidebar = MainSidebarView(
+    private var leftSidebar: some View {
+        MainSidebarView(
             selectedTab: $selectedTab,
             selectedPlaylist: $selectedPlaylist,
             isShowingPage: detailEntity != nil
         ) {
             detailEntity = nil
-        }
-        .scrollContentBackground(.hidden)
-
-        if #available(macOS 26.0, *) {
-            sidebar
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(8)
-        } else {
-            sidebar.background(.ultraThinMaterial)
         }
     }
 

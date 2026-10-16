@@ -5,7 +5,6 @@ import SwiftUI
 enum SplitViewType {
     case leftOnly
     case rightOnly
-    case both
 }
 
 // MARK: - Split View Sizes
@@ -74,31 +73,10 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         self._rightWidth = State(initialValue: storedValue > 0 ? CGFloat(storedValue) : SplitViewConstants.rightSidebarDefaultWidth)
     }
 
-    // Both sidebars
-    init(
-        leftStorageKey: String = "leftSidebarSplitPosition",
-        rightStorageKey: String = "rightSidebarSplitPosition",
-        @ViewBuilder left: @escaping () -> Left,
-        @ViewBuilder center: @escaping () -> Center,
-        @ViewBuilder right: @escaping () -> Right
-    ) {
-        self.type = .both
-        self.storageKeyLeft = leftStorageKey
-        self.storageKeyRight = rightStorageKey
-        self.left = left
-        self.center = center
-        self.right = right
-
-        let leftStored = UserDefaults.standard.double(forKey: leftStorageKey)
-        let rightStored = UserDefaults.standard.double(forKey: rightStorageKey)
-        self._leftWidth = State(initialValue: leftStored > 0 ? CGFloat(leftStored) : SplitViewConstants.leftSidebarDefaultWidth)
-        self._rightWidth = State(initialValue: rightStored > 0 ? CGFloat(rightStored) : SplitViewConstants.rightSidebarDefaultWidth)
-    }
-
     var body: some View {
         HStack(spacing: 0) {
             // Left sidebar
-            if type == .leftOnly || type == .both {
+            if type == .leftOnly {
                 left()
                     .frame(width: leftWidth)
                     .frame(maxHeight: .infinity)
@@ -118,7 +96,7 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .layoutPriority(0)
 
-            if (type == .rightOnly || type == .both) && hasRightContent() {
+            if type == .rightOnly && hasRightContent() {
                 SplitDivider(
                     splitWidth: $rightWidth,
                     minWidth: 0, // Allow collapsing to 0
@@ -147,14 +125,14 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
     }
 
     private func updateWidthsFromStorage() {
-        if type == .leftOnly || type == .both {
+        if type == .leftOnly {
             let storedLeft = UserDefaults.standard.double(forKey: storageKeyLeft)
             if storedLeft > 0 {
                 leftWidth = CGFloat(storedLeft)
             }
         }
 
-        if let key = storageKeyRight, type == .rightOnly || type == .both {
+        if let key = storageKeyRight, type == .rightOnly {
             let storedRight = UserDefaults.standard.double(forKey: key)
             if storedRight > 0 {
                 rightWidth = CGFloat(storedRight)
