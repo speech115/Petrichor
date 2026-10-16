@@ -265,13 +265,22 @@ struct ContentView: View {
         }
     }
 
-    private var leftSidebar: some View {
-        MainSidebarView(
+    @ViewBuilder private var leftSidebar: some View {
+        let sidebar = MainSidebarView(
             selectedTab: $selectedTab,
             selectedPlaylist: $selectedPlaylist,
             isShowingPage: detailEntity != nil
         ) {
             detailEntity = nil
+        }
+        .scrollContentBackground(.hidden)
+
+        if #available(macOS 26.0, *) {
+            sidebar
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .padding(8)
+        } else {
+            sidebar.background(.ultraThinMaterial)
         }
     }
 
@@ -306,6 +315,7 @@ struct ContentView: View {
                             filteredItems: $libraryFilteredItems,
                             selectedSidebarItem: $librarySelectedSidebarItem
                         )
+                        .background(.ultraThinMaterial)
                     },
                     main: {
                         LibraryView(
