@@ -245,7 +245,6 @@ struct ContentView: View {
         if !libraryManager.shouldShowMainUI {
             NoMusicEmptyStateView(context: .mainWindow)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(.windowBackground)
         } else {
             // The system sidebar, full window height as in Finder; the player
             // and the side panel live in the detail column.
@@ -257,19 +256,17 @@ struct ContentView: View {
                         max: SplitViewConstants.leftSidebarMaxWidth
                     )
             } detail: {
-                PersistentSplitView(
-                    main: {
-                        sectionContent
-                    },
-                    right: {
-                        sidePanel
-                    }
-                )
-                .frame(minHeight: 0, maxHeight: .infinity)
-                // The window is clear; stopping short of the sidebar lets its glass show the desktop.
-                .background(.windowBackground, ignoresSafeAreaEdges: [.top, .bottom, .trailing])
-                // Content scrolls under the floating glass player, as in the Music app.
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 0) {
+                    PersistentSplitView(
+                        main: {
+                            sectionContent
+                        },
+                        right: {
+                            sidePanel
+                        }
+                    )
+                    .frame(minHeight: 0, maxHeight: .infinity)
+
                     playerControls
                 }
                 // Keeps a widened sidebar from squeezing the player bar's fixed sections.
@@ -380,8 +377,9 @@ struct ContentView: View {
             PlayerView(
                 rightSidebarContent: $rightSidebarContent
             )
-            .frame(height: 88)
-            .padding([.horizontal, .bottom], 12)
+            .frame(height: 110)
+            .background(.windowBackground)
+            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: -4)
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
@@ -675,11 +673,6 @@ struct WindowAccessor: NSViewRepresentable {
                 WindowManager.shared.mainWindow = window
                 window.title = ""
                 window.isExcludedFromWindowsMenu = true
-                // The sidebar's glass shows the desktop only through a clear window.
-                if #available(macOS 26, *) {
-                    window.isOpaque = false
-                    window.backgroundColor = .clear
-                }
             }
         }
         return view

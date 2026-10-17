@@ -57,8 +57,6 @@ struct MainSidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(ClearSidebarGlass())
         .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
             await preloadPlaylistTracks()
@@ -302,25 +300,6 @@ private struct SidebarRowLabel<Item: SidebarItem>: View {
             Image(icon)
         } else {
             Image(systemName: icon)
-        }
-    }
-}
-
-/// The system draws the sidebar on an `NSGlassEffectView`; its clear style lets
-/// the desktop show through the window, like glass.
-private struct ClearSidebarGlass: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { Probe() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
-
-    private final class Probe: NSView {
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard #available(macOS 26, *) else { return }
-            var ancestor = superview
-            while let view = ancestor, !(view is NSGlassEffectView) {
-                ancestor = view.superview
-            }
-            (ancestor as? NSGlassEffectView)?.style = .clear
         }
     }
 }
