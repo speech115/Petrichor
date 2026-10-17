@@ -7,11 +7,12 @@
 // a query without matches falls back to the system
 // "No Results for ..." state.
 //
-// Tracks come from the FTS5-backed `LibraryManager.searchResults`; artists
+// Tracks come from the FTS5-backed `LibraryManager.search(query:)`; artists
 // and albums are filtered in memory from the cached entity lists, which are
-// small next to 2829 tracks. The query is local state, cleared when the app
-// goes to background: each keystroke runs the FTS search off the main
-// thread, so typing never blocks the main actor.
+// small next to 2829 tracks. The query and its results are this tab's own
+// state, so they survive tab switches and trips out of the app, as in Apple
+// Music. Each keystroke runs the FTS search off the main thread, so typing
+// never blocks the main actor.
 //
 
 import SwiftUI
@@ -39,7 +40,6 @@ struct SearchView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playbackManager: PlaybackManager
     @EnvironmentObject private var playlistManager: PlaylistManager
-    @Environment(\.scenePhase) private var scenePhase
 
     /// Newline-joined, newest first. Queries never contain a newline: the
     /// search field is single-line.
@@ -47,6 +47,7 @@ struct SearchView: View {
     private var recentSearchesRaw = ""
     @State private var isTabVisible = false
     @State private var query = ""
+    @State private var foundTracks: [Track] = []
     @State private var isSearchPresented = false
     @State private var scope = SearchScope.all
     @FocusState private var isSearchFieldFocused: Bool
@@ -63,7 +64,7 @@ struct SearchView: View {
     }
 
     private var trackResults: [Track] {
-        isSearching ? libraryManager.searchResults : []
+        isSearching ? foundTracks : []
     }
 
     private var artistResults: [ArtistEntity] {
@@ -89,14 +90,28 @@ struct SearchView: View {
         }
     }
 
+    /// An artist whose name is the query, or starts with it ("salu" finds
+    /// SALUKI), leads the results as in Apple Music; the one with more songs
+    /// wins a tie. `localizedStandardCompare` is not used here: its forced
+    /// ordering tells "Saluki" from "SALUKI".
     private var topArtist: ArtistEntity? {
         guard scope == .all else { return nil }
-        return artistResults.first { $0.name.localizedStandardCompare(trimmedQuery) == .orderedSame }
+        return artistResults.first { matches($0.name, exactly: true) }
+            ?? artistResults
+                .filter { matches($0.name, exactly: false) }
+                .max { $0.trackCount < $1.trackCount }
     }
 
     private var topAlbum: AlbumEntity? {
         guard scope == .all, topArtist == nil else { return nil }
-        return albumResults.first { $0.name.localizedStandardCompare(trimmedQuery) == .orderedSame }
+        return albumResults.first { matches($0.name, exactly: true) }
+    }
+
+    private func matches(_ name: String, exactly: Bool) -> Bool {
+        let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        return exactly
+            ? name.compare(trimmedQuery, options: options) == .orderedSame
+            : name.range(of: trimmedQuery, options: options.union(.anchored)) != nil
     }
 
     private var topTrack: Track? {
@@ -151,17 +166,12 @@ struct SearchView: View {
                     isSearchFieldFocused = true
                 }
                 .onSubmit(of: .search) { rememberQuery() }
-                // A query is for this visit. Coming back to the app later
-                // starts from the empty field; Recent Searches keeps the
-                // query one tap away.
-                .onChange(of: scenePhase) { _, phase in
-                    guard phase == .background else { return }
-                    query = ""
-                    scope = .all
-                    isSearchPresented = false
-                }
-                .task(id: query) {
-                    await libraryManager.search(query: query)
+                // A library reload re-runs the query, so the results follow
+                // rescans and the hide-duplicates setting.
+                .task(id: "\(libraryManager.libraryRevision)-\(query)") {
+                    let results = await libraryManager.search(query: query)
+                    guard !Task.isCancelled else { return }
+                    foundTracks = LibrarySearch.collapsingRepeatedSongs(results)
                     // A query that stood still for a moment and found something
                     // is one worth coming back to; keystrokes on the way there
                     // are not, and `remember` folds them into it.

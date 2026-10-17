@@ -50,4 +50,47 @@ enum LibrarySearch {
         Logger.warning("No database manager available for search")
         return []
     }
+
+    // MARK: - Repeated Songs
+
+    /// One row per song: copies of the same title by the same artists, within
+    /// a few seconds of length, collapse into the first match. Duplicate
+    /// marking in the database misses copies whose tags differ in punctuation,
+    /// artist separators ("A, B" against "A;B") or year, as when one song
+    /// arrives from two sources. Versions of different length (an edit, a
+    /// remaster) stay separate. A copy with a known album replaces one from
+    /// "Unknown Album".
+    static func collapsingRepeatedSongs(_ tracks: [Track]) -> [Track] {
+        var result: [Track] = []
+        var indicesByKey: [String: [Int]] = [:]
+        for track in tracks {
+            let key = songKey(track)
+            let match = indicesByKey[key, default: []].first {
+                abs(result[$0].duration - track.duration) <= 3
+            }
+            if let match {
+                let album = result[match].album
+                if album.isEmpty || album == LibraryFilterType.albums.unknownPlaceholder {
+                    result[match] = track
+                }
+            } else {
+                indicesByKey[key, default: []].append(result.count)
+                result.append(track)
+            }
+        }
+        return result
+    }
+
+    private static func songKey(_ track: Track) -> String {
+        let artists = track.artist
+            .split { $0 == "," || $0 == ";" || $0 == "&" }
+            .map(alphanumerics)
+            .sorted()
+            .joined(separator: "+")
+        return alphanumerics(track.title) + "|" + artists
+    }
+
+    private static func alphanumerics(_ text: some StringProtocol) -> String {
+        String(text.lowercased().unicodeScalars.filter(CharacterSet.alphanumerics.contains).map(Character.init))
+    }
 }
