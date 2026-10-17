@@ -37,8 +37,6 @@ private enum MainWindowPanelState: String {
 }
 
 private let mainWindowPanelStateKey = "mainWindowPanelState"
-/// The player bar's fixed left and right sections and controls fit in this width.
-private let playerMinWidth: CGFloat = 1000
 
 struct ContentView: View {
     @EnvironmentObject var playbackManager: PlaybackManager
@@ -84,7 +82,14 @@ struct ContentView: View {
     }
 
     var body: some View {
-        mainContentArea
+        VStack(spacing: 0) {
+            Divider()
+            // Main Content Area with Queue
+            mainContentArea
+
+            playerControls
+                .animation(.easeInOut(duration: 0.3), value: libraryManager.folders.isEmpty)
+        }
         .onKeyPress(.space) {
             if isCurrentlyEditingText() {
                 return .ignored
@@ -99,8 +104,7 @@ struct ContentView: View {
 
             return .ignored
         }
-        // The window can't read the detail column's minimum, so it adds the sidebar's.
-        .frame(minWidth: playerMinWidth + SplitViewConstants.leftSidebarMinWidth, minHeight: 600)
+        .frame(minWidth: 1000, minHeight: 600)
         .overlay {
             if isImmersiveActive {
                 ImmersiveView(
@@ -246,32 +250,18 @@ struct ContentView: View {
             NoMusicEmptyStateView(context: .mainWindow)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            // The system sidebar, full window height as in Finder; the player
-            // and the side panel live in the detail column.
-            NavigationSplitView {
-                leftSidebar
-                    .navigationSplitViewColumnWidth(
-                        min: SplitViewConstants.leftSidebarMinWidth,
-                        ideal: SplitViewConstants.leftSidebarDefaultWidth,
-                        max: SplitViewConstants.leftSidebarMaxWidth
-                    )
-            } detail: {
-                VStack(spacing: 0) {
-                    PersistentSplitView(
-                        main: {
-                            sectionContent
-                        },
-                        right: {
-                            sidePanel
-                        }
-                    )
-                    .frame(minHeight: 0, maxHeight: .infinity)
-
-                    playerControls
+            PersistentSplitView(
+                left: {
+                    leftSidebar
+                },
+                center: {
+                    sectionContent
+                },
+                right: {
+                    sidePanel
                 }
-                // Keeps a widened sidebar from squeezing the player bar's fixed sections.
-                .navigationSplitViewColumnWidth(min: playerMinWidth, ideal: playerMinWidth)
-            }
+            )
+            .frame(minHeight: 0, maxHeight: .infinity)
         }
     }
 
@@ -316,7 +306,6 @@ struct ContentView: View {
                             filteredItems: $libraryFilteredItems,
                             selectedSidebarItem: $librarySelectedSidebarItem
                         )
-                        .background(.ultraThinMaterial)
                     },
                     main: {
                         LibraryView(
