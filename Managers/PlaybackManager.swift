@@ -626,12 +626,14 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
             // The engine walked to the next queue entry on its own.
             self.handleEngineAdvance(to: entryId, track: track)
         } else if let started = self.track(forEntry: entryId) {
-            self.isPlaying = true
+            // The same entry reloaded (a restore, or a rebuilt player) may be
+            // paused, so read the engine instead of assuming playback.
+            self.isPlaying = self.audioPlayer.state == .playing
             // Adopted now, so the tile's timeline is this track's. Resolved by
             // id so a superseded load can't publish the wrong track.
             self.publishNowPlayingMetadata(for: started)
         } else {
-            self.isPlaying = true
+            self.isPlaying = self.audioPlayer.state == .playing
             Logger.warning("Started an entry the mirror cannot name: \(entryId.id)")
         }
         self.currentTime = self.audioPlayer.currentPlaybackProgress

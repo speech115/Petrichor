@@ -53,7 +53,9 @@ private enum AVFoundationEvent: Sendable {
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
 
-    private let player = AVQueuePlayer()
+    /// Replaced only after a media services reset, which kills every player
+    /// object made before it (see `recoverFromMediaServicesReset()`).
+    private var player = AVQueuePlayer()
     private var entries: [QueueEntry] = []
     private var currentIndex: Int = 0
     private var currentItemObservation: NSKeyValueObservation?
@@ -90,7 +92,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
         onResume: { [weak self] in self?.resume() },
-        isPlaying: { [weak self] in self?.player.timeControlStatus == .playing }
+        isPlaying: { [weak self] in self?.player.timeControlStatus == .playing },
+        onMediaServicesReset: { [weak self] in self?.recoverFromMediaServicesReset() }
     )
 
     /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared
@@ -434,8 +437,13 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
         let nextIndex = finishedIndex + 1
         guard nextIndex < entries.count else {
-            removeTracking(for: item)
+            // The queue is over. Stop on its last track, rewound, the way Music
+            // does: play starts it again. Pausing explicitly matters, because
+            // the player can stay at rate 1 on a finished item, and the app and
+            // lock screen would then keep showing "playing" over silence.
             currentIndex = min(finishedIndex, max(0, entries.count - 1))
+            player.pause()
+            player.seek(to: .zero)
             notifyStateIfChanged()
             return
         }
@@ -505,11 +513,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     }
 
     private func notifyStateIfChanged() {
-        let newState = mapState(player.timeControlStatus)
-        guard newState != previousState else { return }
-        let previous = previousState
-        previousState = newState
-        backendDelegate?.backendStateChanged(with: newState, previous: previous)
+        report(mapState(player.timeControlStatus))
     }
 
     private func notifyStateIfChanged(observedStatus: ObservedTimeControlStatus) {
@@ -520,10 +524,17 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         case .paused, .unknown:
             newState = entries.isEmpty ? .stopped : .paused
         }
+        report(newState)
+    }
+
+    /// The single place a play/pause change leaves the backend: the app and
+    /// the lock screen tile hear about it together, so they cannot disagree.
+    private func report(_ newState: AudioPlayerState) {
         guard newState != previousState else { return }
         let previous = previousState
         previousState = newState
         backendDelegate?.backendStateChanged(with: newState, previous: previous)
+        publishNowPlaying()
     }
 
     /// `AVPlayer.TimeControlStatus` has no "stopped" case of its own - an empty
@@ -582,6 +593,11 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
         guard let entryId = itemEntryMap[key] else { return }
 
+        // A media services reset fails every item of the dead player. The
+        // files are fine: keep the queue and let the reset notification
+        // rebuild the player (`recoverFromMediaServicesReset()`).
+        guard !Self.isMediaServicesReset(notificationError ?? item.error) else { return }
+
         backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(notificationError ?? item.error))
 
         guard let index = queueIndex(of: entryId) else {
@@ -629,6 +645,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         if isFileNotFoundError(nsError) { return .fileNotFound }
         if isUnsupportedFormatError(nsError) { return .invalidFormat }
         return .engineError(error)
+    }
+
+    nonisolated static func isMediaServicesReset(_ error: Error?) -> Bool {
+        guard let error = error as NSError? else { return false }
+        if error.domain == AVFoundationErrorDomain, error.code == AVError.Code.mediaServicesWereReset.rawValue {
+            return true
+        }
+        return isMediaServicesReset(error.userInfo[NSUnderlyingErrorKey] as? NSError)
     }
 
     nonisolated private static func isFileNotFoundError(_ error: NSError) -> Bool {
@@ -685,6 +709,23 @@ extension AVQueuePlayerBackend {
     func stop() {
         player.pause()
         clearQueue()
+    }
+
+    /// Apple's recovery after `mediaServicesWereResetNotification`: drop the
+    /// dead player, make a new one and load the same queue position into it,
+    /// paused, as Music does. Nothing restarts on its own.
+    func recoverFromMediaServicesReset() {
+        let position = currentPlaybackProgress
+        let volume = player.volume
+        currentItemObservation?.invalidate()
+        timeControlObservation?.invalidate()
+        player = AVQueuePlayer()
+        player.volume = volume
+        player.actionAtItemEnd = .pause
+        observeTrackChanges()
+        observeStateChanges()
+        rebuildPlayerItems(startPaused: true)
+        seek(to: position)
     }
 
     func togglePlayPause() {

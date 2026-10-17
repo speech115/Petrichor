@@ -32,6 +32,23 @@ import Testing
         #expect(isFileNotFound(AVQueuePlayerBackend.mapPlaybackError(wrapper)))
     }
 
+    /// A media services reset fails every item of the player; the files are
+    /// fine, so the backend must recognize it and keep the queue.
+    @Test func mediaServicesResetIsRecognizedDirectlyAndNested() {
+        let reset = NSError(domain: AVFoundationErrorDomain, code: AVError.Code.mediaServicesWereReset.rawValue)
+        let wrapper = NSError(
+            domain: AVFoundationErrorDomain,
+            code: AVError.Code.unknown.rawValue,
+            userInfo: [NSUnderlyingErrorKey: reset]
+        )
+        let corrupt = NSError(domain: AVFoundationErrorDomain, code: AVError.Code.fileFormatNotRecognized.rawValue)
+
+        #expect(AVQueuePlayerBackend.isMediaServicesReset(reset))
+        #expect(AVQueuePlayerBackend.isMediaServicesReset(wrapper))
+        #expect(!AVQueuePlayerBackend.isMediaServicesReset(corrupt))
+        #expect(!AVQueuePlayerBackend.isMediaServicesReset(nil))
+    }
+
     @Test func unrecognizedFormatMapsToInvalidFormat() {
         let error = NSError(domain: AVFoundationErrorDomain, code: AVError.Code.fileFormatNotRecognized.rawValue)
 

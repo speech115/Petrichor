@@ -5,7 +5,8 @@
 // and route changes so background playback behaves the way the system
 // expects it to: a phone call or alarm pauses and resumes playback, and
 // unplugging headphones pauses instead of continuing out loud through the
-// speaker.
+// speaker. After a media services reset it configures the session again
+// and has the backend rebuild its dead player.
 //
 
 import AVFoundation
@@ -15,6 +16,7 @@ final class AudioSessionController {
     private let onPause: () -> Void
     private let onResume: () -> Void
     private let isPlaying: () -> Bool
+    private let onMediaServicesReset: () -> Void
 
     /// True when playback was running when the interruption began. An
     /// interruption that ends with `.shouldResume` resumes only if playback
@@ -25,21 +27,18 @@ final class AudioSessionController {
     init(
         onPause: @escaping () -> Void,
         onResume: @escaping () -> Void,
-        isPlaying: @escaping () -> Bool
+        isPlaying: @escaping () -> Bool,
+        onMediaServicesReset: @escaping () -> Void
     ) {
         self.onPause = onPause
         self.onResume = onResume
         self.isPlaying = isPlaying
+        self.onMediaServicesReset = onMediaServicesReset
     }
 
     func activate() {
         let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            Logger.error("Failed to activate the audio session: \(error)")
-        }
+        configureSession()
 
         NotificationCenter.default.addObserver(
             self,
@@ -53,6 +52,22 @@ final class AudioSessionController {
             name: AVAudioSession.routeChangeNotification,
             object: session
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMediaServicesReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
+    }
+
+    private func configureSession() {
+        let session = AVAudioSession.sharedInstance()
+        do {
+            try session.setCategory(.playback, mode: .default)
+            try session.setActive(true)
+        } catch {
+            Logger.error("Failed to activate the audio session: \(error)")
+        }
     }
 
     deinit {
@@ -103,6 +118,21 @@ final class AudioSessionController {
                 MainActor.assumeIsolated {
                     self?.onPause()
                 }
+            }
+        }
+    }
+
+    /// The media server restarted (iOS does this on its own, often while the
+    /// app sits paused in the background). Every player object made before it
+    /// is dead and the session lost its configuration, so Apple's documented
+    /// recovery is to configure the session again and rebuild the players.
+    @objc nonisolated private func handleMediaServicesReset(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Logger.warning("Media services were reset; rebuilding the player")
+                self.configureSession()
+                self.onMediaServicesReset()
             }
         }
     }
