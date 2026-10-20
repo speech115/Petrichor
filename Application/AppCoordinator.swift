@@ -24,7 +24,7 @@ class AppCoordinator: ObservableObject {
     private var hadFoldersAtStartup: Bool = false
     private let playbackStateKey = "SavedPlaybackState"
     private let playbackUIStateKey = "SavedPlaybackUIState"
-    private static let playbackPositionKey = "SavedPlaybackPosition"
+    nonisolated private static let playbackPositionKey = "SavedPlaybackPosition"
 
     /// The playhead alone. The full snapshot is written only when the app
     /// leaves the foreground, so a kill or crash while playing rolled the
