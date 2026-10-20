@@ -104,6 +104,9 @@ final class AudioSessionController {
         if reason == .oldDeviceUnavailable {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
+                    // Headphones unplugged mid-call: the call's end must not
+                    // resume playback through the speaker.
+                    self?.wasPlayingBeforeInterruption = false
                     self?.onPause()
                 }
             }
