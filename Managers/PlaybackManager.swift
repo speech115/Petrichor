@@ -626,7 +626,9 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
             // The engine walked to the next queue entry on its own.
             self.handleEngineAdvance(to: entryId, track: track)
         } else if let started = self.track(forEntry: entryId) {
-            self.isPlaying = true
+            // A paused load (the player rebuilt after a media services reset)
+            // also reports its item here.
+            self.isPlaying = self.audioPlayer.state == .playing
             // Adopted now, so the tile's timeline is this track's. Resolved by
             // id so a superseded load can't publish the wrong track.
             self.publishNowPlayingMetadata(for: started)
