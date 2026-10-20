@@ -274,6 +274,35 @@ struct QueueBackendTests {
     }
 }
 
+/// After the last track finishes, Play restarts it from 0:00 (what the manager
+/// shows). The item used to stay at its end: Play reported `.playing` over
+/// silence and the position never moved.
+@Test func playAfterTheQueueEndedReplaysTheLastTrack() async throws {
+    let url = try makeSilentWAV(seconds: 1)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let backend = AVQueuePlayerBackend()
+    let delegate = NowPlayingTestDelegate()
+    backend.backendDelegate = delegate
+    defer { backend.stop() }
+    backend.setQueue([makeEntry("last", url: url)], startingAt: 0, startPaused: false)
+
+    func waitUntil(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline, !condition() {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+    }
+    try await waitUntil { delegate.finishes == 1 && backend.state == .paused }
+    #expect(delegate.finishes == 1)
+    #expect(backend.state == .paused)
+
+    backend.resume()
+    try await waitUntil { backend.currentPlaybackProgress > 0.3 }
+    #expect(backend.currentPlaybackProgress > 0.3, "позиция идёт после Play в конце очереди")
+    try await waitUntil { delegate.finishes == 2 }
+    #expect(delegate.finishes == 2, "повтор последнего трека снова доходит до конца")
+}
+
 @Test func automaticTrackAdvanceKeepsLockScreenSeekable() async throws {
     let first = try makeSilentWAV(seconds: 1)
     let second = try makeSilentWAV(seconds: 6)
@@ -322,13 +351,14 @@ private final class NowPlayingTestDelegate: PlaybackBackendDelegate {
     weak var backend: AVQueuePlayerBackend?
     var currentID: String?
     var states: [AudioPlayerState] = []
+    var finishes = 0
 
     func backendDidStartPlaying(with entryId: AudioEntryId) {
         currentID = entryId.id
         backend?.setNowPlayingMetadata(NowPlayingMetadata(title: entryId.id))
     }
     func backendStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) { states.append(newState) }
-    func backendDidFinishPlaying(entryId: AudioEntryId, stopReason: AudioPlayerStopReason, progress: Double, duration: Double) {}
+    func backendDidFinishPlaying(entryId: AudioEntryId, stopReason: AudioPlayerStopReason, progress: Double, duration: Double) { finishes += 1 }
     func backendUnexpectedError(error: AudioPlayerError) { Issue.record("Unexpected playback error: \(error)") }
     func backendDidFinishBuffering(with entryId: AudioEntryId) {}
     func backendDidSkipQueueEntry(entryId: AudioEntryId) { Issue.record("Unexpected skip: \(entryId.id)") }

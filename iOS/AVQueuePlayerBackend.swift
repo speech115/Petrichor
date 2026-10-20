@@ -442,7 +442,10 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
         let nextIndex = finishedIndex + 1
         guard nextIndex < entries.count else {
-            removeTracking(for: item)
+            // The manager shows the last track paused at 0:00 and resumes it on
+            // Play. Left at its end, the item played nothing while reporting
+            // `.playing`; rewound and still tracked, it replays and finishes again.
+            seek(to: 0)
             currentIndex = min(finishedIndex, max(0, entries.count - 1))
             wantsPlayback = false
             notifyStateIfChanged()
