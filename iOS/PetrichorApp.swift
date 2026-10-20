@@ -7,6 +7,7 @@
 // `AVQueuePlayerBackend` on first playback.
 //
 
+import Combine
 import OSLog
 import SwiftUI
 
