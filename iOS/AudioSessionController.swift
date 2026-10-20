@@ -14,32 +14,30 @@ import AVFoundation
 final class AudioSessionController {
     private let onPause: () -> Void
     private let onResume: () -> Void
-    private let isPlaying: () -> Bool
+    private let onMediaServicesReset: () -> Void
+    private let wantsPlayback: () -> Bool
+    private var pendingMediaServicesReset: DispatchWorkItem?
 
-    /// True when playback was running when the interruption began. An
-    /// interruption that ends with `.shouldResume` resumes only if playback
-    /// was actually running before it — it never starts audio that was paused
-    /// when the call/alarm arrived.
+    /// True when the app meant to be playing when the interruption began. An
+    /// interruption that ends with `.shouldResume` resumes only then: it never
+    /// starts audio that was paused when the call/alarm arrived.
     private var wasPlayingBeforeInterruption = false
 
     init(
         onPause: @escaping () -> Void,
         onResume: @escaping () -> Void,
-        isPlaying: @escaping () -> Bool
+        onMediaServicesReset: @escaping () -> Void,
+        wantsPlayback: @escaping () -> Bool
     ) {
         self.onPause = onPause
         self.onResume = onResume
-        self.isPlaying = isPlaying
+        self.onMediaServicesReset = onMediaServicesReset
+        self.wantsPlayback = wantsPlayback
     }
 
     func activate() {
         let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            Logger.error("Failed to activate the audio session: \(error)")
-        }
+        configureSession()
 
         NotificationCenter.default.addObserver(
             self,
@@ -53,6 +51,44 @@ final class AudioSessionController {
             name: AVAudioSession.routeChangeNotification,
             object: session
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMediaServicesReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
+    }
+
+    /// Sets the category and activates the session. A media services reset
+    /// discards both, so playback rebuilt after one calls this again.
+    func configureSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default)
+            try session.setActive(true)
+        } catch {
+            Logger.error("Failed to activate the audio session: \(error)")
+        }
+    }
+
+    /// Posted with a nil object on iOS 27, and twice for one "Reset All Media
+    /// Services": the work is debounced so the player is rebuilt once.
+    @objc nonisolated private func handleMediaServicesReset(_ notification: Notification) {
+        Logger.info("Audio media services were reset")
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.pendingMediaServicesReset?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    MainActor.assumeIsolated {
+                        self?.configureSession()
+                        self?.onMediaServicesReset()
+                    }
+                }
+                self.pendingMediaServicesReset = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+            }
+        }
     }
 
     deinit {
@@ -75,7 +111,8 @@ final class AudioSessionController {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    self.wasPlayingBeforeInterruption = self.isPlaying()
+                    self.wasPlayingBeforeInterruption = self.wantsPlayback()
+                    Logger.info("Audio interruption began, was playing: \(self.wasPlayingBeforeInterruption)")
                     self.onPause()
                 }
             }
@@ -84,7 +121,9 @@ final class AudioSessionController {
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
-                    guard let self, shouldResume, self.wasPlayingBeforeInterruption else { return }
+                    guard let self else { return }
+                    Logger.info("Audio interruption ended, should resume: \(shouldResume), was playing: \(self.wasPlayingBeforeInterruption)")
+                    guard shouldResume, self.wasPlayingBeforeInterruption else { return }
                     self.reactivateSession()
                     self.onResume()
                 }
@@ -98,9 +137,13 @@ final class AudioSessionController {
         guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 
+        Logger.info("Audio route changed, reason: \(reason.rawValue)")
         if reason == .oldDeviceUnavailable {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
+                    // Headphones unplugged mid-call: the call's end must not
+                    // resume playback through the speaker.
+                    self?.wasPlayingBeforeInterruption = false
                     self?.onPause()
                 }
             }
