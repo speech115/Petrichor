@@ -7,6 +7,7 @@
 // `AVQueuePlayerBackend` on first playback.
 //
 
+import Combine
 import OSLog
 import SwiftUI
 
@@ -42,6 +43,7 @@ struct PetrichorApp: App {
     @State private var needsPlaybackSave = false
     @State private var backgroundSaveID = UIBackgroundTaskIdentifier.invalid
     private let launchStart = ContinuousClock.now
+    private let positionTicker = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
     /// Launch phases as Instruments intervals (Points of Interest); the log
     /// line below carries the same numbers off a device without Instruments.
     private static let signposter = OSSignposter(subsystem: "org.Petrichor.ios", category: .pointsOfInterest)
@@ -142,6 +144,20 @@ struct PetrichorApp: App {
                     // Re-apply the stored color scheme: overrideUserInterfaceStyle
                     // does not survive a relaunch on its own.
                     ColorMode.current.apply()
+                }
+                // The playhead mark: a few bytes in UserDefaults, so a kill
+                // while playing loses seconds, not the whole session since
+                // the last backgrounding. The full snapshot stays on
+                // scenePhase: it carries the queue and costs a real write.
+                .onReceive(positionTicker) { _ in
+                    if appCoordinator.playbackManager.isPlaying {
+                        appCoordinator.savePlaybackPosition()
+                    }
+                }
+                .onReceive(appCoordinator.playbackManager.$isPlaying.removeDuplicates().dropFirst()) { playing in
+                    if !playing {
+                        appCoordinator.savePlaybackPosition()
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {

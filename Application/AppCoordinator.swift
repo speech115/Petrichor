@@ -24,7 +24,19 @@ class AppCoordinator: ObservableObject {
     private var hadFoldersAtStartup: Bool = false
     private let playbackStateKey = "SavedPlaybackState"
     private let playbackUIStateKey = "SavedPlaybackUIState"
-    
+    nonisolated private static let playbackPositionKey = "SavedPlaybackPosition"
+
+    /// The playhead alone. The full snapshot is written only when the app
+    /// leaves the foreground, so a kill or crash while playing rolled the
+    /// position back to the last backgrounding; iOS writes this mark every few
+    /// seconds of playback and on pause, and restoration prefers it whenever
+    /// it names a track from the saved queue. Every full write refreshes it,
+    /// so it is never older than the snapshot.
+    struct PlaybackPositionMark: Codable, Sendable {
+        let trackId: Int64
+        let position: Double
+    }
+
     // Track restoration state to prevent race conditions
     private var isRestoringPlayback = false
     private var libraryObserver: NSObjectProtocol?
@@ -82,9 +94,25 @@ class AppCoordinator: ObservableObject {
     
     // MARK: - Playback State Persistence
     
+    func savePlaybackPosition() {
+        guard let trackId = playbackManager.currentTrack?.trackId else { return }
+        Self.write(PlaybackPositionMark(trackId: trackId, position: playbackManager.currentTime))
+    }
+
+    nonisolated private static func write(_ mark: PlaybackPositionMark) {
+        guard let data = try? JSONEncoder().encode(mark) else { return }
+        UserDefaults.standard.set(data, forKey: playbackPositionKey)
+    }
+
+    nonisolated private static func savedPositionMark() -> PlaybackPositionMark? {
+        UserDefaults.standard.data(forKey: playbackPositionKey)
+            .flatMap { try? JSONDecoder().decode(PlaybackPositionMark.self, from: $0) }
+    }
+
     private func clearAllSavedState() {
         UserDefaults.standard.removeObject(forKey: playbackStateKey)
         UserDefaults.standard.removeObject(forKey: playbackUIStateKey)
+        UserDefaults.standard.removeObject(forKey: Self.playbackPositionKey)
         playbackManager.restoredUITrack = nil
         playbackManager.currentTrack = nil
         // Play pressed on the restored UI track latches until the restore lands;
@@ -203,6 +231,9 @@ class AppCoordinator: ObservableObject {
             let encoder = JSONEncoder()
             let data = try encoder.encode(snapshot.state)
             UserDefaults.standard.set(data, forKey: stateKey)
+            if let trackId = snapshot.state.currentTrackId {
+                write(PlaybackPositionMark(trackId: trackId, position: snapshot.state.playbackPosition))
+            }
             Logger.info("Playback state saved")
         } catch {
             Logger.warning("Failed to save playback state: \(error)")
@@ -306,6 +337,8 @@ class AppCoordinator: ObservableObject {
         let state: PlaybackState
         let queue: [Track]
         let currentTrack: Track?
+        let queueIndex: Int
+        let position: Double
         let isCurrentTrackReadable: Bool
     }
 
@@ -366,7 +399,16 @@ class AppCoordinator: ObservableObject {
         let restorationRatio = Double(restoredQueue.count) / Double(state.queueTrackPaths.count)
         guard restorationRatio >= 0.5, !restoredQueue.isEmpty else { return .discard }
 
-        let currentTrack = state.currentTrackId.flatMap { id in restoredQueue.first { $0.trackId == id } }
+        var currentTrackId = state.currentTrackId
+        var queueIndex = state.currentQueueIndex
+        var position = state.playbackPosition
+        if let mark = savedPositionMark(),
+           let markIndex = restoredQueue.firstIndex(where: { $0.trackId == mark.trackId }) {
+            currentTrackId = mark.trackId
+            queueIndex = markIndex
+            position = mark.position
+        }
+        let currentTrack = currentTrackId.flatMap { id in restoredQueue.first { $0.trackId == id } }
         let isReadable = currentTrack.map { track in
             FileManager.default.fileExists(atPath: track.url.path)
                 && FileManager.default.isReadableFile(atPath: track.url.path)
@@ -375,6 +417,8 @@ class AppCoordinator: ObservableObject {
             state: state,
             queue: restoredQueue,
             currentTrack: currentTrack,
+            queueIndex: queueIndex,
+            position: position,
             isCurrentTrackReadable: isReadable
         ))
     }
@@ -390,7 +434,7 @@ class AppCoordinator: ObservableObject {
 
         playlistManager.replaceCurrentQueue(
             restoredQueue,
-            index: min(state.currentQueueIndex, restoredQueue.count - 1)
+            index: min(restoration.queueIndex, restoredQueue.count - 1)
         )
         playlistManager.currentQueueSource = state.queueSourceEnum
 
@@ -415,7 +459,7 @@ class AppCoordinator: ObservableObject {
 
             // Clear the temporary UI track before setting the real one
             playbackManager.restoredUITrack = nil
-            playbackManager.prepareTrackForRestoration(currentTrack, at: state.playbackPosition)
+            playbackManager.prepareTrackForRestoration(currentTrack, at: restoration.position)
             Logger.info("Playback state restored")
         } else {
             playbackManager.abandonPendingPlayOnRestore()
