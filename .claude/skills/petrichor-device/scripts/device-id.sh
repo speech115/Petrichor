@@ -20,7 +20,8 @@ connected = [
     d for d in devices
     # deviceType, not platform: an iPad also reports platform "iOS".
     if d["hardwareProperties"].get("deviceType") == "iPhone"
-    and d["hardwareProperties"].get("reality") == "physical"
+    # Xcode 27 leaves "reality" out for a wired iPhone; only "virtual" excludes.
+    and d["hardwareProperties"].get("reality", "physical") == "physical"
     and d["connectionProperties"].get("tunnelState") != "unavailable"
 ]
 
