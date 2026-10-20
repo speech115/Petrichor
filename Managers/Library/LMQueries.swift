@@ -195,7 +195,11 @@ extension LibraryManager {
             searchResults = []
         } else {
             let query = globalSearchText
-            searchTask = Task { await search(query: query) }
+            searchTask = Task {
+                let results = await search(query: query)
+                guard !Task.isCancelled else { return }
+                searchResults = results
+            }
         }
     }
 
