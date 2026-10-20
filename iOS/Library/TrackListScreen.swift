@@ -39,6 +39,11 @@ struct TrackListScreen<Header: View, Row: View>: View {
     /// state from rows without re-querying (e.g. a toolbar action's
     /// disabled flag).
     var onRowsChange: (([Track]) -> Void)? = nil
+    /// Drag-to-reorder and swipe-to-delete for single-section hosts that own
+    /// their order (a regular playlist). Offsets are positions in that
+    /// section's rows.
+    var onMove: ((IndexSet, Int) -> Void)? = nil
+    var onDelete: ((IndexSet) -> Void)? = nil
 
     @ViewBuilder var header: ([Track]) -> Header?
     @ViewBuilder var row: (Track, [Track]) -> Row
@@ -132,6 +137,8 @@ struct TrackListScreen<Header: View, Row: View>: View {
                     ForEach(section.items) { item in
                         row(item, tracks)
                     }
+                    .onMove(perform: onMove)
+                    .onDelete(perform: onDelete)
                 } header: {
                     if !section.key.isEmpty {
                         // The system header gray sits at ~3.3:1 in light

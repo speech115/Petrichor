@@ -29,6 +29,9 @@ struct PlaylistDetailScreen: View {
     @State private var renameText = ""
     @State private var showingDeleteConfirmation = false
     @State private var headerTint: Color?
+    /// Apple Music's Edit: handles for reordering and delete circles. Drag
+    /// reorder and swipe delete also work outside it.
+    @State private var editMode = EditMode.inactive
 
     private var playlist: Playlist? {
         playlistCatalog.playlists.first { $0.id == playlistID }
@@ -44,6 +47,12 @@ struct PlaylistDetailScreen: View {
                     initialRows: playlist.tracks.isEmpty && playlist.trackCount > 0 ? nil : playlist.tracks,
                     usesPlainStyle: true,
                     showEmptyState: false,
+                    onMove: canEditContent(playlist) ? { offsets, destination in
+                        move(offsets, to: destination, in: playlist)
+                    } : nil,
+                    onDelete: canEditContent(playlist) ? { offsets in
+                        remove(offsets, from: playlist)
+                    } : nil,
                     header: { tracks in
                         VStack(spacing: 16) {
                             header(playlist, tracks: tracks)
@@ -69,6 +78,7 @@ struct PlaylistDetailScreen: View {
                     row: { track, _ in playlistTrackRow(track, playlist: playlist) }
                 )
                 .detailPageWash(headerTint)
+                .environment(\.editMode, $editMode)
             } else {
                 ContentUnavailableView(
                     String(localized: "Playlist Not Found"),
@@ -79,11 +89,24 @@ struct PlaylistDetailScreen: View {
         .navigationTitle(playlist == nil ? String(localized: "Playlist Not Found") : "")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if let playlist, playlist.isUserEditable {
+            if editMode.isEditing {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(String(localized: "Done")) {
+                        withAnimation { editMode = .inactive }
+                    }
+                    .fontWeight(.semibold)
+                }
+            } else if let playlist, playlist.isUserEditable {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        if playlist.type == .regular && playlist.isContentEditable {
+                        if canEditContent(playlist) {
                             Button("Add Songs", systemImage: "plus") { showingAddSongs = true }
+                            Button {
+                                withAnimation { editMode = .active }
+                            } label: {
+                                Label(String(localized: "Edit"), systemImage: "arrow.up.arrow.down")
+                            }
+                            .disabled(playlist.tracks.isEmpty)
                         }
                         Button {
                             beginRename(playlist)
@@ -147,6 +170,27 @@ struct PlaylistDetailScreen: View {
         let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let playlist, !trimmed.isEmpty else { return }
         playlistManager.renamePlaylist(playlist, newName: trimmed)
+    }
+
+    // MARK: - Editing
+
+    private func canEditContent(_ playlist: Playlist) -> Bool {
+        playlist.type == .regular && playlist.isContentEditable
+    }
+
+    /// The manager persists positions and reorders its own rows, which this
+    /// screen renders through `initialRows`.
+    private func move(_ offsets: IndexSet, to destination: Int, in playlist: Playlist) {
+        var ordered = playlist.tracks
+        ordered.move(fromOffsets: offsets, toOffset: destination)
+        let orderedIDs = ordered.compactMap(\.trackId)
+        Task { await playlistManager.applyPlaylistTrackOrder(playlistID: playlist.id, orderedTrackIds: orderedIDs) }
+    }
+
+    private func remove(_ offsets: IndexSet, from playlist: Playlist) {
+        let removed = offsets.compactMap { playlist.tracks.indices.contains($0) ? playlist.tracks[$0] : nil }
+        guard !removed.isEmpty else { return }
+        Task { await playlistManager.removeTracksFromPlaylist(tracks: removed, playlistID: playlist.id) }
     }
 
     // MARK: - Track List
