@@ -87,10 +87,15 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// refilling would loop the last track forever.
     private var lastFinishedEntryId: AudioEntryId?
 
+    /// Whether the app last asked the player to play. The system pauses
+    /// `AVPlayer` before an interruption notification arrives, so the live
+    /// `timeControlStatus` cannot tell whether to resume when it ends.
+    private var wantsPlayback = false
+
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
         onResume: { [weak self] in self?.resume() },
-        isPlaying: { [weak self] in self?.player.timeControlStatus == .playing }
+        wantsPlayback: { [weak self] in self?.wantsPlayback == true }
     )
 
     /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared
@@ -230,6 +235,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     func clearQueue() {
         entries.removeAll()
         currentIndex = 0
+        wantsPlayback = false
         player.removeAllItems()
         clearItemTracking()
         notifyStateIfChanged()
@@ -280,6 +286,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         for entry in entries[currentIndex..<end] {
             player.insert(makePlayerItem(for: entry), after: nil)
         }
+        wantsPlayback = !startPaused
         if startPaused {
             player.pause()
         } else {
@@ -436,6 +443,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         guard nextIndex < entries.count else {
             removeTracking(for: item)
             currentIndex = min(finishedIndex, max(0, entries.count - 1))
+            wantsPlayback = false
             notifyStateIfChanged()
             return
         }
@@ -670,12 +678,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
 extension AVQueuePlayerBackend {
     func pause() {
+        wantsPlayback = false
         player.pause()
         notifyStateIfChanged()
         publishNowPlaying()
     }
 
     func resume() {
+        wantsPlayback = true
         activateSessionIfNeeded()
         player.play()
         notifyStateIfChanged()
@@ -689,8 +699,10 @@ extension AVQueuePlayerBackend {
 
     func togglePlayPause() {
         if state == .playing {
+            wantsPlayback = false
             player.pause()
         } else {
+            wantsPlayback = true
             activateSessionIfNeeded()
             player.play()
         }

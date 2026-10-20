@@ -14,22 +14,21 @@ import AVFoundation
 final class AudioSessionController {
     private let onPause: () -> Void
     private let onResume: () -> Void
-    private let isPlaying: () -> Bool
+    private let wantsPlayback: () -> Bool
 
-    /// True when playback was running when the interruption began. An
-    /// interruption that ends with `.shouldResume` resumes only if playback
-    /// was actually running before it — it never starts audio that was paused
-    /// when the call/alarm arrived.
+    /// True when the app meant to be playing when the interruption began. An
+    /// interruption that ends with `.shouldResume` resumes only then: it never
+    /// starts audio that was paused when the call/alarm arrived.
     private var wasPlayingBeforeInterruption = false
 
     init(
         onPause: @escaping () -> Void,
         onResume: @escaping () -> Void,
-        isPlaying: @escaping () -> Bool
+        wantsPlayback: @escaping () -> Bool
     ) {
         self.onPause = onPause
         self.onResume = onResume
-        self.isPlaying = isPlaying
+        self.wantsPlayback = wantsPlayback
     }
 
     func activate() {
@@ -75,7 +74,8 @@ final class AudioSessionController {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    self.wasPlayingBeforeInterruption = self.isPlaying()
+                    self.wasPlayingBeforeInterruption = self.wantsPlayback()
+                    Logger.info("Audio interruption began, was playing: \(self.wasPlayingBeforeInterruption)")
                     self.onPause()
                 }
             }
@@ -84,7 +84,9 @@ final class AudioSessionController {
             let shouldResume = AVAudioSession.InterruptionOptions(rawValue: optionsRaw).contains(.shouldResume)
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
-                    guard let self, shouldResume, self.wasPlayingBeforeInterruption else { return }
+                    guard let self else { return }
+                    Logger.info("Audio interruption ended, should resume: \(shouldResume), was playing: \(self.wasPlayingBeforeInterruption)")
+                    guard shouldResume, self.wasPlayingBeforeInterruption else { return }
                     self.reactivateSession()
                     self.onResume()
                 }
@@ -98,6 +100,7 @@ final class AudioSessionController {
         guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 
+        Logger.info("Audio route changed, reason: \(reason.rawValue)")
         if reason == .oldDeviceUnavailable {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
