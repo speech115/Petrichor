@@ -51,7 +51,14 @@ actor ArtistBioManager {
 
     private enum UserDefaultsKeys {
         static let artistInfoFetchEnabled = "artistInfoFetchEnabled"
+        static let lastFetchStart = "artistInfoFetchLastStart"
     }
+
+    /// A run walks every artist still without a photo at about one request a
+    /// second; every launch and every library reload used to start one from
+    /// the top, and the same artists were asked again and again (11 000
+    /// requests in a week on one phone). One run per this interval is enough.
+    private static let minimumRunInterval: TimeInterval = 4 * 60 * 60
 
     // MARK: - Properties
 
@@ -101,6 +108,14 @@ actor ArtistBioManager {
     }
 
     private func startFetchingMissingArtistImages(using libraryManager: LibraryManager) {
+        // Checked before the cancel: a second trigger (scan, refresh, Settings)
+        // must leave a run that started recently alone, not cut it short and
+        // then refuse to start another.
+        let lastStart = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastFetchStart) as? Date ?? .distantPast
+        guard Date().timeIntervalSince(lastStart) >= Self.minimumRunInterval else {
+            Logger.info("Artist info fetch ran recently, skipping")
+            return
+        }
         fetchTask?.cancel()
 
         let databaseManager = libraryManager.databaseManager
@@ -117,6 +132,9 @@ actor ArtistBioManager {
                 Logger.info("No artists need fetching")
                 return
             }
+            // Stamped only once there is work: before the first scan the query
+            // is empty, and that attempt must not consume the interval.
+            UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastFetchStart)
 
             Logger.info("Starting fetch for \(artists.count) artists")
 

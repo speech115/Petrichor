@@ -637,9 +637,10 @@ extension DatabaseManager {
                 NotificationManager.shared.stopActivity()
             }
             
-            let completionMessage = isInitialScan
-                ? String(localized: "Library scan complete: \(self.getTotalTrackCount()) tracks found")
-                : String(localized: "Added \(totalFolders) folders to library")
+            // A rescan of the existing library folder (iOS reconciliation)
+            // comes through here too, so "added N folders" was wrong there;
+            // the track total holds for every path.
+            let completionMessage = String(localized: "Library scan complete: \(self.getTotalTrackCount()) tracks found")
             NotificationManager.shared.addMessage(.info, completionMessage)
         }
     }

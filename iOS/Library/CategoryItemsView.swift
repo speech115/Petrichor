@@ -121,6 +121,8 @@ struct CategoryItemsView: View {
             Spacer()
             Text("\(item.count)")
                 .foregroundColor(.secondary)
+                // Sighted users read the bare number against the list; VoiceOver got "_, 1".
+                .accessibilityLabel(TrackCountText.songs(item.count))
         }
     }
 

@@ -190,11 +190,16 @@ struct CreatePlaylistSheet: View {
     @Binding var playlistName: String
     let tracksToAdd: [Track]
     let onCreate: () -> Void
+    /// The sheet exists to take a name: the keyboard is up on arrival, as in
+    /// Music, instead of asking for a tap on the only field.
+    @FocusState private var isNameFocused: Bool
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField(String(localized: "Playlist Name"), text: $playlistName)
+                    .focused($isNameFocused)
+                    .onAppear { isNameFocused = true }
                     .onSubmit {
                         if !playlistName.isEmpty {
                             onCreate()

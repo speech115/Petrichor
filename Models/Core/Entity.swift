@@ -5,14 +5,12 @@ import CryptoKit
 // MARK: - Artist Initials
 
 extension String {
+    /// Letters only: "(OST APB) Audio Bullys" gave "(B".
     var artistInitials: String {
-        let words = split(separator: " ")
-        if words.count >= 2,
-           let first = words.first,
-           let last = words.last {
-            return "\(first.prefix(1))\(last.prefix(1))".uppercased()
-        }
-        return String(prefix(1)).uppercased()
+        let letters = split(separator: " ").compactMap { $0.first(where: \.isLetter) }
+        guard let first = letters.first else { return String(prefix(1)).uppercased() }
+        let last = letters.count >= 2 ? letters[letters.count - 1] : nil
+        return "\(first)\(last.map(String.init) ?? "")".uppercased()
     }
 }
 
