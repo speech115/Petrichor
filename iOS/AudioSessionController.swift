@@ -35,10 +35,32 @@ final class AudioSessionController {
         self.wantsPlayback = wantsPlayback
     }
 
-    func activate() {
-        let session = AVAudioSession.sharedInstance()
-        configureSession()
+    private var isObserving = false
 
+    /// Activates the session before playback starts. Returns false when the
+    /// system refuses, as it does during a phone call: AVPlayer would then sit
+    /// in "waiting to play" over silence while the app showed it playing.
+    func activate() -> Bool {
+        if !isObserving {
+            isObserving = true
+            observe()
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+            } catch {
+                Logger.error("Failed to set the audio session category: \(error)")
+            }
+        }
+        do {
+            try AVAudioSession.sharedInstance().setActive(true)
+            return true
+        } catch {
+            Logger.error("The system refused to activate the audio session: \(error)")
+            return false
+        }
+    }
+
+    private func observe() {
+        let session = AVAudioSession.sharedInstance()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleInterruption(_:)),
@@ -124,7 +146,6 @@ final class AudioSessionController {
                     guard let self else { return }
                     Logger.info("Audio interruption ended, should resume: \(shouldResume), was playing: \(self.wasPlayingBeforeInterruption)")
                     guard shouldResume, self.wasPlayingBeforeInterruption else { return }
-                    self.reactivateSession()
                     self.onResume()
                 }
             }
@@ -137,8 +158,13 @@ final class AudioSessionController {
         guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 
-        Logger.info("Audio route changed, reason: \(reason.rawValue)")
-        if reason == .oldDeviceUnavailable {
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        Logger.info("Audio route changed, reason: \(reason.rawValue), outputs: \(outputs.map(\.portType.rawValue))")
+        // Pause only when the sound would now come out of the phone itself.
+        // AirPods leaving the call profile also report a lost device while
+        // staying the output.
+        let onPhoneOutput = outputs.contains { $0.portType == .builtInSpeaker || $0.portType == .builtInReceiver }
+        if reason == .oldDeviceUnavailable, onPhoneOutput {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     // Headphones unplugged mid-call: the call's end must not
@@ -147,17 +173,6 @@ final class AudioSessionController {
                     self?.onPause()
                 }
             }
-        }
-    }
-
-    /// Re-activates the session after an interruption. The system deactivates
-    /// it during a call/alarm; resuming against an inactive session would
-    /// play silently.
-    private func reactivateSession() {
-        do {
-            try AVAudioSession.sharedInstance().setActive(true)
-        } catch {
-            Logger.error("Failed to re-activate the audio session after interruption: \(error)")
         }
     }
 }

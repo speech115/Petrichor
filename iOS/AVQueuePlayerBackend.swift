@@ -14,8 +14,8 @@
 // FIFO hop before touching backend state.
 //
 // Background playback and the lock-screen tile are this backend's
-// responsibility too, wired up in `activateSessionIfNeeded()` on the first
-// real start of playback (not `init` - see that method's doc):
+// responsibility too, wired up in `startPlayer()` on the first real start of
+// playback (not `init`, so tests that never play never touch the session):
 //   - `AudioSessionController` configures the `.playback` audio session and
 //     reacts to interruptions/route changes.
 //   - `NowPlayingPublisher` publishes the descriptive `MPNowPlayingInfoCenter`
@@ -104,15 +104,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         wantsPlayback: { [weak self] in self?.wantsPlayback == true }
     )
 
-    /// Set once `activateSessionIfNeeded()` has run. Grabbing the shared
-    /// `AVAudioSession` is deferred to the first real start of playback
-    /// rather than `init`, for two reasons: it avoids touching the
-    /// process-wide singleton before the app actually intends to make
-    /// sound, and it keeps `AVQueuePlayerBackend()` cheap to construct
-    /// directly in tests (see `QueueBackendTests`), which never start
-    /// playback and so never trip this activation at all.
-    private var didActivateSession = false
-
     override init() {
         super.init()
         // `.pause` instead of `.advance`: the end of a track must be observed
@@ -133,15 +124,16 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         observeStateChanges()
     }
 
-    /// Activates the shared `AVAudioSession`, exactly once, on the first path
-    /// that actually starts playback. `AudioSessionController.activate()` is
-    /// not idempotent (it registers interruption/route-change observers with
-    /// no matching removal), so this must not run more than once per
-    /// instance.
-    private func activateSessionIfNeeded() {
-        guard !didActivateSession else { return }
-        didActivateSession = true
-        audioSession.activate()
+    /// Every start of playback the user asks for goes through here. When the
+    /// system refuses the session (a phone call), the player stays paused
+    /// instead of reporting a play that makes no sound.
+    private func startPlayer() {
+        guard audioSession.activate() else {
+            wantsPlayback = false
+            return
+        }
+        wantsPlayback = true
+        player.play()
     }
 
     deinit {
@@ -296,12 +288,11 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         for entry in entries[currentIndex..<end] {
             player.insert(makePlayerItem(for: entry), after: nil)
         }
-        wantsPlayback = !startPaused
         if startPaused {
+            wantsPlayback = false
             player.pause()
         } else {
-            activateSessionIfNeeded()
-            player.play()
+            startPlayer()
         }
         notifyStateIfChanged()
     }
@@ -719,9 +710,7 @@ extension AVQueuePlayerBackend {
     }
 
     func resume() {
-        wantsPlayback = true
-        activateSessionIfNeeded()
-        player.play()
+        startPlayer()
         notifyStateIfChanged()
         publishNowPlaying()
     }
@@ -736,9 +725,7 @@ extension AVQueuePlayerBackend {
             wantsPlayback = false
             player.pause()
         } else {
-            wantsPlayback = true
-            activateSessionIfNeeded()
-            player.play()
+            startPlayer()
         }
         notifyStateIfChanged()
         publishNowPlaying()
