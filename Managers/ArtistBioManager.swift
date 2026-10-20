@@ -51,7 +51,14 @@ actor ArtistBioManager {
 
     private enum UserDefaultsKeys {
         static let artistInfoFetchEnabled = "artistInfoFetchEnabled"
+        static let lastFetchStart = "artistInfoFetchLastStart"
     }
+
+    /// A run walks every artist still without a photo at about one request a
+    /// second; every launch and every library reload used to start one from
+    /// the top, and the same artists were asked again and again (11 000
+    /// requests in a week on one phone). One run per this interval is enough.
+    private static let minimumRunInterval: TimeInterval = 4 * 60 * 60
 
     // MARK: - Properties
 
@@ -111,6 +118,12 @@ actor ArtistBioManager {
                 Logger.info("Artist info fetching is disabled")
                 return
             }
+            let lastStart = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastFetchStart) as? Date ?? .distantPast
+            guard Date().timeIntervalSince(lastStart) >= Self.minimumRunInterval else {
+                Logger.info("Artist info fetch ran recently, skipping")
+                return
+            }
+            UserDefaults.standard.set(Date(), forKey: UserDefaultsKeys.lastFetchStart)
 
             let artists = databaseManager.getArtistsNeedingImageOrBio()
             guard !artists.isEmpty else {

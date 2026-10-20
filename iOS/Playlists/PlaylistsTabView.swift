@@ -146,11 +146,13 @@ struct PlaylistsTabView: View {
     /// noise, and it costs every row the cover mosaic that tells them apart.
     private func sourceHeader(_ source: PlaylistSource) -> some View {
         HStack(spacing: 7) {
+            // The logo carries the same name as the text; VoiceOver read
+            // "Spotify, Spotify".
             PlaylistSourceLogo(source: source, cornerRadius: 5)
                 .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
             Text(source.title)
         }
-        .accessibilityElement(children: .combine)
     }
 
     private func playlistRows(_ playlists: [Playlist]) -> some View {

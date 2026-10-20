@@ -87,7 +87,9 @@ extension LibraryManager {
                     Logger.error("Failed to resolve bookmark for \(folder.name): \(error)")
                 }
             } else {
-                Logger.error("No bookmark data for \(folder.name)")
+                // Expected on iOS, where the library folder needs no bookmark
+                // (`LibraryPathStore`); the folder is opened directly below.
+                Logger.info("No bookmark data for \(folder.name)")
             }
 
             // If bookmark resolution failed but folder exists, try to create new bookmark

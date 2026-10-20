@@ -32,17 +32,23 @@ enum IndexedListSectionFactory {
         key: @escaping (Item) -> String
     ) -> [IndexedSection<Item>] where Item: Identifiable {
         let grouped = Dictionary(grouping: items, by: key)
+        // Locale order, not code points: code points put "Á" after "Я" and a
+        // full-width "Ｎ" after CJK, at the end of the index.
         return grouped.keys
-            .sorted()
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
             .map { IndexedSection(key: $0, items: grouped[$0] ?? []) }
     }
 
     /// Section key for a display name: first character uppercased for letters,
     /// digits kept as-is (release years), everything else collapses to "#".
     static func sectionKey(for name: String) -> String {
-        guard let first = name.first else { return "#" }
+        guard let first = name.folding(options: .widthInsensitive, locale: nil).first else { return "#" }
         if first.isLetter {
-            return first.uppercased()
+            let letter = first.uppercased()
+            // A Latin accent folds into its base letter, as Music files "Á"
+            // under A. Cyrillic keeps its letters: Й is not И.
+            let base = letter.folding(options: .diacriticInsensitive, locale: nil)
+            return base.first?.isASCII == true ? base : letter
         }
         if first.isNumber {
             return String(first)
