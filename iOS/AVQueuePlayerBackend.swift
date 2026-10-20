@@ -53,7 +53,12 @@ private enum AVFoundationEvent: Sendable {
 final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     weak var backendDelegate: PlaybackBackendDelegate?
 
-    private let player = AVQueuePlayer()
+    /// Replaced after a media services reset: the old instance fails every
+    /// item it is given from then on.
+    private var player = AVQueuePlayer()
+    /// Playhead captured when a reset first failed an item. The dead player
+    /// reports 0 by the time the reset notification arrives.
+    private var positionBeforeReset: Double?
     private var entries: [QueueEntry] = []
     private var currentIndex: Int = 0
     private var currentItemObservation: NSKeyValueObservation?
@@ -95,6 +100,7 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private lazy var audioSession = AudioSessionController(
         onPause: { [weak self] in self?.pause() },
         onResume: { [weak self] in self?.resume() },
+        onMediaServicesReset: { [weak self] in self?.recoverFromMediaServicesReset() },
         wantsPlayback: { [weak self] in self?.wantsPlayback == true }
     )
 
@@ -116,11 +122,15 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         // posted for a track that really played to its end - tearing the queue
         // down (`removeAllItems`) never fires it, so a rebuild cannot invent
         // a finished track the way a `currentItem` KVO transition could.
+        configurePlayer()
+        observeItemFailureNotifications()
+        observeItemEndNotifications()
+    }
+
+    private func configurePlayer() {
         player.actionAtItemEnd = .pause
         observeTrackChanges()
         observeStateChanges()
-        observeItemFailureNotifications()
-        observeItemEndNotifications()
     }
 
     /// Activates the shared `AVAudioSession`, exactly once, on the first path
@@ -590,7 +600,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
         guard let entryId = itemEntryMap[key] else { return }
 
-        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(notificationError ?? item.error))
+        let error = notificationError ?? item.error
+        if (error as NSError?)?.code == AVError.mediaServicesWereReset.rawValue {
+            // The file is fine; the reset notification rebuilds the queue.
+            if positionBeforeReset == nil { positionBeforeReset = currentPlaybackProgress }
+            return
+        }
+
+        backendDelegate?.backendUnexpectedError(error: Self.mapPlaybackError(error))
 
         guard let index = queueIndex(of: entryId) else {
             removeTracking(for: item)
@@ -618,6 +635,23 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
 
         notifyStateIfChanged()
+    }
+
+    /// A media services reset kills the player and every item in it. Apple's
+    /// guidance is to recreate the player; the queue is reopened at the same
+    /// position, playing or paused as before.
+    private func recoverFromMediaServicesReset() {
+        // shortcut: without an item failure first, the dead player's position may read 0; track it if that shows up.
+        let position = positionBeforeReset ?? currentPlaybackProgress
+        positionBeforeReset = nil
+        Logger.warning("Rebuilding the player after a media services reset at \(position)s, playing: \(wantsPlayback)")
+        let volume = player.volume
+        player.removeAllItems()
+        player = AVQueuePlayer()
+        player.volume = volume
+        configurePlayer()
+        rebuildPlayerItems(startPaused: !wantsPlayback)
+        seek(to: position)
     }
 
     /// Maps an AVFoundation load/playback failure to the shared

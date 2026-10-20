@@ -14,7 +14,9 @@ import AVFoundation
 final class AudioSessionController {
     private let onPause: () -> Void
     private let onResume: () -> Void
+    private let onMediaServicesReset: () -> Void
     private let wantsPlayback: () -> Bool
+    private var pendingMediaServicesReset: DispatchWorkItem?
 
     /// True when the app meant to be playing when the interruption began. An
     /// interruption that ends with `.shouldResume` resumes only then: it never
@@ -24,21 +26,18 @@ final class AudioSessionController {
     init(
         onPause: @escaping () -> Void,
         onResume: @escaping () -> Void,
+        onMediaServicesReset: @escaping () -> Void,
         wantsPlayback: @escaping () -> Bool
     ) {
         self.onPause = onPause
         self.onResume = onResume
+        self.onMediaServicesReset = onMediaServicesReset
         self.wantsPlayback = wantsPlayback
     }
 
     func activate() {
         let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            Logger.error("Failed to activate the audio session: \(error)")
-        }
+        configureSession()
 
         NotificationCenter.default.addObserver(
             self,
@@ -52,6 +51,44 @@ final class AudioSessionController {
             name: AVAudioSession.routeChangeNotification,
             object: session
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMediaServicesReset(_:)),
+            name: AVAudioSession.mediaServicesWereResetNotification,
+            object: nil
+        )
+    }
+
+    /// Sets the category and activates the session. A media services reset
+    /// discards both, so playback rebuilt after one calls this again.
+    func configureSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default)
+            try session.setActive(true)
+        } catch {
+            Logger.error("Failed to activate the audio session: \(error)")
+        }
+    }
+
+    /// Posted with a nil object on iOS 27, and twice for one "Reset All Media
+    /// Services": the work is debounced so the player is rebuilt once.
+    @objc nonisolated private func handleMediaServicesReset(_ notification: Notification) {
+        Logger.info("Audio media services were reset")
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.pendingMediaServicesReset?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    MainActor.assumeIsolated {
+                        self?.configureSession()
+                        self?.onMediaServicesReset()
+                    }
+                }
+                self.pendingMediaServicesReset = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+            }
+        }
     }
 
     deinit {
