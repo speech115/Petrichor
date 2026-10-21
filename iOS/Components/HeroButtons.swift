@@ -3,8 +3,8 @@
 //
 // The round and capsule header controls of Apple Music's album and artist
 // pages: glass circles around a glyph on either side of a solid Play. Solid
-// in the page's primary color with the background color for the glyph, so
-// Play stays the strongest mark on a light page and on a filled dark one.
+// white with a black glyph on a dark page and the reverse on a light one, so
+// Play stays the strongest mark either way.
 //
 
 import SwiftUI
@@ -32,6 +32,12 @@ struct HeroPlayButton: View {
     var isDisabled = false
     let action: () -> Void
 
+    /// Black and white from the SwiftUI scheme itself, not semantic UIKit
+    /// colors: a filled page overrides the scheme only on the SwiftUI side.
+    @Environment(\.colorScheme) private var colorScheme
+    private var fill: Color { colorScheme == .dark ? .white : .black }
+    private var glyph: Color { colorScheme == .dark ? .black : .white }
+
     var body: some View {
         Button(action: action) {
             Group {
@@ -40,16 +46,16 @@ struct HeroPlayButton: View {
                     Label(String(localized: "Play"), systemImage: Icons.playFill)
                         .font(.headline)
                         .frame(maxWidth: .infinity, minHeight: 52)
-                        .background(Color.primary, in: Capsule())
+                        .background(fill, in: Capsule())
                 case .circle:
                     Image(systemName: Icons.playFill)
                         .font(.system(size: 30, weight: .semibold))
                         .frame(width: 72, height: 72)
-                        .background(Color.primary, in: Circle())
+                        .background(fill, in: Circle())
                         .accessibilityLabel(String(localized: "Play"))
                 }
             }
-            .foregroundStyle(Color(.systemBackground))
+            .foregroundStyle(glyph)
         }
         .buttonStyle(HeroPressStyle())
         .disabled(isDisabled)

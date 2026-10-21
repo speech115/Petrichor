@@ -295,6 +295,7 @@ struct PlaylistDetailScreen: View {
     private func shuffleAll(_ playlist: Playlist, tracks: [Track]) {
         playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .playlist
+        playlistManager.queueSourceName = playlist.name
     }
 }
 

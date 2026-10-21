@@ -214,7 +214,7 @@ struct AlbumPage: View {
         if let year = TrackCountText.year(album) {
             parts.append(year)
         }
-        if !tracks.isEmpty, tracks.allSatisfy({ $0.lossless == true }) {
+        if !tracks.isEmpty, tracks.allSatisfy(\.isLossless) {
             parts.append(String(localized: "Lossless"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

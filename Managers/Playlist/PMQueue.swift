@@ -11,6 +11,7 @@ extension PlaylistManager {
         guard let library = libraryManager else { return }
         replaceCurrentQueue(library.tracks)
         currentPlaylist = nil
+        queueSourceName = nil
         currentQueueSource = .library
         Logger.info("Created playback queue from library")
         if isShuffleEnabled {
@@ -23,6 +24,7 @@ extension PlaylistManager {
         currentQueue.removeAll()
         currentQueueIndex = -1
         currentPlaylist = nil
+        queueSourceName = nil
         audioPlayer?.stop()
         audioPlayer?.queueDidClear()
         audioPlayer?.currentTrack = nil

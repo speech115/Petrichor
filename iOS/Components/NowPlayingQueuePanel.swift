@@ -140,7 +140,7 @@ struct NowPlayingQueuePanel: View {
     /// The playlist the queue was started from; library queues have no name.
     private var sourceName: String? {
         guard playlistManager.currentQueueSource == .playlist else { return nil }
-        return playlistManager.currentPlaylist?.name
+        return playlistManager.queueSourceName
     }
 
     private func sectionHeader(_ title: String, subtitle: String?) -> some View {

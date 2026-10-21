@@ -94,13 +94,21 @@ struct CategoryItemsView: View {
         }
     }
 
-    /// Every album's tracks in grid order (album, disc, track), loaded only
-    /// when pressed.
+    /// Every album's tracks in grid order (the card's position, then disc and
+    /// track), loaded only when pressed. Position, not title: albums sharing a
+    /// title are distinct cards and must not interleave.
     private func playAllAlbums(shuffled: Bool) {
         let libraryManager = libraryManager
+        let position = Dictionary(
+            items.enumerated().compactMap { index, item in item.albumId.map { ($0, index) } },
+            uniquingKeysWith: { first, _ in first }
+        )
         Task {
             let tracks = await Task.detached(priority: .userInitiated) {
                 libraryManager.getAllTracks().sorted { lhs, rhs in
+                    let left = lhs.albumId.flatMap { position[$0] } ?? Int.max
+                    let right = rhs.albumId.flatMap { position[$0] } ?? Int.max
+                    if left != right { return left < right }
                     let byAlbum = lhs.album.localizedStandardCompare(rhs.album)
                     if byAlbum != .orderedSame { return byAlbum == .orderedAscending }
                     return (lhs.discNumber ?? 1, lhs.trackNumber ?? 0) < (rhs.discNumber ?? 1, rhs.trackNumber ?? 0)
