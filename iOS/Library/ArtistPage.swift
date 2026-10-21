@@ -52,7 +52,7 @@ struct ArtistPage: View {
 
             if !albums.isEmpty {
                 Section(String(localized: "Albums")) {
-                    albumCarousel
+                    AlbumCarousel(albums: albums, zoomNamespace: zoomNamespace)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
@@ -124,64 +124,6 @@ struct ArtistPage: View {
 
     @ScaledMetric(relativeTo: .largeTitle) private var initialsSize: CGFloat = 56
 
-    // MARK: - Album Carousel
-
-    private var albumCarousel: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(alignment: .top, spacing: 14) {
-                ForEach(albums) { album in
-                    NavigationLink(value: LibraryDestination.album(album)) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            albumArtwork(album)
-                                .frame(width: Self.albumCardSide, height: Self.albumCardSide)
-                                .detailZoomSource(.album(album.id), in: zoomNamespace, cornerRadius: 10)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(album.displayName)
-                                    .font(.subheadline.weight(.semibold))
-                                    .lineLimit(2)
-                                Text(albumSubtitle(album))
-                                    .font(.caption)
-                                    .foregroundColor(.secondaryText)
-                                    .lineLimit(1)
-                            }
-                            .accessibilityElement(children: .combine)
-                        }
-                        .frame(width: Self.albumCardSide, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .albumContextMenu(album)
-                }
-            }
-            .scrollTargetLayout()
-        }
-        // Cards rest on the leading margin instead of half off screen.
-        .contentMargins(.horizontal, 16, for: .scrollContent)
-        .scrollTargetBehavior(.viewAligned)
-    }
-
-    private static let albumCardSide: CGFloat = 170
-
-    private func albumArtwork(_ album: AlbumEntity) -> some View {
-        ArtworkTile(
-            data: album.displayArtwork,
-            cacheKey: album.albumId.map(ArtworkCacheKey.album),
-            cornerRadius: 10,
-            iconSize: 36,
-            loader: albumArtworkLoader(for: album.albumId)
-        )
-    }
-
-    private func albumArtworkLoader(for albumId: Int64?) -> ArtworkDataLoader? {
-        guard let albumId else { return nil }
-        let database = libraryManager.databaseManager
-        return ArtworkDataLoader { database.getAlbumArtworkThumbnail(albumId: albumId) }
-    }
-
-    private func albumSubtitle(_ album: AlbumEntity) -> String {
-        TrackCountText.albumSubtitle(album)
-    }
-
     // MARK: - Loading
 
     private func play(_ track: Track) {
@@ -211,7 +153,7 @@ struct ArtistPage: View {
             let tracks = libraryManager.getTracksForArtist(name)
             // Row thumbnails; the photo header keeps the full artwork.
             let info = libraryManager.getArtistArtworkAndBio(for: name)
-            let albums = Self.albums(from: tracks)
+            let albums = AlbumCarousel.albums(from: tracks)
             return (tracks: tracks, albums: albums, photo: info.artworkData, bio: info.bio)
         }.value
 
@@ -220,27 +162,5 @@ struct ArtistPage: View {
         albums = loaded.albums
         photoData = loaded.photo
         bio = loaded.bio
-    }
-
-    private static nonisolated func albums(from tracks: [Track]) -> [AlbumEntity] {
-        let grouped = Dictionary(grouping: tracks) { track in
-            track.albumId.map { "album:\($0)" } ?? "name:\(track.album)|\(track.albumArtist ?? "")"
-        }
-        return grouped.values
-            .map { groupedTracks in
-                guard let first = groupedTracks.first else {
-                    return AlbumEntity(name: "", trackCount: 0)
-                }
-                return AlbumEntity(
-                    name: first.album,
-                    trackCount: groupedTracks.count,
-                    artworkData: groupedTracks.first { $0.albumArtworkData != nil }?.albumArtworkData,
-                    artworkThumbnail: groupedTracks.first { $0.albumArtworkThumbnail != nil }?.albumArtworkThumbnail,
-                    albumId: first.albumId,
-                    year: first.year,
-                    artistName: first.albumArtist
-                )
-            }
-            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }

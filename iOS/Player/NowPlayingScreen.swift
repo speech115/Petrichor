@@ -221,6 +221,10 @@ struct NowPlayingScreen: View {
                         .id(displayedTrack?.id)
                         .transition(coverTransition)
                 }
+                // Apple Music's pause cue: the cover steps back while paused.
+                .animation(coverScaleAnimation) {
+                    $0.scaleEffect(playbackPresentation.isPlaying ? 1 : 0.78)
+                }
                 .matchedGeometryEffect(id: "artwork", in: artworkNamespace)
                 .frame(width: artworkSide, height: artworkSide)
                 Spacer(minLength: 12)
@@ -271,6 +275,12 @@ struct NowPlayingScreen: View {
     /// of offset under a cross-fade reads as direction without needing one.
     private var coverTransition: AnyTransition {
         directionalTransition(distance: 40)
+    }
+
+    private var coverScaleAnimation: Animation {
+        reduceMotion
+            ? .easeInOut(duration: AnimationDuration.mediumDuration)
+            : .spring(response: 0.5, dampingFraction: 0.68)
     }
 
     private var titleTransition: AnyTransition {
@@ -360,9 +370,9 @@ struct NowPlayingScreen: View {
             )
 
             if let track {
-                // A pair, as in Apple Music: the 44 pt hit targets overlap so
-                // the visible 30 pt circles sit 10 pt apart instead of 26.
-                HStack(spacing: -4) {
+                // A pair of bare glyphs, as in Apple Music, on touching
+                // 44 pt hit targets.
+                HStack(spacing: 0) {
                     Button {
                         favoriteTaps += 1
                         ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
@@ -385,9 +395,9 @@ struct NowPlayingScreen: View {
                     .accessibilityLabel(String(localized: "Track menu"))
                 }
                 // The trailing hit area overhangs the content edge so the
-                // ellipsis circle, not its invisible frame, lines up with
+                // ellipsis glyph, not its invisible frame, lines up with
                 // the scrubber's end.
-                .padding(.trailing, -7)
+                .padding(.trailing, -12)
             }
         }
     }
@@ -397,12 +407,8 @@ struct NowPlayingScreen: View {
             .font(.system(size: min(chipIconSize, 20), weight: .semibold))
             .foregroundColor(isActive ? palette.foreground : palette.secondary)
             .contentTransition(.symbolEffect(.replace.offUp))
-            // The label is a 44pt hit target around the 30pt chip circle, so
-            // the visual stays put while the touch area clears the HIG floor.
+            // A 44pt hit target around the bare glyph clears the HIG floor.
             .frame(width: 44, height: 44)
-            // Liquid Glass, as the system draws its own round controls in
-            // iOS 26; interactive, so the bubble answers the press itself.
-            .background(Color.clear.frame(width: 30, height: 30).glassEffect(.regular.interactive(), in: Circle()))
             .contentShape(Circle())
     }
 

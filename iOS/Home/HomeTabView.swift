@@ -145,7 +145,7 @@ struct HomeTabView: View {
         case .artist(let name):
             ArtistPage(artistName: name, zoomNamespace: zoomNamespace)
         case .album(let album):
-            AlbumPage(album: album)
+            AlbumPage(album: album, zoomNamespace: zoomNamespace)
                 .detailZoomDestination(.album(album.id), in: zoomNamespace)
         case .playlist(let playlistID):
             PlaylistDetailScreen(

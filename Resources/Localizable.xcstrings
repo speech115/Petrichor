@@ -12410,6 +12410,17 @@
         }
       }
     },
+    "More by %@" : {
+      "comment" : "Album page: shelf of the artist's other albums. %@ is the artist.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё от %@"
+          }
+        }
+      }
+    },
     "Move Down" : {
       "extractionState" : "manual",
       "localizations" : {
