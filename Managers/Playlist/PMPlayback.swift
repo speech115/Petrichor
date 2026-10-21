@@ -43,6 +43,7 @@ extension PlaylistManager {
 
     func playTrack(_ track: Track, fromTracks contextTracks: [Track]? = nil) {
         currentPlaylist = nil
+        queueSourceName = nil
         beginPlayback(of: track, in: contextTracks ?? [track])
     }
 
@@ -75,6 +76,7 @@ extension PlaylistManager {
             && currentPlaylist?.dateModified == playlist.dateModified
             && currentQueue.count == playlist.tracks.count
         currentPlaylist = playlist
+        queueSourceName = playlist.name
         currentQueueSource = .playlist
 
         // A playlist screen normally keeps the same queue while the user taps

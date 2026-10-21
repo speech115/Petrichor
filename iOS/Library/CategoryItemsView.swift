@@ -4,13 +4,15 @@
 // One category's items (artists, albums, genres, release years). Artists get
 // a list with circular thumbnails, albums a 2-column card grid with covers,
 // genres and years the plain alphabet-indexed list. Artists and albums push
-// to their detail pages, genres and years to the item's track list.
+// to their detail pages, genres and years to the item's track list. The
+// album grid opens with Play / Shuffle over every album, as Apple Music's.
 //
 
 import SwiftUI
 
 struct CategoryItemsView: View {
     @EnvironmentObject private var libraryManager: LibraryManager
+    @EnvironmentObject private var playlistManager: PlaylistManager
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let filterType: LibraryFilterType
@@ -59,6 +61,14 @@ struct CategoryItemsView: View {
 
     private var albumsGrid: some View {
         ScrollView {
+            PlayShuffleRow(
+                onPlay: { playAllAlbums(shuffled: false) },
+                onShuffle: { playAllAlbums(shuffled: true) },
+                playDisabled: items.isEmpty
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), spacing: 16),
@@ -81,6 +91,35 @@ struct CategoryItemsView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
+        }
+    }
+
+    /// Every album's tracks in grid order (the card's position, then disc and
+    /// track), loaded only when pressed. Position, not title: albums sharing a
+    /// title are distinct cards and must not interleave.
+    private func playAllAlbums(shuffled: Bool) {
+        let libraryManager = libraryManager
+        let position = Dictionary(
+            items.enumerated().compactMap { index, item in item.albumId.map { ($0, index) } },
+            uniquingKeysWith: { first, _ in first }
+        )
+        Task {
+            let tracks = await Task.detached(priority: .userInitiated) {
+                libraryManager.getAllTracks().sorted { lhs, rhs in
+                    let left = lhs.albumId.flatMap { position[$0] } ?? Int.max
+                    let right = rhs.albumId.flatMap { position[$0] } ?? Int.max
+                    if left != right { return left < right }
+                    let byAlbum = lhs.album.localizedStandardCompare(rhs.album)
+                    if byAlbum != .orderedSame { return byAlbum == .orderedAscending }
+                    return (lhs.discNumber ?? 1, lhs.trackNumber ?? 0) < (rhs.discNumber ?? 1, rhs.trackNumber ?? 0)
+                }
+            }.value
+            guard !tracks.isEmpty else { return }
+            if shuffled {
+                playlistManager.shuffleLibrary(tracks)
+            } else {
+                playlistManager.playLibrary(tracks)
+            }
         }
     }
 

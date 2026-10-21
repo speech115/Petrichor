@@ -1,10 +1,13 @@
 //
 // ArtistPage (iOS)
 //
-// Artist detail page: photo and bio from the database cache (populated
-// offline-capable by ArtistBioManager), the artist's albums, and all of their
-// tracks. One action plays the whole discography. Offline there is no error:
-// whatever the cache holds is shown, the rest stays empty.
+// Artist detail page in Apple Music's layout: the page filled with the
+// photo's color, photo and name, then Info / Play / Shuffle. The bio (from the
+// database cache populated offline-capable by ArtistBioManager) opens from
+// Info instead of pushing the songs off screen. "Top Songs" shows the five
+// most played and links to all of them; the albums follow as a shelf. Play
+// covers the whole discography. Offline there is no error: whatever the cache
+// holds is shown, the rest stays empty.
 //
 
 import SwiftUI
@@ -24,6 +27,9 @@ struct ArtistPage: View {
     @State private var headerTint: Color?
     @State private var bio: String?
     @State private var loadTask: Task<Void, Never>?
+    @State private var showingBio = false
+
+    private static let topSongCount = 5
 
     var body: some View {
         List {
@@ -36,8 +42,8 @@ struct ArtistPage: View {
             }
 
             if !tracks.isEmpty {
-                Section(String(localized: "Tracks")) {
-                    ForEach(tracks) { track in
+                Section {
+                    ForEach(topSongs) { track in
                         TrackRow(
                             track: track,
                             onPlay: { play(track) },
@@ -46,21 +52,30 @@ struct ArtistPage: View {
                             playbackManager: playbackManager
                         )
                         .equatable()
+                        // The page fill shows through, as on the album page.
+                        .listRowBackground(Color.clear)
                     }
+                } header: {
+                    topSongsHeader
                 }
             }
 
             if !albums.isEmpty {
-                Section(String(localized: "Albums")) {
+                Section {
                     AlbumCarousel(albums: albums, zoomNamespace: zoomNamespace)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                } header: {
+                    sectionTitle(Text(String(localized: "Albums")))
                 }
             }
         }
         .listStyle(.plain)
-        .detailPageWash(headerTint)
+        .detailPageFill(headerTint)
+        .sheet(isPresented: $showingBio) {
+            bioSheet
+        }
         .navigationBarTitleDisplayMode(.inline)
         .detailHeaderTint(cacheID: artistName, imageData: photoData, tint: $headerTint)
         .task(id: artistName) {
@@ -84,15 +99,110 @@ struct ArtistPage: View {
 
     // MARK: - Header
 
+    private var displayName: String {
+        LibraryFilterType.artists.localizedDisplay(artistName)
+    }
+
     private var header: some View {
-        DetailHeader(
-            onPlay: playAll,
-            onShuffle: shuffleAll,
-            playDisabled: tracks.isEmpty,
-            title: LibraryFilterType.artists.localizedDisplay(artistName),
-            subtitle: bio,
-            artwork: { photo.frame(width: 180, height: 180) }
+        VStack(spacing: 0) {
+            photo
+                .frame(width: 180, height: 180)
+                .padding(.top, 8)
+
+            Text(displayName)
+                .font(.largeTitle.weight(.bold))
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.center)
+                .padding(.top, 16)
+
+            HStack(spacing: 28) {
+                Button { showingBio = true } label: {
+                    HeroCircleLabel(systemImage: "info", side: 48)
+                }
+                .buttonStyle(.plain)
+                .disabled(bio?.isEmpty ?? true)
+                .opacity(bio?.isEmpty ?? true ? 0.4 : 1)
+                .accessibilityLabel(String(localized: "Biography"))
+
+                HeroPlayButton(shape: .circle, isDisabled: tracks.isEmpty, action: playAll)
+
+                Button(action: shuffleAll) {
+                    HeroCircleLabel(systemImage: Icons.shuffleFill, side: 48)
+                }
+                .buttonStyle(.plain)
+                .disabled(tracks.isEmpty)
+                .accessibilityLabel(String(localized: "Shuffle"))
+            }
+            .padding(.top, 16)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 24)
+    }
+
+    /// The five most played, in album order while nothing has been played.
+    private var topSongs: [Track] {
+        guard tracks.contains(where: { $0.playCount > 0 }) else {
+            return Array(tracks.prefix(Self.topSongCount))
+        }
+        return Array(
+            tracks.enumerated()
+                .sorted { ($0.element.playCount, -$0.offset) > ($1.element.playCount, -$1.offset) }
+                .prefix(Self.topSongCount)
+                .map(\.element)
         )
+    }
+
+    /// "Top Songs ›", opening every song of the artist when there are more.
+    @ViewBuilder
+    private var topSongsHeader: some View {
+        let title = Text(String(localized: "Top Songs"))
+        if tracks.count > Self.topSongCount {
+            NavigationLink(
+                value: LibraryDestination.tracks(
+                    LibraryFilterItem(name: artistName, count: tracks.count, filterType: .artists)
+                )
+            ) {
+                HStack(spacing: 4) {
+                    sectionTitle(title)
+                    Image(systemName: "chevron.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.secondaryText)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            sectionTitle(title)
+        }
+    }
+
+    private func sectionTitle(_ title: Text) -> some View {
+        title
+            .font(.title3.weight(.bold))
+            // Explicit: a list header otherwise dims its text to secondary.
+            .foregroundStyle(Color.primary)
+            .textCase(nil)
+    }
+
+    private var bioSheet: some View {
+        NavigationStack {
+            ScrollView {
+                Text(bio ?? "")
+                    .font(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(20)
+            }
+            .navigationTitle(displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "Done")) { showingBio = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     private var photo: some View {

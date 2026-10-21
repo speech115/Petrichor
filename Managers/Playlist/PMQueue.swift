@@ -11,6 +11,7 @@ extension PlaylistManager {
         guard let library = libraryManager else { return }
         replaceCurrentQueue(library.tracks)
         currentPlaylist = nil
+        queueSourceName = nil
         currentQueueSource = .library
         Logger.info("Created playback queue from library")
         if isShuffleEnabled {
@@ -23,6 +24,7 @@ extension PlaylistManager {
         currentQueue.removeAll()
         currentQueueIndex = -1
         currentPlaylist = nil
+        queueSourceName = nil
         audioPlayer?.stop()
         audioPlayer?.queueDidClear()
         audioPlayer?.currentTrack = nil
@@ -70,6 +72,30 @@ extension PlaylistManager {
             appendCurrentQueueEntry(track)
             audioPlayer?.queueDidAppend(lightTrack)
             Logger.info("Added track to playback queue")
+        }
+    }
+
+    /// Puts several tracks after the current one (`playNext`) or at the end,
+    /// keeping their order.
+    func enqueue(_ tracks: [Track], playNext: Bool) {
+        guard let first = tracks.first else { return }
+
+        // With an empty queue there is no current track to insert relative to, and
+        // the single-track ops would start playback on the wrong track (the reversed
+        // play-next loop would leave the last track playing). Start the whole set in
+        // natural order instead.
+        guard !currentQueue.isEmpty else {
+            playTrack(first, fromTracks: tracks)
+            return
+        }
+
+        // Queue ops are single-track. For "play next", insert in reverse so the first
+        // selected track ends up immediately after the current one; for the tail,
+        // append in natural order.
+        if playNext {
+            for track in tracks.reversed() { self.playNext(track) }
+        } else {
+            for track in tracks { addToQueue(track) }
         }
     }
 

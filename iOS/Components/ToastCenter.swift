@@ -73,6 +73,19 @@ extension ToastCenter {
         }
     }
 
+    /// A whole album or list at once, in its order.
+    func enqueue(_ tracks: [Track], playNext: Bool, playlistManager: PlaylistManager) {
+        guard !tracks.isEmpty else { return }
+        let wasEmpty = playlistManager.currentQueue.isEmpty
+        playlistManager.enqueue(tracks, playNext: playNext)
+        guard !wasEmpty else { return }
+        if playNext {
+            show(String(localized: "Playing Next"), systemImage: "text.line.first.and.arrowtriangle.forward")
+        } else {
+            show(String(localized: "Added to Queue"), systemImage: "text.append")
+        }
+    }
+
     func toggleFavorite(_ track: Track, playlistManager: PlaylistManager) {
         let makeFavorite = !track.isFavorite
         playlistManager.toggleFavorite(for: [track], setTo: makeFavorite)
