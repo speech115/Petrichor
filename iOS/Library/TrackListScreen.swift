@@ -44,6 +44,9 @@ struct TrackListScreen<Header: View, Row: View>: View {
     /// section's rows.
     var onMove: ((IndexSet, Int) -> Void)? = nil
     var onDelete: ((IndexSet) -> Void)? = nil
+    /// Sections after the tracks (an album's credits and shelf). Type-erased
+    /// so the other hosts need not name a footer type; plain lists only.
+    var footer: (([Track]) -> AnyView)? = nil
 
     @ViewBuilder var header: ([Track]) -> Header?
     @ViewBuilder var row: (Track, [Track]) -> Row
@@ -147,6 +150,10 @@ struct TrackListScreen<Header: View, Row: View>: View {
                             .foregroundColor(.secondaryText)
                     }
                 }
+            }
+
+            if let footer, !tracks.isEmpty {
+                footer(tracks)
             }
         }
     }

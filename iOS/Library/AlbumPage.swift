@@ -3,6 +3,8 @@
 //
 // Album detail page: large artwork, artist and year, and the album's tracks
 // in disc/track order with track numbers. One action plays the whole album.
+// Below the tracks, as in Apple Music: year, song count and running time,
+// then a shelf of the artist's other albums.
 //
 
 import SwiftUI
@@ -14,8 +16,10 @@ struct AlbumPage: View {
     @EnvironmentObject private var playlistManager: PlaylistManager
 
     let album: AlbumEntity
+    let zoomNamespace: Namespace.ID
     @State private var artworkData: Data?
     @State private var headerTint: Color?
+    @State private var moreByArtist: [AlbumEntity] = []
 
     var body: some View {
         TrackListScreen(
@@ -23,6 +27,7 @@ struct AlbumPage: View {
             load: { [libraryManager, album] in libraryManager.getTracksForAlbum(album) },
             sectioner: { Self.discSections($0) },
             usesPlainStyle: true,
+            footer: { tracks in AnyView(footer(tracks: tracks)) },
             header: { tracks in
                 header(tracks: tracks)
                     .frame(maxWidth: .infinity)
@@ -45,6 +50,9 @@ struct AlbumPage: View {
             artworkData = await Task.detached(priority: .utility) {
                 database.getArtworkData(albumId: albumId, trackId: nil)
             }.value
+        }
+        .task(id: album.id) {
+            await loadMoreByArtist()
         }
     }
 
@@ -100,6 +108,73 @@ struct AlbumPage: View {
     /// colors were already extracted for the player hits the warm cache here.
     private var tintCacheID: String {
         album.albumId.map(ArtworkCacheKey.album) ?? album.id.uuidString
+    }
+
+    // MARK: - Footer
+
+    @ViewBuilder
+    private func footer(tracks: [Track]) -> some View {
+        Section {
+            VStack(alignment: .leading, spacing: 2) {
+                if let year = TrackCountText.year(album) {
+                    Text(year)
+                }
+                Text(Self.countAndLength(tracks))
+            }
+            .font(.subheadline)
+            .foregroundColor(.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+        }
+
+        if let artist = primaryArtist, !moreByArtist.isEmpty {
+            Section {
+                AlbumCarousel(albums: moreByArtist, zoomNamespace: zoomNamespace)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } header: {
+                Text(String(localized: "More by \(LibraryFilterType.albumArtists.localizedDisplay(artist))"))
+                    .foregroundColor(.secondaryText)
+            }
+        }
+    }
+
+    /// "12 songs, 47 minutes", the running time in the locale's own words.
+    private static func countAndLength(_ tracks: [Track]) -> String {
+        let seconds = Int(tracks.reduce(0) { $0 + $1.duration })
+        let length = Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .wide))
+        return "\(TrackCountText.songs(tracks.count)), \(length)"
+    }
+
+    /// The first credited album artist: a shelf for "A & B" would match no one.
+    /// Album artist, not track performer: a compilation credited to "Various
+    /// Artists" must not list albums where some guest merely appears.
+    private var primaryArtist: String? {
+        let unknown = LibraryFilterType.albumArtists.unknownPlaceholder
+        guard let name = album.artistName, !name.isEmpty, name != unknown else { return nil }
+        return ArtistParser.parse(
+            name,
+            unknownPlaceholder: unknown,
+            role: LibraryFilterType.albumArtists.artistRole
+        ).first
+    }
+
+    private func loadMoreByArtist() async {
+        guard let artist = primaryArtist else { return }
+        let libraryManager = libraryManager
+        let current = album
+        let albums = await Task.detached(priority: .utility) {
+            AlbumCarousel.albums(from: libraryManager.getTracksBy(filterType: .albumArtists, value: artist))
+                .filter { other in
+                    if let id = current.albumId { return other.albumId != id }
+                    return other.name != current.name
+                }
+        }.value
+        guard !Task.isCancelled else { return }
+        moreByArtist = albums
     }
 
     // MARK: - Track Sections

@@ -150,7 +150,7 @@ struct SearchView: View {
                     case .artist(let name):
                         ArtistPage(artistName: name, zoomNamespace: zoomNamespace)
                     case .album(let album):
-                        AlbumPage(album: album)
+                        AlbumPage(album: album, zoomNamespace: zoomNamespace)
                             .detailZoomDestination(.album(album.id), in: zoomNamespace)
                     case .category(let filterType):
                         CategoryItemsView(filterType: filterType, zoomNamespace: zoomNamespace)
