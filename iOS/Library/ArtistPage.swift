@@ -24,6 +24,9 @@ struct ArtistPage: View {
     @State private var tracks: [Track] = []
     @State private var albums: [AlbumEntity] = []
     @State private var photoData: Data?
+    /// Small photo for the page color, read on its own so the color does not
+    /// wait for the discography query that brings the full photo.
+    @State private var tintSource: Data?
     @State private var headerTint: Color?
     @State private var bio: String?
     @State private var loadTask: Task<Void, Never>?
@@ -77,7 +80,14 @@ struct ArtistPage: View {
             bioSheet
         }
         .navigationBarTitleDisplayMode(.inline)
-        .detailHeaderTint(cacheID: artistName, imageData: photoData, tint: $headerTint)
+        .detailHeaderTint(cacheID: artistName, imageData: tintSource ?? photoData, tint: $headerTint)
+        .task(id: artistName) {
+            let database = libraryManager.databaseManager
+            let name = artistName
+            tintSource = await Task.detached(priority: .userInitiated) {
+                database.getArtistArtworkThumbnail(name: name)
+            }.value
+        }
         .task(id: artistName) {
             await load()
         }
@@ -207,9 +217,10 @@ struct ArtistPage: View {
 
     private var photo: some View {
         Group {
-            if let photoData {
+            // The thumbnail fills in while the discography query runs.
+            if let photo = photoData ?? tintSource {
                 ArtworkTile(
-                    data: photoData,
+                    data: photo,
                     cacheKey: ArtworkCacheKey.artistDetail(artistName),
                     cornerRadius: 90,
                     maxPixelSize: 720

@@ -20,6 +20,9 @@ struct AlbumPage: View {
     let album: AlbumEntity
     let zoomNamespace: Namespace.ID
     @State private var artworkData: Data?
+    /// Small cover for the page color: a thumbnail reads from the database and
+    /// samples in milliseconds, where the full cover held the color back.
+    @State private var tintSource: Data?
     @State private var headerTint: Color?
     @State private var moreByArtist: [AlbumEntity] = []
     @State private var tracks: [Track] = []
@@ -69,14 +72,19 @@ struct AlbumPage: View {
                 }
             }
         }
-        .detailHeaderTint(cacheID: tintCacheID, imageData: artworkData, tint: $headerTint)
+        .detailHeaderTint(cacheID: tintCacheID, imageData: tintSource ?? album.displayArtwork, tint: $headerTint)
         .task(id: album.albumId) {
+            let database = libraryManager.databaseManager
+            let albumId = album.albumId
+            if album.displayArtwork == nil, let albumId {
+                tintSource = await Task.detached(priority: .userInitiated) {
+                    database.getAlbumArtworkThumbnail(albumId: albumId)
+                }.value
+            }
             if let existing = album.artworkData {
                 artworkData = existing
                 return
             }
-            let database = libraryManager.databaseManager
-            let albumId = album.albumId
             artworkData = await Task.detached(priority: .utility) {
                 database.getArtworkData(albumId: albumId, trackId: nil)
             }.value
@@ -192,7 +200,8 @@ struct AlbumPage: View {
 
     private var artwork: some View {
         ArtworkTile(
-            data: artworkData ?? album.displayArtwork,
+            // The thumbnail fills in while the full cover loads.
+            data: artworkData ?? album.displayArtwork ?? tintSource,
             cacheKey: album.albumId.map(ArtworkCacheKey.albumDetail),
             cornerRadius: 12,
             iconSize: 60,

@@ -206,10 +206,6 @@ enum TimeConstants {
     /// ~480ms, so this sits a comfortable margin past it.
     static let zoomTransitionSettle: TimeInterval = 0.6
 
-    /// Defer for detail-header dominant-color extraction so it doesn't compete
-    /// with the open transition.
-    static let headerTintDefer: TimeInterval = 0.32
-
     /// Filesystem clock-jitter tolerance for mtime comparisons: a file modified
     /// within this window of its stored scan time reads as unchanged.
     static let filesystemMtimeTolerance: TimeInterval = 1.0
