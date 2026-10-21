@@ -72,7 +72,9 @@ struct AlbumPage: View {
                 }
             }
         }
-        .detailHeaderTint(cacheID: tintCacheID, imageData: tintSource ?? album.displayArtwork, tint: $headerTint)
+        // The full cover last: before the thumbnail migration reaches an
+        // album it may be the only image there is.
+        .detailHeaderTint(cacheID: tintCacheID, imageData: tintSource ?? album.displayArtwork ?? artworkData, tint: $headerTint)
         .task(id: album.albumId) {
             let database = libraryManager.databaseManager
             let albumId = album.albumId
