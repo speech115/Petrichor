@@ -136,7 +136,7 @@ struct AlbumPage: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
             } header: {
-                Text(String(localized: "More by \(LibraryFilterType.artists.localizedDisplay(artist))"))
+                Text(String(localized: "More by \(LibraryFilterType.albumArtists.localizedDisplay(artist))"))
                     .foregroundColor(.secondaryText)
             }
         }
@@ -150,12 +150,15 @@ struct AlbumPage: View {
     }
 
     /// The first credited album artist: a shelf for "A & B" would match no one.
+    /// Album artist, not track performer: a compilation credited to "Various
+    /// Artists" must not list albums where some guest merely appears.
     private var primaryArtist: String? {
-        guard let name = album.artistName, !name.isEmpty else { return nil }
+        let unknown = LibraryFilterType.albumArtists.unknownPlaceholder
+        guard let name = album.artistName, !name.isEmpty, name != unknown else { return nil }
         return ArtistParser.parse(
             name,
-            unknownPlaceholder: LibraryFilterType.artists.unknownPlaceholder,
-            role: LibraryFilterType.artists.artistRole
+            unknownPlaceholder: unknown,
+            role: LibraryFilterType.albumArtists.artistRole
         ).first
     }
 
@@ -164,7 +167,7 @@ struct AlbumPage: View {
         let libraryManager = libraryManager
         let current = album
         let albums = await Task.detached(priority: .utility) {
-            AlbumCarousel.albums(from: libraryManager.getTracksForArtist(artist))
+            AlbumCarousel.albums(from: libraryManager.getTracksBy(filterType: .albumArtists, value: artist))
                 .filter { other in
                     if let id = current.albumId { return other.albumId != id }
                     return other.name != current.name
