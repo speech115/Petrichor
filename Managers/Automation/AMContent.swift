@@ -29,15 +29,15 @@ extension AutomationManager {
     }
 
     func enqueue(filterType: LibraryFilterType, value: String, playNext: Bool) {
-        enqueue(tracks(filterType: filterType, value: value), playNext: playNext)
+        playlist?.enqueue(tracks(filterType: filterType, value: value), playNext: playNext)
     }
 
     func enqueueAlbum(name: String, albumId: Int64?, playNext: Bool) {
-        enqueue(albumTracks(name: name, albumId: albumId), playNext: playNext)
+        playlist?.enqueue(albumTracks(name: name, albumId: albumId), playNext: playNext)
     }
 
     func enqueuePlaylist(id: UUID, playNext: Bool) async {
-        enqueue(await playlistTracks(id: id), playNext: playNext)
+        playlist?.enqueue(await playlistTracks(id: id), playNext: playNext)
     }
 
     // MARK: - Helpers
@@ -67,27 +67,5 @@ extension AutomationManager {
         guard let playlist, let first = tracks.first else { return false }
         playlist.playTrack(first, fromTracks: tracks)
         return true
-    }
-
-    private func enqueue(_ tracks: [Track], playNext: Bool) {
-        guard let playlist, let first = tracks.first else { return }
-
-        // With an empty queue there is no current track to insert relative to, and
-        // the single-track ops would start playback on the wrong track (the reversed
-        // play-next loop would leave the last track playing). Start the whole set in
-        // natural order instead.
-        guard !playlist.currentQueue.isEmpty else {
-            playlist.playTrack(first, fromTracks: tracks)
-            return
-        }
-
-        // Queue ops are single-track. For "play next", insert in reverse so the first
-        // selected track ends up immediately after the current one; for the tail,
-        // append in natural order.
-        if playNext {
-            for track in tracks.reversed() { playlist.playNext(track) }
-        } else {
-            for track in tracks { playlist.addToQueue(track) }
-        }
     }
 }
