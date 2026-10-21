@@ -72,7 +72,7 @@ struct NowPlayingScreen: View {
     // and accessory share the space the artwork leaves. Glyphs scale with
     // Dynamic Type but stay capped, so at the largest accessibility size
     // nothing grows past its slot or crowds its neighbour.
-    @ScaledMetric(relativeTo: .subheadline) private var chipIconSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .subheadline) private var chipIconSize: CGFloat = 20
     @ScaledMetric(relativeTo: .caption) private var volumeIconSize: CGFloat = 12
     @ScaledMetric(relativeTo: .body) private var accessoryIconSize: CGFloat = 20
 
@@ -377,10 +377,7 @@ struct NowPlayingScreen: View {
                         favoriteTaps += 1
                         ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
                     } label: {
-                        chipLabel(
-                            icon: track.isFavorite ? Icons.starFill : Icons.star,
-                            isActive: track.isFavorite
-                        )
+                        chipLabel(icon: track.isFavorite ? Icons.starFill : Icons.star)
                         .symbolEffect(.bounce, value: favoriteTaps)
                     }
                     .buttonStyle(.plain)
@@ -390,7 +387,7 @@ struct NowPlayingScreen: View {
                     Menu {
                         TrackMenuContent(track: track, playlistManager: playlistManager)
                     } label: {
-                        chipLabel(icon: "ellipsis", isActive: false)
+                        chipLabel(icon: "ellipsis")
                     }
                     .accessibilityLabel(String(localized: "Track menu"))
                 }
@@ -402,10 +399,12 @@ struct NowPlayingScreen: View {
         }
     }
 
-    private func chipLabel(icon: String, isActive: Bool) -> some View {
+    private func chipLabel(icon: String) -> some View {
         Image(systemName: icon)
-            .font(.system(size: min(chipIconSize, 20), weight: .semibold))
-            .foregroundColor(isActive ? palette.foreground : palette.secondary)
+            // Without a circle behind it the glyph carries the control alone,
+            // so it is full-strength and Apple Music's size.
+            .font(.system(size: min(chipIconSize, 26), weight: .semibold))
+            .foregroundColor(palette.foreground)
             .contentTransition(.symbolEffect(.replace.offUp))
             // A 44pt hit target around the bare glyph clears the HIG floor.
             .frame(width: 44, height: 44)
