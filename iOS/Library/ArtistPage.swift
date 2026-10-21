@@ -181,7 +181,8 @@ struct ArtistPage: View {
     private func sectionTitle(_ title: Text) -> some View {
         title
             .font(.title3.weight(.bold))
-            .foregroundStyle(.primary)
+            // Explicit: a list header otherwise dims its text to secondary.
+            .foregroundStyle(Color.primary)
             .textCase(nil)
     }
 

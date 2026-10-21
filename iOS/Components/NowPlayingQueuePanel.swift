@@ -100,7 +100,7 @@ struct NowPlayingQueuePanel: View {
                     if !history.isEmpty {
                         Section {
                             ForEach(history) { occurrence in
-                                queueRow(for: occurrence.track, at: occurrence.position)
+                                queueRow(for: occurrence.track, at: occurrence.position, isReorderable: false)
                                     .opacity(0.55)
                             }
                         } header: {
@@ -208,7 +208,7 @@ struct NowPlayingQueuePanel: View {
         }
     }
 
-    private func queueRow(for track: Track, at position: Int) -> some View {
+    private func queueRow(for track: Track, at position: Int, isReorderable: Bool = true) -> some View {
         let isCurrentTrack = position == playlistQueue.currentQueueIndex
 
         return Button {
@@ -231,10 +231,12 @@ struct NowPlayingQueuePanel: View {
 
                 // Apple Music's reorder mark. The drag itself is the List's
                 // long-press reorder, so the glyph only says it is there.
-                Image(systemName: "line.3.horizontal")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+                if isReorderable {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
             }
             .padding(.vertical, 2)
             .contentShape(Rectangle())

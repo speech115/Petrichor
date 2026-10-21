@@ -24,6 +24,7 @@ struct AlbumPage: View {
     @State private var moreByArtist: [AlbumEntity] = []
     @State private var tracks: [Track] = []
     @State private var headerScrolledAway = false
+    @State private var showingArtist = false
 
     /// Roughly where the header's Play row passes under the navigation bar.
     private static let headerScrollAway: CGFloat = 420
@@ -59,7 +60,11 @@ struct AlbumPage: View {
                         Label(String(localized: "Play"), systemImage: Icons.playFill)
                             .labelStyle(.titleAndIcon)
                             .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+                            .padding(.horizontal, 6)
                     }
+                    // Glass, not the accent: red text drowns in a filled page.
+                    .buttonStyle(.glass)
                     .disabled(tracks.isEmpty)
                 }
             }
@@ -78,6 +83,11 @@ struct AlbumPage: View {
         }
         .task(id: album.id) {
             await loadMoreByArtist()
+        }
+        .navigationDestination(isPresented: $showingArtist) {
+            if let artist = credit?.artist {
+                ArtistPage(artistName: artist, zoomNamespace: zoomNamespace)
+            }
         }
     }
 
@@ -106,8 +116,8 @@ struct AlbumPage: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 20)
 
-            if let name = album.artistName, !name.isEmpty {
-                artistLink(name)
+            if let credit {
+                artistLink(credit)
             }
 
             if let meta = Self.meta(album: album, tracks: tracks) {
@@ -125,16 +135,18 @@ struct AlbumPage: View {
         .padding(.bottom, 16)
     }
 
-    /// The whole credit as written, opening the first album artist's page.
+    /// The whole credit as written, opening the first credited artist's page.
     @ViewBuilder
-    private func artistLink(_ name: String) -> some View {
-        let label = Text(LibraryFilterType.albumArtists.localizedDisplay(name))
+    private func artistLink(_ credit: Credit) -> some View {
+        let label = Text(credit.text)
             .font(.title2)
             .lineLimit(2)
             .multilineTextAlignment(.center)
             .padding(.top, 2)
-        if let artist = primaryArtist {
-            NavigationLink(value: LibraryDestination.artist(name: artist)) {
+        if credit.artist != nil {
+            // A Button, not a NavigationLink: inside a List row a link turns
+            // the whole line into a disclosure row with a chevron.
+            Button { showingArtist = true } label: {
                 // Accent on the plain page, as Apple Music; on a filled page
                 // the accent loses to the fill, so the text stays primary.
                 label.foregroundStyle(headerTint == nil ? Color.accentColor : Color.primary)
@@ -170,6 +182,8 @@ struct AlbumPage: View {
             } label: {
                 HeroCircleLabel(systemImage: "ellipsis")
             }
+            // A Menu label takes the accent color; the glyph is primary here.
+            .tint(.primary)
             .disabled(tracks.isEmpty)
             .accessibilityLabel(String(localized: "More"))
         }
@@ -239,7 +253,10 @@ struct AlbumPage: View {
                     .listRowBackground(Color.clear)
             } header: {
                 Text(String(localized: "More by \(LibraryFilterType.albumArtists.localizedDisplay(artist))"))
-                    .foregroundColor(.secondaryText)
+                    .font(.title3.weight(.bold))
+                    // Explicit: a list header otherwise dims its text to secondary.
+                    .foregroundStyle(Color.primary)
+                    .textCase(nil)
             }
         }
     }
@@ -251,15 +268,44 @@ struct AlbumPage: View {
         return "\(TrackCountText.songs(tracks.count)), \(length)"
     }
 
+    /// The header's artist line and the artist it opens.
+    private struct Credit {
+        let text: String
+        /// Nil for a compilation: "Various Artists" is nobody's page.
+        let artist: String?
+    }
+
+    /// The album artist as credited, or, when the album has none, the
+    /// tracks' artist, so untagged albums still name and link someone.
+    private var credit: Credit? {
+        if let name = albumArtist {
+            return Credit(text: LibraryFilterType.albumArtists.localizedDisplay(name), artist: isCompilation ? nil : primaryArtist)
+        }
+        let unknown = LibraryFilterType.artists.unknownPlaceholder
+        guard let name = tracks.first?.artist, !name.isEmpty, name != unknown else { return nil }
+        let first = ArtistParser.parse(name, unknownPlaceholder: unknown, role: LibraryFilterType.artists.artistRole).first
+        return Credit(text: LibraryFilterType.artists.localizedDisplay(name), artist: first)
+    }
+
+    private var albumArtist: String? {
+        guard let name = album.artistName, !name.isEmpty,
+              name != LibraryFilterType.albumArtists.unknownPlaceholder else { return nil }
+        return name
+    }
+
+    private var isCompilation: Bool {
+        albumArtist?.caseInsensitiveCompare("Various Artists") == .orderedSame
+    }
+
     /// The first credited album artist: a shelf for "A & B" would match no one.
     /// Album artist, not track performer: a compilation credited to "Various
-    /// Artists" must not list albums where some guest merely appears.
+    /// Artists" must not list albums where some guest merely appears, and
+    /// gets no shelf at all - its "other albums" are unrelated compilations.
     private var primaryArtist: String? {
-        let unknown = LibraryFilterType.albumArtists.unknownPlaceholder
-        guard let name = album.artistName, !name.isEmpty, name != unknown else { return nil }
+        guard let name = albumArtist, !isCompilation else { return nil }
         return ArtistParser.parse(
             name,
-            unknownPlaceholder: unknown,
+            unknownPlaceholder: LibraryFilterType.albumArtists.unknownPlaceholder,
             role: LibraryFilterType.albumArtists.artistRole
         ).first
     }
