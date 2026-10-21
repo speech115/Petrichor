@@ -23,9 +23,22 @@ struct DetailHeaderTintModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // A warm cache paints before the first frame, so a page seen
+            // before opens already colored instead of white-then-color.
+            .onAppear {
+                guard tint == nil, let cached = cachedTint else { return }
+                tint = cached
+            }
             .task(id: taskID) {
                 await refresh()
             }
+    }
+
+    private var cachedTint: Color? {
+        guard useArtworkColors, let imageData,
+              let cached = ImageUtils.cachedDominantColorsIfAvailable(id: cacheID, imageData: imageData)?.first
+        else { return nil }
+        return Color(platformColor: cached)
     }
 
     private var taskID: String {
@@ -38,11 +51,15 @@ struct DetailHeaderTintModifier: ViewModifier {
             tint = nil
             return
         }
+        if let cachedTint {
+            tint = cachedTint
+            return
+        }
         let dominant = await ImageUtils.headerDominantColor(id: cacheID, imageData: imageData)
         guard !Task.isCancelled else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
+        // A fresh extraction lands while the page is already up: fade the
+        // color in rather than switching the whole page in one frame.
+        withAnimation(.easeInOut(duration: 0.35)) {
             tint = dominant.map { Color(platformColor: $0) }
         }
     }

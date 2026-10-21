@@ -161,18 +161,12 @@ struct NowPlayingScreen: View {
             guard !Task.isCancelled,
                   track?.id == sourceTrackID,
                   useArtworkColors == shouldUseArtwork else { return }
-            if hasAppliedPalette {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    palette = resolved
-                }
-            } else {
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    palette = resolved
-                    hasAppliedPalette = true
-                }
+            // Faded in even the first time: on a cold cache the player opens
+            // on the neutral palette, and a one-frame switch read as a flash.
+            withAnimation(.easeInOut(duration: hasAppliedPalette ? 0.25 : 0.35)) {
+                palette = resolved
             }
+            hasAppliedPalette = true
         }
     }
 
