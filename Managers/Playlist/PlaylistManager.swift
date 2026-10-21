@@ -106,6 +106,10 @@ final class PlaylistQueueObservation: ObservableObject {
 class PlaylistManager: ObservableObject {
     @Published var playlists: [Playlist] = []
     @Published var currentPlaylist: Playlist?
+    /// The playlist name the queue was started from, for the queue's "From"
+    /// line. Kept apart from `currentPlaylist`, which a one-off shuffle must
+    /// clear: with it set, a row tap would jump by index into the shuffled queue.
+    var queueSourceName: String?
     @Published var isShuffleEnabled: Bool = false
     @Published var repeatMode: RepeatMode = .off
     @Published var currentQueue: [Track] = []
