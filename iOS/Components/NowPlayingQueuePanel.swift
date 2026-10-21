@@ -1,10 +1,12 @@
 //
 // NowPlayingQueuePanel (iOS)
 //
-// The playback queue as a panel over the Now Playing artwork. Shows the whole
-// queue with the current track highlighted; a tap jumps playback to that
-// entry, rows reorder by dragging and a swipe removes them from the queue.
-// Shuffle and repeat sit in its header, where Apple Music keeps them.
+// The playback queue as a panel over the Now Playing artwork, in Apple
+// Music's layout: wide Shuffle and Repeat toggles, then "Playing Next" (with
+// the playlist it comes from) opened at the top; the tracks already played sit
+// above it as History, dimmed, one scroll up. The current track is the panel
+// header, not a row. A tap jumps playback to that entry, rows reorder by a
+// long-press drag and a swipe removes them from the queue.
 // Reuses PlaylistManager's queue methods — the view presents what the manager
 // already does.
 //
@@ -31,8 +33,6 @@ struct NowPlayingQueuePanel: View {
     @ObservedObject private var playlistQueue: PlaylistQueueObservation
     @ObservedObject private var playlistTransport: PlaylistTransportObservation
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @State private var editMode = EditMode.inactive
 
     init(
         palette: PlayerPalette,
@@ -68,9 +68,11 @@ struct NowPlayingQueuePanel: View {
 
     // MARK: - Queue List
 
+    private static let upNextAnchor = "queue.upNext"
+
     private var queueList: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 modeButton(
                     icon: Icons.shuffleFill,
                     isActive: playlistTransport.isShuffleEnabled,
@@ -85,35 +87,78 @@ struct NowPlayingQueuePanel: View {
                 ) {
                     playlistManager.toggleRepeatMode()
                 }
-                Text(TrackCountText.songs(playlistQueue.currentQueue.count))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .padding(.leading, 4)
-                Spacer()
-                EditButton()
-                    .tint(palette.foreground)
             }
             .padding(.horizontal, 20)
-            .frame(minHeight: 44)
 
-            List {
-                ForEach(queueOccurrences) { occurrence in
-                    queueRow(for: occurrence.track, at: occurrence.position)
+            ScrollViewReader { proxy in
+                List {
+                    let occurrences = queueOccurrences
+                    let current = playlistQueue.currentQueueIndex
+                    let history = occurrences.filter { $0.position < current }
+                    let upcoming = occurrences.filter { $0.position > current }
+
+                    if !history.isEmpty {
+                        Section {
+                            ForEach(history) { occurrence in
+                                queueRow(for: occurrence.track, at: occurrence.position)
+                                    .opacity(0.55)
+                            }
+                        } header: {
+                            sectionHeader(String(localized: "History"), subtitle: nil)
+                        }
+                    }
+
+                    Section {
+                        ForEach(upcoming) { occurrence in
+                            queueRow(for: occurrence.track, at: occurrence.position)
+                        }
+                        .onMove { offsets, destination in
+                            // This list has no multi-selection: native dragging moves one row.
+                            guard let source = offsets.first, offsets.count == 1 else { return }
+                            // Offsets count from the first upcoming row.
+                            let first = current + 1
+                            playlistManager.moveInQueue(
+                                from: first + source,
+                                to: first + (destination > source ? destination - 1 : destination)
+                            )
+                        }
+                    } header: {
+                        sectionHeader(String(localized: "Playing Next"), subtitle: sourceName.map { String(localized: "From \($0)") })
+                            .id(Self.upNextAnchor)
+                    }
                 }
-                .onMove { offsets, destination in
-                    // This list has no multi-selection: native dragging moves one row.
-                    guard let source = offsets.first, offsets.count == 1 else { return }
-                    playlistManager.moveInQueue(
-                        from: source,
-                        to: destination > source ? destination - 1 : destination
-                    )
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .listRowSpacing(0)
+                .onAppear {
+                    proxy.scrollTo(Self.upNextAnchor, anchor: .top)
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .listRowSpacing(0)
         }
-        .environment(\.editMode, $editMode)
+    }
+
+    /// The playlist the queue was started from; library queues have no name.
+    private var sourceName: String? {
+        guard playlistManager.currentQueueSource == .playlist else { return nil }
+        return playlistManager.currentPlaylist?.name
+    }
+
+    private func sectionHeader(_ title: String, subtitle: String?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(palette.foreground)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .textCase(nil)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     @ScaledMetric(relativeTo: .subheadline) private var modeIconSize: CGFloat = 15
@@ -132,7 +177,7 @@ struct NowPlayingQueuePanel: View {
                 .font(.system(size: min(modeIconSize, 22), weight: .semibold))
                 .foregroundColor(isActive ? Color.black.opacity(0.8) : palette.accessory)
                 .contentTransition(.symbolEffect(.replace.offUp))
-                .frame(width: 52, height: 32)
+                .frame(maxWidth: .infinity, minHeight: 36)
                 .background {
                     Capsule()
                         .fill(isActive ? palette.control : palette.chip)
@@ -170,20 +215,11 @@ struct NowPlayingQueuePanel: View {
             playlistManager.playFromQueue(at: position)
         } label: {
             HStack(spacing: 12) {
-                positionIndicator(isCurrentTrack: isCurrentTrack, position: position)
+                artwork(for: track)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    if isCurrentTrack {
-                        Text(String(localized: "Now Playing"))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(palette.foreground)
-                    } else if position == playlistQueue.currentQueueIndex + 1 {
-                        Text(String(localized: "Up Next"))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
                     Text(track.title)
-                        .font(.body.weight(isCurrentTrack ? .semibold : .regular))
+                        .font(.body)
                         .lineLimit(1)
                     Text(track.displayArtist)
                         .font(.subheadline)
@@ -193,16 +229,18 @@ struct NowPlayingQueuePanel: View {
 
                 Spacer(minLength: 8)
 
-                Text(HelperUtils.formattedShortDuration(track.duration))
-                    .font(.caption)
+                // Apple Music's reorder mark. The drag itself is the List's
+                // long-press reorder, so the glyph only says it is there.
+                Image(systemName: "line.3.horizontal")
+                    .font(.body)
                     .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                    .accessibilityHidden(true)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(isCurrentTrack ? palette.foreground.opacity(0.16) : Color.clear)
+        .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             if !isCurrentTrack {
@@ -234,25 +272,25 @@ struct NowPlayingQueuePanel: View {
         .accessibilityValue(isCurrentTrack ? Text(String(localized: "Now Playing")) : Text(""))
     }
 
-    /// The play-state glyph sits in a fixed 24 pt column next to the track
-    /// text, so it scales with Dynamic Type but stays capped to that column.
-    @ScaledMetric(relativeTo: .caption) private var stateIconSize: CGFloat = 12
+    private func artwork(for track: Track) -> some View {
+        ArtworkTile(
+            data: track.displayArtwork,
+            cacheKey: ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId),
+            maxPixelSize: 144,
+            loader: artworkLoader(for: track)
+        )
+        .frame(width: 44, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
 
-    private func positionIndicator(isCurrentTrack: Bool, position: Int) -> some View {
-        Group {
-            if isCurrentTrack {
-                Image(systemName: playbackPresentation.isPlaying ? Icons.playFill : Icons.pauseFill)
-                    .font(.system(size: min(stateIconSize, 16)))
-                    .foregroundColor(palette.foreground)
-            } else {
-                Text("\(position + 1)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-        }
-        .frame(width: 24)
+    private func artworkLoader(for track: Track) -> ArtworkDataLoader? {
+        guard let trackId = track.trackId,
+              let database = playlistManager.libraryManager?.databaseManager else { return nil }
+        return ArtworkDataLoader.trackListArtwork(
+            database: database,
+            albumId: track.albumId,
+            trackId: trackId,
+            hasDisplayArtwork: track.displayArtwork != nil
+        )
     }
 }

@@ -12421,6 +12421,61 @@
         }
       }
     },
+    "Biography" : {
+      "comment" : "Artist page: button that opens the artist's bio.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Биография"
+          }
+        }
+      }
+    },
+    "From %@" : {
+      "comment" : "Queue: the playlist the upcoming tracks come from. %@ is its name.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Из «%@»"
+          }
+        }
+      }
+    },
+    "History" : {
+      "comment" : "Queue: tracks already played.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "История"
+          }
+        }
+      }
+    },
+    "More" : {
+      "comment" : "Album page: menu with more actions.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ещё"
+          }
+        }
+      }
+    },
+    "Top Songs" : {
+      "comment" : "Artist page: the artist's most played songs.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Популярные"
+          }
+        }
+      }
+    },
     "Move Down" : {
       "extractionState" : "manual",
       "localizations" : {

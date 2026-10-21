@@ -253,9 +253,9 @@ struct SearchView: View {
                 }
             }
             if let topArtist {
-                Section("Top Result") { artistRow(topArtist) }
+                Section("Top Result") { artistRow(topArtist, isTopResult: true) }
             } else if let topAlbum {
-                Section("Top Result") { albumRow(topAlbum) }
+                Section("Top Result") { albumRow(topAlbum, isTopResult: true) }
             } else if let topTrack {
                 Section("Top Result") { topResultRow(topTrack) }
             }
@@ -374,25 +374,32 @@ struct SearchView: View {
             .frame(width: 56, height: 56)
     }
 
-    private func artistRow(_ artist: ArtistEntity) -> some View {
+    /// The top result has no section naming its kind, so its subtitle
+    /// starts with it, as in Apple Music: "Artist · 12 songs".
+    private func artistRow(_ artist: ArtistEntity, isTopResult: Bool = false) -> some View {
         NavigationLink(value: LibraryDestination.artist(name: artist.name)) {
             entityRow(
                 title: artist.displayName,
-                subtitle: artist.subtitle,
+                subtitle: isTopResult
+                    ? [String(localized: "Artist"), artist.subtitle].compactMap { $0 }.joined(separator: " · ")
+                    : artist.subtitle,
                 artworkData: artist.displayArtwork,
                 cacheKey: ArtworkCacheKey.artist(artist.name),
                 icon: LibraryFilterType.artists.icon,
+                isCircular: true,
                 loader: artistArtworkLoader(for: artist.name)
             )
         }
         .buttonStyle(.plain)
     }
 
-    private func albumRow(_ album: AlbumEntity) -> some View {
+    private func albumRow(_ album: AlbumEntity, isTopResult: Bool = false) -> some View {
         NavigationLink(value: LibraryDestination.album(album)) {
             entityRow(
                 title: album.displayName,
-                subtitle: album.artistName ?? album.subtitle,
+                subtitle: isTopResult
+                    ? [String(localized: "Album"), album.artistName ?? album.subtitle].compactMap { $0 }.joined(separator: " · ")
+                    : album.artistName ?? album.subtitle,
                 artworkData: album.displayArtwork,
                 cacheKey: album.albumId.map(ArtworkCacheKey.album),
                 icon: LibraryFilterType.albums.icon,
@@ -411,12 +418,15 @@ struct SearchView: View {
         artworkData: Data?,
         cacheKey: String?,
         icon: String,
+        isCircular: Bool = false,
         loader: ArtworkDataLoader?
     ) -> some View {
         HStack(spacing: 12) {
             ArtworkTile(
                 data: artworkData,
                 cacheKey: cacheKey,
+                // Artists are people: round, as everywhere in Apple Music.
+                cornerRadius: isCircular ? 22 : 6,
                 placeholderIcon: icon,
                 loader: loader
             )
