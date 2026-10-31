@@ -636,6 +636,9 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
             self.isPlaying = true
             Logger.warning("Started an entry the mirror cannot name: \(entryId.id)")
         }
+        if self.audioPlayer.state == .playing, let started = self.track(forEntry: entryId) {
+            self.libraryManager.markHeardForDiscover(started)
+        }
         self.currentTime = self.audioPlayer.currentPlaybackProgress
         Logger.info("Track started playing: \(entryId.id)")
         
@@ -681,6 +684,9 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
         // goes startPaused -> seek -> resume), and resume-from-pause.
         if newState == .playing {
             self.primeRepeatLookahead()
+            if let track = self.currentTrack {
+                self.libraryManager.markHeardForDiscover(track)
+            }
         }
 
         Logger.info("Player state changed: \(previous) → \(newState)")
