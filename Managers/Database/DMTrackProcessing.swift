@@ -349,6 +349,20 @@ extension DatabaseManager {
         // Update album association
         try processTrackAlbum(&mutableTrack, in: db, cache: cache)
 
+        // The scan read this row before this write. Favorites and play counts
+        // set since (a tap, or the other device's journal) must survive it.
+        if let trackId = mutableTrack.trackId,
+           let current = try Row.fetchOne(
+               db,
+               sql: "SELECT is_favorite, date_favorited, play_count, last_played_date FROM tracks WHERE id = ?",
+               arguments: [trackId]
+           ) {
+            mutableTrack.isFavorite = current["is_favorite"]
+            mutableTrack.dateFavorited = current["date_favorited"]
+            mutableTrack.playCount = current["play_count"]
+            mutableTrack.lastPlayedDate = current["last_played_date"]
+        }
+
         // Update the track
         try mutableTrack.update(db)
 
