@@ -70,7 +70,11 @@ class AppCoordinator: ObservableObject {
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
 
         Self.shared = self
-        
+
+        // Launch counts as coming to the foreground: a Mac app opened in the
+        // background never becomes active.
+        libraryManager.applyPeerJournal()
+
         // Check if library is empty at startup - if so, clear any saved state
         if !hadFoldersAtStartup {
             clearAllSavedState()
