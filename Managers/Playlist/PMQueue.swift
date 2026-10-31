@@ -170,6 +170,8 @@ extension PlaylistManager {
 
         guard let reordered = audioPlayer.shuffleUpcomingQueueEntries() else { return }
         replaceCurrentQueue(reordered, index: audioPlayer.mirroredQueuePosition)
+        // The shuffle dropped the repeat lookahead; it is primed from the new order.
+        audioPlayer.primeRepeatLookahead()
         Logger.info("Shuffled the upcoming playback queue")
     }
 }

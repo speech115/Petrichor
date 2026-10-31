@@ -86,11 +86,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// .failed` (KVO) and `failedToPlayToEndTimeNotification` can both fire
     /// for the same underlying failure.
     private var failedItemKeys: Set<ObjectIdentifier> = []
-    /// The most recently reported finished/skipped entry. When the queue ends
-    /// (`currentItem == nil`) and `currentIndex` still points at that same
-    /// entry, it is the real end of the queue, not a lookahead boundary:
-    /// refilling would loop the last track forever.
-    private var lastFinishedEntryId: AudioEntryId?
 
     /// Whether the app last asked the player to play. The system pauses
     /// `AVPlayer` before an interruption notification arrives, so the live
@@ -275,7 +270,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// загружен в плеер, поэтому переход происходит без паузы. Остаток
     /// очереди доливается в `handleItemEnded` по мере проигрывания.
     private func rebuildPlayerItems(startPaused: Bool) {
-        lastFinishedEntryId = nil
         player.removeAllItems()
         clearItemTracking()
 
@@ -322,16 +316,17 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
     }
 
-    /// Продолжает очередь после удаления failed *текущего* item, когда
-    /// `currentItem` ушёл в nil, а в очереди ещё есть треки. Естественный
-    /// конец трека сюда не попадает — его обрабатывает `handleItemEnded`,
-    /// который вставляет следующий трек за завершившимся до перехода.
-    private func refillAfterQueueEnded() {
-        guard player.currentItem == nil,
-              entries.indices.contains(currentIndex),
-              entries[currentIndex].entryId != lastFinishedEntryId else { return }
-        player.insert(makePlayerItem(for: entries[currentIndex]), after: nil)
-        player.play()
+    /// Продолжает очередь с преемника failed *текущего* item, который встал
+    /// на `currentIndex`. После удаления текущего item плеер стоит, даже если
+    /// преемник был предзагружен, поэтому играть он начинает только по
+    /// `wantsPlayback`: сбой на паузе звук не включает.
+    private func continuePastFailedCurrentItem() {
+        if player.currentItem == nil, entries.indices.contains(currentIndex) {
+            player.insert(makePlayerItem(for: entries[currentIndex]), after: nil)
+        }
+        if wantsPlayback {
+            player.play()
+        }
     }
 
     /// Builds a fresh `AVPlayerItem` for `entry` and starts tracking it so a
@@ -438,7 +433,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             progress: 1.0,
             duration: finishedDuration
         )
-        lastFinishedEntryId = finishedEntryId
 
         let nextIndex = finishedIndex + 1
         guard nextIndex < entries.count else {
@@ -611,21 +605,22 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         let wasCurrent = index == currentIndex && player.currentItem === item
 
         entries.remove(at: index)
+        let queueEnded = wasCurrent && index == entries.count
         if index < currentIndex {
             currentIndex -= 1
-        } else if index == currentIndex {
-            currentIndex = min(currentIndex, max(0, entries.count - 1))
         }
+        currentIndex = min(currentIndex, max(0, entries.count - 1))
 
         backendDelegate?.backendDidSkipQueueEntry(entryId: entryId)
-        lastFinishedEntryId = entryId
 
         player.remove(item)
         removeTracking(for: item)
-        if wasCurrent {
-            // The failed current item is gone and the player stopped at it;
-            // keep the queue going from the next entry, if any remains.
-            refillAfterQueueEnded()
+        if queueEnded {
+            // `currentIndex` now points at an entry that already played.
+            wantsPlayback = false
+            player.pause()
+        } else if wasCurrent {
+            continuePastFailedCurrentItem()
         }
 
         notifyStateIfChanged()
@@ -713,7 +708,12 @@ extension AVQueuePlayerBackend {
     }
 
     func resume() {
-        startPlayer()
+        if player.currentItem == nil, !entries.isEmpty {
+            // The queue ended on a track that failed to open: the player is empty.
+            rebuildPlayerItems(startPaused: false)
+        } else {
+            startPlayer()
+        }
         notifyStateIfChanged()
         publishNowPlaying()
     }
