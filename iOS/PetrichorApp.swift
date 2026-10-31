@@ -166,6 +166,7 @@ struct PetrichorApp: App {
                             hasAppearedActiveOnce = true
                             return
                         }
+                        Task { await appCoordinator.libraryManager.applyPeerJournal() }
                         Task(priority: .utility) {
                             do {
                                 try await appCoordinator.libraryManager.reconcileLibrary()

@@ -1,16 +1,15 @@
 //
 // PlaybackJournal
 //
-// Fifth platform seam: phone listen/favorite events travel to the Mac as an
-// append-only JSONL file. The protocol is optional on AppCoordinator (nil on
-// macOS); managers call through it the same way they reach ScrobbleManager.
+// Fifth platform seam: each device appends its listen/favorite events to its
+// own JSONL file, and the other device applies them. The files travel between
+// the Mac and the iPhone through the Mac-side `phone-sync.sh` LaunchAgent
+// (see the petrichor-device skill); the apps only read and write `Sync/`.
 //
 
 import Foundation
 
-/// Records listen and favorite mutations for later sync. Writing happens only
-/// on iOS; macOS leaves the coordinator property nil and applies a transferred
-/// journal file through `PlaybackJournalApply` / `LibraryManager`.
+/// Records listen and favorite mutations for the other device.
 @MainActor
 protocol PlaybackJournal: AnyObject {
     func trackPlayed(relativePath: String, at date: Date)
@@ -18,21 +17,27 @@ protocol PlaybackJournal: AnyObject {
     func flush() async
 }
 
-/// The one place the "nil on macOS, JSONL on iOS" decision lives. The
-/// coordinator asks the seam for its journal instead of branching per
-/// platform at the call site.
-@MainActor
-enum PlaybackJournalFactory {
-    static func make() -> (any PlaybackJournal)? {
+/// Where this device keeps its own journal (`outbox`) and the copy of the
+/// other device's journal (`inbox`). iOS uses `Documents/Sync`, the folder
+/// `devicectl` reaches; macOS uses `Application Support/<bundle id>/Sync`, so
+/// a debug build never reads or writes the release app's files.
+enum PlaybackJournalFiles {
+    static let directory: URL = {
         #if os(iOS)
-        return JSONLPlaybackJournal()
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Sync", isDirectory: true)
         #else
-        return nil
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? About.bundleIdentifier, isDirectory: true)
+            .appendingPathComponent("Sync", isDirectory: true)
         #endif
-    }
+    }()
+
+    static let outbox = directory.appendingPathComponent("playback-journal.jsonl")
+    static let inbox = directory.appendingPathComponent("peer-journal.jsonl")
 }
 
-/// One JSONL line in `Documents/Sync/playback-journal.jsonl`.
+/// One JSONL line in a `PlaybackJournalFiles` journal.
 enum PlaybackJournalEvent: Equatable, Sendable {
     case played(path: String, at: Date)
     case favorite(path: String, value: Bool, at: Date)
@@ -140,14 +145,17 @@ enum PlaybackJournalCodec {
 }
 
 /// Mutable track projection used by the pure apply pass (and mirrored into the
-/// database by `PlaybackJournalApplier` on macOS).
+/// database by `PlaybackJournalApplier`).
 struct PlaybackJournalTrackState: Equatable, Sendable {
-    /// Absolute path as stored on macOS, or any path whose suffix can match
-    /// the event's relative `path`.
+    /// The path as stored on this device: absolute on macOS, relative to
+    /// `Documents` on iOS.
     var path: String
     var playCount: Int
     var isFavorite: Bool
+    var dateFavorited: Date?
     var lastPlayedDate: Date?
+    /// When this device last set or cleared the favorite, from its own journal.
+    var localFavoriteChange: Date?
 }
 
 struct PlaybackJournalApplyResult: Equatable, Sendable {
@@ -157,10 +165,14 @@ struct PlaybackJournalApplyResult: Equatable, Sendable {
 }
 
 enum PlaybackJournalApply {
-    /// Event `path` is relative to the library root. A stored absolute path
-    /// matches when it ends with `"/" + path`, or equals `path` exactly.
+    /// Paths are written as each device stores them: the Mac's absolute
+    /// `/Users/…/Моя музыка/a.mp3` and the phone's `Моя музыка/a.mp3`. They
+    /// match when equal or when either ends with `"/"` plus the other. Swift
+    /// compares canonically, so the phone's NFD names equal the Mac's NFC.
     static func matches(storedPath: String, eventPath: String) -> Bool {
-        storedPath == eventPath || storedPath.hasSuffix("/" + eventPath)
+        storedPath == eventPath
+            || storedPath.hasSuffix("/" + eventPath)
+            || eventPath.hasSuffix("/" + storedPath)
     }
 
     /// Applies events whose timestamp is strictly after `cursor`. Zero or
@@ -200,8 +212,12 @@ enum PlaybackJournalApply {
                 } else {
                     tracks[index].lastPlayedDate = at
                 }
-            case .favorite(_, let value, _):
+            case .favorite(_, let value, let at):
+                // A later toggle on this device wins; its own event settles the
+                // peer. The superseded event still advances the cursor.
+                if let local = tracks[index].localFavoriteChange, local > at { break }
                 tracks[index].isFavorite = value
+                tracks[index].dateFavorited = value ? at : nil
             }
 
             applied += 1

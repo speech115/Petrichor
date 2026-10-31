@@ -51,7 +51,7 @@ Single-context: `CONTEXT.md` в корне и `docs/adr/`. Оба создают
 | Чтение метаданных | `MetadataEngine` | `CrescendoMetadataReader` | `AVAssetMetadataReader` |
 | Изображения | `PlatformImage` | `NSImage` | `UIImage` |
 | Пути к файлам | `LibraryPathStore` | абсолютный путь | путь от `Documents` |
-| Журнал прослушиваний | `PlaybackJournal` | nil (apply JSONL вручную) | `JSONLPlaybackJournal` |
+| Журнал прослушиваний | `PlaybackJournal` | `Application Support/<bundle>/Sync` | `Documents/Sync` |
 | Цветовая схема | `AppearanceApplier` | `NSApp.appearance` | `UIWindow.overrideUserInterfaceStyle` |
 
 **Новые `#if os(...)` вне этих швов и вне `Views/` — нарушение дизайна.** Если
