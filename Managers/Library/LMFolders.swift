@@ -168,16 +168,22 @@ extension LibraryManager {
         }
     }
 
-    /// Import a phone-side `playback-journal.jsonl`, then refresh smart playlists
-    /// so Top 25 / Favorites reflect the new counts without a full library reload.
-    @discardableResult
-    func applyPlaybackJournal(from fileURL: URL) throws -> PlaybackJournalApplyResult {
-        let summary = try PlaybackJournalApplier.apply(
-            fileURL: fileURL,
-            databaseManager: databaseManager
-        )
-        AppCoordinator.shared?.playlistManager.updateSmartPlaylists()
-        return summary
+    /// Applies the other device's journal, copied into `Sync/` by the sync job,
+    /// then refreshes the smart playlists and the queue so favorites and counts
+    /// show without a full library reload.
+    func applyPeerJournal() {
+        let fileURL = PlaybackJournalFiles.inbox
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        do {
+            let summary = try PlaybackJournalApplier.apply(fileURL: fileURL, databaseManager: databaseManager)
+            guard summary.applied > 0 else { return }
+            Logger.info("Applied \(summary.applied) journal events from the other device, \(summary.skipped) not found")
+            AppCoordinator.shared?.playlistManager.updateSmartPlaylists()
+            AppCoordinator.shared?.playlistManager.reconcileRelocatedTracks()
+            libraryRevision += 1
+        } catch {
+            Logger.error("Failed to apply the other device's journal: \(error)")
+        }
     }
 
     func optimizeDatabase() {

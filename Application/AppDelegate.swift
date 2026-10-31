@@ -70,6 +70,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return response == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        AppCoordinator.shared?.libraryManager.applyPeerJournal()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         Logger.info("App is terminating...")
 

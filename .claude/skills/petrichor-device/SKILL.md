@@ -37,6 +37,17 @@ ones and installs on "iPhone 228". Expiry of the last install:
 A manual `deploy.sh` install of another branch replaces that build on the phone
 until the next renewal.
 
+## Favorites and listens sync
+
+The LaunchAgent `local.sereja.petrichor-phone-sync` runs
+`~/bin/petrichor-phone-sync/phone-sync.sh` every 10 minutes. It copies the
+phone's `Documents/Sync/playback-journal.jsonl` to the Mac app's
+`Sync/peer-journal.jsonl` and the Mac's journal to the phone's
+`Documents/Sync/peer-journal.jsonl`; each app applies its peer file when it
+comes to the foreground. Log: `~/Library/Logs/petrichor-phone-sync.log`.
+Install or update it with `scripts/install-phone-sync.sh`; run one pass now
+with `launchctl kickstart gui/$(id -u)/local.sereja.petrichor-phone-sync`.
+
 ## Verify and recover
 
 - For signing refreshes, read `CreationDate` and `ExpirationDate` with

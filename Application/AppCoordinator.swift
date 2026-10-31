@@ -17,9 +17,8 @@ class AppCoordinator: ObservableObject {
     let menuBarManager: MenuBarManager
     #endif
     let scrobbleManager: ScrobbleManager
-    /// Fifth seam: phone→Mac listen/favorite journal. Created only on iOS;
-    /// macOS leaves this nil and applies a transferred JSONL file manually.
-    let playbackJournal: (any PlaybackJournal)?
+    /// Fifth seam: this device's listen/favorite journal for the other device.
+    let playbackJournal: any PlaybackJournal
     
     private var hadFoldersAtStartup: Bool = false
     private let playbackStateKey = "SavedPlaybackState"
@@ -66,7 +65,7 @@ class AppCoordinator: ObservableObject {
         // Setup Scrobbling
         scrobbleManager = ScrobbleManager()
 
-        playbackJournal = PlaybackJournalFactory.make()
+        playbackJournal = JSONLPlaybackJournal()
 
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
 
@@ -121,10 +120,8 @@ class AppCoordinator: ObservableObject {
     }
     
     func savePlaybackState() {
-        // macOS termination path. The playback journal is nil here (macOS
-        // applies a transferred JSONL file manually), so there is nothing to
-        // flush; the iOS backgrounding path does that in
-        // `savePlaybackStateInBackground()`.
+        // macOS termination path. Journal events are already on disk: the
+        // journal appends each one as it is recorded.
 
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()
@@ -143,7 +140,7 @@ class AppCoordinator: ObservableObject {
     /// transition must not pin the UI thread on that. The caller holds a
     /// `beginBackgroundTask` open until this returns.
     func savePlaybackStateInBackground() async {
-        await playbackJournal?.flush()
+        await playbackJournal.flush()
 
         guard let currentTrack = playbackManager.currentTrack else {
             clearAllSavedState()

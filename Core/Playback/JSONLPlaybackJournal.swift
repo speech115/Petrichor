@@ -1,9 +1,9 @@
 //
 // JSONLPlaybackJournal
 //
-// iOS writer for the PlaybackJournal seam. Events accumulate in memory and
-// flush as JSONL lines into Documents/Sync/playback-journal.jsonl — the same
-// moment AppCoordinator saves playback state (backgrounding).
+// Writer for the PlaybackJournal seam on both platforms. Each event is
+// appended as soon as it is recorded, so the sync job finds it even while the
+// app stays open; iOS flushes again on backgrounding to retry a failed write.
 //
 
 import Foundation
@@ -14,22 +14,22 @@ final class JSONLPlaybackJournal: PlaybackJournal {
     private var flushTask: Task<Void, Never>?
     private let fileURL: URL
 
-    init(
-        documentsURL: URL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    ) {
-        self.fileURL = documentsURL
-            .appendingPathComponent("Sync", isDirectory: true)
-            .appendingPathComponent("playback-journal.jsonl")
+    init(fileURL: URL = PlaybackJournalFiles.outbox) {
+        self.fileURL = fileURL
     }
 
     func trackPlayed(relativePath: String, at date: Date) {
-        guard !relativePath.isEmpty else { return }
-        pending.append(.played(path: relativePath, at: date))
+        record(.played(path: relativePath, at: date))
     }
 
     func favoriteChanged(relativePath: String, value: Bool, at date: Date) {
-        guard !relativePath.isEmpty else { return }
-        pending.append(.favorite(path: relativePath, value: value, at: date))
+        record(.favorite(path: relativePath, value: value, at: date))
+    }
+
+    private func record(_ event: PlaybackJournalEvent) {
+        guard !event.path.isEmpty else { return }
+        pending.append(event)
+        Task { await flush() }
     }
 
     func flush() async {

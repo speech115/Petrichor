@@ -162,6 +162,7 @@ struct PetrichorApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .active:
+                        appCoordinator.libraryManager.applyPeerJournal()
                         guard hasAppearedActiveOnce else {
                             hasAppearedActiveOnce = true
                             return

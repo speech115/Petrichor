@@ -1,9 +1,9 @@
 //
 // PlaybackJournalApplier
 //
-// macOS side of the PlaybackJournal seam: read a transferred JSONL file,
-// match events to library rows by path suffix, mutate play counts / favorites,
-// and advance the cursor in the same DB write so a re-import is a no-op.
+// Applies the other device's journal (`PlaybackJournalFiles.inbox`): match
+// events to library rows by path suffix, mutate play counts / favorites, and
+// advance the cursor in the same DB write so a re-import is a no-op.
 //
 
 import Foundation
@@ -27,42 +27,39 @@ enum PlaybackJournalApplier {
                 db,
                 sql: "SELECT applied_through FROM playback_journal_cursor WHERE singleton = 1"
             )
+            // Runs on every foregrounding; without new events skip reading the library.
+            guard events.contains(where: { event in cursor.map { event.timestamp > $0 } ?? true }) else {
+                return Summary(applied: 0, skipped: 0, cursor: cursor)
+            }
 
-            let rows: [(id: Int64, state: PlaybackJournalTrackState)] = try Track.fetchAll(db).compactMap { track in
-                guard let id = track.trackId else { return nil }
-                return (
-                    id,
-                    PlaybackJournalTrackState(
-                        path: LibraryPathStore.storedPath(for: track.url),
-                        playCount: track.playCount,
-                        isFavorite: track.isFavorite,
-                        lastPlayedDate: track.lastPlayedDate
-                    )
+            let rows = try Row.fetchAll(
+                db,
+                sql: "SELECT id, path, play_count, is_favorite, date_favorited, last_played_date FROM tracks"
+            )
+            let ids: [Int64] = rows.map { $0["id"] }
+            let before = rows.map { row in
+                PlaybackJournalTrackState(
+                    path: row["path"],
+                    playCount: row["play_count"],
+                    isFavorite: row["is_favorite"],
+                    dateFavorited: row["date_favorited"],
+                    lastPlayedDate: row["last_played_date"]
                 )
             }
 
-            var states = rows.map(\.state)
+            var states = before
             let result = PlaybackJournalApply.apply(events: events, to: &states, cursor: cursor)
 
-            for index in states.indices where states[index] != rows[index].state {
+            for index in states.indices where states[index] != before[index] {
                 let state = states[index]
-                let previous = rows[index].state
-                let id = rows[index].id
-                var assignments: [ColumnAssignment] = [
-                    Track.Columns.playCount.set(to: state.playCount),
-                    Track.Columns.isFavorite.set(to: state.isFavorite),
-                    Track.Columns.lastPlayedDate.set(to: state.lastPlayedDate),
-                ]
-                if state.isFavorite != previous.isFavorite {
-                    // Journal events have no favorited timestamp; stamp apply time
-                    // so newly favorited tracks sort above pre-migration backfills.
-                    assignments.append(
-                        Track.Columns.dateFavorited.set(to: state.isFavorite ? Date() : nil)
-                    )
-                }
                 try Track
-                    .filter(Track.Columns.trackId == id)
-                    .updateAll(db, assignments)
+                    .filter(Track.Columns.trackId == ids[index])
+                    .updateAll(db, [
+                        Track.Columns.playCount.set(to: state.playCount),
+                        Track.Columns.isFavorite.set(to: state.isFavorite),
+                        Track.Columns.dateFavorited.set(to: state.dateFavorited),
+                        Track.Columns.lastPlayedDate.set(to: state.lastPlayedDate),
+                    ])
             }
 
             if let newCursor = result.cursor {

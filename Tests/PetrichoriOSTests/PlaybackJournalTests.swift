@@ -57,6 +57,43 @@ import Testing
     )
 }
 
+@Test func playbackJournalMatchesMacEventAgainstPhonePathAcrossNormalization() {
+    let nfc = "Моя музыка/Яндекс/Мой трек.mp3".precomposedStringWithCanonicalMapping
+    let nfd = nfc.decomposedStringWithCanonicalMapping
+    #expect(nfc.utf8.count != nfd.utf8.count)
+    #expect(
+        PlaybackJournalApply.matches(
+            storedPath: nfd,
+            eventPath: "/Users/me/Music/" + nfc
+        )
+    )
+    #expect(
+        PlaybackJournalApply.matches(
+            storedPath: "/Users/me/Music/" + nfc,
+            eventPath: nfd
+        )
+    )
+}
+
+@Test func playbackJournalFavoriteCarriesEventDate() {
+    let t1 = ISO8601DateFormatter().date(from: "2026-10-16T05:54:59Z")!
+    let t2 = ISO8601DateFormatter().date(from: "2026-10-18T12:00:43Z")!
+    var tracks = [
+        PlaybackJournalTrackState(path: "Моя музыка/a.mp3", playCount: 0, isFavorite: false),
+        PlaybackJournalTrackState(path: "Моя музыка/b.mp3", playCount: 0, isFavorite: true, dateFavorited: t1)
+    ]
+    let events = [
+        PlaybackJournalEvent.favorite(path: "/Users/me/Music/Моя музыка/a.mp3", value: true, at: t1),
+        PlaybackJournalEvent.favorite(path: "/Users/me/Music/Моя музыка/b.mp3", value: false, at: t2)
+    ]
+
+    _ = PlaybackJournalApply.apply(events: events, to: &tracks, cursor: nil)
+    #expect(tracks[0].isFavorite)
+    #expect(tracks[0].dateFavorited == t1)
+    #expect(!tracks[1].isFavorite)
+    #expect(tracks[1].dateFavorited == nil)
+}
+
 @Test func playbackJournalApplyIsIdempotentWithCursor() {
     var tracks = [
         PlaybackJournalTrackState(
@@ -231,9 +268,9 @@ private enum PlaybackJournalTestError: Error {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
-    let journal = JSONLPlaybackJournal(documentsURL: root)
     let sync = root.appendingPathComponent("Sync")
     let file = sync.appendingPathComponent("playback-journal.jsonl")
+    let journal = JSONLPlaybackJournal(fileURL: file)
     let date = Date(timeIntervalSince1970: 1_000)
 
     // Block the destination with a file, then verify the failed event survives.
