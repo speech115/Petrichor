@@ -13,14 +13,18 @@ enum PlaybackJournalApplier {
     typealias Summary = PlaybackJournalApplyResult
 
     /// Applies journal events from `fileURL` against `databaseManager`.
-    /// Cursor and track mutations share one write transaction.
+    /// `localJournalURL` is this device's own journal: a favorite toggled here
+    /// after the peer's event keeps the local value. Cursor and track
+    /// mutations share one write transaction.
     static func apply(
         fileURL: URL,
+        localJournalURL: URL? = nil,
         databaseManager: DatabaseManager
     ) throws -> Summary {
         let events = try PlaybackJournalCodec.decodeLines(
             String(contentsOf: fileURL, encoding: .utf8)
         )
+        let localFavoriteChanges = latestFavoriteChanges(in: localJournalURL)
 
         return try databaseManager.dbQueue.write { db in
             let cursor = try Date.fetchOne(
@@ -43,7 +47,8 @@ enum PlaybackJournalApplier {
                     playCount: row["play_count"],
                     isFavorite: row["is_favorite"],
                     dateFavorited: row["date_favorited"],
-                    lastPlayedDate: row["last_played_date"]
+                    lastPlayedDate: row["last_played_date"],
+                    localFavoriteChange: localFavoriteChanges[row["path"] as String]
                 )
             }
 
@@ -74,5 +79,19 @@ enum PlaybackJournalApplier {
 
             return result
         }
+    }
+
+    /// Latest favorite event per stored path. An unreadable own journal only
+    /// drops the conflict check; it must not stop the peer's events.
+    private static func latestFavoriteChanges(in fileURL: URL?) -> [String: Date] {
+        guard let fileURL,
+              let text = try? String(contentsOf: fileURL, encoding: .utf8),
+              let events = try? PlaybackJournalCodec.decodeLines(text)
+        else { return [:] }
+        var latest: [String: Date] = [:]
+        for case .favorite(let path, _, let at) in events {
+            latest[path] = max(latest[path] ?? at, at)
+        }
+        return latest
     }
 }

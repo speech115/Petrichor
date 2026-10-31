@@ -175,7 +175,11 @@ extension LibraryManager {
         let fileURL = PlaybackJournalFiles.inbox
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         do {
-            let summary = try PlaybackJournalApplier.apply(fileURL: fileURL, databaseManager: databaseManager)
+            let summary = try PlaybackJournalApplier.apply(
+                fileURL: fileURL,
+                localJournalURL: PlaybackJournalFiles.outbox,
+                databaseManager: databaseManager
+            )
             guard summary.applied > 0 else { return }
             Logger.info("Applied \(summary.applied) journal events from the other device, \(summary.skipped) not found")
             AppCoordinator.shared?.playlistManager.updateSmartPlaylists()

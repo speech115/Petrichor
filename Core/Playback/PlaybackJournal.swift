@@ -154,6 +154,8 @@ struct PlaybackJournalTrackState: Equatable, Sendable {
     var isFavorite: Bool
     var dateFavorited: Date?
     var lastPlayedDate: Date?
+    /// When this device last set or cleared the favorite, from its own journal.
+    var localFavoriteChange: Date?
 }
 
 struct PlaybackJournalApplyResult: Equatable, Sendable {
@@ -211,6 +213,9 @@ enum PlaybackJournalApply {
                     tracks[index].lastPlayedDate = at
                 }
             case .favorite(_, let value, let at):
+                // A later toggle on this device wins; its own event settles the
+                // peer. The superseded event still advances the cursor.
+                if let local = tracks[index].localFavoriteChange, local > at { break }
                 tracks[index].isFavorite = value
                 tracks[index].dateFavorited = value ? at : nil
             }

@@ -94,6 +94,39 @@ import Testing
     #expect(tracks[1].dateFavorited == nil)
 }
 
+@Test func playbackJournalLaterLocalFavoriteWinsOverPeer() {
+    let macFavorited = ISO8601DateFormatter().date(from: "2026-10-31T10:00:00Z")!
+    let phoneCleared = ISO8601DateFormatter().date(from: "2026-10-31T10:05:00Z")!
+    var mac = [
+        PlaybackJournalTrackState(
+            path: "/Users/me/Music/Моя музыка/a.mp3", playCount: 0, isFavorite: true,
+            dateFavorited: macFavorited, localFavoriteChange: macFavorited
+        )
+    ]
+    var phone = [
+        PlaybackJournalTrackState(
+            path: "Моя музыка/a.mp3", playCount: 0, isFavorite: false,
+            localFavoriteChange: phoneCleared
+        )
+    ]
+
+    let onMac = PlaybackJournalApply.apply(
+        events: [.favorite(path: "Моя музыка/a.mp3", value: false, at: phoneCleared)],
+        to: &mac,
+        cursor: nil
+    )
+    let onPhone = PlaybackJournalApply.apply(
+        events: [.favorite(path: "/Users/me/Music/Моя музыка/a.mp3", value: true, at: macFavorited)],
+        to: &phone,
+        cursor: nil
+    )
+
+    #expect(!mac[0].isFavorite)
+    #expect(!phone[0].isFavorite)
+    #expect(onPhone.cursor == macFavorited)
+    #expect(onMac.cursor == phoneCleared)
+}
+
 @Test func playbackJournalApplyIsIdempotentWithCursor() {
     var tracks = [
         PlaybackJournalTrackState(

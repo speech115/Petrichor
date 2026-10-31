@@ -42,11 +42,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard NotificationManager.shared.isActivityInProgress,
-              let coordinator = AppCoordinator.shared else {
-            return .terminateNow
+        guard let coordinator = AppCoordinator.shared else { return .terminateNow }
+        if NotificationManager.shared.isActivityInProgress, !confirmQuitDuringActivity(coordinator) {
+            return .terminateCancel
         }
 
+        // A favorite or listen recorded just before Quit may still be queued.
+        Task {
+            await coordinator.playbackJournal.flush()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    private func confirmQuitDuringActivity(_ coordinator: AppCoordinator) -> Bool {
         let isResumable = coordinator.libraryManager.databaseManager.isActiveBackgroundMigrationResumable()
 
         let alert = NSAlert()
@@ -66,8 +75,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: String(localized: "Cancel"))
         }
 
-        let response = alert.runModal()
-        return response == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {

@@ -33,9 +33,9 @@ final class JSONLPlaybackJournal: PlaybackJournal {
     }
 
     func flush() async {
-        if let flushTask {
+        // A write in flight may fail and requeue its batch, so look again after it.
+        while let flushTask {
             await flushTask.value
-            return
         }
         guard !pending.isEmpty else { return }
         let task = Task {

@@ -31,8 +31,12 @@ extension PlaylistManager {
             currentQueue[index] = relocatedTrack
         }
 
-        if let trackId = audioPlayer?.currentTrack?.trackId,
-           let relocatedTrack = tracksById[trackId] {
+        if let currentTrack = audioPlayer?.currentTrack,
+           let trackId = currentTrack.trackId,
+           var relocatedTrack = tracksById[trackId] {
+            // List copies arrive without artwork; keep what the player already loaded.
+            relocatedTrack.albumArtworkData = currentTrack.albumArtworkData
+            relocatedTrack.albumArtworkThumbnail = currentTrack.albumArtworkThumbnail
             audioPlayer?.currentTrack = relocatedTrack
         }
     }
