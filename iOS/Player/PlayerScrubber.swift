@@ -30,17 +30,10 @@ struct PlayerScrubber: View {
     /// Where a drag started, and on which queue entry. The track keeps playing
     /// under the finger, so it can end mid-drag; the release must not seek the
     /// next play to a position computed for this one. Keyed by entry, not by
-    /// song: Repeat One and a duplicate queue row replay the same song. A
-    /// restored track has no entry until Play, so a drag started then is
-    /// matched by song.
+    /// song: Repeat One and a duplicate queue row replay the same song.
     private struct DragAnchor {
         let entryID: AudioEntryId?
-        let trackID: String?
         let startTime: Double
-
-        func isSamePlay(entryID: AudioEntryId?, trackID: String?) -> Bool {
-            self.entryID == nil ? self.trackID == trackID : self.entryID == entryID
-        }
     }
 
     init(palette: PlayerPalette, playbackManager: PlaybackManager) {
@@ -178,12 +171,11 @@ struct PlayerScrubber: View {
             .onChanged { value in
                 releaseTask?.cancel()
                 let entryID = playbackManager.currentEntryId
-                let trackID = playbackPresentation.currentTrack?.id
                 if dragAnchor == nil {
-                    dragAnchor = DragAnchor(entryID: entryID, trackID: trackID, startTime: elapsed)
+                    dragAnchor = DragAnchor(entryID: entryID, startTime: elapsed)
                     isScrubbing = true
                 }
-                guard let dragAnchor, dragAnchor.isSamePlay(entryID: entryID, trackID: trackID) else {
+                guard let dragAnchor, dragAnchor.entryID == entryID else {
                     isScrubbing = false
                     return
                 }
@@ -201,10 +193,7 @@ struct PlayerScrubber: View {
             .onEnded { value in
                 guard let dragAnchor else { return }
                 self.dragAnchor = nil
-                guard dragAnchor.isSamePlay(
-                    entryID: playbackManager.currentEntryId,
-                    trackID: playbackPresentation.currentTrack?.id
-                ) else {
+                guard dragAnchor.entryID == playbackManager.currentEntryId else {
                     isScrubbing = false
                     return
                 }
