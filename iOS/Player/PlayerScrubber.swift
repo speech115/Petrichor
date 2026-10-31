@@ -23,9 +23,6 @@ struct PlayerScrubber: View {
     @State private var scrubTime: Double = 0
     @State private var dragStartTime: Double?
     @State private var releaseTask: Task<Void, Never>?
-    /// Wall-clock of the last live seek, so a fast drag seeks the engine at a
-    /// bounded rate instead of once per touch frame.
-    @State private var lastLiveSeekAt: TimeInterval = 0
     /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
     /// playback samples (see `followFraction`).
     @State private var shownFraction: Double = 0
@@ -49,9 +46,6 @@ struct PlayerScrubber: View {
     /// 1:23 of 3:45, adjustable". Swiping up or down seeks by a fixed step;
     /// the visible bar and the times are presentation for the same value.
     private static let accessibilitySeekStep: Double = 15
-
-    /// Throttle between live seeks while the finger is down (~8/sec).
-    private static let liveSeekInterval: TimeInterval = 0.12
 
     /// How long the bar stays in "scrubbing" after release so the playhead can
     /// catch up with the seek instead of snapping back for one frame.
@@ -178,16 +172,10 @@ struct PlayerScrubber: View {
                     width: Double(width),
                     duration: duration
                 )
+                // Only the bar follows the finger; the audio seeks once on
+                // release, as on the lock screen. Seeking while dragging
+                // replayed audio fragments.
                 scrubTime = time
-                // Live scrub: the audio follows the finger the way the lock
-                // screen's does, not just the bar. Throttled to one seek per
-                // interval so a fast drag doesn't flood the engine; the exact
-                // final position is still sought on release.
-                let now = Date().timeIntervalSinceReferenceDate
-                if now - lastLiveSeekAt >= Self.liveSeekInterval {
-                    lastLiveSeekAt = now
-                    playbackManager.seekTo(time: time)
-                }
             }
             .onEnded { value in
                 guard let dragStartTime else { return }
@@ -200,7 +188,6 @@ struct PlayerScrubber: View {
                 scrubTime = time
                 playbackManager.seekTo(time: time)
                 self.dragStartTime = nil
-                lastLiveSeekAt = 0
                 // The playhead needs a beat to catch up with the seek; ending
                 // the scrub immediately would snap the bar back to the old
                 // position for one frame.
