@@ -21,11 +21,19 @@ struct PlayerScrubber: View {
 
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
-    @State private var dragStartTime: Double?
+    @State private var dragAnchor: DragAnchor?
     @State private var releaseTask: Task<Void, Never>?
     /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
     /// playback samples (see `followFraction`).
     @State private var shownFraction: Double = 0
+
+    /// Where a drag started, and on which track. The track keeps playing under
+    /// the finger, so it can end mid-drag; the release must not seek the next
+    /// one to a position computed for this one.
+    private struct DragAnchor {
+        let trackID: String?
+        let startTime: Double
+    }
 
     init(palette: PlayerPalette, playbackManager: PlaybackManager) {
         self.palette = palette
@@ -161,13 +169,17 @@ struct PlayerScrubber: View {
         DragGesture()
             .onChanged { value in
                 releaseTask?.cancel()
-                if dragStartTime == nil {
-                    dragStartTime = elapsed
+                let trackID = playbackPresentation.currentTrack?.id
+                if dragAnchor == nil {
+                    dragAnchor = DragAnchor(trackID: trackID, startTime: elapsed)
                     isScrubbing = true
                 }
-                guard let dragStartTime else { return }
+                guard let dragAnchor, dragAnchor.trackID == trackID else {
+                    isScrubbing = false
+                    return
+                }
                 let time = SeekScrub.dragTime(
-                    startTime: dragStartTime,
+                    startTime: dragAnchor.startTime,
                     translation: Double(value.translation.width),
                     width: Double(width),
                     duration: duration
@@ -178,16 +190,20 @@ struct PlayerScrubber: View {
                 scrubTime = time
             }
             .onEnded { value in
-                guard let dragStartTime else { return }
+                guard let dragAnchor else { return }
+                self.dragAnchor = nil
+                guard dragAnchor.trackID == playbackPresentation.currentTrack?.id else {
+                    isScrubbing = false
+                    return
+                }
                 let time = SeekScrub.dragTime(
-                    startTime: dragStartTime,
+                    startTime: dragAnchor.startTime,
                     translation: Double(value.translation.width),
                     width: Double(width),
                     duration: duration
                 )
                 scrubTime = time
                 playbackManager.seekTo(time: time)
-                self.dragStartTime = nil
                 // The playhead needs a beat to catch up with the seek; ending
                 // the scrub immediately would snap the bar back to the old
                 // position for one frame.
