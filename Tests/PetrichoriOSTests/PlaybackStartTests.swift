@@ -320,8 +320,8 @@ struct QueueItemFailureTests {
 
         backend.resume()
 
-        #expect(await waitForPlaying(backend), "Play после конца очереди должен играть, а не молчать")
-        #expect(delegate.started.last?.id == "played")
+        #expect(await waitUntil { delegate.started.last?.id == "played" })
+        #expect(await waitUntil { backend.currentPlaybackProgress > 0.2 }, "Play после конца очереди должен играть, а не молчать")
     }
 
     @Test func aFailedCurrentTrackHandsOverToItsSuccessor() async throws {
