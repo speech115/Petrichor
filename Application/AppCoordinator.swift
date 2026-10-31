@@ -73,7 +73,7 @@ class AppCoordinator: ObservableObject {
 
         // Launch counts as coming to the foreground: a Mac app opened in the
         // background never becomes active.
-        libraryManager.applyPeerJournal()
+        Task { await libraryManager.applyPeerJournal() }
 
         // Check if library is empty at startup - if so, clear any saved state
         if !hadFoldersAtStartup {

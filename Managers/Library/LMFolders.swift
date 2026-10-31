@@ -171,9 +171,11 @@ extension LibraryManager {
     /// Applies the other device's journal, copied into `Sync/` by the sync job,
     /// then refreshes the smart playlists and the queue so favorites and counts
     /// show without a full library reload.
-    func applyPeerJournal() {
+    func applyPeerJournal() async {
         let fileURL = PlaybackJournalFiles.inbox
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+        // A toggle made here but not yet on disk must count in the conflict check.
+        await AppCoordinator.shared?.playbackJournal.flush()
         do {
             let summary = try PlaybackJournalApplier.apply(
                 fileURL: fileURL,

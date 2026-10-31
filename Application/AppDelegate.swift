@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        AppCoordinator.shared?.libraryManager.applyPeerJournal()
+        Task { await AppCoordinator.shared?.libraryManager.applyPeerJournal() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
