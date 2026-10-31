@@ -272,7 +272,115 @@ struct QueueRefillTests {
 
 }
 
+/// A track that cannot be opened is dropped from the queue and playback moves
+/// on. When it was the last entry there is nothing to move on to: the queue
+/// ends instead of replaying the track before it.
+extension PlaybackTests {
+@MainActor
+struct QueueItemFailureTests {
+    private let broken = QueueEntry(
+        entryId: AudioEntryId(id: "broken"),
+        url: FileManager.default.temporaryDirectory.appendingPathComponent("missing-\(UUID().uuidString).wav")
+    )
+
+    private func startWithBrokenLastTrack(startPaused: Bool) async throws -> (AVQueuePlayerBackend, RecordingDelegate, URL) {
+        let url = try makeSilentWAV(seconds: 1)
+        let backend = AVQueuePlayerBackend()
+        let delegate = RecordingDelegate()
+        backend.backendDelegate = delegate
+        backend.setQueue(
+            [QueueEntry(entryId: AudioEntryId(id: "played"), url: url), broken],
+            startingAt: 1,
+            startPaused: startPaused
+        )
+        #expect(await waitUntil { delegate.skipped.map(\.id) == ["broken"] })
+        try await Task.sleep(for: .seconds(1))
+        return (backend, delegate, url)
+    }
+
+    @Test func aFailedLastTrackEndsTheQueueInsteadOfReplayingThePreviousOne() async throws {
+        let (backend, delegate, url) = try await startWithBrokenLastTrack(startPaused: false)
+        defer { backend.stop(); try? FileManager.default.removeItem(at: url) }
+
+        #expect(!delegate.started.map(\.id).contains("played"), "уже сыгранный трек не должен запускаться снова")
+        #expect(backend.state != .playing)
+    }
+
+    @Test func aFailedLastTrackWhilePausedStaysSilent() async throws {
+        let (backend, delegate, url) = try await startWithBrokenLastTrack(startPaused: true)
+        defer { backend.stop(); try? FileManager.default.removeItem(at: url) }
+
+        #expect(!delegate.started.map(\.id).contains("played"))
+        #expect(backend.state != .playing, "сбой на паузе не должен включать звук")
+    }
+
+    @Test func playAfterAFailedLastTrackPlaysTheRemainingQueue() async throws {
+        let (backend, delegate, url) = try await startWithBrokenLastTrack(startPaused: false)
+        defer { backend.stop(); try? FileManager.default.removeItem(at: url) }
+
+        backend.resume()
+
+        #expect(await waitForPlaying(backend), "Play после конца очереди должен играть, а не молчать")
+        #expect(delegate.started.last?.id == "played")
+    }
+
+    @Test func aFailedCurrentTrackHandsOverToItsSuccessor() async throws {
+        let url = try makeSilentWAV(seconds: 1)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let backend = AVQueuePlayerBackend()
+        let delegate = RecordingDelegate()
+        backend.backendDelegate = delegate
+        defer { backend.stop() }
+
+        backend.setQueue([broken, QueueEntry(entryId: AudioEntryId(id: "next"), url: url)], startingAt: 0, startPaused: false)
+
+        #expect(await waitUntil { delegate.started.map(\.id).contains("next") })
+        #expect(await waitForPlaying(backend))
+        #expect(backend.queue.map(\.id) == ["next"])
+    }
+}
+}
+
+/// Repeat injects the next track into the engine queue; reordering the queue
+/// must keep that successor, or repeat-one walks on to another track.
+extension PlaybackTests {
+@MainActor
+struct ShuffleRepeatTests {
+    @Test func turningShuffleOnWhilePlayingKeepsRepeatOne() async throws {
+        let urls = try (0..<4).map { _ in try makeSilentWAV(seconds: 1) }
+        defer { urls.forEach { try? FileManager.default.removeItem(at: $0) } }
+        let tracks = urls.map(Track.init(url:))
+        let coordinator = AppCoordinator()
+        let playback = coordinator.playbackManager
+        let playlists = coordinator.playlistManager
+        defer {
+            playback.stop()
+            playlists.repeatMode = .off
+            playlists.isShuffleEnabled = false
+        }
+
+        playlists.repeatMode = .one
+        playlists.playTrack(tracks[0], fromTracks: tracks)
+        #expect(await waitUntil(timeout: .seconds(60)) { playback.audioPlayer.currentPlaybackProgress > 0.2 })
+
+        playlists.toggleShuffle()
+
+        try await Task.sleep(for: .seconds(2.5))
+        #expect(playback.currentTrack?.url == tracks[0].url, "repeat-one должен повторять тот же трек после shuffle")
+    }
+}
+}
+
 // MARK: - Shared fixtures
+
+@MainActor
+fileprivate func waitUntil(timeout: Duration = .seconds(10), _ condition: () -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + timeout
+    while ContinuousClock.now < deadline, !condition() {
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+    return condition()
+}
 
 /// Polls instead of sleeping a fixed amount: the player reaches `.playing`
 /// only after the item loads, and that timing is not ours to predict. The
