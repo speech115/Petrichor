@@ -144,6 +144,8 @@
 				Main/ContentView.swift,
 				Main/MainSidebarView.swift,
 				Main/PlayQueueView.swift,
+				Main/PlayerProgressBar.swift,
+				Main/PlayerTrackDetailsView.swift,
 				Main/PlayerView.swift,
 				Main/TrackDetailView.swift,
 				Main/TrackLyricsView.swift,
