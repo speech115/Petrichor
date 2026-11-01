@@ -124,81 +124,93 @@ extension DatabaseManager {
             self.scanActivity.scanStatusMessage = String(localized: "Adding folders...")
         }
 
-        let addedFolders = try await dbQueue.write { db -> [Folder] in
-            var folders: [Folder] = []
+        // Every exit ends the scan; a throw used to leave the library stuck in "scanning".
+        var isInitialScan = false
+        do {
+            let addedFolders = try await dbQueue.write { db -> [Folder] in
+                var folders: [Folder] = []
 
-            for url in urls {
-                let bookmarkData = bookmarkDataMap[url]
-                var folder = Folder(url: url, bookmarkData: bookmarkData)
+                for url in urls {
+                    let bookmarkData = bookmarkDataMap[url]
+                    var folder = Folder(url: url, bookmarkData: bookmarkData)
 
-                // Get the file system modification date
-                if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-                   let fsModDate = attributes[.modificationDate] as? Date {
-                    folder.dateUpdated = fsModDate
-                }
+                    // Get the file system modification date
+                    if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+                       let fsModDate = attributes[.modificationDate] as? Date {
+                        folder.dateUpdated = fsModDate
+                    }
 
-                // Check if folder already exists
-                if let existing = try Folder
-                    .filter(Folder.Columns.path == LibraryPathStore.storedPath(for: url))
-                    .fetchOne(db) {
-                    // Update bookmark data if folder exists
-                    var updatedFolder = existing
-                    updatedFolder.bookmarkData = bookmarkData
-                    try updatedFolder.update(db)
-                    folders.append(updatedFolder)
-                    Logger.info("Folder already exists: \(existing.name) with ID: \(existing.id ?? -1), updated bookmark")
-                } else {
-                    // Insert new folder
-                    try folder.insert(db)
-
-                    // Fetch the inserted folder to get the generated ID
-                    if let insertedFolder = try Folder
+                    // Check if folder already exists
+                    if let existing = try Folder
                         .filter(Folder.Columns.path == LibraryPathStore.storedPath(for: url))
                         .fetchOne(db) {
-                        folders.append(insertedFolder)
-                        Logger.info("Added new folder: \(insertedFolder.name) with ID: \(insertedFolder.id ?? -1)")
+                        // Update bookmark data if folder exists
+                        var updatedFolder = existing
+                        updatedFolder.bookmarkData = bookmarkData
+                        try updatedFolder.update(db)
+                        folders.append(updatedFolder)
+                        Logger.info("Folder already exists: \(existing.name) with ID: \(existing.id ?? -1), updated bookmark")
+                    } else {
+                        // Insert new folder
+                        try folder.insert(db)
+
+                        // Fetch the inserted folder to get the generated ID
+                        if let insertedFolder = try Folder
+                            .filter(Folder.Columns.path == LibraryPathStore.storedPath(for: url))
+                            .fetchOne(db) {
+                            folders.append(insertedFolder)
+                            Logger.info("Added new folder: \(insertedFolder.name) with ID: \(insertedFolder.id ?? -1)")
+                        }
                     }
                 }
-            }
             
-            return folders
-        }
-        
-        // Post .initialScanStarted before folders publish so the shell cannot flash
-        // the main UI with an empty track list.
-        let existingTrackCount = try await dbQueue.read { db in
-            try Track.fetchCount(db)
-        }
-        let isInitialScan = existingTrackCount == 0
-
-        await MainActor.run {
-            if isInitialScan {
-                NotificationCenter.default.post(name: .initialScanStarted, object: nil)
+                return folders
             }
-            NotificationCenter.default.post(name: .foldersAddedToDatabase, object: addedFolders)
-        }
+        
+            // Post .initialScanStarted before folders publish so the shell cannot flash
+            // the main UI with an empty track list.
+            let existingTrackCount = try await dbQueue.read { db in
+                try Track.fetchCount(db)
+            }
+            isInitialScan = existingTrackCount == 0
 
-        if !addedFolders.isEmpty {
-            try await scanFoldersForTracks(addedFolders, showActivityInTray: true, isInitialScan: isInitialScan)
-        }
+            await MainActor.run { [isInitialScan] in
+                if isInitialScan {
+                    NotificationCenter.default.post(name: .initialScanStarted, object: nil)
+                }
+                NotificationCenter.default.post(name: .foldersAddedToDatabase, object: addedFolders)
+            }
 
-        await MainActor.run {
-            self.scanActivity.finishScan()
+            if !addedFolders.isEmpty {
+                try await scanFoldersForTracks(addedFolders, showActivityInTray: true, isInitialScan: isInitialScan)
+            }
+
+            await MainActor.run { [isInitialScan] in
+                self.scanActivity.finishScan()
             
-            if isInitialScan {
-                NotificationCenter.default.post(name: .initialScanCompleted, object: nil)
+                if isInitialScan {
+                    NotificationCenter.default.post(name: .initialScanCompleted, object: nil)
+                }
             }
-        }
         
-        // Wait for DB operations to finish before notifying scan completion
-        try? await dbQueue.writeWithoutTransaction { _ in }
-        if !isInitialScan {
-            await MainActor.run {
-                NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
+            // Wait for DB operations to finish before notifying scan completion
+            try? await dbQueue.writeWithoutTransaction { _ in }
+            if !isInitialScan {
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .libraryDataDidChange, object: nil)
+                }
             }
-        }
 
-        return addedFolders
+            return addedFolders
+        } catch {
+            await MainActor.run { [isInitialScan] in
+                self.scanActivity.finishScan()
+                if isInitialScan {
+                    NotificationCenter.default.post(name: .initialScanCompleted, object: nil)
+                }
+            }
+            throw error
+        }
     }
 
     func getAllFolders() -> [Folder] {
@@ -624,12 +636,19 @@ extension DatabaseManager {
         }
 
         // Post-scan cleanup. Stats count non-duplicate tracks, so run after duplicate marking.
-        try await normalizeCompilationAlbums()
-        await detectAndMarkDuplicates()
-        try await dbQueue.write { db in
-            try self.updateEntityStats(in: db)
+        do {
+            try await normalizeCompilationAlbums()
+            await detectAndMarkDuplicates()
+            try await dbQueue.write { db in
+                try self.updateEntityStats(in: db)
+            }
+            try await cleanupOrphanedData()
+        } catch {
+            if showActivityInTray {
+                await MainActor.run { NotificationManager.shared.stopActivity() }
+            }
+            throw error
         }
-        try await cleanupOrphanedData()
 
         await MainActor.run {
             self.scanActivity.scanStatusMessage = String(localized: "Scan complete")

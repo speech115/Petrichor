@@ -352,15 +352,18 @@ extension DatabaseManager {
             // Balanced unload even if a batch write below throws, so the retain count can't leak.
             defer { ArtistParser.unloadKnownArtists() }
 
-            // Clear existing associations and reset stats
-            _ = try await dbQueue.write { db in
-                try TrackArtist.deleteAll(db)
-                try AlbumArtist.deleteAll(db)
-                try Artist.updateAll(db, Artist.Columns.totalTracks.set(to: 0), Artist.Columns.totalAlbums.set(to: 0))
-                try Album.updateAll(db, Album.Columns.totalTracks.set(to: 0))
-            }
+            // Clear existing associations and reset stats. A resumed run keeps them:
+            // the tracks before the saved offset were rebuilt after the clear.
+            if resumeOffset == 0 {
+                _ = try await dbQueue.write { db in
+                    try TrackArtist.deleteAll(db)
+                    try AlbumArtist.deleteAll(db)
+                    try Artist.updateAll(db, Artist.Columns.totalTracks.set(to: 0), Artist.Columns.totalAlbums.set(to: 0))
+                    try Album.updateAll(db, Album.Columns.totalTracks.set(to: 0))
+                }
 
-            Logger.info("Cleared existing artist/album associations")
+                Logger.info("Cleared existing artist/album associations")
+            }
 
             // Rebuild in batches
             let batchSize = 500
@@ -377,16 +380,17 @@ extension DatabaseManager {
 
                 if tracks.isEmpty { break }
 
-                _ = try await dbQueue.write { db in
+                offset += tracks.count
+                // The offset commits with its batch, so a resume never rebuilds a batch twice.
+                _ = try await dbQueue.write { [offset] db in
                     for var track in tracks {
                         try self.processTrackArtists(track, in: db)
                         try self.processTrackAlbum(&track, in: db)
                     }
+                    try self.saveProgress(offset: offset, in: db)
                 }
 
-                offset += tracks.count
                 await NotificationManager.shared.updateActivityProgress(current: offset, total: totalTracks)
-                self.saveProgress(offset: offset)
             }
 
             // Update stats
@@ -403,11 +407,12 @@ extension DatabaseManager {
 
     // MARK: - v9 Helpers
 
-    private func saveProgress(offset: Int) {
-        if let data = try? JSONEncoder().encode(KnownArtistsProgress(offset: offset)),
-           let json = String(data: data, encoding: .utf8) {
-            updateMigrationProgress(Self.knownArtistsMigrationIdentifier, progress: json)
-        }
+    private func saveProgress(offset: Int, in db: Database) throws {
+        let data = try JSONEncoder().encode(KnownArtistsProgress(offset: offset))
+        try db.execute(
+            sql: "UPDATE background_migrations SET progress = ? WHERE identifier = ?",
+            arguments: [String(bytes: data, encoding: .utf8), Self.knownArtistsMigrationIdentifier]
+        )
     }
 
     // MARK: - Migration State
