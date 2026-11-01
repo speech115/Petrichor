@@ -13,7 +13,8 @@ func makeTestDatabaseManager() throws -> (manager: DatabaseManager, directory: U
 
 /// Inserts the library-root folder row once and returns its id.
 func insertLibraryRootFolder(_ db: Database) throws -> Int64 {
-    if let id = try Int64.fetchOne(db, sql: "SELECT id FROM folders WHERE path = ''") {
+    let rootPath = LibraryPathStore.storedPath(for: LibraryPathStore.libraryRoot)
+    if let id = try Int64.fetchOne(db, sql: "SELECT id FROM folders WHERE path = ?", arguments: [rootPath]) {
         return id
     }
     try Folder(url: LibraryPathStore.libraryRoot).insert(db)
