@@ -20,6 +20,7 @@ struct PlaylistDetailScreen: View {
     @ObservedObject var playlistCatalog: PlaylistCatalogObservation
 
     @EnvironmentObject private var libraryManager: LibraryManager
+    @Environment(\.dismiss) private var dismiss
 
     @ObservedObject private var screenCache = LibraryScreenCache.shared
 
@@ -138,6 +139,7 @@ struct PlaylistDetailScreen: View {
             Button(String(localized: "Delete"), role: .destructive) {
                 if let playlist {
                     playlistManager.deletePlaylist(playlist)
+                    dismiss()
                 }
             }
         } message: {

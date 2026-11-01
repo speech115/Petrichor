@@ -291,34 +291,39 @@ extension PlaylistManager {
     /// Apply a new track order to a playlist by ID. Reorders the existing in-memory `Track`
     /// objects (preserving their loaded artwork/state) for hot playlists, and persists the
     /// positions to the database. Cold playlists reload lazily, so only the DB is updated.
+    ///
+    /// Memory changes before the write: a list that waits for the database snaps the
+    /// dragged row back, and a second drag in the meantime starts from the old order.
     func applyPlaylistTrackOrder(playlistID: UUID, orderedTrackIds: [Int64]) async {
         guard let index = playlists.firstIndex(where: { $0.id == playlistID }),
               playlists[index].type == .regular,
               playlists[index].isContentEditable,
               let dbManager = libraryManager?.databaseManager else { return }
 
+        let name = playlists[index].name
+        let previousTracks = playlists[index].tracks
+        if !previousTracks.isEmpty {
+            let byId = Dictionary(
+                previousTracks.compactMap { track in track.trackId.map { ($0, track) } }
+            ) { first, _ in first }
+            let reordered = orderedTrackIds.compactMap { byId[$0] }
+            if reordered.count == previousTracks.count {
+                playlists[index].tracks = reordered
+            }
+        }
+        playlists[index].dateModified = Date()
+
         do {
             // Position-only updates instead of delete-all + reinsert-all.
             try await dbManager.setPlaylistTrackOrder(playlistId: playlistID, orderedTrackIds: orderedTrackIds)
-
-            await MainActor.run {
-                guard let index = self.playlists.firstIndex(where: { $0.id == playlistID }) else { return }
-
-                if !self.playlists[index].tracks.isEmpty {
-                    let byId = Dictionary(
-                        self.playlists[index].tracks.compactMap { track in track.trackId.map { ($0, track) } }
-                    ) { first, _ in first }
-                    let reordered = orderedTrackIds.compactMap { byId[$0] }
-                    if reordered.count == self.playlists[index].tracks.count {
-                        self.playlists[index].tracks = reordered
-                    }
-                }
-
-                self.playlists[index].dateModified = Date()
-                Logger.info("Reordered playlist '\(self.playlists[index].name)' (\(orderedTrackIds.count) tracks)")
-            }
+            Logger.info("Reordered playlist '\(name)' (\(orderedTrackIds.count) tracks)")
         } catch {
             Logger.error("Failed to save reordered playlist: \(error)")
+            // Back to the stored order, unless a later reorder already replaced this one.
+            if let index = playlists.firstIndex(where: { $0.id == playlistID }),
+               playlists[index].tracks.compactMap(\.trackId) == orderedTrackIds {
+                playlists[index].tracks = previousTracks
+            }
         }
     }
 }

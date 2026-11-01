@@ -21,14 +21,23 @@ struct PlayerScrubber: View {
 
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
-    @State private var dragStartTime: Double?
+    @State private var dragAnchor: DragAnchor?
+    /// Resets on its own when the system cancels the drag, which skips
+    /// `onEnded`; `endCancelledDrag` clears the scrub then.
+    @GestureState private var isDragging = false
     @State private var releaseTask: Task<Void, Never>?
-    /// Wall-clock of the last live seek, so a fast drag seeks the engine at a
-    /// bounded rate instead of once per touch frame.
-    @State private var lastLiveSeekAt: TimeInterval = 0
     /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
     /// playback samples (see `followFraction`).
     @State private var shownFraction: Double = 0
+
+    /// Where a drag started, and on which queue entry. The track keeps playing
+    /// under the finger, so it can end mid-drag; the release must not seek the
+    /// next play to a position computed for this one. Keyed by entry, not by
+    /// song: Repeat One and a duplicate queue row replay the same song.
+    private struct DragAnchor {
+        let entryID: AudioEntryId?
+        let startTime: Double
+    }
 
     init(palette: PlayerPalette, playbackManager: PlaybackManager) {
         self.palette = palette
@@ -49,9 +58,6 @@ struct PlayerScrubber: View {
     /// 1:23 of 3:45, adjustable". Swiping up or down seeks by a fixed step;
     /// the visible bar and the times are presentation for the same value.
     private static let accessibilitySeekStep: Double = 15
-
-    /// Throttle between live seeks while the finger is down (~8/sec).
-    private static let liveSeekInterval: TimeInterval = 0.12
 
     /// How long the bar stays in "scrubbing" after release so the playhead can
     /// catch up with the seek instead of snapping back for one frame.
@@ -124,6 +130,9 @@ struct PlayerScrubber: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(scrubGesture(width: geometry.size.width))
+            .onChange(of: isDragging) { _, dragging in
+                if !dragging { endCancelledDrag() }
+            }
             .animation(
                 reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88),
                 value: isScrubbing
@@ -165,42 +174,44 @@ struct PlayerScrubber: View {
     private func scrubGesture(width: CGFloat) -> some Gesture {
         // The standard movement threshold ignores taps and stationary touches.
         DragGesture()
+            .updating($isDragging) { _, dragging, _ in dragging = true }
             .onChanged { value in
                 releaseTask?.cancel()
-                if dragStartTime == nil {
-                    dragStartTime = elapsed
+                let entryID = playbackManager.currentEntryId
+                if dragAnchor == nil {
+                    dragAnchor = DragAnchor(entryID: entryID, startTime: elapsed)
                     isScrubbing = true
                 }
-                guard let dragStartTime else { return }
+                guard let dragAnchor, dragAnchor.entryID == entryID else {
+                    isScrubbing = false
+                    return
+                }
                 let time = SeekScrub.dragTime(
-                    startTime: dragStartTime,
+                    startTime: dragAnchor.startTime,
                     translation: Double(value.translation.width),
                     width: Double(width),
                     duration: duration
                 )
+                // Only the bar follows the finger; the audio seeks once on
+                // release, as on the lock screen. Seeking while dragging
+                // replayed audio fragments.
                 scrubTime = time
-                // Live scrub: the audio follows the finger the way the lock
-                // screen's does, not just the bar. Throttled to one seek per
-                // interval so a fast drag doesn't flood the engine; the exact
-                // final position is still sought on release.
-                let now = Date().timeIntervalSinceReferenceDate
-                if now - lastLiveSeekAt >= Self.liveSeekInterval {
-                    lastLiveSeekAt = now
-                    playbackManager.seekTo(time: time)
-                }
             }
             .onEnded { value in
-                guard let dragStartTime else { return }
+                guard let dragAnchor else { return }
+                self.dragAnchor = nil
+                guard dragAnchor.entryID == playbackManager.currentEntryId else {
+                    isScrubbing = false
+                    return
+                }
                 let time = SeekScrub.dragTime(
-                    startTime: dragStartTime,
+                    startTime: dragAnchor.startTime,
                     translation: Double(value.translation.width),
                     width: Double(width),
                     duration: duration
                 )
                 scrubTime = time
                 playbackManager.seekTo(time: time)
-                self.dragStartTime = nil
-                lastLiveSeekAt = 0
                 // The playhead needs a beat to catch up with the seek; ending
                 // the scrub immediately would snap the bar back to the old
                 // position for one frame.
@@ -211,5 +222,15 @@ struct PlayerScrubber: View {
                     isScrubbing = false
                 }
             }
+    }
+
+    /// A drag that ended normally has already cleared its anchor in `onEnded`.
+    /// One still anchored was cancelled: the bar returns to the playhead and
+    /// the audio stays where it is.
+    private func endCancelledDrag() {
+        guard dragAnchor != nil else { return }
+        dragAnchor = nil
+        releaseTask?.cancel()
+        isScrubbing = false
     }
 }

@@ -195,7 +195,6 @@ struct PlayerView: View {
     @State private var gradientColors: [Color] = []
     @State private var gradientRevision: UInt64 = 0
     @State private var playButtonPressed = false
-    @State private var isMuted = false
     @State private var previousVolume: Float = 0.7
     @State private var isDraggingVolume = false
 
@@ -440,13 +439,6 @@ struct PlayerView: View {
                     }
 
                     playbackManager.setVolume(newVolume)
-
-                    // Update mute state
-                    if newVolume < 0.01 {
-                        isMuted = true
-                    } else if isMuted {
-                        isMuted = false
-                    }
                 }
             ),
             in: 0...1
@@ -579,7 +571,7 @@ struct PlayerView: View {
     }
 
     private var volumeIcon: String {
-        if isMuted || playbackManager.volume < 0.01 {
+        if isMuted {
             return "speaker.slash.fill"
         } else if playbackManager.volume < 0.33 {
             return "speaker.fill"
@@ -604,10 +596,7 @@ struct PlayerView: View {
     private func setupInitialState() {
         // Initialize the cached album art
 
-        if playbackManager.volume < 0.01 {
-            isMuted = true
-            previousVolume = 0.7
-        } else {
+        if !isMuted {
             previousVolume = playbackManager.volume
         }
 
@@ -637,16 +626,20 @@ struct PlayerView: View {
         }
     }
 
+    /// Read from the volume, not kept beside it: the menu's volume commands
+    /// change the volume without passing through this view.
+    private var isMuted: Bool {
+        playbackManager.volume < 0.01
+    }
+
     private func toggleMute() {
         if isMuted {
             // Unmute - restore previous volume
             playbackManager.setVolume(previousVolume)
-            isMuted = false
         } else {
             // Mute - save current volume and set to 0
             previousVolume = playbackManager.volume
             playbackManager.setVolume(0)
-            isMuted = true
         }
     }
 }

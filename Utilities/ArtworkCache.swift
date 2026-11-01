@@ -1,41 +1,42 @@
 import Foundation
+import os
 
-/// Operation subclass that guarantees its continuation is resumed
-/// even when cancelled, unlike `BlockOperation` whose execution blocks
-/// are skipped entirely for cancelled operations.
+/// A render whose continuation always resumes. Cancellation goes through
+/// `isSkipped`, not `Operation.cancel()`: `start()` never calls `main()` for an
+/// operation cancelled before it starts, so its continuation would never resume.
 final class ArtworkLoadOperation: Operation, @unchecked Sendable {
     private let continuation: CheckedContinuation<PlatformImage?, Never>
+    private let isSkipped: OSAllocatedUnfairLock<Bool>
     private let work: () -> PlatformImage?
 
-    init(continuation: CheckedContinuation<PlatformImage?, Never>, work: @escaping () -> PlatformImage?) {
+    init(
+        continuation: CheckedContinuation<PlatformImage?, Never>,
+        isSkipped: OSAllocatedUnfairLock<Bool>,
+        work: @escaping () -> PlatformImage?
+    ) {
         self.continuation = continuation
+        self.isSkipped = isSkipped
         self.work = work
         super.init()
     }
 
     override func main() {
-        continuation.resume(returning: isCancelled ? nil : work())
+        continuation.resume(returning: isSkipped.withLock { $0 } ? nil : work())
     }
 }
 
 extension OperationQueue {
     /// Enqueues a render and resumes its continuation when complete.
-    /// Cancelling the awaiting task cancels the queued operation; cancelled
-    /// operations resume with `nil` without rendering.
+    /// Cancelling the awaiting task makes a render that has not started yet
+    /// resume with `nil` without rendering.
     func renderArtwork(_ work: @escaping () -> PlatformImage?) async -> PlatformImage? {
-        final class Holder: @unchecked Sendable {
-            var operation: ArtworkLoadOperation?
-        }
-        let holder = Holder()
-
+        let isSkipped = OSAllocatedUnfairLock(initialState: false)
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                let operation = ArtworkLoadOperation(continuation: continuation, work: work)
-                holder.operation = operation
-                self.addOperation(operation)
+                self.addOperation(ArtworkLoadOperation(continuation: continuation, isSkipped: isSkipped, work: work))
             }
         } onCancel: {
-            holder.operation?.cancel()
+            isSkipped.withLock { $0 = true }
         }
     }
 }
