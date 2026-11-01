@@ -13,6 +13,7 @@
 		55B0DEC12DE3A58400A41ED9 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55A000000000000000000040 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 		55A000000000000000000051 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
+		55A000000000000000000205 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 55B0DEC02DE3A58400A41ED9 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,6 +37,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 55A000000000000000000020;
 			remoteInfo = PetrichoriOS;
+		};
+		55A000000000000000000206 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 550F4A062DB45B1A005F794E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 550F4A0D2DB45B1A005F794E;
+			remoteInfo = Petrichor;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -64,6 +72,7 @@
 		55A000000000000000000021 /* Petrichor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Petrichor.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		55A000000000000000000041 /* PetrichoriOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetrichoriOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		55A000000000000000000060 /* PetrichoriOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetrichoriOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		55A000000000000000000201 /* PetrichorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PetrichorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -179,6 +188,20 @@
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};
+		55A000000000000000000202 /* Exceptions for "PetrichoriOSTests" folder in "PetrichorTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AVAssetMetadataReaderTests.swift,
+				FolderScanTests.swift,
+				LibraryPathStoreTests.swift,
+				M3UImportTests.swift,
+				PlaybackErrorMappingTests.swift,
+				PlaybackStartTests.swift,
+				QueueBackendTests.swift,
+				TrackPersistenceTests.swift,
+			);
+			target = 55A000000000000000000200 /* PetrichorTests */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -263,6 +286,9 @@
 		};
 		55A000000000000000000042 /* PetrichoriOSTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				55A000000000000000000202 /* Exceptions for "PetrichoriOSTests" folder in "PetrichorTests" target */,
+			);
 			path = Tests/PetrichoriOSTests;
 			sourceTree = "<group>";
 		};
@@ -311,6 +337,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000204 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				55A000000000000000000205 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -478,6 +512,30 @@
 			productReference = 55A000000000000000000060 /* PetrichoriOSUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		55A000000000000000000200 /* PetrichorTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 55A00000000000000000020A /* Build configuration list for PBXNativeTarget "PetrichorTests" */;
+			buildPhases = (
+				55A000000000000000000203 /* Sources */,
+				55A000000000000000000204 /* Frameworks */,
+				55A000000000000000000208 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				55A000000000000000000207 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				55A000000000000000000042 /* PetrichoriOSTests */,
+			);
+			name = PetrichorTests;
+			packageProductDependencies = (
+				55B0DEC02DE3A58400A41ED9 /* GRDB */,
+			);
+			productName = PetrichorTests;
+			productReference = 55A000000000000000000201 /* PetrichorTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -505,6 +563,10 @@
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = 55A000000000000000000020;
 					};
+					55A000000000000000000200 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 550F4A0D2DB45B1A005F794E;
+					};
 				};
 			};
 			buildConfigurationList = 550F4A092DB45B1A005F794E /* Build configuration list for PBXProject "Petrichor" */;
@@ -530,6 +592,7 @@
 				55A000000000000000000020 /* PetrichoriOS */,
 				55A000000000000000000043 /* PetrichoriOSTests */,
 				55A000000000000000000067 /* PetrichoriOSUITests */,
+				55A000000000000000000200 /* PetrichorTests */,
 				55A000000000000000000110 /* PetrichorWidgets */,
 			);
 		};
@@ -565,6 +628,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		55A000000000000000000064 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		55A000000000000000000208 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -610,6 +680,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		55A000000000000000000203 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -627,6 +704,11 @@
 			isa = PBXTargetDependency;
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 			targetProxy = 55A000000000000000000065 /* PBXContainerItemProxy */;
+		};
+		55A000000000000000000207 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 550F4A0D2DB45B1A005F794E /* Petrichor */;
+			targetProxy = 55A000000000000000000206 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1271,6 +1353,66 @@
 			};
 			name = Dev;
 		};
+		55A00000000000000000020B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petrichor Dev.app/Contents/MacOS/Petrichor Dev";
+			};
+			name = Debug;
+		};
+		55A00000000000000000020C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petrichor.app/Contents/MacOS/Petrichor";
+			};
+			name = Release;
+		};
+		55A00000000000000000020D /* Dev */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = DQFRVE6G9U;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = "Development Build";
+				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Petrichor Dev.app/Contents/MacOS/Petrichor Dev";
+			};
+			name = Dev;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1332,6 +1474,16 @@
 				55A000000000000000000068 /* Debug */,
 				55A000000000000000000069 /* Release */,
 				55A00000000000000000006A /* Dev */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		55A00000000000000000020A /* Build configuration list for PBXNativeTarget "PetrichorTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				55A00000000000000000020B /* Debug */,
+				55A00000000000000000020C /* Release */,
+				55A00000000000000000020D /* Dev */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

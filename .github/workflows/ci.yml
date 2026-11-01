@@ -65,7 +65,8 @@ jobs:
       - name: Run actionlint
         run: docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:1.7.12 -color
 
-  # Single macOS job: compile once, analyze in the same pass.
+  # Single macOS job: compile once, analyze in the same pass, then run the
+  # platform-neutral unit tests against the same build.
   build-analyze:
     name: Build & Analyze (Debug)
     runs-on: macos-26
@@ -128,12 +129,34 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcbeautify --renderer github-actions
 
+      # Platform-neutral unit tests (parser, database, queries) on the Mac target:
+      # PetrichorTests shares Tests/PetrichoriOSTests minus the iOS seam tests.
+      # Same DerivedData as the build above, so only the test bundle compiles.
+      - name: Unit tests (macOS)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -clonedSourcePackagesDirPath .spm \
+            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -resultBundlePath "$RUNNER_TEMP/macOS-tests.xcresult" \
+            ONLY_ACTIVE_ARCH=YES \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
       - name: Upload xcresult on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: debug-xcresult
-          path: ${{ runner.temp }}/Debug.xcresult
+          path: |
+            ${{ runner.temp }}/Debug.xcresult
+            ${{ runner.temp }}/macOS-tests.xcresult
           retention-days: 5
           if-no-files-found: ignore
 
@@ -219,9 +242,9 @@ jobs:
             -scheme "$IOS_SCHEME" \
             -clonedSourcePackagesDirPath .spm
 
-      # A failed test runs once more: the audits' Code=-56 is a capacity timeout of
-      # this 3-core VM, not a finding, while a real accessibility regression fails
-      # both runs and still fails the job.
+      # No test retry: the audits' Code=-56 (a capacity timeout of this 3-core VM,
+      # not a finding) is retried inside AccessibilityAuditUITests, so any other
+      # failure, flaky or not, fails the job on its first run.
       - name: Build and test iOS
         run: |
           set -o pipefail
@@ -233,8 +256,6 @@ jobs:
             -clonedSourcePackagesDirPath .spm \
             -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
             -resultBundlePath "$RUNNER_TEMP/iOS.xcresult" \
-            -retry-tests-on-failure \
-            -test-iterations 2 \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
