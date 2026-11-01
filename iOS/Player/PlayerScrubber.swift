@@ -22,6 +22,9 @@ struct PlayerScrubber: View {
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
     @State private var dragAnchor: DragAnchor?
+    /// Resets on its own when the system cancels the drag, which skips
+    /// `onEnded`; `endCancelledDrag` clears the scrub then.
+    @GestureState private var isDragging = false
     @State private var releaseTask: Task<Void, Never>?
     /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
     /// playback samples (see `followFraction`).
@@ -127,6 +130,9 @@ struct PlayerScrubber: View {
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
             .gesture(scrubGesture(width: geometry.size.width))
+            .onChange(of: isDragging) { _, dragging in
+                if !dragging { endCancelledDrag() }
+            }
             .animation(
                 reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88),
                 value: isScrubbing
@@ -168,6 +174,7 @@ struct PlayerScrubber: View {
     private func scrubGesture(width: CGFloat) -> some Gesture {
         // The standard movement threshold ignores taps and stationary touches.
         DragGesture()
+            .updating($isDragging) { _, dragging, _ in dragging = true }
             .onChanged { value in
                 releaseTask?.cancel()
                 let entryID = playbackManager.currentEntryId
@@ -215,5 +222,15 @@ struct PlayerScrubber: View {
                     isScrubbing = false
                 }
             }
+    }
+
+    /// A drag that ended normally has already cleared its anchor in `onEnded`.
+    /// One still anchored was cancelled: the bar returns to the playhead and
+    /// the audio stays where it is.
+    private func endCancelledDrag() {
+        guard dragAnchor != nil else { return }
+        dragAnchor = nil
+        releaseTask?.cancel()
+        isScrubbing = false
     }
 }
