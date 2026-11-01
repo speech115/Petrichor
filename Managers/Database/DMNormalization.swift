@@ -111,10 +111,13 @@ extension DatabaseManager {
         // parsing intact - without the lookup, a merged name with a separator is split first.
         let artistNames = ArtistParser.parse(field, role: role)
 
+        // Two names can resolve to one row (a merged-away name next to its canonical one);
+        // a second link would violate the junction's primary key.
+        var linkedArtistIds = Set<Int64>()
         for (index, artistName) in artistNames.enumerated() {
             let artist = try findOrCreateArtist(artistName, in: db, cache: cache)
 
-            guard let artistId = artist.id else { continue }
+            guard let artistId = artist.id, linkedArtistIds.insert(artistId).inserted else { continue }
 
             // Create track-artist relationship
             let trackArtist = TrackArtist(
@@ -229,23 +232,7 @@ extension DatabaseManager {
     func processTrackAlbum(_ track: inout FullTrack, in db: Database, cache: ScanLookupCache? = nil) throws {
         guard !track.album.isEmpty && track.album != "Unknown Album" else { return }
 
-        // Determine the album artist (prefer albumArtist field, then compilation flag, then first artist from multi-artist string)
-        let albumArtistName: String?
-        if let albumArtist = track.albumArtist, !albumArtist.isEmpty {
-            albumArtistName = albumArtist
-        } else if track.compilation {
-            // Compilation flag set but no album artist tag; group all tracks under a canonical name
-            // so a Various Artists comp doesn't fragment into one album per track artist.
-            albumArtistName = "Various Artists"
-        } else if !track.artist.isEmpty && track.artist != "Unknown Artist" {
-            // Parse the artist field and use the first artist as the album artist
-            let artists = ArtistParser.parse(track.artist, role: TrackArtist.Role.artist)
-            albumArtistName = artists.first
-        } else {
-            albumArtistName = nil
-        }
-
-        let album = try findOrCreateAlbum(track.album, albumArtist: albumArtistName, in: db, cache: cache)
+        let album = try findOrCreateAlbum(track.album, albumArtist: primaryAlbumArtistName(for: track), in: db, cache: cache)
         track.albumId = album.id
 
         // Update album metadata if we have more info
@@ -259,6 +246,38 @@ extension DatabaseManager {
         }
     }
 
+    /// The artist an album is grouped under: the album-artist tag, else "Various Artists" for a
+    /// compilation (so it doesn't fragment into one album per track artist), else the first
+    /// track artist.
+    private func primaryAlbumArtistName(for track: FullTrack) -> String? {
+        if let albumArtist = track.albumArtist, !albumArtist.isEmpty {
+            return albumArtist
+        }
+        if track.compilation {
+            return "Various Artists"
+        }
+        guard !track.artist.isEmpty && track.artist != "Unknown Artist" else { return nil }
+        return ArtistParser.parse(track.artist, role: TrackArtist.Role.artist).first
+    }
+
+    /// Re-creates the album-artist rows of the album a track already belongs to, the way
+    /// `findOrCreateAlbum` and `processTrackAlbum` create them for a new album. For a rebuild
+    /// that cleared `album_artists`: matching the album again by title and artist would find
+    /// nothing and create a second album row the track never points at.
+    func relinkAlbumArtists(_ albumId: Int64, for track: FullTrack, in db: Database) throws {
+        let hasPrimary = try AlbumArtist
+            .filter(AlbumArtist.Columns.albumId == albumId)
+            .filter(AlbumArtist.Columns.role == AlbumArtist.Role.primary)
+            .fetchCount(db) > 0
+        if !hasPrimary, let name = primaryAlbumArtistName(for: track), name != "Unknown Artist",
+           let artistId = try findOrCreateArtist(name, in: db).id {
+            try AlbumArtist(albumId: albumId, artistId: artistId, role: AlbumArtist.Role.primary, position: 0).insert(db)
+        }
+        if !track.artist.isEmpty && track.artist != "Unknown Artist" {
+            try processAlbumArtists(albumId, artistString: track.artist, in: db)
+        }
+    }
+
     /// Process all artists for an album
     private func processAlbumArtists(_ albumId: Int64, artistString: String, in db: Database, cache: ScanLookupCache? = nil) throws {
         // Parse all artists from the string; the string is the artist tag, so that's the lookup.
@@ -269,8 +288,8 @@ extension DatabaseManager {
             .filter(AlbumArtist.Columns.albumId == albumId)
             .fetchAll(db)
         
-        // Create a set of existing artist IDs for this album
-        let existingArtistIds = Set(existingAlbumArtists.map { $0.artistId })
+        // Artists already on the album, plus the ones linked below: two names can resolve to one row.
+        var linkedArtistIds = Set(existingAlbumArtists.map { $0.artistId })
         
         for (index, artistName) in artistNames.enumerated() {
             let artist = try findOrCreateArtist(artistName, in: db, cache: cache)
@@ -278,7 +297,7 @@ extension DatabaseManager {
             guard let artistId = artist.id else { continue }
 
             // Skip if this artist is already associated with the album
-            if existingArtistIds.contains(artistId) {
+            if !linkedArtistIds.insert(artistId).inserted {
                 continue
             }
             
@@ -374,12 +393,14 @@ extension DatabaseManager {
         guard let trackId = track.trackId,
               !track.genre.isEmpty && track.genre != "Unknown Genre" else { return }
 
-        // Genres might be separated by various delimiters
+        // Genres might be separated by various delimiters, and multi-value tags repeat one
+        // ("Electronic; Electronic/Dance"): a second link would violate the primary key.
         let genreNames = track.genre
             .split(separator: ";")
             .flatMap { $0.split(separator: "/") }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+            .removingDuplicates()
 
         for genreName in genreNames {
             let genre = try findOrCreateGenre(String(genreName), in: db, cache: cache)
@@ -405,7 +426,7 @@ extension DatabaseManager {
             return existing
         }
 
-        let genre = Genre(name: name)
+        var genre = Genre(name: name)
         try genre.insert(db)
         cache?.genres[name] = genre
         return genre
