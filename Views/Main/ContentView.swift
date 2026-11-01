@@ -57,7 +57,9 @@ struct ContentView: View {
     @State private var rightSidebarContent: RightSidebarContent = .none
     @State private var isImmersiveActive = false
     // Toolbar state captured before immersive hides it, so closing restores it.
-    @State private var immersiveToolbarWasVisible = true
+    /// The toolbar's visibility before immersive hid it; nil once it is restored.
+    /// A reopen while the restore is pending keeps it, not the hidden state.
+    @State private var immersiveToolbarWasVisible: Bool?
     @State private var pendingLibraryFilter: LibraryFilterRequest?
     /// An album or artist page shown over the current section, with a back button.
     @State private var detailEntity: (any Entity)?
@@ -124,10 +126,10 @@ struct ContentView: View {
         .onChange(of: isImmersiveActive) { _, active in
             guard !active else { return }
 
-            let shouldRestoreToolbar = immersiveToolbarWasVisible
             DispatchQueue.main.asyncAfter(deadline: .now() + AnimationDuration.immersiveTransition) {
-                guard !isImmersiveActive else { return }
-                WindowManager.shared.mainWindow?.toolbar?.isVisible = shouldRestoreToolbar
+                guard !isImmersiveActive, let wasVisible = immersiveToolbarWasVisible else { return }
+                WindowManager.shared.mainWindow?.toolbar?.isVisible = wasVisible
+                immersiveToolbarWasVisible = nil
             }
         }
         .onAppear(perform: handleOnAppear)
@@ -230,7 +232,9 @@ struct ContentView: View {
     /// Opens immersive mode, hiding the toolbar only once the cover animation finishes
     /// so its reflow stays hidden behind immersive (hiding earlier reveals a jump).
     private func openImmersive() {
-        immersiveToolbarWasVisible = WindowManager.shared.mainWindow?.toolbar?.isVisible ?? true
+        if immersiveToolbarWasVisible == nil {
+            immersiveToolbarWasVisible = WindowManager.shared.mainWindow?.toolbar?.isVisible ?? true
+        }
         withAnimation(.easeInOut(duration: AnimationDuration.immersiveTransition)) {
             isImmersiveActive = true
         }
