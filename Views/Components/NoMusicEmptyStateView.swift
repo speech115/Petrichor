@@ -153,11 +153,7 @@ struct NoMusicEmptyStateView: View {
 
             // Add button
             Button(action: {
-                #if os(macOS)
-                libraryManager.addFolder()
-                #else
-                NotificationCenter.default.post(name: .showFolderImporter, object: nil)
-                #endif
+                AddFolderPanel.present(then: libraryManager.addFolders)
             }, label: {
                 HStack(spacing: 6) {
                     Image(systemName: Icons.plusCircleFill)
