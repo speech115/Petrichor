@@ -262,7 +262,7 @@ extension PetrichorApp {
 
     private func addFolderMenuItem() -> some View {
         Button {
-            appCoordinator.libraryManager.addFolder()
+            AddFolderPanel.present(then: appCoordinator.libraryManager.addFolders)
         } label: {
             if #available(macOS 26.0, *) {
                 Label("Add Folder(s) to Library", systemImage: Icons.folderBadgePlus)

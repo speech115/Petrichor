@@ -6,9 +6,6 @@
 //
 
 import Foundation
-#if os(macOS)
-import AppKit
-#endif
 
 private enum FolderAccessError: LocalizedError {
     case unavailable(String)
@@ -22,57 +19,40 @@ private enum FolderAccessError: LocalizedError {
 }
 
 extension LibraryManager {
-    #if os(macOS)
-    func addFolder() {
-        let openPanel = NSOpenPanel()
-        openPanel.canChooseFiles = false
-        openPanel.canChooseDirectories = true
-        openPanel.allowsMultipleSelection = true
-        openPanel.prompt = String(localized: "Add Music Folder")
-        openPanel.message = String(localized: "Select folders containing your music files")
+    /// Adds folders the user picked (the Mac's `AddFolderPanel`) to the library,
+    /// each with a bookmark so access survives a relaunch.
+    func addFolders(_ urls: [URL]) {
+        var urlsToAdd: [URL] = []
+        var bookmarkDataMap: [URL: Data] = [:]
 
-        guard let keyWindow = NSApp.keyWindow else {
-            Logger.error("Cannot add folder: no key window available")
-            return
+        for url in urls {
+            // Create security bookmark
+            do {
+                let bookmarkData = try url.bookmarkData(
+                    options: LibraryPathStore.bookmarkCreationOptions,
+                    includingResourceValuesForKeys: nil,
+                    relativeTo: nil
+                )
+                urlsToAdd.append(url)
+                bookmarkDataMap[url] = bookmarkData
+                Logger.info("Created bookmark for folder - \(url.lastPathComponent) at \(url.path)")
+            } catch {
+                Logger.error("Failed to create security bookmark for \(url.path): \(error)")
+            }
         }
 
-        openPanel.beginSheetModal(for: keyWindow) { [weak self] response in
-            guard let self = self, response == .OK else { return }
-
-            var urlsToAdd: [URL] = []
-            var bookmarkDataMap: [URL: Data] = [:]
-
-            for url in openPanel.urls {
-                // Create security bookmark
-                do {
-                    let bookmarkData = try url.bookmarkData(
-                        options: LibraryPathStore.bookmarkCreationOptions,
-                        includingResourceValuesForKeys: nil,
-                        relativeTo: nil
-                    )
-                    urlsToAdd.append(url)
-                    bookmarkDataMap[url] = bookmarkData
-                    Logger.info("Created bookmark for folder - \(url.lastPathComponent) at \(url.path)")
-                } catch {
-                    Logger.error("Failed to create security bookmark for \(url.path): \(error)")
-                }
-            }
-
-            // Add folders to database with their bookmarks
-            if !urlsToAdd.isEmpty {
-                self.databaseManager.addFolders(urlsToAdd, bookmarkDataMap: bookmarkDataMap) { result in
-                    switch result {
-                    case .success(let dbFolders):
-                        Logger.info("Successfully added \(dbFolders.count) folders to database")
-                        self.scheduleLibraryReload()
-                    case .failure(let error):
-                        Logger.error("Failed to add folders to database: \(error)")
-                    }
-                }
+        // Add folders to database with their bookmarks
+        guard !urlsToAdd.isEmpty else { return }
+        databaseManager.addFolders(urlsToAdd, bookmarkDataMap: bookmarkDataMap) { [weak self] result in
+            switch result {
+            case .success(let dbFolders):
+                Logger.info("Successfully added \(dbFolders.count) folders to database")
+                self?.scheduleLibraryReload()
+            case .failure(let error):
+                Logger.error("Failed to add folders to database: \(error)")
             }
         }
     }
-    #endif
 
     func removeFolder(_ folder: Folder) {
         Logger.info("Removing folder: \(folder.name)")
