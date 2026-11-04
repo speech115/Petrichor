@@ -14,6 +14,11 @@
 // the transport/chip glyphs are deliberately capped `@ScaledMetric` icons,
 // not growing text, sized to fixed hit targets.
 //
+// The audit itself can give up with Code=-56 ("Audit failed to complete in
+// time") on the CI runner's 3 cores: a capacity timeout, not a finding.
+// `auditRetryingTimeouts` repeats exactly that case, so CI needs no blanket
+// test retry and a real accessibility issue fails on its first pass.
+//
 // No baseline file: the four screens are green from day one and more screens
 // join as they get fixed. The app self-seeds its audio fixtures via
 // `--uitest-seed-fixtures` (DEBUG-only), so the tests are self-sufficient on
@@ -65,7 +70,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testHomeScreenPassesAccessibilityAudit() async throws {
         let app = launchSeededApp()
 
-        try app.performAccessibilityAudit()
+        try app.auditRetryingTimeouts()
 
         attachBestEffortScreenshot(of: app, named: "AX-Home")
     }
@@ -117,7 +122,7 @@ final class AccessibilityAuditUITests: XCTestCase {
         // the same 15pt control Contacts and Music draw; the audit flags its
         // width. Only that element's hit-area issue is waived — VoiceOver
         // reaches it as an adjustable control, and every other check stays.
-        try app.performAccessibilityAudit(for: .all.subtracting(.contrast)) { issue in
+        try app.auditRetryingTimeouts(for: .all.subtracting(.contrast)) { issue in
             issue.auditType == .hitRegion && issue.element?.label == "Section index"
         }
 
@@ -150,8 +155,8 @@ final class AccessibilityAuditUITests: XCTestCase {
         // not text), which the audit calls "partially unsupported" because
         // growth plateaus past the cap. The issue handler forgives every
         // dynamicType issue except one on those two elements.
-        try app.performAccessibilityAudit(for: .all.subtracting([.contrast, .dynamicType]))
-        try app.performAccessibilityAudit(for: .dynamicType) { issue in
+        try app.auditRetryingTimeouts(for: .all.subtracting([.contrast, .dynamicType]))
+        try app.auditRetryingTimeouts(for: .dynamicType) { issue in
             let identifier = issue.element?.identifier
             let isTitleOrArtist = identifier == "NowPlayingTitle" || identifier == "NowPlayingArtist"
             // `true` swallows the issue: only title/artist issues are fatal.
@@ -171,8 +176,31 @@ final class AccessibilityAuditUITests: XCTestCase {
         let rescanButton = app.buttons["Rescan Library"]
         XCTAssertTrue(rescanButton.waitForExistence(timeout: 15), "экран настроек не открылся")
 
-        try app.performAccessibilityAudit()
+        try app.auditRetryingTimeouts()
 
         attachBestEffortScreenshot(of: app, named: "AX-Settings")
+    }
+}
+
+private extension XCUIApplication {
+    static let auditAttempts = 3
+
+    /// `performAccessibilityAudit`, repeated only when it times out before
+    /// finishing (Code=-56). Any other error, and every issue it reports,
+    /// surfaces on the first attempt.
+    func auditRetryingTimeouts(
+        for auditTypes: XCUIAccessibilityAuditType = .all,
+        _ issueHandler: ((XCUIAccessibilityAuditIssue) throws -> Bool)? = nil
+    ) throws {
+        for attempt in 1...Self.auditAttempts {
+            do {
+                try performAccessibilityAudit(for: auditTypes, issueHandler)
+                return
+            } catch let error as NSError
+                where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56
+                    && attempt < Self.auditAttempts {
+                continue
+            }
+        }
     }
 }

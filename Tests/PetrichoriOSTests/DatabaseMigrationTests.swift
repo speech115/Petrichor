@@ -167,10 +167,23 @@ import Testing
             arguments: [now, now]
         )
         let albumId = db.lastInsertedRowID
-        let tracks: [(path: String, title: String, artist: String, favorite: Bool, plays: Int, duplicate: Bool)] = [
-            ("Music/Annabel - Above Your Hand.mp3", "Above Your Hand", "Annabel", true, 5, false),
-            ("Music/Annabel - Above Your Hand (copy).mp3", "Above Your Hand", "Annabel", false, 0, true),
-            ("Music/Кино - Группа крови.mp3", "Группа крови", "Кино", false, 12, false)
+        struct SeedTrack {
+            let path: String, title: String, artist: String
+            let favorite: Bool, plays: Int, duplicate: Bool
+        }
+        let tracks = [
+            SeedTrack(
+                path: "Music/Annabel - Above Your Hand.mp3", title: "Above Your Hand", artist: "Annabel",
+                favorite: true, plays: 5, duplicate: false
+            ),
+            SeedTrack(
+                path: "Music/Annabel - Above Your Hand (copy).mp3", title: "Above Your Hand", artist: "Annabel",
+                favorite: false, plays: 0, duplicate: true
+            ),
+            SeedTrack(
+                path: "Music/Кино - Группа крови.mp3", title: "Группа крови", artist: "Кино",
+                favorite: false, plays: 12, duplicate: false
+            )
         ]
         for track in tracks {
             try db.execute(
