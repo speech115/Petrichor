@@ -106,7 +106,7 @@ jobs:
   build-analyze:
     name: Build & Analyze (Debug)
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     steps:
@@ -128,9 +128,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-dd-debug-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          key: ${{ runner.os }}-dd-cc-debug-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-dd-debug-
+            ${{ runner.os }}-dd-cc-debug-
 
       - name: Create Secrets placeholder
         run: |
@@ -166,6 +166,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
             | xcbeautify --renderer github-actions
 
       - name: Upload xcresult on failure
@@ -182,7 +183,7 @@ jobs:
   ios-test:
     name: iOS Build & Test
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     steps:
@@ -231,9 +232,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-dd-ios-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          key: ${{ runner.os }}-dd-cc-ios-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-dd-ios-
+            ${{ runner.os }}-dd-cc-ios-
 
       - name: Create Secrets placeholder
         run: |
@@ -280,6 +281,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
             | tee "$RUNNER_TEMP/ios-test-raw.log" \
             | xcbeautify --renderer github-actions
 
@@ -303,6 +305,16 @@ jobs:
           fi
           echo "Zero compiler warnings ($ALL_WARNINGS 'warning:' line(s) in the raw log, all allowlisted)."
 
+      # Shows whether the restored compilation cache served the build: the CAS size
+      # and how many compile tasks Xcode replayed from it.
+      - name: Report compilation cache
+        if: always()
+        run: |
+          du -sh ~/Library/Developer/Xcode/DerivedData/CompilationCache.noindex 2>/dev/null || echo "no CompilationCache.noindex"
+          du -sh ~/Library/Developer/Xcode/DerivedData || true
+          echo "cache hit lines: $(grep -ci 'cache hit' "$RUNNER_TEMP/ios-test-raw.log" || true)"
+          echo "cache miss lines: $(grep -ci 'cache miss' "$RUNNER_TEMP/ios-test-raw.log" || true)"
+
       - name: Upload xcresult on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -320,7 +332,7 @@ jobs:
   ios-release-build:
     name: iOS Release Build
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
@@ -408,7 +420,7 @@ jobs:
   release-build:
     name: Release Build Check
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     needs: [changes]
     if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))))
     steps:
@@ -430,9 +442,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-dd-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          key: ${{ runner.os }}-dd-cc-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-dd-release-
+            ${{ runner.os }}-dd-cc-release-
 
       - name: Create Secrets placeholder
         run: |
@@ -467,6 +479,7 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
             | xcbeautify --renderer github-actions
 
   # Single required status for branch protection. A macOS job may be skipped
