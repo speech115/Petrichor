@@ -88,6 +88,12 @@ enum ArtistParser {
     }
     private static let knownArtistsState = OSAllocatedUnfairLock(initialState: KnownArtistsState())
 
+    /// Test seam: a lookup that replaces the global state for the current task only, so tests
+    /// running in parallel with real scans (which load the bundled file and replace the library
+    /// names) parse against exactly the names they installed. Results are not cached while set.
+    /// Production code never sets it.
+    static let isolatedLibraryArtists = TaskLocal<[String: [String: String]]?>(wrappedValue: nil)
+
     /// Load known artists from the bundled text file into memory.
     ///
     /// Reference-counted: each call must be balanced by exactly one `unloadKnownArtists()`.
@@ -192,7 +198,13 @@ enum ArtistParser {
     /// Best available name data for a role. The bundled file adds recognition breadth while loaded;
     /// the role's names ride along to canonicalize. With neither, `.none` rather than empty.
     private static func currentLookup(for role: String?) -> Lookup {
-        knownArtistsState.withLock { state in
+        if let isolated = isolatedLibraryArtists.get() {
+            let names = role.flatMap { isolated[$0] } ?? [:]
+            return names.isEmpty
+                ? Lookup(source: .none, generation: 0)
+                : Lookup(source: .library, generation: 0, library: names)
+        }
+        return knownArtistsState.withLock { state in
             let names = role.flatMap { state.libraryArtists[$0] } ?? [:]
 
             if !state.knownArtists.isEmpty {
@@ -289,9 +301,12 @@ enum ArtistParser {
         role: String?
     ) -> [String] {
         let lookup = currentLookup(for: role)
-        let cacheKey = "\(artistString)|\(unknownPlaceholder)|\(lookup.source.rawValue)|\(role ?? "")|\(lookup.generation)"
+        // No cache key under an isolated lookup: its results must not reach other callers.
+        let cacheKey: String? = isolatedLibraryArtists.get() == nil
+            ? "\(artistString)|\(unknownPlaceholder)|\(lookup.source.rawValue)|\(role ?? "")|\(lookup.generation)"
+            : nil
 
-        if let cached = caches.withLock({ $0.parse[cacheKey] }) {
+        if let cacheKey, let cached = caches.withLock({ $0.parse[cacheKey] }) {
             return cached
         }
 
@@ -475,8 +490,8 @@ enum ArtistParser {
     }
 
     /// Caches a parse result and returns it
-    private static func cacheAndReturn(_ result: [String], forKey key: String) -> [String] {
-        caches.withLock { $0.parse[key] = result }
+    private static func cacheAndReturn(_ result: [String], forKey key: String?) -> [String] {
+        if let key { caches.withLock { $0.parse[key] = result } }
         return result
     }
 

@@ -9,8 +9,8 @@ import Testing
 /// `role: nil` parses with no name lookup, which is the state of every
 /// library without a bundled known-artists file: ambiguous separators are
 /// split blindly and bare "/" is kept. The lookup cases install their own
-/// names under a role no production code uses.
-@Suite(.serialized)
+/// names under a role no production code uses. Every lookup-dependent test runs
+/// against `ArtistParser.isolatedLibraryArtists`, never the global lookup.
 struct ArtistParserTests {
     // MARK: - Without a name lookup
 
@@ -35,49 +35,63 @@ struct ArtistParserTests {
         ("Daft Punk／Jay-Z", ["Daft Punk", "Jay-Z"])
     ])
     func splitsOnEverySeparatorInTagOrder(tag: String, expected: [String]) {
-        #expect(ArtistParser.parse(tag, role: nil) == expected)
+        withoutLookup {
+            #expect(ArtistParser.parse(tag, role: nil) == expected)
+        }
     }
 
     @Test func keepsTheOrderOfManyArtists() {
-        // Unordered de-duplication used to return these in dictionary order,
-        // which changes per launch and moved the primary artist around.
-        let tag = "Zemfira feat. Ayo, Basta & Charli XCX x Dua Lipa; Eminem"
-        #expect(ArtistParser.parse(tag, role: nil) == ["Zemfira", "Ayo", "Basta", "Charli XCX", "Dua Lipa", "Eminem"])
+        withoutLookup {
+            // Unordered de-duplication used to return these in dictionary order,
+            // which changes per launch and moved the primary artist around.
+            let tag = "Zemfira feat. Ayo, Basta & Charli XCX x Dua Lipa; Eminem"
+            #expect(ArtistParser.parse(tag, role: nil) == ["Zemfira", "Ayo", "Basta", "Charli XCX", "Dua Lipa", "Eminem"])
+        }
     }
 
     @Test func splitsCyrillicNames() {
-        #expect(ArtistParser.parse("Кино & Земфира", role: nil) == ["Кино", "Земфира"])
-        #expect(ArtistParser.parse("Сплин feat. Би-2", role: nil) == ["Сплин", "Би-2"])
-        #expect(ArtistParser.parse("Баста, Скриптонит", role: nil) == ["Баста", "Скриптонит"])
-        #expect(ArtistParser.parse("Мумий Тролль", role: nil) == ["Мумий Тролль"])
+        withoutLookup {
+            #expect(ArtistParser.parse("Кино & Земфира", role: nil) == ["Кино", "Земфира"])
+            #expect(ArtistParser.parse("Сплин feat. Би-2", role: nil) == ["Сплин", "Би-2"])
+            #expect(ArtistParser.parse("Баста, Скриптонит", role: nil) == ["Баста", "Скриптонит"])
+            #expect(ArtistParser.parse("Мумий Тролль", role: nil) == ["Мумий Тролль"])
+        }
     }
 
     @Test func keepsBareSlashAndSeparatorFreeNames() {
-        #expect(ArtistParser.parse("AC/DC", role: nil) == ["AC/DC"])
-        #expect(ArtistParser.parse("Lil Nas X", role: nil) == ["Lil Nas X"])
-        #expect(ArtistParser.parse("Lil Nas X feat. Billy Ray Cyrus", role: nil) == ["Lil Nas X", "Billy Ray Cyrus"])
-        #expect(ArtistParser.parse("Joe Andrews", role: nil) == ["Joe Andrews"])
+        withoutLookup {
+            #expect(ArtistParser.parse("AC/DC", role: nil) == ["AC/DC"])
+            #expect(ArtistParser.parse("Lil Nas X", role: nil) == ["Lil Nas X"])
+            #expect(ArtistParser.parse("Lil Nas X feat. Billy Ray Cyrus", role: nil) == ["Lil Nas X", "Billy Ray Cyrus"])
+            #expect(ArtistParser.parse("Joe Andrews", role: nil) == ["Joe Andrews"])
+        }
     }
 
     @Test func splitsNamesContainingSeparatorsWhenNothingSaysTheyAreOneArtist() {
-        // Documented limit of the lookup-free mode, kept so a change to it is deliberate.
-        #expect(ArtistParser.parse("Mumford & Sons", role: nil) == ["Mumford", "Sons"])
-        #expect(ArtistParser.parse("Tyler, The Creator", role: nil) == ["Tyler", "The Creator"])
+        withoutLookup {
+            // Documented limit of the lookup-free mode, kept so a change to it is deliberate.
+            #expect(ArtistParser.parse("Mumford & Sons", role: nil) == ["Mumford", "Sons"])
+            #expect(ArtistParser.parse("Tyler, The Creator", role: nil) == ["Tyler", "The Creator"])
+        }
     }
 
     @Test func emptyAndPlaceholderTagsBecomeThePlaceholder() {
-        #expect(ArtistParser.parse("", role: nil) == ["Unknown Artist"])
-        #expect(ArtistParser.parse("   ", role: nil) == ["Unknown Artist"])
-        #expect(ArtistParser.parse("", unknownPlaceholder: "Unknown Composer", role: nil) == ["Unknown Composer"])
-        #expect(ArtistParser.parse("Unknown Artist & Rihanna", role: nil) == ["Rihanna"])
-        #expect(ArtistParser.parse("Drake & ", role: nil) == ["Drake"])
-        #expect(ArtistParser.parse(" & ", role: nil) == ["Unknown Artist"])
+        withoutLookup {
+            #expect(ArtistParser.parse("", role: nil) == ["Unknown Artist"])
+            #expect(ArtistParser.parse("   ", role: nil) == ["Unknown Artist"])
+            #expect(ArtistParser.parse("", unknownPlaceholder: "Unknown Composer", role: nil) == ["Unknown Composer"])
+            #expect(ArtistParser.parse("Unknown Artist & Rihanna", role: nil) == ["Rihanna"])
+            #expect(ArtistParser.parse("Drake & ", role: nil) == ["Drake"])
+            #expect(ArtistParser.parse(" & ", role: nil) == ["Unknown Artist"])
+        }
     }
 
     @Test func trimsAndDeduplicatesKeepingTheFirstPositionAndTheLongerSpelling() {
-        #expect(ArtistParser.parse("  Drake  &  Rihanna  ", role: nil) == ["Drake", "Rihanna"])
-        #expect(ArtistParser.parse("Drake & drake", role: nil) == ["Drake"])
-        #expect(ArtistParser.parse("J Cole & Kendrick Lamar & J. Cole", role: nil) == ["J. Cole", "Kendrick Lamar"])
+        withoutLookup {
+            #expect(ArtistParser.parse("  Drake  &  Rihanna  ", role: nil) == ["Drake", "Rihanna"])
+            #expect(ArtistParser.parse("Drake & drake", role: nil) == ["Drake"])
+            #expect(ArtistParser.parse("J Cole & Kendrick Lamar & J. Cole", role: nil) == ["J. Cole", "Kendrick Lamar"])
+        }
     }
 
     // MARK: - Normalization
@@ -96,9 +110,12 @@ struct ArtistParserTests {
     private static let role = "artist-parser-tests"
 
     private func withLibraryNames(_ names: [String: String], _ body: () -> Void) {
-        ArtistParser.setLibraryArtists([Self.role: names])
-        defer { ArtistParser.setLibraryArtists([:]) }
-        body()
+        ArtistParser.isolatedLibraryArtists.withValue([Self.role: names], operation: body)
+    }
+
+    /// No bundled file and no library names, whatever the global lookup holds right now.
+    private func withoutLookup(_ body: () -> Void) {
+        ArtistParser.isolatedLibraryArtists.withValue([:], operation: body)
     }
 
     @Test func knownNamesWithSeparatorsStayWhole() {
@@ -130,6 +147,28 @@ struct ArtistParserTests {
             #expect(ArtistParser.parse("P!nk feat. Nate Ruess", role: Self.role) == ["Pink", "Nate Ruess"])
             #expect(ArtistParser.parse("Pink & P!nk", role: Self.role) == ["Pink"])
             #expect(ArtistParser.parse("Земфира Рамазанова", role: Self.role) == ["Земфира"])
+        }
+    }
+
+    // MARK: - Isolation from scans running elsewhere
+
+    // The lookup is global, and other code runs alongside these tests: the host app's
+    // LibraryManager replaces the library names when its library loads, folder-scan suites
+    // load the bundled file. Either used to change what a test parsed mid-test (seen in CI:
+    // "Drake/Rihanna" came back whole).
+
+    @Test func installedNamesSurviveALibraryReloadElsewhere() {
+        withLibraryNames(["mumford & sons": "Mumford & Sons"]) {
+            ArtistParser.setLibraryArtists([:])
+            #expect(ArtistParser.parse("Drake/Rihanna", role: Self.role) == ["Drake", "Rihanna"])
+        }
+    }
+
+    @Test func lookupFreeParsingIgnoresAScanElsewhere() {
+        withoutLookup {
+            ArtistParser.loadKnownArtists()
+            defer { ArtistParser.unloadKnownArtists() }
+            #expect(ArtistParser.parse("Mumford & Sons", role: nil) == ["Mumford", "Sons"])
         }
     }
 
