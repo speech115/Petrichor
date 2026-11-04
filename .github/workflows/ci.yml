@@ -112,7 +112,10 @@ jobs:
   # everything back to GitHub-hosted runners.
   build-analyze:
     name: Build & Analyze (Debug)
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_MAC_RUNNER || 'petrichor-mac') || 'macos-26' }}
+    # Always GitHub-hosted: its macOS unit tests need a GUI login session for
+    # testmanagerd, and the self-hosted runners run as a LaunchDaemon user
+    # (ghrunner) without one.
+    runs-on: macos-26
     timeout-minutes: 30
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
@@ -185,7 +188,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
@@ -348,7 +351,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
@@ -534,7 +537,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
@@ -636,7 +639,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
