@@ -142,13 +142,17 @@ jobs:
             # The pinned Xcode if installed there, else the Mac's own selected Xcode.
             [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
             BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
-            echo "DD_DIR=$BASE/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$BASE/spm" >> "$GITHUB_ENV"
+            {
+              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
+              echo "DD_DIR=$BASE/DerivedData"
+              echo "SPM_DIR=$BASE/spm"
+            } >> "$GITHUB_ENV"
           else
             sudo xcode-select -s "$XCODE"
-            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm" >> "$GITHUB_ENV"
+            {
+              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+            } >> "$GITHUB_ENV"
           fi
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
@@ -273,13 +277,17 @@ jobs:
             # The pinned Xcode if installed there, else the Mac's own selected Xcode.
             [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
             BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
-            echo "DD_DIR=$BASE/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$BASE/spm" >> "$GITHUB_ENV"
+            {
+              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
+              echo "DD_DIR=$BASE/DerivedData"
+              echo "SPM_DIR=$BASE/spm"
+            } >> "$GITHUB_ENV"
           else
             sudo xcode-select -s "$XCODE"
-            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm" >> "$GITHUB_ENV"
+            {
+              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+            } >> "$GITHUB_ENV"
           fi
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
@@ -454,13 +462,17 @@ jobs:
             # The pinned Xcode if installed there, else the Mac's own selected Xcode.
             [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
             BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
-            echo "DD_DIR=$BASE/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$BASE/spm" >> "$GITHUB_ENV"
+            {
+              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
+              echo "DD_DIR=$BASE/DerivedData"
+              echo "SPM_DIR=$BASE/spm"
+            } >> "$GITHUB_ENV"
           else
             sudo xcode-select -s "$XCODE"
-            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm" >> "$GITHUB_ENV"
+            {
+              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+            } >> "$GITHUB_ENV"
           fi
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
@@ -577,13 +589,17 @@ jobs:
             # The pinned Xcode if installed there, else the Mac's own selected Xcode.
             [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
             BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            echo "DEVELOPER_DIR=$XCODE/Contents/Developer" >> "$GITHUB_ENV"
-            echo "DD_DIR=$BASE/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$BASE/spm" >> "$GITHUB_ENV"
+            {
+              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
+              echo "DD_DIR=$BASE/DerivedData"
+              echo "SPM_DIR=$BASE/spm"
+            } >> "$GITHUB_ENV"
           else
             sudo xcode-select -s "$XCODE"
-            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData" >> "$GITHUB_ENV"
-            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm" >> "$GITHUB_ENV"
+            {
+              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+            } >> "$GITHUB_ENV"
           fi
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
