@@ -355,7 +355,7 @@ enum ArtistParser {
         let (atoms, separators) = tokenizeAmbiguousSeparators(segment)
 
         if atoms.count <= 1 {
-            return [segment]
+            return [lookup.resolvedName(for: segment) ?? segment]
         }
 
         // Greedy left-to-right, longest-first matching
@@ -409,8 +409,13 @@ enum ArtistParser {
             return ([segment], [])
         }
 
-        // Sort by position, resolve overlaps (keep earliest)
-        matches.sort { $0.range.lowerBound < $1.range.lowerBound }
+        // Sort by position, resolve overlaps (keep earliest, and the longest of matches that
+        // start together, so " vs. " wins over " vs " instead of leaving ". B" as an atom)
+        matches.sort {
+            $0.range.lowerBound != $1.range.lowerBound
+                ? $0.range.lowerBound < $1.range.lowerBound
+                : $0.range.upperBound > $1.range.upperBound
+        }
 
         var filtered: [SeparatorMatch] = []
         for match in matches {
@@ -477,25 +482,27 @@ enum ArtistParser {
 
     // MARK: - Deduplication
 
-    /// Deduplicates and cleans artist names, preferring longer formatting.
+    /// Deduplicates and cleans artist names, preferring longer formatting. Keeps the tag's
+    /// order: the first name is the primary artist (album grouping, `position` 0).
     private static func deduplicateArtists(_ artists: [String], unknownPlaceholder: String) -> [String] {
         let cleanedArtists = artists
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty && $0 != unknownPlaceholder }
 
-        var normalizedToOriginal: [String: String] = [:]
+        var uniqueArtists: [String] = []
+        var indexByNormalized: [String: Int] = [:]
         for artist in cleanedArtists {
             let normalized = normalizeArtistName(artist)
-            if let existing = normalizedToOriginal[normalized] {
-                if artist.count > existing.count {
-                    normalizedToOriginal[normalized] = artist
+            if let index = indexByNormalized[normalized] {
+                if artist.count > uniqueArtists[index].count {
+                    uniqueArtists[index] = artist
                 }
             } else {
-                normalizedToOriginal[normalized] = artist
+                indexByNormalized[normalized] = uniqueArtists.count
+                uniqueArtists.append(artist)
             }
         }
 
-        let uniqueArtists = Array(normalizedToOriginal.values)
         return uniqueArtists.isEmpty ? [unknownPlaceholder] : uniqueArtists
     }
 }
