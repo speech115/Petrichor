@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit для Petrichor. Настроен под раздел «Проверка вместо ревью» в
+# AGENTS.md: абстрактное ревью не нужно, стиль держат SwiftLint и
+# CODING_STANDARDS.md. Бот комментирует только узкие риски: concurrency,
+# миграции БД, контракты шести швов, безопасность. Всё остальное — молчит.
+
+language: ru-RU
+tone_instructions: >-
+  Коротко и по делу. Только конкретные дефекты со сценарием воспроизведения.
+  Без похвалы, стиля, нейминга и «можно было бы». Нечего сказать — молчи.
+early_access: false
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_in_walkthrough: true
+  collapse_walkthrough: true
+  changed_files_summary: false
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false
+  suggested_reviewers: false
+  poem: false
+  review_status: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "[WIP]"
+      - "[skip review]"
+
+  # Сгенерированное и бинарное не ревьюим.
+  path_filters:
+    - "!**/*.pbxproj"
+    - "!**/*.xcuserstate"
+    - "!**/xcuserdata/**"
+    - "!**/*.xcassets/**"
+    - "!**/*.icon/**"
+    - "!**/*.xcstrings"
+    - "!**/Package.resolved"
+    - "!.scratch/**"
+    - "!plans/**"
+
+  path_instructions:
+    - path: "**/*.swift"
+      instructions: |
+        Проект работает по правилу «проверка вместо ревью» (AGENTS.md).
+        Комментируй только реальные дефекты: краш, потеря данных, гонка,
+        неверное поведение — со сценарием, как его воспроизвести.
+        НЕ пиши про стиль, форматирование, нейминг, длину функций, документацию,
+        «можно вынести в отдельный тип», обратную совместимость и
+        гипотетическую расширяемость: стиль держат SwiftLint и
+        CODING_STANDARDS.md. Если дефект можно поймать тестом, предложи
+        конкретный падающий тест (Swift Testing, @Test) вместо рассуждений.
+        Новый #if os(...) вне шести швов и вне Views/ — дефект дизайна.
+
+    - path: "Managers/Database/{DatabaseMigration,DMBackgroundMigration,DMSetup}.swift"
+      instructions: |
+        Миграции БД. Один вопрос: откроется ли база пользователя со старой
+        схемой и не потеряются ли данные? Проверь порядок и идемпотентность
+        миграций, новые NOT NULL колонки без DEFAULT, переименования,
+        работу на частично мигрированной базе. Если в PR нет теста миграции
+        на фикстуре старой схемы — укажи это.
+
+    - path: "{Managers,Core,iOS,Application}/**/*.swift"
+      instructions: &concurrency |
+        Concurrency: если дифф трогает actor, @MainActor, nonisolated, Task,
+        Task.detached, GRDB DatabaseQueue/DatabasePool или колбэки
+        AVFoundation — проверь гонки, изоляцию акторов, захват self,
+        обращения к UI-состоянию не с главного потока, отмену Task.
+        Без дефекта со сценарием — без комментария.
+
+    - path: "Utilities/AppearanceApplier.swift"
+      instructions: *concurrency
+
+    - path: "{Core/Playback,Core/Metadata,iOS,Managers}/**/*.swift"
+      instructions: &seams |
+        Швы: PlaybackBackend, MetadataEngine, PlatformImage, LibraryPathStore,
+        PlaybackJournal, AppearanceApplier. Если меняется протокол шва, проверь,
+        что обе реализации (macOS и iOS) обновлены согласованно. Для iOS пути к
+        файлам хранятся относительно Documents — абсолютный путь в базе это баг.
+
+    - path: "Utilities/{LibraryPathStore,AppearanceApplier,PlatformShims}.swift"
+      instructions: *seams
+
+    - path: "{Configuration/**,**/*.entitlements,Managers/ScrobbleManager.swift,Managers/ArtistBioManager.swift,Utilities/KeychainManager.swift}"
+      instructions: |
+        Безопасность: утечки ключей и секретов (Secrets.xcconfig не должен
+        попадать в репо), логирование токенов, HTTP вместо HTTPS, лишние
+        entitlements.
+
+    - path: "Tests/**"
+      instructions: |
+        Тесты — то, чем проект заменяет ревью. Проверь только, что тест
+        действительно падает без фикса (не тавтология, не мок проверяемого
+        кода) и детерминирован (фиксированный seed, без sleep). Стиль тестов
+        не комментируй.
+
+  tools:
+    # SwiftLint уже гоняется в CI — не дублируем его замечания.
+    swiftlint:
+      enabled: false
+    markdownlint:
+      enabled: false
+    languagetool:
+      enabled: false
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    github-checks:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "CODING_STANDARDS.md"
