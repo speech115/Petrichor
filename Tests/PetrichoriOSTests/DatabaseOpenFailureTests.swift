@@ -80,4 +80,36 @@ struct DatabaseOpenFailureTests {
         #expect(removals == 0)
         #expect(resets == 0)
     }
+
+    @Test func resetThatFailsToOpenStillReportsTheResetOnTheFirstSuccessfulRetry() throws {
+        // Removal works, but the new file cannot be opened yet (as on a full
+        // disk): the reset has happened, so the first open that does succeed,
+        // via Try Again, must report it, and only once.
+        var openAttempts = 0
+        var resets: [Int] = []
+        let launch = AppLaunch(
+            openDatabase: {
+                openAttempts += 1
+                guard openAttempts > 2 else { throw CocoaError(.fileWriteOutOfSpace) }
+                let directory = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("db-reset-retry-\(UUID().uuidString)", isDirectory: true)
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                return try DatabaseManager(pool: DatabaseFactory.makePool(at: directory.appendingPathComponent("petrichor.db")))
+            },
+            removeDatabase: {},
+            build: { _ in openAttempts },
+            didReset: { resets.append($0) }
+        )
+        // Attempt 1 is the launch, attempt 2 the reopen after the reset.
+        launch.resetLibraryDatabase()
+        #expect(launch.running == nil)
+        #expect(resets.isEmpty)
+
+        launch.openLibrary()
+        let running = try #require(launch.running)
+        #expect(resets == [running])
+
+        launch.openLibrary()
+        #expect(resets == [running])
+    }
 }

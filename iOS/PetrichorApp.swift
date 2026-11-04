@@ -160,6 +160,10 @@ struct PetrichorApp: App {
                 // Re-apply the stored color scheme: overrideUserInterfaceStyle
                 // does not survive a relaunch on its own.
                 ColorMode.current.apply()
+                // Opened by Try Again in an already active scene: that first
+                // .active will never arrive, so the next one is a real return
+                // from background and must reconcile.
+                if scenePhase == .active { hasAppearedActiveOnce = true }
             }
             // The playhead mark: a few bytes in UserDefaults, so a kill
             // while playing loses seconds, not the whole session since
