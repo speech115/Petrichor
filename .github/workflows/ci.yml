@@ -113,6 +113,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # Commit times instead of checkout time, so the restored DerivedData only
+      # recompiles the files this change touched.
+      - name: Restore source mtimes
+        run: python3 .github/scripts/restore-mtimes.py
 
       - name: Select Xcode
         run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
@@ -129,9 +137,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-dd-cc-debug-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          key: ${{ runner.os }}-dd-mt-debug-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-dd-cc-debug-
+            ${{ runner.os }}-dd-mt-debug-
 
       - name: Create Secrets placeholder
         run: |
@@ -140,6 +148,8 @@ jobs:
             echo "LASTFM_API_KEY = "
             echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
+          # Fixed mtime: a fresh one each run would look like a config change.
+          touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
@@ -167,7 +177,6 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            COMPILATION_CACHE_ENABLE_CACHING=YES \
             | xcbeautify --renderer github-actions
 
       # Platform-neutral unit tests (parser, database, queries) on the Mac target:
@@ -212,6 +221,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # Commit times instead of checkout time, so the restored DerivedData only
+      # recompiles the files this change touched.
+      - name: Restore source mtimes
+        run: python3 .github/scripts/restore-mtimes.py
 
       - name: Select Xcode
         run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
@@ -255,9 +272,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-dd-cc-ios-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          key: ${{ runner.os }}-dd-mt-ios-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-dd-cc-ios-
+            ${{ runner.os }}-dd-mt-ios-
 
       - name: Create Secrets placeholder
         run: |
@@ -266,6 +283,8 @@ jobs:
             echo "LASTFM_API_KEY = "
             echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
+          # Fixed mtime: a fresh one each run would look like a config change.
+          touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
@@ -302,7 +321,6 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            COMPILATION_CACHE_ENABLE_CACHING=YES \
             | tee "$RUNNER_TEMP/ios-test-raw.log" \
             | xcbeautify --renderer github-actions
 
@@ -325,16 +343,6 @@ jobs:
             exit 1
           fi
           echo "Zero compiler warnings ($ALL_WARNINGS 'warning:' line(s) in the raw log, all allowlisted)."
-
-      # Shows whether the restored compilation cache served the build: the CAS size
-      # and how many compile tasks Xcode replayed from it.
-      - name: Report compilation cache
-        if: always()
-        run: |
-          du -sh ~/Library/Developer/Xcode/DerivedData/CompilationCache.noindex 2>/dev/null || echo "no CompilationCache.noindex"
-          du -sh ~/Library/Developer/Xcode/DerivedData || true
-          echo "cache hit lines: $(grep -ci 'cache hit' "$RUNNER_TEMP/ios-test-raw.log" || true)"
-          echo "cache miss lines: $(grep -ci 'cache miss' "$RUNNER_TEMP/ios-test-raw.log" || true)"
 
       - name: Upload xcresult on failure
         if: failure()
@@ -409,6 +417,8 @@ jobs:
             echo "LASTFM_API_KEY = "
             echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
+          # Fixed mtime: a fresh one each run would look like a config change.
+          touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
@@ -447,6 +457,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # Commit times instead of checkout time, so the restored DerivedData only
+      # recompiles the files this change touched.
+      - name: Restore source mtimes
+        run: python3 .github/scripts/restore-mtimes.py
 
       - name: Select Xcode
         run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
@@ -463,9 +481,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-dd-cc-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          key: ${{ runner.os }}-dd-mt-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-dd-cc-release-
+            ${{ runner.os }}-dd-mt-release-
 
       - name: Create Secrets placeholder
         run: |
@@ -474,6 +492,8 @@ jobs:
             echo "LASTFM_API_KEY = "
             echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
+          # Fixed mtime: a fresh one each run would look like a config change.
+          touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
@@ -500,7 +520,6 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            COMPILATION_CACHE_ENABLE_CACHING=YES \
             | xcbeautify --renderer github-actions
 
   # Single required status for branch protection. A macOS job may be skipped
