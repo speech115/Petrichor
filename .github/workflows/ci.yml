@@ -106,7 +106,10 @@ jobs:
   # platform-neutral unit tests against the same build.
   build-analyze:
     name: Build & Analyze (Debug)
-    runs-on: macos-26
+    # Same-repo events run on the owner's Mac (self-hosted, label petrichor-mac);
+    # fork PRs never touch it and stay on GitHub's image. Repo variable
+    # MAC_RUNNER=hosted sends everything back to GitHub.
+    runs-on: ${{ (vars.MAC_RUNNER != 'hosted' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","petrichor-mac"]') || 'macos-26' }}
     timeout-minutes: 45
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
@@ -114,10 +117,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+      # DEVELOPER_DIR instead of `sudo xcode-select`: works without sudo on the
+      # self-hosted Mac and leaves its global Xcode selection alone. The image
+      # gets the pinned Xcode; the Mac uses its own /Applications/Xcode.app.
+      # On the Mac, DerivedData and SwiftPM checkouts live per runner and per
+      # job outside the workspace, so they persist between runs (no cache
+      # round-trip) and never collide with the owner's own Xcode or the other
+      # runners.
+      - name: Select Xcode and build paths
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            [ -d "$XCODE_APP" ] || XCODE_APP="/Applications/Xcode.app"
+            STATE="${RUNNER_WORKSPACE%/*}/ci-state"
+            {
+              echo "DD=$STATE/dd/$GITHUB_JOB"
+              echo "SPM=$STATE/spm"
+            } >> "$GITHUB_ENV"
+          else
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            {
+              echo "DD=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM=.spm"
+            } >> "$GITHUB_ENV"
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
 
       - name: Cache SwiftPM
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -126,6 +154,7 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -149,7 +178,7 @@ jobs:
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
-            -clonedSourcePackagesDirPath .spm
+            -clonedSourcePackagesDirPath "$SPM"
 
       # No `clean`, so the DerivedData cache actually serves incremental builds.
       - name: Build & Analyze
@@ -160,8 +189,8 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -clonedSourcePackagesDirPath .spm \
-            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -clonedSourcePackagesDirPath "$SPM" \
+            -derivedDataPath "$DD" \
             -resultBundlePath "$RUNNER_TEMP/Debug.xcresult" \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGN_IDENTITY="-" \
@@ -180,8 +209,8 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination 'platform=macOS' \
-            -clonedSourcePackagesDirPath .spm \
-            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -clonedSourcePackagesDirPath "$SPM" \
+            -derivedDataPath "$DD" \
             -resultBundlePath "$RUNNER_TEMP/macOS-tests.xcresult" \
             ONLY_ACTIVE_ARCH=YES \
             CODE_SIGN_IDENTITY="-" \
@@ -204,7 +233,8 @@ jobs:
   # tests run on every PR, on the same Xcode version used locally.
   ios-test:
     name: iOS Build & Test
-    runs-on: macos-26
+    # Runner choice: see build-analyze.
+    runs-on: ${{ (vars.MAC_RUNNER != 'hosted' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","petrichor-mac"]') || 'macos-26' }}
     timeout-minutes: 45
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
@@ -212,8 +242,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+      # See build-analyze.
+      - name: Select Xcode and build paths
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            [ -d "$XCODE_APP" ] || XCODE_APP="/Applications/Xcode.app"
+            STATE="${RUNNER_WORKSPACE%/*}/ci-state"
+            {
+              echo "DD=$STATE/dd/$GITHUB_JOB"
+              echo "SPM=$STATE/spm"
+            } >> "$GITHUB_ENV"
+          else
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            {
+              echo "DD=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM=.spm"
+            } >> "$GITHUB_ENV"
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
 
       # The macos-26 image can ship Xcode without iOS simulator runtimes (runner-images
       # disk-space policy); when the destination device is missing, download the platform
@@ -243,6 +291,7 @@ jobs:
           }
 
       - name: Cache SwiftPM
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -251,6 +300,7 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -274,15 +324,29 @@ jobs:
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$IOS_SCHEME" \
-            -clonedSourcePackagesDirPath .spm
+            -clonedSourcePackagesDirPath "$SPM"
 
       # Boot before the build so the simulator's first-boot work overlaps it instead
       # of the UI tests: on a just-booted device the accessibility audits hit their
       # internal timeout (Code=-56), and the one-time "Ready for Apple Intelligence"
       # banner covers the Home title and fails its contrast audit. Booted after the
       # cache restores: booting first slowed the SwiftPM download to ~3 MB/s.
+      # On the Mac each runner gets its own device (three runners share one
+      # CoreSimulator and the owner's simulators); the image uses its stock one.
       - name: Boot iOS simulator
-        run: xcrun simctl boot "iPhone 17 Pro Max"
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+            SIM_NAME="petrichor-ci-$RUNNER_NAME"
+            xcrun simctl list devices -j \
+              | python3 -c 'import json,sys; n=sys.argv[1]; [print(d["udid"]) for r in json.load(sys.stdin)["devices"].values() for d in r if d["name"]==n]' "$SIM_NAME" \
+              | while read -r old; do xcrun simctl delete "$old" || true; done
+            SIM_UDID=$(xcrun simctl create "$SIM_NAME" "iPhone 17 Pro Max")
+          else
+            SIM_UDID=$(xcrun simctl list devices available -j \
+              | python3 -c 'import json,sys; print(next(d["udid"] for r in json.load(sys.stdin)["devices"].values() for d in r if d["name"]=="iPhone 17 Pro Max"))')
+          fi
+          echo "SIM_UDID=$SIM_UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$SIM_UDID"
 
       # No test retry: the audits' Code=-56 (a capacity timeout of this 3-core VM,
       # not a finding) is retried inside AccessibilityAuditUITests, so any other
@@ -294,9 +358,9 @@ jobs:
             -project "$PROJECT" \
             -scheme "$IOS_SCHEME" \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
-            -clonedSourcePackagesDirPath .spm \
-            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -destination "platform=iOS Simulator,id=$SIM_UDID" \
+            -clonedSourcePackagesDirPath "$SPM" \
+            -derivedDataPath "$DD" \
             -resultBundlePath "$RUNNER_TEMP/iOS.xcresult" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
@@ -333,6 +397,12 @@ jobs:
           retention-days: 5
           if-no-files-found: ignore
 
+      - name: Delete CI simulator
+        if: always() && runner.environment == 'self-hosted' && env.SIM_UDID != ''
+        run: |
+          xcrun simctl shutdown "$SIM_UDID" || true
+          xcrun simctl delete "$SIM_UDID" || true
+
   # iOS Release is exercised on demand only (workflow_dispatch): a manual
   # pre-flight before shipping the app to a device. Same caches/secrets
   # placeholder as ios-test, no signing. Debug-only breakage is caught by
@@ -340,15 +410,34 @@ jobs:
   # asserts) early. Deliberately NOT part of ci-summary's required list.
   ios-release-build:
     name: iOS Release Build
-    runs-on: macos-26
+    # Runner choice: see build-analyze.
+    runs-on: ${{ (vars.MAC_RUNNER != 'hosted' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","petrichor-mac"]') || 'macos-26' }}
     timeout-minutes: 45
     if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+      # See build-analyze.
+      - name: Select Xcode and build paths
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            [ -d "$XCODE_APP" ] || XCODE_APP="/Applications/Xcode.app"
+            STATE="${RUNNER_WORKSPACE%/*}/ci-state"
+            {
+              echo "DD=$STATE/dd/$GITHUB_JOB"
+              echo "SPM=$STATE/spm"
+            } >> "$GITHUB_ENV"
+          else
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            {
+              echo "DD=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM=.spm"
+            } >> "$GITHUB_ENV"
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
 
       # Same insurance as ios-test: macos-26 may omit simulator runtimes.
       - name: Download iOS simulator runtime
@@ -375,6 +464,7 @@ jobs:
           }
 
       - name: Cache SwiftPM
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -383,6 +473,7 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -406,7 +497,7 @@ jobs:
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$IOS_SCHEME" \
-            -clonedSourcePackagesDirPath .spm
+            -clonedSourcePackagesDirPath "$SPM"
 
       - name: Build iOS (Release)
         run: |
@@ -416,8 +507,8 @@ jobs:
             -scheme "$IOS_SCHEME" \
             -configuration Release \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest' \
-            -clonedSourcePackagesDirPath .spm \
-            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -clonedSourcePackagesDirPath "$SPM" \
+            -derivedDataPath "$DD" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -428,7 +519,8 @@ jobs:
   # Signing/notarization/DMG/Sparkle stay in the local release flow.
   release-build:
     name: Release Build Check
-    runs-on: macos-26
+    # Runner choice: see build-analyze.
+    runs-on: ${{ (vars.MAC_RUNNER != 'hosted' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","petrichor-mac"]') || 'macos-26' }}
     timeout-minutes: 45
     needs: [changes]
     if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))))
@@ -436,10 +528,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Select Xcode
-        run: sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+      # See build-analyze.
+      - name: Select Xcode and build paths
+        run: |
+          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            [ -d "$XCODE_APP" ] || XCODE_APP="/Applications/Xcode.app"
+            STATE="${RUNNER_WORKSPACE%/*}/ci-state"
+            {
+              echo "DD=$STATE/dd/$GITHUB_JOB"
+              echo "SPM=$STATE/spm"
+            } >> "$GITHUB_ENV"
+          else
+            XCODE_APP="/Applications/Xcode_${XCODE_VERSION}.app"
+            {
+              echo "DD=$HOME/Library/Developer/Xcode/DerivedData"
+              echo "SPM=.spm"
+            } >> "$GITHUB_ENV"
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
 
       - name: Cache SwiftPM
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -448,6 +559,7 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
+        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -471,7 +583,7 @@ jobs:
           xcodebuild -resolvePackageDependencies \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
-            -clonedSourcePackagesDirPath .spm
+            -clonedSourcePackagesDirPath "$SPM"
 
       # Universal (both archs) to mirror what actually ships; ad-hoc signed.
       - name: Build (Release)
@@ -482,8 +594,8 @@ jobs:
             -scheme "$SCHEME" \
             -configuration Release \
             -destination 'platform=macOS' \
-            -clonedSourcePackagesDirPath .spm \
-            -derivedDataPath ~/Library/Developer/Xcode/DerivedData \
+            -clonedSourcePackagesDirPath "$SPM" \
+            -derivedDataPath "$DD" \
             ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
