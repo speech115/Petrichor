@@ -35,8 +35,45 @@ env:
   PROJECT: 'Petrichor.xcodeproj'
 
 jobs:
-  # Fast, free Linux gate via the official SwiftLint container. Runs first; the
-  # macOS build depends on it.
+  # A PR that touches only docs skips the macOS jobs. Pushes and manual runs
+  # always build everything. ci-summary fails if a job skipped while code changed.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: Checkout
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Classify changed files
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CODE_FILES=$(git diff --name-only "$BASE_SHA"...HEAD \
+            | grep -vE '\.md$|^docs/|^plans/|^\.scratch/|^\.github/assets/|^LICENSE$' \
+            || true)
+          if [ -n "$CODE_FILES" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "Code changes:"
+            echo "$CODE_FILES"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "Docs-only change: macOS jobs skip"
+          fi
+
+  # Fast, free Linux gate via the official SwiftLint container. Runs in parallel
+  # with the macOS jobs; ci-summary requires it.
   lint:
     name: SwiftLint (Linux)
     runs-on: ubuntu-latest
@@ -70,7 +107,8 @@ jobs:
     name: Build & Analyze (Debug)
     runs-on: macos-26
     timeout-minutes: 45
-    needs: [lint, actionlint]
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -91,6 +129,8 @@ jobs:
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: ${{ runner.os }}-dd-debug-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-debug-
 
       - name: Create Secrets placeholder
         run: |
@@ -143,7 +183,8 @@ jobs:
     name: iOS Build & Test
     runs-on: macos-26
     timeout-minutes: 45
-    needs: [lint, actionlint]
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -178,13 +219,6 @@ jobs:
             exit 1
           }
 
-      # Boot before the build so the simulator's first-boot work overlaps it instead
-      # of the UI tests: on a just-booted device the accessibility audits hit their
-      # internal timeout (Code=-56), and the one-time "Ready for Apple Intelligence"
-      # banner covers the Home title and fails its contrast audit.
-      - name: Boot iOS simulator
-        run: xcrun simctl boot "iPhone 17 Pro Max"
-
       - name: Cache SwiftPM
         uses: actions/cache@v5
         with:
@@ -218,6 +252,14 @@ jobs:
             -project "$PROJECT" \
             -scheme "$IOS_SCHEME" \
             -clonedSourcePackagesDirPath .spm
+
+      # Boot before the build so the simulator's first-boot work overlaps it instead
+      # of the UI tests: on a just-booted device the accessibility audits hit their
+      # internal timeout (Code=-56), and the one-time "Ready for Apple Intelligence"
+      # banner covers the Home title and fails its contrast audit. Booted after the
+      # cache restores: booting first slowed the SwiftPM download to ~3 MB/s.
+      - name: Boot iOS simulator
+        run: xcrun simctl boot "iPhone 17 Pro Max"
 
       # A failed test runs once more: the audits' Code=-56 is a capacity timeout of
       # this 3-core VM, not a finding, while a real accessibility regression fails
@@ -367,8 +409,8 @@ jobs:
     name: Release Build Check
     runs-on: macos-26
     timeout-minutes: 45
-    needs: [build-analyze]
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')))
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -389,6 +431,8 @@ jobs:
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: ${{ runner.os }}-dd-release-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-release-
 
       - name: Create Secrets placeholder
         run: |
@@ -425,36 +469,52 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcbeautify --renderer github-actions
 
-  # Single required status for branch protection. Release is skipped only for
-  # manual dispatches.
+  # Single required status for branch protection. A macOS job may be skipped
+  # only when `changes` found no code (a docs-only PR); a skip with code changes
+  # fails, so a broken change filter cannot pass silently. Release is skipped
+  # only for manual dispatches.
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [lint, actionlint, build-analyze, ios-test, release-build]
+    needs: [changes, lint, actionlint, build-analyze, ios-test, release-build]
     if: always()
     steps:
       - name: Verify required jobs
         env:
+          EVENT: ${{ github.event_name }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
           LINT_RESULT: ${{ needs.lint.result }}
           ACTIONLINT_RESULT: ${{ needs.actionlint.result }}
           BUILD_RESULT: ${{ needs.build-analyze.result }}
           IOS_RESULT: ${{ needs.ios-test.result }}
+          RELEASE_RESULT: ${{ needs.release-build.result }}
         run: |
-          echo "lint=$LINT_RESULT"
-          echo "actionlint=$ACTIONLINT_RESULT"
-          echo "build-analyze=$BUILD_RESULT"
-          echo "ios-test=$IOS_RESULT"
-          if [ "$LINT_RESULT" != "success" ] || \
-             [ "$ACTIONLINT_RESULT" != "success" ] || \
-             [ "$BUILD_RESULT" != "success" ] || \
-             [ "$IOS_RESULT" != "success" ]; then
+          echo "changes=$CHANGES_RESULT code=$CODE"
+          echo "lint=$LINT_RESULT actionlint=$ACTIONLINT_RESULT"
+          echo "build-analyze=$BUILD_RESULT ios-test=$IOS_RESULT release-build=$RELEASE_RESULT"
+          if [ "$CHANGES_RESULT" != "success" ] || \
+             [ "$LINT_RESULT" != "success" ] || \
+             [ "$ACTIONLINT_RESULT" != "success" ]; then
             echo "::error::One or more required checks failed"
             exit 1
           fi
-          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && \
-             [ "${{ needs.release-build.result }}" != "success" ]; then
-            echo "::error::Release build failed"
+          if [ "$CODE" = "false" ]; then
+            if [ "$BUILD_RESULT" != "skipped" ] || [ "$IOS_RESULT" != "skipped" ] || \
+               [ "$RELEASE_RESULT" != "skipped" ]; then
+              echo "::error::Docs-only change, but a macOS job did not skip"
+              exit 1
+            fi
+            echo "Docs-only change: lint passed, macOS jobs skipped ✅"
+            exit 0
+          fi
+          if [ "$BUILD_RESULT" != "success" ] || [ "$IOS_RESULT" != "success" ]; then
+            echo "::error::One or more required checks failed or skipped with code changes"
+            exit 1
+          fi
+          if [ "$EVENT" != "workflow_dispatch" ] && [ "$RELEASE_RESULT" != "success" ]; then
+            echo "::error::Release build failed or skipped with code changes"
             exit 1
           fi
           echo "All required checks passed ✅"
