@@ -58,7 +58,7 @@ reviews:
         гипотетическую расширяемость: стиль держат SwiftLint и
         CODING_STANDARDS.md. Если дефект можно поймать тестом, предложи
         конкретный падающий тест (Swift Testing, @Test) вместо рассуждений.
-        Новый `#if os(...)` вне шести швов и вне Views/ — дефект дизайна.
+        Новый #if os(...) вне шести швов и вне Views/ — дефект дизайна.
 
     - path: "Managers/Database/{DatabaseMigration,DMBackgroundMigration,DMSetup}.swift"
       instructions: |
