@@ -44,16 +44,6 @@ extension View {
     /// blurred, slightly-tinted material capsule on earlier releases.
     @ViewBuilder
     func floatingControlClusterBackground() -> some View {
-        #if os(iOS)
-        if #available(iOS 26.0, *) {
-            glassEffect(.regular, in: Capsule())
-        } else {
-            background(
-                Capsule()
-                    .fill(.regularMaterial)
-            )
-        }
-        #else
         if #available(macOS 26.0, *) {
             glassEffect(.regular, in: Capsule())
         } else {
@@ -64,6 +54,5 @@ extension View {
                     .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
             )
         }
-        #endif
     }
 }
