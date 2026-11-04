@@ -66,27 +66,27 @@ final class AppLaunch<Running>: ObservableObject {
     }
 }
 
-#if DEBUG
 // MARK: - Previews and Tests
 
 // SwiftUI previews and the hosted unit tests build the managers on the app's
-// own database without the launch screen in between. A database that cannot
-// open stops them here, in debug builds only; the app goes through `AppLaunch`.
+// own database without the launch screen in between; a database that cannot
+// open stops them here. Not under `#if DEBUG`: `#Preview` bodies compile in
+// Release too. The app itself never calls these; it goes through `AppLaunch`.
 
 extension LibraryManager {
     convenience init() {
-        self.init(databaseManager: DatabaseManager.openForDebugging(), deferLaunchWork: false)
+        self.init(databaseManager: DatabaseManager.openForPreviews(), deferLaunchWork: false)
     }
 }
 
 extension AppCoordinator {
     convenience init() {
-        self.init(databaseManager: DatabaseManager.openForDebugging())
+        self.init(databaseManager: DatabaseManager.openForPreviews())
     }
 }
 
 private extension DatabaseManager {
-    static func openForDebugging() -> DatabaseManager {
+    static func openForPreviews() -> DatabaseManager {
         do {
             return try DatabaseManager()
         } catch {
@@ -94,4 +94,3 @@ private extension DatabaseManager {
         }
     }
 }
-#endif
