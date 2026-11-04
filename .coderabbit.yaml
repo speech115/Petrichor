@@ -32,7 +32,7 @@ reviews:
     enabled: true
     drafts: false
     ignore_title_keywords:
-      - "WIP"
+      - "[WIP]"
       - "[skip review]"
 
   # Сгенерированное и бинарное не ревьюим.
@@ -69,21 +69,27 @@ reviews:
         на фикстуре старой схемы — укажи это.
 
     - path: "{Managers,Core,iOS,Application}/**/*.swift"
-      instructions: |
+      instructions: &concurrency |
         Concurrency: если дифф трогает actor, @MainActor, nonisolated, Task,
         Task.detached, GRDB DatabaseQueue/DatabasePool или колбэки
         AVFoundation — проверь гонки, изоляцию акторов, захват self,
         обращения к UI-состоянию не с главного потока, отмену Task.
         Без дефекта со сценарием — без комментария.
 
+    - path: "Utilities/AppearanceApplier.swift"
+      instructions: *concurrency
+
     - path: "{Core/Playback,Core/Metadata,iOS,Managers}/**/*.swift"
-      instructions: |
+      instructions: &seams |
         Швы: PlaybackBackend, MetadataEngine, PlatformImage, LibraryPathStore,
         PlaybackJournal, AppearanceApplier. Если меняется протокол шва, проверь,
         что обе реализации (macOS и iOS) обновлены согласованно. Для iOS пути к
         файлам хранятся относительно Documents — абсолютный путь в базе это баг.
 
-    - path: "{Configuration/**,**/*.entitlements,Managers/ScrobbleManager.swift,Managers/ArtistBioManager.swift}"
+    - path: "Utilities/{LibraryPathStore,AppearanceApplier,PlatformShims}.swift"
+      instructions: *seams
+
+    - path: "{Configuration/**,**/*.entitlements,Managers/ScrobbleManager.swift,Managers/ArtistBioManager.swift,Utilities/KeychainManager.swift}"
       instructions: |
         Безопасность: утечки ключей и секретов (Secrets.xcconfig не должен
         попадать в репо), логирование токенов, HTTP вместо HTTPS, лишние
