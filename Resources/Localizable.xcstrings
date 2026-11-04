@@ -1,6 +1,46 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Library Unavailable" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Медиатека недоступна"
+          }
+        }
+      }
+    },
+    "Music files stay on the iPhone and are scanned again. Playlists, favorites and play counts are deleted." : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Музыкальные файлы останутся на iPhone и будут просканированы заново. Плейлисты, избранное и счётчики прослушиваний удалятся."
+          }
+        }
+      }
+    },
+    "Reset Library" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить медиатеку"
+          }
+        }
+      }
+    },
+    "Reset Library…" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сбросить медиатеку…"
+          }
+        }
+      }
+    },
     "Swipe to Change Tracks" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -52,6 +92,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Недавние запросы"
+          }
+        }
+      }
+    },
+    "Try Again" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
           }
         }
       }
