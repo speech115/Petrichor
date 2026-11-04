@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 
 // MARK: - Helpers
 
-private func makeTestImage(
+func makeTestImage(
     width: Int,
     height: Int,
     backgroundColor: CGColor = CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 1),
