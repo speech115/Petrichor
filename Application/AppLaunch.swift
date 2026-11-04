@@ -21,13 +21,17 @@ final class AppLaunch<Running>: ObservableObject {
     private let removeDatabase: () throws -> Void
     private let build: (DatabaseManager) -> Running
     private let didReset: (Running) -> Void
+    /// The files were deleted but no database has opened since: the first
+    /// open that succeeds, possibly a later Try Again, reports the reset.
+    private var resetPending = false
 
     /// - Parameters:
     ///   - openDatabase, removeDatabase: The app's own database file; tests
     ///     pass one in a temporary folder.
     ///   - build: Makes the running app from the open database, on launch or
     ///     after a successful retry.
-    ///   - didReset: Runs once the database a reset created is open. Its row
+    ///   - didReset: Runs once the database a reset created is open, also when
+    ///     that happens only on a later Try Again. Its row
     ///     ids restart from 1, so state keyed by the old ids (the iOS
     ///     Spotlight snapshot) is cleared here.
     init(
@@ -48,8 +52,13 @@ final class AppLaunch<Running>: ObservableObject {
     func openLibrary() {
         guard running == nil else { return }
         do {
-            running = build(try openDatabase())
+            let running = build(try openDatabase())
+            self.running = running
             databaseError = nil
+            if resetPending {
+                resetPending = false
+                didReset(running)
+            }
         } catch {
             Logger.critical("Failed to open the library database: \(error)")
             databaseError = error.localizedDescription
@@ -68,8 +77,8 @@ final class AppLaunch<Running>: ObservableObject {
             databaseError = error.localizedDescription
             return
         }
+        resetPending = true
         openLibrary()
-        if let running { didReset(running) }
     }
 }
 
