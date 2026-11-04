@@ -94,17 +94,15 @@ class LibraryManager: ObservableObject {
     nonisolated let databaseManager: DatabaseManager
 
     // MARK: - Initialization
-    /// - Parameter deferLaunchWork: The caller starts the category cache,
-    ///   background migrations and artist images itself, via
-    ///   `startLaunchWork()`, once its first screen is up.
-    init(deferLaunchWork: Bool = false) {
-        do {
-            // Initialize database manager
-            databaseManager = try DatabaseManager()
-        } catch {
-            Logger.critical("Failed to initialize database: \(error)")
-            fatalError("Failed to initialize database: \(error)")
-        }
+    /// - Parameters:
+    ///   - databaseManager: An open database. Opening it can fail, and that
+    ///     failure is `AppLaunch`'s to show, so the library never starts
+    ///     without one.
+    ///   - deferLaunchWork: The caller starts the category cache,
+    ///     background migrations and artist images itself, via
+    ///     `startLaunchWork()`, once its first screen is up.
+    init(databaseManager: DatabaseManager, deferLaunchWork: Bool = false) {
+        self.databaseManager = databaseManager
 
         // Observe database manager scanning state (mirrored from its
         // main-actor `ScanActivityObservation`).

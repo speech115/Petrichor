@@ -42,9 +42,9 @@ class AppCoordinator: ObservableObject {
     
     // MARK: - Initialization
     
-    init(deferLaunchWork: Bool = false) {
+    init(databaseManager: DatabaseManager, deferLaunchWork: Bool = false) {
         // Initialize managers
-        libraryManager = LibraryManager(deferLaunchWork: deferLaunchWork)
+        libraryManager = LibraryManager(databaseManager: databaseManager, deferLaunchWork: deferLaunchWork)
         playlistManager = PlaylistManager()
         
         // Create audio player with dependencies

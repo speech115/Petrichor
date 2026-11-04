@@ -142,6 +142,7 @@
 				Library/LibrarySidebarView.swift,
 				Library/LibraryView.swift,
 				Main/ContentView.swift,
+				Main/DatabaseUnavailableView.swift,
 				Main/MainSidebarView.swift,
 				Main/PlayQueueView.swift,
 				Main/PlayerView.swift,

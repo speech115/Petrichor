@@ -2,14 +2,17 @@ import SwiftUI
 
 @main
 struct PetrichorApp: App {
-    @StateObject private var appCoordinator: AppCoordinator
+    /// Opens the library database; `DatabaseUnavailableView` replaces the
+    /// library when it does not open, and the menus act on nothing until it does.
+    @StateObject private var launch = AppLaunch { AppCoordinator(databaseManager: $0) }
     @NSApplicationDelegateAdaptor(AppDelegate.self)
     var appDelegate
 
     init() {
         AppDelegate.registerUserDefaultsDefaults()
-        _appCoordinator = StateObject(wrappedValue: AppCoordinator())
     }
+
+    private var appCoordinator: AppCoordinator? { launch.running }
 
     @AppStorage("closeToMenubar")
     private var closeToMenubar = true
@@ -23,20 +26,24 @@ struct PetrichorApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .environmentObject(appCoordinator.playbackManager)
-                .environmentObject(appCoordinator.playbackManager.playbackProgressState)
-                .environmentObject(appCoordinator.libraryManager)
-                .environmentObject(appCoordinator.playlistManager)
-                .onReceive(appCoordinator.playlistManager.$repeatMode) { _ in
-                    menuUpdateTrigger = UUID()
-                }
-                .onReceive(appCoordinator.playbackManager.$currentTrack) { _ in
-                    menuUpdateTrigger = UUID()
-                }
-                .onReceive(appCoordinator.playlistManager.$isShuffleEnabled) { _ in
-                    menuUpdateTrigger = UUID()
-                }
+            if let appCoordinator {
+                ContentView()
+                    .environmentObject(appCoordinator.playbackManager)
+                    .environmentObject(appCoordinator.playbackManager.playbackProgressState)
+                    .environmentObject(appCoordinator.libraryManager)
+                    .environmentObject(appCoordinator.playlistManager)
+                    .onReceive(appCoordinator.playlistManager.$repeatMode) { _ in
+                        menuUpdateTrigger = UUID()
+                    }
+                    .onReceive(appCoordinator.playbackManager.$currentTrack) { _ in
+                        menuUpdateTrigger = UUID()
+                    }
+                    .onReceive(appCoordinator.playlistManager.$isShuffleEnabled) { _ in
+                        menuUpdateTrigger = UUID()
+                    }
+            } else {
+                DatabaseUnavailableView(launch: launch)
+            }
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
@@ -73,8 +80,10 @@ struct PetrichorApp: App {
 
     private var equalizerWindow: some Scene {
         WindowGroup("Equalizer", id: "equalizer") {
-            EqualizerView()
-                .environmentObject(appCoordinator.playbackManager)
+            if let appCoordinator {
+                EqualizerView()
+                    .environmentObject(appCoordinator.playbackManager)
+            }
         }
         .handlesExternalEvents(matching: [])
         .defaultSize(width: 500, height: 300)
@@ -217,7 +226,7 @@ extension PetrichorApp {
         let isMainWindow = window.identifier?.rawValue == WindowIdentifier.mainWindow
 
         if closeToMenubar && isMainWindow {
-            appCoordinator.savePlaybackState()
+            appCoordinator?.savePlaybackState()
             window.orderOut(nil)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NSApp.setActivationPolicy(.accessory)
@@ -231,7 +240,7 @@ extension PetrichorApp {
 
     private func newPlaylistMenuItem() -> some View {
         Button {
-            appCoordinator.playlistManager.showCreatePlaylistModal()
+            appCoordinator?.playlistManager.showCreatePlaylistModal()
         } label: {
             if #available(macOS 26.0, *) {
                 Label("Playlist", systemImage: Icons.musicNoteList)
@@ -262,7 +271,7 @@ extension PetrichorApp {
 
     private func addFolderMenuItem() -> some View {
         Button {
-            appCoordinator.libraryManager.addFolder()
+            appCoordinator?.libraryManager.addFolder()
         } label: {
             if #available(macOS 26.0, *) {
                 Label("Add Folder(s) to Library", systemImage: Icons.folderBadgePlus)
@@ -275,7 +284,7 @@ extension PetrichorApp {
 
     private func refreshLibraryMenuItem() -> some View {
         Button {
-            appCoordinator.libraryManager.refreshLibrary()
+            appCoordinator?.libraryManager.refreshLibrary()
         } label: {
             if #available(macOS 26.0, *) {
                 Label("Refresh Library Folders", systemImage: Icons.arrowClockwise)
@@ -337,8 +346,8 @@ extension PetrichorApp {
 
     private func playPauseMenuItem() -> some View {
         Button {
-            if appCoordinator.playbackManager.currentTrack != nil {
-                appCoordinator.playbackManager.togglePlayPause()
+            if appCoordinator?.playbackManager.currentTrack != nil {
+                appCoordinator?.playbackManager.togglePlayPause()
             }
         } label: {
             if #available(macOS 26.0, *) {
@@ -351,17 +360,17 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(" ", modifiers: [])
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(appCoordinator?.playbackManager.currentTrack == nil)
     }
 
     private func favoriteMenuItem() -> some View {
         Button {
-            if let track = appCoordinator.playbackManager.currentTrack {
-                appCoordinator.playlistManager.toggleFavorite(for: track)
+            if let track = appCoordinator?.playbackManager.currentTrack {
+                appCoordinator?.playlistManager.toggleFavorite(for: track)
                 menuUpdateTrigger = UUID()
             }
         } label: {
-            let isFavorite = appCoordinator.playbackManager.currentTrack?.isFavorite == true
+            let isFavorite = appCoordinator?.playbackManager.currentTrack?.isFavorite == true
 
             if #available(macOS 26.0, *) {
                 Label(
@@ -373,15 +382,15 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut("f", modifiers: [.command, .shift])
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(appCoordinator?.playbackManager.currentTrack == nil)
         .id(menuUpdateTrigger)
     }
 
     private func shuffleMenuItem() -> some View {
         Toggle(isOn: Binding(
-            get: { appCoordinator.playlistManager.isShuffleEnabled },
+            get: { appCoordinator?.playlistManager.isShuffleEnabled ?? false },
             set: { _ in
-                appCoordinator.playlistManager.toggleShuffle()
+                appCoordinator?.playlistManager.toggleShuffle()
                 menuUpdateTrigger = UUID()
             }
         )) {
@@ -397,7 +406,7 @@ extension PetrichorApp {
 
     private func repeatMenuItem() -> some View {
         Button {
-            appCoordinator.playlistManager.toggleRepeatMode()
+            appCoordinator?.playlistManager.toggleRepeatMode()
             menuUpdateTrigger = UUID()
         } label: {
             if #available(macOS 26.0, *) {
@@ -423,7 +432,7 @@ extension PetrichorApp {
 
     private func nextMenuItem() -> some View {
         Button {
-            appCoordinator.playlistManager.playNextTrack()
+            appCoordinator?.playlistManager.playNextTrack()
         } label: {
             if #available(macOS 26.0, *) {
                 Label(
@@ -435,12 +444,12 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(.rightArrow, modifiers: .command)
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(appCoordinator?.playbackManager.currentTrack == nil)
     }
 
     private func previousMenuItem() -> some View {
         Button {
-            appCoordinator.playlistManager.playPreviousTrack()
+            appCoordinator?.playlistManager.playPreviousTrack()
         } label: {
             if #available(macOS 26.0, *) {
                 Label(
@@ -452,17 +461,18 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(.leftArrow, modifiers: .command)
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(appCoordinator?.playbackManager.currentTrack == nil)
     }
 
     private func seekForwardMenuItem() -> some View {
         Button {
-            if let currentTrack = appCoordinator.playbackManager.currentTrack {
+            if let playbackManager = appCoordinator?.playbackManager,
+               let currentTrack = playbackManager.currentTrack {
                 let newTime = min(
-                    appCoordinator.playbackManager.currentTime + 10,
+                    playbackManager.currentTime + 10,
                     currentTrack.duration
                 )
-                appCoordinator.playbackManager.seekTo(time: newTime)
+                playbackManager.seekTo(time: newTime)
             }
         } label: {
             if #available(macOS 26.0, *) {
@@ -475,17 +485,18 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(.rightArrow, modifiers: [.command, .shift])
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(appCoordinator?.playbackManager.currentTrack == nil)
     }
 
     private func seekBackwardMenuItem() -> some View {
         Button {
-            if appCoordinator.playbackManager.currentTrack != nil {
+            if let playbackManager = appCoordinator?.playbackManager,
+               playbackManager.currentTrack != nil {
                 let newTime = max(
-                    appCoordinator.playbackManager.currentTime - 10,
+                    playbackManager.currentTime - 10,
                     0
                 )
-                appCoordinator.playbackManager.seekTo(time: newTime)
+                playbackManager.seekTo(time: newTime)
             }
         } label: {
             if #available(macOS 26.0, *) {
@@ -498,7 +509,7 @@ extension PetrichorApp {
             }
         }
         .keyboardShortcut(.leftArrow, modifiers: [.command, .shift])
-        .disabled(appCoordinator.playbackManager.currentTrack == nil)
+        .disabled(appCoordinator?.playbackManager.currentTrack == nil)
     }
 
     @ViewBuilder
@@ -509,8 +520,8 @@ extension PetrichorApp {
 
     private func volumeUpMenuItem() -> some View {
         Button {
-            let newVolume = min(appCoordinator.playbackManager.volume + 0.05, 1.0)
-            appCoordinator.playbackManager.setVolume(newVolume)
+            guard let playbackManager = appCoordinator?.playbackManager else { return }
+            playbackManager.setVolume(min(playbackManager.volume + 0.05, 1.0))
         } label: {
             if #available(macOS 26.0, *) {
                 Label(
@@ -526,8 +537,8 @@ extension PetrichorApp {
 
     private func volumeDownMenuItem() -> some View {
         Button {
-            let newVolume = max(appCoordinator.playbackManager.volume - 0.05, 0.0)
-            appCoordinator.playbackManager.setVolume(newVolume)
+            guard let playbackManager = appCoordinator?.playbackManager else { return }
+            playbackManager.setVolume(max(playbackManager.volume - 0.05, 0.0))
         } label: {
             if #available(macOS 26.0, *) {
                 Label(
@@ -573,7 +584,7 @@ extension PetrichorApp {
                 }
             }
             .keyboardShortcut("m", modifiers: [.command, .option])
-            .disabled(appCoordinator.playbackManager.currentTrack == nil)
+            .disabled(appCoordinator?.playbackManager.currentTrack == nil)
 
             Button {
                 NotificationCenter.default.post(name: .toggleImmersivePlayer, object: nil)
@@ -588,7 +599,7 @@ extension PetrichorApp {
                 }
             }
             .keyboardShortcut("f", modifiers: [.command, .option])
-            .disabled(appCoordinator.playbackManager.currentTrack == nil)
+            .disabled(appCoordinator?.playbackManager.currentTrack == nil)
 
             Divider()
         }
@@ -729,7 +740,7 @@ extension PetrichorApp {
     // MARK: - Helper Properties
 
     private var repeatModeLabel: String {
-        switch appCoordinator.playlistManager.repeatMode {
+        switch appCoordinator?.playlistManager.repeatMode ?? .off {
         case .off: return String(localized: "Repeat: Off")
         case .one: return String(localized: "Repeat: Current Track")
         case .all: return String(localized: "Repeat: All")

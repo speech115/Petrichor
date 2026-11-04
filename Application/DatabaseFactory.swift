@@ -15,8 +15,12 @@ enum DatabaseFactory {
     /// папка с именем бандла, `.debug`-суффикс в имени файла для debug-сборок,
     /// PRAGMA-настройки на соединение.
     static func makeApplicationSupportPool() throws -> DatabasePool {
-        let dbPath = try databaseURL(createDirectory: true).path
+        try makePool(at: databaseURL(createDirectory: true))
+    }
 
+    /// Пул на файле `url` с прод-настройками соединения; тесты открывают так
+    /// базу во временной папке.
+    static func makePool(at url: URL) throws -> DatabasePool {
         // Configure database before creating the queue
         var config = Configuration()
         config.prepareDatabase { db in
@@ -26,7 +30,7 @@ enum DatabaseFactory {
             try db.execute(sql: "PRAGMA busy_timeout = 5000")
         }
 
-        return try DatabasePool(path: dbPath, configuration: config)
+        return try DatabasePool(path: url.path, configuration: config)
     }
 
     /// Размер файла прод-базы (для отчётов «сколько освободили» после
@@ -39,6 +43,20 @@ enum DatabaseFactory {
         } catch {
             Logger.error("Failed to get database size: \(error)")
             return nil
+        }
+    }
+
+    /// Удаляет файл прод-базы вместе с `-wal` и `-shm`: сброс библиотеки, когда
+    /// базу не удаётся открыть. Отсутствующий файл сбросу не мешает.
+    static func removeDatabaseFiles() throws {
+        try removeDatabaseFiles(at: databaseURL(createDirectory: false))
+    }
+
+    static func removeDatabaseFiles(at url: URL) throws {
+        for suffix in ["", "-wal", "-shm"] {
+            let file = URL(fileURLWithPath: url.path + suffix)
+            guard FileManager.default.fileExists(atPath: file.path) else { continue }
+            try FileManager.default.removeItem(at: file)
         }
     }
 
