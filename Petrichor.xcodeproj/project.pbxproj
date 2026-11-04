@@ -108,6 +108,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Components/ActivityAnimation.swift,
+				Components/AddFolderPanel.swift,
 				Components/ArtistImageSheet.swift,
 				Components/FloatingControlCluster.swift,
 				Components/FocusStableMaterial.swift,
@@ -145,6 +146,8 @@
 				Main/DatabaseUnavailableView.swift,
 				Main/MainSidebarView.swift,
 				Main/PlayQueueView.swift,
+				Main/PlayerProgressBar.swift,
+				Main/PlayerTrackDetailsView.swift,
 				Main/PlayerView.swift,
 				Main/TrackDetailView.swift,
 				Main/TrackLyricsView.swift,

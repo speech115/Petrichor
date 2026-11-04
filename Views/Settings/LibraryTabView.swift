@@ -225,7 +225,7 @@ struct LibraryTabView: View {
                     }
 
                     #if os(macOS)
-                    Button(action: { libraryManager.addFolder() }, label: {
+                    Button(action: { AddFolderPanel.present(then: libraryManager.addFolders) }, label: {
                         Label("Add Folder", systemImage: "plus")
                     })
                     .buttonStyle(.bordered)

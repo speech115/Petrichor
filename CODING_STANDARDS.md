@@ -1,7 +1,7 @@
 # Coding Standards
 
 Как мы пишем Swift в этом репозитории. Здесь только то, что **не проверяется
-линтером** — договорённости о стиле, которые держатся ревью и памятью команды.
+линтером** — договорённости о стиле, которые держатся этим документом и памятью команды.
 Механические правила живут в `.swiftlint.yml`, и этот документ их не повторяет.
 
 Границы документа:
@@ -148,7 +148,7 @@
 ## SwiftUI-вьюхи
 
 Вьюхи тестами не покрываются (`AGENTS.md`) — стиль здесь единственный страж,
-проверяется ревью, симулятором и устройством.
+проверяется симулятором и устройством.
 
 - **Тело разбивается на `private var` / `private func … -> some View`** и
   `@ViewBuilder` для switch, с секциями `// MARK:`. Гигантский `body` без
@@ -235,6 +235,15 @@ func testJournalFlushesRelativePath() async throws {
 // BAD: пересказывает реализацию — тест не выживает ни один рефакторинг
 func testMapPlaybackErrorHelperUsesSwitch() {
     XCTAssertEqual(AVQueuePlayerBackend.mapPlaybackError(nil), .engineError(/* … */))
+}
+```
+
+```swift
+// GOOD: свойство на сгенерированных входах, seed фиксирован
+@Test(arguments: TestFixtures.artistStrings(seed: 42, count: 200))
+func normalizeIsIdempotent(_ raw: String) {
+    let once = ArtistParser.normalizeArtistName(raw)
+    #expect(ArtistParser.normalizeArtistName(once) == once)
 }
 ```
 
