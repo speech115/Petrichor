@@ -10,7 +10,7 @@ import Testing
 /// library without a bundled known-artists file: ambiguous separators are
 /// split blindly and bare "/" is kept. The lookup cases install their own
 /// names under a role no production code uses.
-@Suite(.serialized)
+@Suite(.isolatedArtistLookup)
 struct ArtistParserTests {
     // MARK: - Without a name lookup
 
@@ -96,9 +96,7 @@ struct ArtistParserTests {
     private static let role = "artist-parser-tests"
 
     private func withLibraryNames(_ names: [String: String], _ body: () -> Void) {
-        ArtistParser.setLibraryArtists([Self.role: names])
-        defer { ArtistParser.setLibraryArtists([:]) }
-        body()
+        ArtistParser.isolatedLibraryArtists.withValue([Self.role: names], operation: body)
     }
 
     @Test func knownNamesWithSeparatorsStayWhole() {
@@ -135,9 +133,10 @@ struct ArtistParserTests {
 
     // MARK: - Isolation from scans running elsewhere
 
-    // Other suites run in parallel with this one and drive the real scan: LibraryManager replaces
-    // the library names, a folder scan loads the bundled file. Either used to change what these
-    // tests parse mid-test (seen in CI: "Drake/Rihanna" came back whole).
+    // The lookup is global, and other code runs alongside these tests: the host app's
+    // LibraryManager replaces the library names when its library loads, folder-scan suites
+    // load the bundled file. Either used to change what a test parsed mid-test (seen in CI:
+    // "Drake/Rihanna" came back whole).
 
     @Test func installedNamesSurviveALibraryReloadElsewhere() {
         withLibraryNames(["mumford & sons": "Mumford & Sons"]) {
@@ -157,4 +156,22 @@ struct ArtistParserTests {
             #expect(ArtistParser.parse("Mumford & Sons", role: TrackArtist.Role.composer) == ["Mumford", "Sons"])
         }
     }
+}
+
+/// Runs each test with an empty isolated lookup: no bundled file, no library names, whatever
+/// scans in other suites are doing to the global state. `withLibraryNames` nests its own.
+private struct IsolatedArtistLookup: SuiteTrait, TestTrait, TestScoping {
+    var isRecursive: Bool { true }
+
+    func provideScope(
+        for test: Test,
+        testCase: Test.Case?,
+        performing function: @Sendable () async throws -> Void
+    ) async throws {
+        try await ArtistParser.isolatedLibraryArtists.withValue([:], operation: function)
+    }
+}
+
+extension Trait where Self == IsolatedArtistLookup {
+    static var isolatedArtistLookup: Self { Self() }
 }
