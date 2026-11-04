@@ -1,8 +1,10 @@
 //
 // PetrichorApp (iOS)
 //
-// iOS entry point. Owns the AppCoordinator and the shared environment objects,
-// and saves playback state when the app leaves the foreground. The audio
+// iOS entry point. Owns the AppCoordinator (through `AppLaunch`, which shows
+// `DatabaseUnavailableView` instead when the library database does not open)
+// and the shared environment objects, and saves playback state when the app
+// leaves the foreground. The audio
 // session itself is configured by `AudioSessionController`, activated by
 // `AVQueuePlayerBackend` on first playback.
 //
@@ -27,7 +29,7 @@ extension Color {
 
 @main
 struct PetrichorApp: App {
-    @StateObject private var appCoordinator: AppCoordinator
+    @StateObject private var launch: AppLaunch<AppCoordinator>
     @Environment(\.scenePhase) private var scenePhase
 
     // Home, the tab on screen at launch, has its first frame ready before the
@@ -69,121 +71,134 @@ struct PetrichorApp: App {
         UserDefaults.standard.register(defaults: ["hideDuplicateTracks": true])
         GestureTips.configure()
 
-        let coordinator = AppCoordinator(deferLaunchWork: true)
-        _appCoordinator = StateObject(wrappedValue: coordinator)
-
-        // Control Center buttons run their intents here, in the app's process.
-        PlaybackControlActions.playPause = { [playbackManager = coordinator.playbackManager] in
-            playbackManager.togglePlayPause()
-        }
-        PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
-            playlistManager.playNextTrack()
-        }
+        _launch = StateObject(wrappedValue: AppLaunch { databaseManager in
+            let coordinator = AppCoordinator(databaseManager: databaseManager, deferLaunchWork: true)
+            // Control Center buttons run their intents here, in the app's process.
+            PlaybackControlActions.playPause = { [playbackManager = coordinator.playbackManager] in
+                playbackManager.togglePlayPause()
+            }
+            PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
+                playlistManager.playNextTrack()
+            }
+            return coordinator
+        } didReset: { coordinator in
+            SpotlightIndexer.scheduleReset(with: coordinator.libraryManager.databaseManager)
+        })
     }
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if isInterfacePrepared {
-                    ContentView(
-                        playlistManager: appCoordinator.playlistManager,
-                        playbackManager: appCoordinator.playbackManager
-                    )
-                } else {
-                    Color(uiColor: .systemBackground).ignoresSafeArea()
-                }
+            if let appCoordinator = launch.running {
+                libraryRoot(appCoordinator)
+            } else {
+                DatabaseUnavailableView(launch: launch)
+                    .tint(.brandAccent)
+                    .onAppear { ColorMode.current.apply() }
             }
-                .task {
-                    guard !isInterfacePrepared else { return }
-                    let library = appCoordinator.libraryManager
-                    let cache = LibraryScreenCache.shared
-                    let homeInterval = Self.signposter.beginInterval("Prepare Home")
-                    _ = await cache.prepareRecentAlbums(library)
-                    Self.signposter.endInterval("Prepare Home", homeInterval)
-                    guard !Task.isCancelled else { return }
-                    let homeReady = ContinuousClock.now
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) { isInterfacePrepared = true }
-
-                    // The other tabs are prepared before one can realistically be
-                    // tapped; ContentView's own tasks join these same runs.
-                    async let discover: Void = cache.prepareDiscover(library)
-                    async let previews: Void = cache.preparePlaylistPreviews(
-                        appCoordinator.playlistManager.playlists,
-                        library: library
-                    )
-                    let tabsInterval = Self.signposter.beginInterval("Prepare other tabs")
-                    _ = await (discover, previews)
-                    Self.signposter.endInterval("Prepare other tabs", tabsInterval)
-                    Logger.info(
-                        "Launch: Home ready \((homeReady - launchStart).formatted(.units(allowed: [.milliseconds]))) after app init, "
-                            + "other tabs \((ContinuousClock.now - homeReady).formatted(.units(allowed: [.milliseconds]))) later"
-                    )
-
-                    // Only now the work no screen waits on: it competes for the
-                    // database readers and CPU the preparation above needs. The
-                    // iOS library is the app's own Documents folder, registered
-                    // and reconciled on every launch; it has no folder watcher.
-                    // Catches the search-index deletions reconciliation never
-                    // causes on its own: folder removal and entity merges, both
-                    // of which post `.libraryDataDidChange`. Registered only
-                    // now: launch's own entity load posts it too, and checking
-                    // the index then read every album and artist row cold while
-                    // Home was preparing. See `SpotlightIndexer.observeLibraryChanges()`.
-                    SpotlightIndexer.observeLibraryChanges()
-                    library.startLaunchWork()
-                    library.reconcileInBackground()
-                }
-                .environmentObject(appCoordinator.playbackManager)
-                .environmentObject(appCoordinator.playbackManager.playbackProgressState)
-                .environmentObject(appCoordinator.libraryManager)
-                .environmentObject(appCoordinator.playlistManager)
-                .tint(.brandAccent)
-                .onAppear {
-                    // Re-apply the stored color scheme: overrideUserInterfaceStyle
-                    // does not survive a relaunch on its own.
-                    ColorMode.current.apply()
-                }
-                // The playhead mark: a few bytes in UserDefaults, so a kill
-                // while playing loses seconds, not the whole session since
-                // the last backgrounding. The full snapshot stays on
-                // scenePhase: it carries the queue and costs a real write.
-                .onReceive(positionTicker) { _ in
-                    if appCoordinator.playbackManager.isPlaying {
-                        appCoordinator.savePlaybackPosition()
-                    }
-                }
-                .onReceive(appCoordinator.playbackManager.$isPlaying.removeDuplicates().dropFirst()) { playing in
-                    if !playing {
-                        appCoordinator.savePlaybackPosition()
-                    }
-                }
-                .onChange(of: scenePhase) { _, phase in
-                    switch phase {
-                    case .active:
-                        guard hasAppearedActiveOnce else {
-                            hasAppearedActiveOnce = true
-                            return
-                        }
-                        Task { await appCoordinator.libraryManager.applyPeerJournal() }
-                        Task(priority: .utility) {
-                            do {
-                                try await appCoordinator.libraryManager.reconcileLibrary()
-                            } catch {
-                                Logger.error("Failed to reconcile the library after returning to foreground: \(error)")
-                            }
-                        }
-                    case .background, .inactive:
-                        saveInBackground()
-                    @unknown default:
-                        break
-                    }
-                }
         }
     }
 
-    private func saveInBackground() {
+    private func libraryRoot(_ appCoordinator: AppCoordinator) -> some View {
+        Group {
+            if isInterfacePrepared {
+                ContentView(
+                    playlistManager: appCoordinator.playlistManager,
+                    playbackManager: appCoordinator.playbackManager
+                )
+            } else {
+                Color(uiColor: .systemBackground).ignoresSafeArea()
+            }
+        }
+            .task {
+                guard !isInterfacePrepared else { return }
+                let library = appCoordinator.libraryManager
+                let cache = LibraryScreenCache.shared
+                let homeInterval = Self.signposter.beginInterval("Prepare Home")
+                _ = await cache.prepareRecentAlbums(library)
+                Self.signposter.endInterval("Prepare Home", homeInterval)
+                guard !Task.isCancelled else { return }
+                let homeReady = ContinuousClock.now
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { isInterfacePrepared = true }
+
+                // The other tabs are prepared before one can realistically be
+                // tapped; ContentView's own tasks join these same runs.
+                async let discover: Void = cache.prepareDiscover(library)
+                async let previews: Void = cache.preparePlaylistPreviews(
+                    appCoordinator.playlistManager.playlists,
+                    library: library
+                )
+                let tabsInterval = Self.signposter.beginInterval("Prepare other tabs")
+                _ = await (discover, previews)
+                Self.signposter.endInterval("Prepare other tabs", tabsInterval)
+                Logger.info(
+                    "Launch: Home ready \((homeReady - launchStart).formatted(.units(allowed: [.milliseconds]))) after app init, "
+                        + "other tabs \((ContinuousClock.now - homeReady).formatted(.units(allowed: [.milliseconds]))) later"
+                )
+
+                // Only now the work no screen waits on: it competes for the
+                // database readers and CPU the preparation above needs. The
+                // iOS library is the app's own Documents folder, registered
+                // and reconciled on every launch; it has no folder watcher.
+                // Catches the search-index deletions reconciliation never
+                // causes on its own: folder removal and entity merges, both
+                // of which post `.libraryDataDidChange`. Registered only
+                // now: launch's own entity load posts it too, and checking
+                // the index then read every album and artist row cold while
+                // Home was preparing. See `SpotlightIndexer.observeLibraryChanges()`.
+                SpotlightIndexer.observeLibraryChanges()
+                library.startLaunchWork()
+                library.reconcileInBackground()
+            }
+            .environmentObject(appCoordinator.playbackManager)
+            .environmentObject(appCoordinator.playbackManager.playbackProgressState)
+            .environmentObject(appCoordinator.libraryManager)
+            .environmentObject(appCoordinator.playlistManager)
+            .tint(.brandAccent)
+            .onAppear {
+                // Re-apply the stored color scheme: overrideUserInterfaceStyle
+                // does not survive a relaunch on its own.
+                ColorMode.current.apply()
+            }
+            // The playhead mark: a few bytes in UserDefaults, so a kill
+            // while playing loses seconds, not the whole session since
+            // the last backgrounding. The full snapshot stays on
+            // scenePhase: it carries the queue and costs a real write.
+            .onReceive(positionTicker) { _ in
+                if appCoordinator.playbackManager.isPlaying {
+                    appCoordinator.savePlaybackPosition()
+                }
+            }
+            .onReceive(appCoordinator.playbackManager.$isPlaying.removeDuplicates().dropFirst()) { playing in
+                if !playing {
+                    appCoordinator.savePlaybackPosition()
+                }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .active:
+                    guard hasAppearedActiveOnce else {
+                        hasAppearedActiveOnce = true
+                        return
+                    }
+                    Task { await appCoordinator.libraryManager.applyPeerJournal() }
+                    Task(priority: .utility) {
+                        do {
+                            try await appCoordinator.libraryManager.reconcileLibrary()
+                        } catch {
+                            Logger.error("Failed to reconcile the library after returning to foreground: \(error)")
+                        }
+                    }
+                case .background, .inactive:
+                    saveInBackground(appCoordinator)
+                @unknown default:
+                    break
+                }
+            }
+    }
+
+    private func saveInBackground(_ appCoordinator: AppCoordinator) {
         needsPlaybackSave = true
         guard playbackSaveTask == nil else { return }
         backgroundSaveID = UIApplication.shared.beginBackgroundTask(withName: "Save playback state") {
