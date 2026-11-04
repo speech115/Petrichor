@@ -185,7 +185,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
@@ -348,7 +348,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
@@ -534,7 +534,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
@@ -636,7 +636,7 @@ jobs:
           touch -t 202001010000 Configuration/Secrets.xcconfig
 
       - name: Ensure xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
 
       - name: Resolve dependencies
         run: |
