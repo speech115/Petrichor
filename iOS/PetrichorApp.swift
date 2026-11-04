@@ -81,6 +81,8 @@ struct PetrichorApp: App {
                 playlistManager.playNextTrack()
             }
             return coordinator
+        } didReset: { coordinator in
+            SpotlightIndexer.scheduleReset(with: coordinator.libraryManager.databaseManager)
         })
     }
 

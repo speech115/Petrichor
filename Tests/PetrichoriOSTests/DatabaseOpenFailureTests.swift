@@ -21,13 +21,15 @@ struct DatabaseOpenFailureTests {
         try Data([0x01]).write(to: URL(fileURLWithPath: url.path + "-wal"))
 
         var built = 0
+        var resetDatabases: [DatabaseManager] = []
         let launch = AppLaunch(
             openDatabase: { try DatabaseManager(pool: DatabaseFactory.makePool(at: url)) },
             removeDatabase: { try DatabaseFactory.removeDatabaseFiles(at: url) },
             build: { database in
                 built += 1
                 return database
-            }
+            },
+            didReset: { resetDatabases.append($0) }
         )
         #expect(launch.running == nil)
         #expect(launch.databaseError?.isEmpty == false)
@@ -38,11 +40,16 @@ struct DatabaseOpenFailureTests {
         #expect(launch.databaseError?.isEmpty == false)
         #expect(try Data(contentsOf: url) == damaged)
         #expect(built == 0)
+        #expect(resetDatabases.isEmpty)
 
         launch.resetLibraryDatabase()
         let database = try #require(launch.running)
         #expect(launch.databaseError == nil)
         #expect(built == 1)
+        // Row ids restart from 1 in the new file: whatever is keyed by the old
+        // ids (the iOS Spotlight snapshot) must hear about the reset.
+        #expect(resetDatabases.count == 1)
+        #expect(resetDatabases.first === database)
         #expect(try database.dbQueue.read { db in
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM tracks")
         } == 0)
@@ -56,10 +63,12 @@ struct DatabaseOpenFailureTests {
         // unavailable disk; nothing is deleted to recover from it.
         let url = directory.appendingPathComponent("petrichor.db")
         var removals = 0
+        var resets = 0
         let launch = AppLaunch(
             openDatabase: { try DatabaseManager(pool: DatabaseFactory.makePool(at: url)) },
             removeDatabase: { removals += 1 },
-            build: { $0 }
+            build: { $0 },
+            didReset: { _ in resets += 1 }
         )
         #expect(launch.running == nil)
         #expect(launch.databaseError?.isEmpty == false)
@@ -69,5 +78,6 @@ struct DatabaseOpenFailureTests {
         #expect(launch.running != nil)
         #expect(launch.databaseError == nil)
         #expect(removals == 0)
+        #expect(resets == 0)
     }
 }

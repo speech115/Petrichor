@@ -20,20 +20,26 @@ final class AppLaunch<Running>: ObservableObject {
     private let openDatabase: () throws -> DatabaseManager
     private let removeDatabase: () throws -> Void
     private let build: (DatabaseManager) -> Running
+    private let didReset: (Running) -> Void
 
     /// - Parameters:
     ///   - openDatabase, removeDatabase: The app's own database file; tests
     ///     pass one in a temporary folder.
     ///   - build: Makes the running app from the open database, on launch or
     ///     after a successful retry.
+    ///   - didReset: Runs once the database a reset created is open. Its row
+    ///     ids restart from 1, so state keyed by the old ids (the iOS
+    ///     Spotlight snapshot) is cleared here.
     init(
         openDatabase: @escaping () throws -> DatabaseManager = { try DatabaseManager() },
         removeDatabase: @escaping () throws -> Void = { try DatabaseFactory.removeDatabaseFiles() },
-        build: @escaping (DatabaseManager) -> Running
+        build: @escaping (DatabaseManager) -> Running,
+        didReset: @escaping (Running) -> Void = { _ in }
     ) {
         self.openDatabase = openDatabase
         self.removeDatabase = removeDatabase
         self.build = build
+        self.didReset = didReset
         openLibrary()
     }
 
@@ -63,6 +69,7 @@ final class AppLaunch<Running>: ObservableObject {
             return
         }
         openLibrary()
+        if let running { didReset(running) }
     }
 }
 
