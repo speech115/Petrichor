@@ -17,9 +17,11 @@ extension DatabaseManager {
         do {
             pending = try await dbQueue.read { db -> [(String, String?)] in
                 if try db.tableExists("background_migrations") {
+                    // Run in version order: by text, v12 and v16 sort before v8 and v9.
                     let sql = """
                         SELECT identifier, progress FROM background_migrations \
-                        WHERE completed_at IS NULL ORDER BY identifier
+                        WHERE completed_at IS NULL \
+                        ORDER BY CAST(SUBSTR(identifier, 2, INSTR(identifier, '_') - 2) AS INTEGER), identifier
                         """
                     return try Row.fetchAll(db, sql: sql)
                         .map { ($0["identifier"], $0["progress"]) }
@@ -332,10 +334,11 @@ extension DatabaseManager {
         }
     }
 
-    /// Rebuild all TrackArtist/AlbumArtist associations using updated parser
+    /// Rebuild all TrackArtist/AlbumArtist associations using updated parser. Duplicates are
+    /// rebuilt too: ingestion links them like any track, and the stats leave them out.
     private func rebuildArtistAssociations(resumeOffset: Int) async throws {
         let totalTracks = try await dbQueue.read { db in
-            try FullTrack.filter(FullTrack.Columns.isDuplicate == false).fetchCount(db)
+            try FullTrack.fetchCount(db)
         }
 
         guard totalTracks > 0 else {
@@ -372,7 +375,6 @@ extension DatabaseManager {
             while offset < totalTracks {
                 let tracks = try await dbQueue.read { [offset] db in
                     try FullTrack
-                        .filter(FullTrack.Columns.isDuplicate == false)
                         .order(FullTrack.Columns.trackId)
                         .limit(batchSize, offset: offset)
                         .fetchAll(db)
@@ -385,7 +387,15 @@ extension DatabaseManager {
                 _ = try await dbQueue.write { [offset] db in
                     for var track in tracks {
                         try self.processTrackArtists(track, in: db)
-                        try self.processTrackAlbum(&track, in: db)
+                        // A track keeps its album row (artwork, merges); only the cleared
+                        // album_artists rows come back.
+                        if let albumId = track.albumId, try Album.exists(db, key: albumId) {
+                            try self.relinkAlbumArtists(albumId, for: track, in: db)
+                        } else if let trackId = track.trackId {
+                            try self.processTrackAlbum(&track, in: db)
+                            try FullTrack.filter(FullTrack.Columns.trackId == trackId)
+                                .updateAll(db, FullTrack.Columns.albumId.set(to: track.albumId))
+                        }
                     }
                     try self.saveProgress(offset: offset, in: db)
                 }

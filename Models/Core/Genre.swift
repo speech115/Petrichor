@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-struct Genre: Identifiable, FetchableRecord, PersistableRecord {
+struct Genre: Identifiable, FetchableRecord, MutablePersistableRecord {
     var id: Int64?
     let name: String
 
