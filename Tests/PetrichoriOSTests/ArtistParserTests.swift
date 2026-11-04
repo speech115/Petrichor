@@ -133,6 +133,25 @@ struct ArtistParserTests {
         }
     }
 
+    // MARK: - Isolation from scans running elsewhere
+
+    // Other suites run in parallel with this one and drive the real scan: LibraryManager replaces
+    // the library names, a folder scan loads the bundled file. Either used to change what these
+    // tests parse mid-test (seen in CI: "Drake/Rihanna" came back whole).
+
+    @Test func installedNamesSurviveALibraryReloadElsewhere() {
+        withLibraryNames(["mumford & sons": "Mumford & Sons"]) {
+            ArtistParser.setLibraryArtists([:])
+            #expect(ArtistParser.parse("Drake/Rihanna", role: Self.role) == ["Drake", "Rihanna"])
+        }
+    }
+
+    @Test func lookupFreeParsingIgnoresAScanElsewhere() {
+        ArtistParser.loadKnownArtists()
+        defer { ArtistParser.unloadKnownArtists() }
+        #expect(ArtistParser.parse("Mumford & Sons", role: nil) == ["Mumford", "Sons"])
+    }
+
     @Test func namesOfAnotherRoleDoNotApply() {
         withLibraryNames(["mumford & sons": "Mumford & Sons"]) {
             #expect(ArtistParser.parse("Mumford & Sons", role: TrackArtist.Role.composer) == ["Mumford", "Sons"])
