@@ -125,9 +125,17 @@ struct PlaybackStartTests {
 
         #expect(backend.duration > 0, "длительность так и не стала известна — слайдер застынет на нуле")
 
+        // `.playing` also covers AVPlayer's `waitingToPlayAtSpecifiedRate`, and
+        // on a loaded CI runner the clock can stand still for a while after
+        // `waitForPlaying` returns: a fixed 700 ms window failed there with
+        // 0.0 → 0.0. A frozen clock still fails after 5 s.
         let first = backend.currentPlaybackProgress
-        try await Task.sleep(for: .milliseconds(700))
-        let second = backend.currentPlaybackProgress
+        var second = first
+        let progressDeadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < progressDeadline, second <= first {
+            try await Task.sleep(for: .milliseconds(100))
+            second = backend.currentPlaybackProgress
+        }
         #expect(second > first, "прогресс не растёт во время воспроизведения")
     }
 
