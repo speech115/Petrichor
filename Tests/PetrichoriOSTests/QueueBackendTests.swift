@@ -345,6 +345,7 @@ struct QueueBackendTests {
 
 // MARK: - Track boundary (docs/state-machines.md, SM-1)
 
+@MainActor
 private func waitFor(_ condition: () -> Bool) async throws {
     let deadline = ContinuousClock.now + .seconds(5)
     while ContinuousClock.now < deadline, !condition() {
