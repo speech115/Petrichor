@@ -190,9 +190,10 @@ extension PlaybackManager {
         guard tracks.indices.contains(index) else { return }
 
         guard let startIndex = firstPlayableIndex(in: tracks, from: index) else { return }
-        if startIndex != index {
-            playlistManager.advanceQueueIndex(to: startIndex)
-        }
+        // Always, not only when the start moved: a caller that found the track
+        // by URL (Play on a restored track) may hold a stale cursor, and the
+        // cursor must name the entry that plays (I-2.2, D-1).
+        playlistManager.advanceQueueIndex(to: startIndex)
         let track = tracks[startIndex]
 
         rebuildQueueMirror(for: tracks)
