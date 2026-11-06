@@ -202,6 +202,7 @@
 				PlaybackErrorMappingTests.swift,
 				PlaybackStartTests.swift,
 				QueueBackendTests.swift,
+				ScanRequestTests.swift,
 				TrackPersistenceTests.swift,
 			);
 			target = 55A000000000000000000200 /* PetrichorTests */;
