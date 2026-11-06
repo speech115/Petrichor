@@ -200,6 +200,7 @@
 				LibraryPathStoreTests.swift,
 				M3UImportTests.swift,
 				PlaybackErrorMappingTests.swift,
+				PlaybackRestorationTests.swift,
 				PlaybackStartTests.swift,
 				QueueBackendTests.swift,
 				TrackPersistenceTests.swift,
