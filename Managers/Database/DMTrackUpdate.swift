@@ -23,15 +23,16 @@ extension DatabaseManager {
     }
 
     // Updates a track's play count and last played date
-    func updatePlayingTrackMetadata(trackId: Int64, playCount: Int, lastPlayedDate: Date) async throws {
-        _ = try await dbQueue.write { db in
-            try Track
-                .filter(Track.Columns.trackId == trackId)
-                .updateAll(
-                    db,
-                    Track.Columns.playCount.set(to: playCount),
-                    Track.Columns.lastPlayedDate.set(to: lastPlayedDate)
-                )
+    /// One listen, counted in a single statement: a read-then-write pair lost
+    /// whichever increment or journal write landed between them (I-7.4, D-5).
+    /// Returns the new count, nil when the track is gone.
+    func incrementPlayCount(trackId: Int64, lastPlayedDate: Date) async throws -> Int? {
+        try await dbQueue.write { db in
+            try db.execute(
+                sql: "UPDATE tracks SET play_count = play_count + 1, last_played_date = ? WHERE id = ?",
+                arguments: [lastPlayedDate, trackId]
+            )
+            return try Int.fetchOne(db, sql: "SELECT play_count FROM tracks WHERE id = ?", arguments: [trackId])
         }
     }
 

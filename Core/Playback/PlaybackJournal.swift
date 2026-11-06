@@ -85,13 +85,23 @@ enum PlaybackJournalCodec {
 
     private static let decoder = JSONDecoder()
 
+    /// Milliseconds, so two events in one second keep their order against the
+    /// applied-through cursor (I-7.3, D-8). Whole-second lines written before
+    /// still decode.
+    private static let timestampStyle = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private static let wholeSecondStyle = Date.ISO8601FormatStyle()
+
+    private static func decodeTimestamp(_ text: String) -> Date? {
+        (try? timestampStyle.parse(text)) ?? (try? wholeSecondStyle.parse(text))
+    }
+
     static func encodeLine(_ event: PlaybackJournalEvent) throws -> String {
         let dto: LineDTO
         switch event {
         case .played(let path, let at):
-            dto = LineDTO(ts: at.formatted(.iso8601), type: "played", path: path, value: nil)
+            dto = LineDTO(ts: at.formatted(timestampStyle), type: "played", path: path, value: nil)
         case .favorite(let path, let value, let at):
-            dto = LineDTO(ts: at.formatted(.iso8601), type: "favorite", path: path, value: value)
+            dto = LineDTO(ts: at.formatted(timestampStyle), type: "favorite", path: path, value: value)
         }
         let data = try encoder.encode(dto)
         guard let line = String(data: data, encoding: .utf8) else {
@@ -112,7 +122,7 @@ enum PlaybackJournalCodec {
             throw CodecError.malformed(trimmed)
         }
 
-        guard let timestamp = try? Date(dto.ts, strategy: .iso8601),
+        guard let timestamp = decodeTimestamp(dto.ts),
               !dto.path.isEmpty
         else {
             throw CodecError.malformed(trimmed)
