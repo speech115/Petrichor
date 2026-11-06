@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import MediaPlayer
 import Testing
@@ -339,6 +340,64 @@ struct QueueBackendTests {
     }
     let elapsed = MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPNowPlayingInfoPropertyElapsedPlaybackTime] as? Double ?? 0
     #expect(abs(elapsed - 3) < 0.3)
+}
+
+
+// MARK: - Track boundary (docs/state-machines.md, SM-1)
+
+private func waitFor(_ condition: () -> Bool) async throws {
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, !condition() {
+        try await Task.sleep(for: .milliseconds(50))
+    }
+}
+
+/// I-1.5: a pause that lands while the end of a track is already queued on
+/// main keeps the next track paused. The boundary called `player.play()`
+/// unconditionally and undid it.
+@Test func pauseQueuedBehindATrackEndKeepsTheNextTrackPaused() async throws {
+    let url = try makeSilentWAV(seconds: 4)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let backend = AVQueuePlayerBackend()
+    let delegate = NowPlayingTestDelegate()
+    backend.backendDelegate = delegate
+    defer { backend.stop() }
+    backend.setQueue([makeEntry("a", url: url), makeEntry("b", url: url)], startingAt: 0, startPaused: false)
+    try await waitFor { delegate.currentID == "a" }
+    let ending = try #require(backend.currentPlayerItem)
+
+    NotificationCenter.default.post(name: AVPlayerItem.didPlayToEndTimeNotification, object: ending)
+    backend.pause()
+    try await waitFor { delegate.currentID == "b" }
+
+    #expect(delegate.finishes == 1)
+    #expect(delegate.currentID == "b")
+    #expect(backend.state == .paused, "the pause on the boundary was undone")
+}
+
+/// I-1.3: removing the entry that is loaded moves the player to the next
+/// entry. The old item kept playing as an orphan no entry named, and its end
+/// stopped the queue.
+@Test func removingTheLoadedEntryMovesThePlayerToTheNextOne() async throws {
+    let url = try makeSilentWAV(seconds: 4)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let backend = AVQueuePlayerBackend()
+    let delegate = NowPlayingTestDelegate()
+    backend.backendDelegate = delegate
+    defer { backend.stop() }
+    backend.setQueue(
+        [makeEntry("a", url: url), makeEntry("b", url: url), makeEntry("c", url: url)],
+        startingAt: 0,
+        startPaused: true
+    )
+    try await waitFor { delegate.currentID == "a" }
+
+    backend.removeQueueEntry(at: 0)
+    try await waitFor { delegate.currentID == "b" }
+
+    #expect(backend.queue.map(\.id) == ["b", "c"])
+    #expect(delegate.currentID == "b", "the player still holds the removed entry's item")
+    #expect(backend.state == .paused, "a paused queue stays paused")
 }
 
 }

@@ -264,6 +264,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// lookahead-окну: `player.items()` недоступен извне класса.
     var preloadedItemCount: Int { player.items().count }
     var preloadedItemIdentities: [ObjectIdentifier] { player.items().map(ObjectIdentifier.init) }
+    /// The loaded item, so a test can post its end-of-item notification.
+    var currentPlayerItem: AVPlayerItem? { player.currentItem }
     #endif
 
     /// Ставит текущий трек и до `lookaheadItemCount` следующих: успешник уже
