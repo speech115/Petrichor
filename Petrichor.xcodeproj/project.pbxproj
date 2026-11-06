@@ -199,6 +199,7 @@
 				FolderScanTests.swift,
 				LibraryPathStoreTests.swift,
 				M3UImportTests.swift,
+				PlayCountSyncTests.swift,
 				PlaybackErrorMappingTests.swift,
 				PlaybackStartTests.swift,
 				QueueBackendTests.swift,
