@@ -214,13 +214,27 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     func removeQueueEntry(at index: Int) {
         guard entries.indices.contains(index) else { return }
+        let removesLoadedEntry = index == currentIndex && player.currentItem != nil
         entries.remove(at: index)
         if index < currentIndex {
             currentIndex -= 1
         } else if index == currentIndex {
             currentIndex = min(currentIndex, max(0, entries.count - 1))
         }
-        refillUpcomingItems()
+        if removesLoadedEntry, index < entries.count {
+            // Its item must leave the player too: left in place it plays as an
+            // orphan no entry names, and its end stops the queue (I-1.3, D-6).
+            // The entry that took its index loads in the same play state.
+            rebuildPlayerItems(startPaused: !wantsPlayback)
+        } else if removesLoadedEntry {
+            // It was the last entry: the queue has ended, as after a failed
+            // last track (`resume()` reloads from `currentIndex`).
+            wantsPlayback = false
+            player.removeAllItems()
+            clearItemTracking()
+        } else {
+            refillUpcomingItems()
+        }
         notifyStateIfChanged()
     }
 
@@ -456,7 +470,11 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
         }
         removeTracking(for: item)
         player.advanceToNextItem()
-        player.play()
+        // Only if still wanted: a pause that landed while this end-of-item
+        // event waited on main keeps the next track paused (I-1.5, D-7).
+        if wantsPlayback {
+            player.play()
+        }
         refillUpcomingItems()
     }
 
