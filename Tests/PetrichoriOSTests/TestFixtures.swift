@@ -43,11 +43,45 @@ final class TestMetadataReader: MetadataReader, @unchecked Sendable {
         lock.unlock()
     }
 
+    private var held: Set<String> = []
+    private var waiting: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    /// Makes every read of a file with this name wait until `release`, so a
+    /// test can hold a scan in flight at a known point.
+    func hold(fileNamed name: String) {
+        lock.withLock { _ = held.insert(name) }
+    }
+
+    func release(fileNamed name: String) {
+        let continuations = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            held.remove(name)
+            return waiting.removeValue(forKey: name) ?? []
+        }
+        continuations.forEach { $0.resume() }
+    }
+
+    /// Whether a read of the held file is waiting for `release`.
+    func isWaiting(onFileNamed name: String) -> Bool {
+        lock.withLock { !(waiting[name] ?? []).isEmpty }
+    }
+
+    private func waitIfHeld(_ name: String) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let parked = lock.withLock { () -> Bool in
+                guard held.contains(name) else { return false }
+                waiting[name, default: []].append(continuation)
+                return true
+            }
+            if !parked { continuation.resume() }
+        }
+    }
+
     func extractMetadata(
         from url: URL,
         externalArtwork: Data?,
         artworkCache: ArtworkCompressionCache?
     ) async -> TrackMetadata {
+        await waitIfHeld(url.lastPathComponent)
         var metadata = TrackMetadata(url: url)
         let base = url.deletingPathExtension().lastPathComponent
 

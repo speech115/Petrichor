@@ -45,35 +45,29 @@ extension LibraryManager {
     /// every reconciliation: the scan above only looks at audio files, so a
     /// playlist edit must be checked on its own, against the mtimes remembered
     /// from the last import (ADR-0002).
+    ///
+    /// A trigger that arrives while a reconciliation runs is not dropped: it
+    /// waits for one follow-up pass (I-5.2, D-4), since the running one may
+    /// have checked `Documents` before the change it is about.
     func reconcileLibrary() async throws {
-        let shouldStart = await MainActor.run { () -> Bool in
-            guard !isReconcilingLibrary else { return false }
-            isReconcilingLibrary = true
-            return true
+        try await reconciliationRunner.run { [weak self] in
+            try await self?.performReconciliation()
         }
-        guard shouldStart else {
-            Logger.info("Library reconciliation already in progress, skipping duplicate trigger")
-            return
+    }
+
+    private func performReconciliation() async throws {
+        if databaseManager.getAllFolders().isEmpty {
+            try await scanLibraryRoot()
+        } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
+            try await scanLibraryRoot()
+        } else {
+            Logger.info("Library contents unchanged, skipping reconciliation")
         }
 
-        do {
-            if databaseManager.getAllFolders().isEmpty {
-                try await scanLibraryRoot()
-            } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
-                try await scanLibraryRoot()
-            } else {
-                Logger.info("Library contents unchanged, skipping reconciliation")
-            }
-
-            await importLibraryPlaylistsIfNeeded()
-            await MainActor.run { isReconcilingLibrary = false }
-            // The system search index is kept in step from `scanLibraryRoot()`
-            // (the single scheduling call site): a launch whose contents did
-            // not change never scans, and never needs a resync.
-        } catch {
-            await MainActor.run { isReconcilingLibrary = false }
-            throw error
-        }
+        await importLibraryPlaylistsIfNeeded()
+        // The system search index is kept in step from `scanLibraryRoot()`
+        // (the single scheduling call site): a launch whose contents did
+        // not change never scans, and never needs a resync.
     }
 
     /// iOS entry point: the library *is* the app's own `Documents` folder, so
@@ -93,21 +87,21 @@ extension LibraryManager {
     /// main-actor observation object) and through
     /// `NotificationManager.shared`'s activity tray, so adding a parallel
     /// progress mechanism here would just be a second, redundant channel.
+    ///
+    /// One scan at a time. A request that arrives mid-scan (Rescan, a file
+    /// import) waits for one follow-up scan instead of returning at once: the
+    /// running scan may have listed the folder before the new files landed
+    /// (I-5.2, D-4).
     func scanLibraryRoot() async throws {
-        let shouldStart = await MainActor.run { () -> Bool in
-            guard !isScanningLibraryRoot else { return false }
-            isScanningLibraryRoot = true
-            return true
+        try await rootScanRunner.run { [weak self] in
+            try await self?.performRootScan()
         }
-        guard shouldStart else {
-            Logger.info("Library root scan already in progress, skipping duplicate trigger")
-            return
-        }
-        // Every exit path — including the empty-folders guard below — must
-        // clear the gate, or a single empty result wedges rescan forever.
-        // `LibraryManager` is `@MainActor`, so the flag clears synchronously.
-        defer { isScanningLibraryRoot = false }
+    }
 
+    /// Whether a scan of the library root is in flight.
+    var isScanningLibraryRoot: Bool { rootScanRunner.isRunning }
+
+    private func performRootScan() async throws {
         let root = LibraryPathStore.libraryRoot
         let folders = try await databaseManager.addFoldersAsync([root], bookmarkDataMap: [:])
         guard !folders.isEmpty else { return }

@@ -64,12 +64,11 @@ final actor SpotlightIndexer {
     }
 
     private let snapshotDirectory = URL.applicationSupportDirectory.appending(path: "Spotlight", directoryHint: .isDirectory)
-    private var isSyncing = false
-    /// Set by `resetIndex` when a database reset lands while a sync is
-    /// mid-flight. The in-flight pass is allowed to finish, then a fresh pass
-    /// re-runs against the post-reset database instead of leaving the
-    /// pre-reset snapshot in place.
-    private var resetPending = false
+    /// One pass at a time. A trigger that lands mid-pass - a library change,
+    /// the end of a scan, a database reset - asks for one more pass instead of
+    /// being dropped: the running pass may have read the database before the
+    /// change (I-6.2, I-6.3, D-4).
+    private var gate = RerunGate()
     /// Bumped by `resetIndex` before it wipes the index and snapshots. A pass
     /// captures this at its start and aborts before any write once it changes,
     /// so a mid-flight pass cannot write its pre-reset snapshot back over the
@@ -187,32 +186,25 @@ final actor SpotlightIndexer {
     }
 
     func syncAfterReconciliation(databaseManager: DatabaseManager) async {
-        guard !isSyncing else {
-            Logger.info("Spotlight sync already in progress, skipping duplicate trigger")
+        guard gate.request() else {
+            Logger.info("Spotlight sync in progress, another pass will follow it")
             return
         }
-        isSyncing = true
-        defer { isSyncing = false }
-
-        // A reset requested mid-sync (`resetPending`) re-runs the pass once
-        // the current one ends, so the snapshot never survives under stale
-        // pre-reset content.
         repeat {
-            resetPending = false
             do {
                 try await performSync(databaseManager: databaseManager)
             } catch {
                 Logger.error("Spotlight sync failed: \(error)")
             }
-        } while resetPending
+        } while gate.finishPass()
     }
 
     /// Clears the system index and the three id/digest snapshots outright,
     /// then runs a normal sync: with an empty snapshot every current row
     /// reads as new and gets freshly indexed, so nothing from before the
-    /// reset can survive under a reused id. Not gated on `isSyncing` - a
-    /// reset must win even if a sync happens to be mid-flight, since the
-    /// database underneath it was just erased regardless.
+    /// reset can survive under a reused id. The wipe is not gated - a reset
+    /// must win even if a sync happens to be mid-flight, since the database
+    /// underneath it was just erased regardless.
     func resetIndex(databaseManager: DatabaseManager) async {
         // Bump the generation before touching anything: a pass mid-flight
         // checks this before every write and aborts once it changes, so its
@@ -229,15 +221,10 @@ final actor SpotlightIndexer {
         }
         Logger.info("Spotlight: cleared the index and snapshot after a database reset")
 
-        // A sync already in flight holds pre-reset reads; its own snapshot
-        // write would resurrect the stale state this wipe just removed. Ask
-        // it to re-run after it ends rather than syncing here (which would
-        // return early on `isSyncing` and lose the resync entirely).
-        if isSyncing {
-            resetPending = true
-        } else {
-            await syncAfterReconciliation(databaseManager: databaseManager)
-        }
+        // A sync already in flight holds pre-reset reads and stops writing
+        // once it sees the new generation; the gate then runs one more pass
+        // against the post-reset database.
+        await syncAfterReconciliation(databaseManager: databaseManager)
     }
 
     // MARK: - Sync

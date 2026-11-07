@@ -77,14 +77,13 @@ class LibraryManager: ObservableObject {
     internal let securityScopedFolderURLsLock = NSLock()
     private var pendingLibraryReload: DispatchWorkItem?
     /// Serializes launch/foreground reconciliation. Scene-phase transitions can
-    /// arrive again while the filesystem walk is still running; without this
-    /// gate every caller starts another full scan against the same root.
-    internal var isReconcilingLibrary = false
+    /// arrive again while the filesystem walk is still running; the runner
+    /// keeps them to one pass at a time plus one follow-up.
+    internal let reconciliationRunner = CoalescingRunner()
     /// Serializes `scanLibraryRoot()` itself. The Settings "Rescan" button calls
     /// it directly (not through `reconcileLibrary()`), and `isScanning` flips
-    /// late inside `addFoldersAsync`; this gate closes the window where two
-    /// scans race the same root.
-    internal var isScanningLibraryRoot = false
+    /// late inside `addFoldersAsync`; two scans never race the same root.
+    internal let rootScanRunner = CoalescingRunner()
 
     // Database manager. `nonisolated`: a pure `Sendable` `DatabasePool` wrapper
     // (see `DatabaseManager`'s own doc comment), so the handful of read-only
