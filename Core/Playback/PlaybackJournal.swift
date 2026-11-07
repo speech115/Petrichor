@@ -139,12 +139,23 @@ enum PlaybackJournalCodec {
         }
     }
 
+    /// Every newline-terminated line must decode. A last line without its
+    /// newline may be torn (the writer was killed mid-append, or the sync job
+    /// copied the file while it grew): it is returned when it decodes and
+    /// otherwise left for the next read, so one torn line never stops the
+    /// whole journal.
     static func decodeLines(_ text: String) throws -> [PlaybackJournalEvent] {
-        try text
+        var lines = text
             .split(whereSeparator: \.isNewline)
             .map(String.init)
+        let tail = text.last?.isNewline == false ? lines.popLast() : nil
+        var events = try lines
             .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             .map(decodeLine)
+        if let tail, let event = try? decodeLine(tail) {
+            events.append(event)
+        }
+        return events
     }
 
     enum CodecError: Error, Equatable {

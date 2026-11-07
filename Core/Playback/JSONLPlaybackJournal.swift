@@ -87,9 +87,9 @@ final class JSONLPlaybackJournal: PlaybackJournal {
         let data = Data(payload.utf8)
 
         if fileManager.fileExists(atPath: fileURL.path) {
-            let handle = try FileHandle(forWritingTo: fileURL)
+            let handle = try FileHandle(forUpdating: fileURL)
             defer { try? handle.close() }
-            let offset = try handle.seekToEnd()
+            let offset = try dropTornTail(of: handle)
             do {
                 try handle.write(contentsOf: data)
             } catch {
@@ -100,5 +100,33 @@ final class JSONLPlaybackJournal: PlaybackJournal {
         } else {
             try data.write(to: fileURL, options: .atomic)
         }
+    }
+
+    /// A kill mid-append can leave a line without its newline. Appending after
+    /// it would glue the next event onto the fragment and turn both into one
+    /// malformed line, so the fragment is cut back to the last newline first.
+    /// Returns the offset the next append starts at.
+    nonisolated private static func dropTornTail(of handle: FileHandle) throws -> UInt64 {
+        let end = try handle.seekToEnd()
+        guard end > 0 else { return end }
+        let newline = UInt8(ascii: "\n")
+        var offset = end
+        // Lines are a few hundred bytes; read backwards in small chunks.
+        while offset > 0 {
+            let chunkStart = offset - min(offset, 4_096)
+            try handle.seek(toOffset: chunkStart)
+            let chunk = try handle.read(upToCount: Int(offset - chunkStart)) ?? Data()
+            if let index = chunk.lastIndex(of: newline) {
+                let lineEnd = chunkStart + UInt64(index - chunk.startIndex) + 1
+                if lineEnd == end { return end }
+                try handle.truncate(atOffset: lineEnd)
+                Logger.warning("PlaybackJournal dropped a torn line of \(end - lineEnd) bytes")
+                return try handle.seekToEnd()
+            }
+            offset = chunkStart
+        }
+        try handle.truncate(atOffset: 0)
+        Logger.warning("PlaybackJournal dropped a torn line of \(end) bytes")
+        return try handle.seekToEnd()
     }
 }
