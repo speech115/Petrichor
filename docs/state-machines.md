@@ -57,8 +57,8 @@ iOS-таргета: состояния, инварианты, таблицы п�
 | любое | media services reset | то же | новый `AVQueuePlayer`, окно пересобрано, seek к позиции |
 | любое | `clearQueue()` / `stop()` | stopped | `wantsPlayback = false` |
 
-Достижимые нарушения: **D-6** (I-1.3 после удаления текущей записи),
-**D-7** (I-1.5 на границе трека).
+Найденные нарушения: **D-6** (I-1.3 после удаления текущей записи),
+**D-7** (I-1.5 на границе трека) — оба исправлены в #99.
 
 ## SM-2. Очередь приложения и её зеркало в движке
 
@@ -104,8 +104,8 @@ iOS-таргета: состояния, инварианты, таблицы п�
 | Mirrored | запись не декодируется | Mirrored | `dropSkippedEntry` из `mirror` и `currentQueue` |
 | любое | `clearQueue` / `stop` | Idle | всё обнуляется |
 
-Достижимые нарушения: **D-1** (I-2.2), **D-2** (I-2.1 и I-2.2), **D-6**
-(I-2.5 через гонку `clearInjectedNext`).
+Найденные нарушения: **D-1** (I-2.2), **D-2** (I-2.1 и I-2.2) — исправлены в #96;
+**D-6** (I-2.5 через гонку `clearInjectedNext`) — исправлен в #99.
 
 ## SM-3. Восстановление воспроизведения при запуске
 
@@ -149,11 +149,13 @@ iOS-таргета: состояния, инварианты, таблицы п�
 | Loading | decode fail, старше 7 дней, < 50 % очереди | Discarded |
 | Loading | трек нечитаем | Discarded |
 | Loading | текущий трек найден | Applied |
-| Loading | текущий трек не найден в очереди | **плитка остаётся** (D-3) |
+| Loading | текущий трек не найден в очереди | плитка снимается (до #96 оставалась, D-3) |
 | TileShown…Loading | Play | + PlayLatched |
 | Applied | Play | SM-2 Mirrored (через ResumePending, если позиция > 0) |
 
-Достижимые нарушения: **D-2** (I-3.3), **D-3** (I-3.1, I-3.2).
+Найденные нарушения: **D-2** (I-3.3), **D-3** (I-3.1, I-3.2) — исправлены в #96:
+пользовательская сессия в движке (`hasEngineSession`) блокирует применение
+восстановления.
 
 ## SM-4. Аудиосессия и прерывания (`AudioSessionController`)
 
@@ -180,8 +182,8 @@ iOS-таргета: состояния, инварианты, таблицы п�
 ## SM-5. Сверка библиотеки и скан (iOS)
 
 `LibraryReconciliation` + `DMFolders.addFoldersAsync` + `ScanActivityObservation`.
-Флаги-ворота: `isReconcilingLibrary`, `isScanningLibraryRoot`; флаги
-онбординга: `isInitialOnboardingScan`, `hasReachedInitialScanThreshold`.
+Ворота: `reconciliationRunner`, `rootScanRunner` (`CoalescingRunner`: один
+проход и не больше одного следующего за ним); флаги онбординга: `isInitialOnboardingScan`, `hasReachedInitialScanThreshold`.
 
 Состояния ворот сверки: **Idle** → **Reconciling** (проверка изменений) →
 **Scanning** → **ImportingM3U** → Idle.
@@ -199,14 +201,14 @@ iOS-таргета: состояния, инварианты, таблицы п�
 | Reconciling | папок нет или файлы изменились | Scanning |
 | Reconciling | без изменений | ImportingM3U |
 | Scanning | готово / throw | ImportingM3U / Idle |
-| Reconciling, Scanning | ещё один foreground | **отброшено** (D-4) |
-| Scanning | «Rescan» / импорт файлов из пикера | **отброшено** (D-4) |
+| Reconciling, Scanning | ещё один foreground | ждёт один следующий проход |
+| Scanning | «Rescan» / импорт файлов из пикера | ждёт один следующий проход, вызов возвращается после него |
 
-Достижимое нарушение: **D-4** (I-5.2).
+До #97 эти переходы отбрасывались (**D-4**, I-5.2); исправлено.
 
 ## SM-6. Синхронизация Spotlight (`SpotlightIndexer`, actor)
 
-Флаги: `isSyncing`, `resetPending`, `resetGeneration`; снимки на диске —
+Состояние: `gate` (`RerunGate`), `resetGeneration`; снимки на диске —
 курсор полного прохода.
 
 - **I-6.1** Пишет снимок только проход, начатый после последнего reset
@@ -219,12 +221,12 @@ iOS-таргета: состояния, инварианты, таблицы п�
 | Из | Событие | В |
 |---|---|---|
 | Idle | `scheduleSync` | Syncing |
-| Syncing | `scheduleSync` | **отброшено** (D-4) |
-| Syncing | `resetIndex` | Syncing + resetPending, generation+1 |
-| Syncing | проход закончен, resetPending | Syncing (повтор) |
+| Syncing | `scheduleSync` | Syncing, отмечен повтор |
+| Syncing | `resetIndex` | wipe, generation+1, отмечен повтор |
+| Syncing | проход закончен, отмечен повтор | Syncing (повтор) |
 | Idle | `resetIndex` | wipe → Syncing |
 
-Достижимое нарушение: **D-4** (I-6.3).
+До #97 `scheduleSync` во время прохода отбрасывался (**D-4**, I-6.3); исправлено.
 
 ## SM-7. Журнал прослушиваний
 
@@ -241,8 +243,9 @@ Idle; при ошибке батч возвращается в начало `pen
 - **I-7.4** Счётчик прослушиваний — сумма локальных и пришедших событий,
   ни одно не теряется.
 
-Достижимые нарушения: **D-5** (I-7.4, гонка read-modify-write), **D-8**
-(I-7.3 для событий в ту же секунду и для событий, не нашедших трек).
+Найденные нарушения: **D-5** (I-7.4, гонка read-modify-write), **D-8**
+(I-7.3 для событий в ту же секунду и для событий, не нашедших трек) —
+исправлены в #98.
 
 ## SM-8. Открытие базы (`AppLaunch`)
 
@@ -285,14 +288,14 @@ background task закрывается ровно один раз. Наруше�
 
 | ID | Приоритет | Машина | Статус |
 |---|---|---|---|
-| D-1 | P1 | SM-2 | фикс и тест в #96 (`QueueCursorTests`) |
-| D-2 | P2 | SM-2, SM-3 | фикс и тест в #96 (`RestorationRaceTests`) |
-| D-3 | P2 | SM-3 | фикс и тест в #96 (`RestorationRaceTests`) |
-| D-4 | P2 | SM-5, SM-6 | фикс и тесты в #97 (`ScanRequestTests`, `CoalescingRunnerTests`) |
-| D-5 | P3 | SM-7 | фикс и тесты в #98 (`PlayCountSyncTests`) |
-| D-6 | P3 | SM-1, SM-2 | фикс и тест в #99 (`QueueBackendTests`) |
-| D-7 | P3 | SM-1 | фикс и тест в #99 (`QueueBackendTests`) |
-| D-8 | P3 | SM-7 | фикс и тесты в #98 (`PlaybackJournalTests`) |
+| D-1 | P1 | SM-2 | исправлен в #96 (`QueueCursorTests`) |
+| D-2 | P2 | SM-2, SM-3 | исправлен в #96 (`RestorationRaceTests`) |
+| D-3 | P2 | SM-3 | исправлен в #96 (`RestorationRaceTests`) |
+| D-4 | P2 | SM-5, SM-6 | исправлен в #97 (`ScanRequestTests`, `CoalescingRunnerTests`) |
+| D-5 | P3 | SM-7 | исправлен в #98 (`PlayCountSyncTests`) |
+| D-6 | P3 | SM-1, SM-2 | исправлен в #99 (`QueueBackendTests`) |
+| D-7 | P3 | SM-1 | исправлен в #99 (`QueueBackendTests`) |
+| D-8 | P3 | SM-7 | исправлен в #98 (`PlaybackJournalTests`) |
 
 ### D-1. Курсор очереди не совпадает с играющим треком
 
