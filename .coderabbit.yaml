@@ -89,7 +89,7 @@ reviews:
     - path: "Utilities/{LibraryPathStore,AppearanceApplier,PlatformShims}.swift"
       instructions: *seams
 
-    - path: "{Configuration/**,**/*.entitlements,Managers/ScrobbleManager.swift,Managers/ArtistBioManager.swift,Utilities/KeychainManager.swift}"
+    - path: "{Configuration/**,**/*.entitlements,Managers/ArtistBioManager.swift}"
       instructions: |
         Безопасность: утечки ключей и секретов (Secrets.xcconfig не должен
         попадать в репо), логирование токенов, HTTP вместо HTTPS, лишние

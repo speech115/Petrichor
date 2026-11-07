@@ -50,11 +50,9 @@
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
 
-    <!--  Last.fm Scrobble  -->
+    <!--  Last.fm artist bios  -->
     <key>LASTFM_API_KEY</key>
     <string>$(LASTFM_API_KEY)</string>
-    <key>LASTFM_SHARED_SECRET</key>
-    <string>$(LASTFM_SHARED_SECRET)</string>
 
     <!--  TMDB  -->
     <key>TMDB_READ_ACCESS_TOKEN</key>
