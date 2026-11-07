@@ -27,9 +27,8 @@ permissions:
   contents: read
 
 env:
-  # Xcode for GitHub-hosted runners: the newest the macos-26 image ships (no
-  # Xcode 27 there yet). Sergei's Mac builds with its own Xcode (27.1 as of
-  # 2026-11), the toolchain he ships from; bump this once the image has 27.x.
+  # The newest Xcode the macos-26 image ships (no Xcode 27 there yet); bump
+  # this once the image has 27.x.
   # The SwiftLint image tag in the lint job is the single lint-version pin.
   XCODE_VERSION: '26.6'
   SCHEME: 'Petrichor'
@@ -106,17 +105,10 @@ jobs:
 
   # Single macOS job: compile once, analyze in the same pass, then run the
   # platform-neutral unit tests against the same build.
-  # macOS jobs for main and same-repo PRs run on Sergei's Mac (runner label
-  # petrichor-mac); fork PRs never reach it and stay on GitHub-hosted macos-26.
-  # Mac off or asleep: set repo variable CI_MAC_RUNNER=macos-26 to send
-  # everything back to GitHub-hosted runners.
   build-analyze:
     name: Build & Analyze (Debug)
-    # Always GitHub-hosted: its macOS unit tests need a GUI login session for
-    # testmanagerd, and the self-hosted runners run as a LaunchDaemon user
-    # (ghrunner) without one.
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     steps:
@@ -131,36 +123,19 @@ jobs:
       - name: Restore source mtimes
         run: python3 .github/scripts/restore-mtimes.py
 
-      # GitHub-hosted: pinned Xcode via xcode-select, DerivedData/SwiftPM in the
-      # paths actions/cache restores. Self-hosted (Sergei's Mac): no sudo, so
-      # DEVELOPER_DIR; DerivedData/SwiftPM persist per runner and job outside the
-      # checkout, which is what makes builds there incremental.
+      # Pinned Xcode via xcode-select, DerivedData/SwiftPM in the paths
+      # actions/cache restores.
       - name: Select Xcode and build paths
-        env:
-          RUNNER_ENV: ${{ runner.environment }}
-          JOB_ID: ${{ github.job }}
         run: |
           XCODE="/Applications/Xcode_${XCODE_VERSION}.app"
-          if [ "$RUNNER_ENV" = "self-hosted" ]; then
-            # The pinned Xcode if installed there, else the Mac's own selected Xcode.
-            [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
-            BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            {
-              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
-              echo "DD_DIR=$BASE/DerivedData"
-              echo "SPM_DIR=$BASE/spm"
-            } >> "$GITHUB_ENV"
-          else
-            sudo xcode-select -s "$XCODE"
-            {
-              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
-              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
-            } >> "$GITHUB_ENV"
-          fi
+          sudo xcode-select -s "$XCODE"
+          {
+            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+          } >> "$GITHUB_ENV"
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
       - name: Cache SwiftPM
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -169,7 +144,6 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -250,8 +224,8 @@ jobs:
   # tests run on every PR, on the same Xcode version used locally.
   ios-test:
     name: iOS Build & Test
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_MAC_RUNNER || 'petrichor-mac') || 'macos-26' }}
-    timeout-minutes: 30
+    runs-on: macos-26
+    timeout-minutes: 45
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     steps:
@@ -266,32 +240,16 @@ jobs:
       - name: Restore source mtimes
         run: python3 .github/scripts/restore-mtimes.py
 
-      # GitHub-hosted: pinned Xcode via xcode-select, DerivedData/SwiftPM in the
-      # paths actions/cache restores. Self-hosted (Sergei's Mac): no sudo, so
-      # DEVELOPER_DIR; DerivedData/SwiftPM persist per runner and job outside the
-      # checkout, which is what makes builds there incremental.
+      # Pinned Xcode via xcode-select, DerivedData/SwiftPM in the paths
+      # actions/cache restores.
       - name: Select Xcode and build paths
-        env:
-          RUNNER_ENV: ${{ runner.environment }}
-          JOB_ID: ${{ github.job }}
         run: |
           XCODE="/Applications/Xcode_${XCODE_VERSION}.app"
-          if [ "$RUNNER_ENV" = "self-hosted" ]; then
-            # The pinned Xcode if installed there, else the Mac's own selected Xcode.
-            [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
-            BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            {
-              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
-              echo "DD_DIR=$BASE/DerivedData"
-              echo "SPM_DIR=$BASE/spm"
-            } >> "$GITHUB_ENV"
-          else
-            sudo xcode-select -s "$XCODE"
-            {
-              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
-              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
-            } >> "$GITHUB_ENV"
-          fi
+          sudo xcode-select -s "$XCODE"
+          {
+            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+          } >> "$GITHUB_ENV"
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
       # The macos-26 image can ship Xcode without iOS simulator runtimes (runner-images
@@ -299,7 +257,6 @@ jobs:
       # on demand. `xcrun simctl list` first wakes CoreSimulator so downloadPlatform can
       # connect. No-op when the image already carries the runtime.
       - name: Download iOS simulator runtime
-        if: runner.environment == 'github-hosted'
         run: |
           xcrun simctl list > /dev/null
           if xcrun simctl list devices available | grep -q "iPhone 17 Pro Max"; then
@@ -323,7 +280,6 @@ jobs:
           }
 
       - name: Cache SwiftPM
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -332,7 +288,6 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -365,14 +320,9 @@ jobs:
       # internal timeout (Code=-56), and the one-time "Ready for Apple Intelligence"
       # banner covers the Home title and fails its contrast audit. Booted after the
       # cache restores: booting first slowed the SwiftPM download to ~3 MB/s.
-      # Self-hosted: a dedicated device per runner, so CI never drives a simulator
-      # Sergei has open and two runners never share one.
       - name: Boot iOS simulator
-        env:
-          RUNNER_ENV: ${{ runner.environment }}
         run: |
           NAME="iPhone 17 Pro Max"
-          [ "$RUNNER_ENV" = "self-hosted" ] && NAME="petrichor-ci-$RUNNER_NAME"
           UDID=$(xcrun simctl list devices available -j | python3 -c '
           import json, sys
           name = sys.argv[1]
@@ -381,9 +331,6 @@ jobs:
           hits = [d["udid"] for k in reversed(ios) for d in devices[k] if d["name"] == name]
           print(hits[0] if hits else "")
           ' "$NAME")
-          if [ -z "$UDID" ] && [ "$RUNNER_ENV" = "self-hosted" ]; then
-            UDID=$(xcrun simctl create "$NAME" "iPhone 17 Pro Max")
-          fi
           [ -n "$UDID" ] || { echo "::error::No simulator named $NAME"; exit 1; }
           echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
           xcrun simctl boot "$UDID" || xcrun simctl bootstatus "$UDID"
@@ -449,43 +396,26 @@ jobs:
   ios-release-build:
     name: iOS Release Build
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 45
     if: github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # GitHub-hosted: pinned Xcode via xcode-select, DerivedData/SwiftPM in the
-      # paths actions/cache restores. Self-hosted (Sergei's Mac): no sudo, so
-      # DEVELOPER_DIR; DerivedData/SwiftPM persist per runner and job outside the
-      # checkout, which is what makes builds there incremental.
+      # Pinned Xcode via xcode-select, DerivedData/SwiftPM in the paths
+      # actions/cache restores.
       - name: Select Xcode and build paths
-        env:
-          RUNNER_ENV: ${{ runner.environment }}
-          JOB_ID: ${{ github.job }}
         run: |
           XCODE="/Applications/Xcode_${XCODE_VERSION}.app"
-          if [ "$RUNNER_ENV" = "self-hosted" ]; then
-            # The pinned Xcode if installed there, else the Mac's own selected Xcode.
-            [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
-            BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            {
-              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
-              echo "DD_DIR=$BASE/DerivedData"
-              echo "SPM_DIR=$BASE/spm"
-            } >> "$GITHUB_ENV"
-          else
-            sudo xcode-select -s "$XCODE"
-            {
-              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
-              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
-            } >> "$GITHUB_ENV"
-          fi
+          sudo xcode-select -s "$XCODE"
+          {
+            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+          } >> "$GITHUB_ENV"
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
       # Same insurance as ios-test: macos-26 may omit simulator runtimes.
       - name: Download iOS simulator runtime
-        if: runner.environment == 'github-hosted'
         run: |
           xcrun simctl list > /dev/null
           if xcrun simctl list devices available | grep -q "iPhone 17 Pro Max"; then
@@ -509,7 +439,6 @@ jobs:
           }
 
       - name: Cache SwiftPM
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -518,7 +447,6 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
@@ -566,8 +494,8 @@ jobs:
   # Signing/notarization/DMG/Sparkle stay in the local release flow.
   release-build:
     name: Release Build Check
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_MAC_RUNNER || 'petrichor-mac') || 'macos-26' }}
-    timeout-minutes: 30
+    runs-on: macos-26
+    timeout-minutes: 45
     needs: [changes]
     if: needs.changes.outputs.code == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))))
     steps:
@@ -582,36 +510,19 @@ jobs:
       - name: Restore source mtimes
         run: python3 .github/scripts/restore-mtimes.py
 
-      # GitHub-hosted: pinned Xcode via xcode-select, DerivedData/SwiftPM in the
-      # paths actions/cache restores. Self-hosted (Sergei's Mac): no sudo, so
-      # DEVELOPER_DIR; DerivedData/SwiftPM persist per runner and job outside the
-      # checkout, which is what makes builds there incremental.
+      # Pinned Xcode via xcode-select, DerivedData/SwiftPM in the paths
+      # actions/cache restores.
       - name: Select Xcode and build paths
-        env:
-          RUNNER_ENV: ${{ runner.environment }}
-          JOB_ID: ${{ github.job }}
         run: |
           XCODE="/Applications/Xcode_${XCODE_VERSION}.app"
-          if [ "$RUNNER_ENV" = "self-hosted" ]; then
-            # The pinned Xcode if installed there, else the Mac's own selected Xcode.
-            [ -d "$XCODE" ] || XCODE="$(dirname "$(dirname "$(xcode-select -p)")")"
-            BASE="$HOME/Library/Caches/petrichor-ci/$RUNNER_NAME/$JOB_ID"
-            {
-              echo "DEVELOPER_DIR=$XCODE/Contents/Developer"
-              echo "DD_DIR=$BASE/DerivedData"
-              echo "SPM_DIR=$BASE/spm"
-            } >> "$GITHUB_ENV"
-          else
-            sudo xcode-select -s "$XCODE"
-            {
-              echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
-              echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
-            } >> "$GITHUB_ENV"
-          fi
+          sudo xcode-select -s "$XCODE"
+          {
+            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+          } >> "$GITHUB_ENV"
           DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
 
       - name: Cache SwiftPM
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: .spm
@@ -620,7 +531,6 @@ jobs:
             ${{ runner.os }}-spm-
 
       - name: Cache DerivedData
-        if: runner.environment == 'github-hosted'
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
