@@ -51,8 +51,16 @@ final class PerformanceUITests: XCTestCase {
     /// library is already in the database, as on every launch but the first.
     func testLaunch() throws {
         let app = makeApp()
-        measure(metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true)]) {
+        let options = XCTMeasureOptions()
+        options.invocationOptions = [.manuallyStop]
+        // Waiting for Home before stopping, then terminating, keeps each
+        // iteration's responsiveness mark inside its own window: a bare
+        // relaunch loop lost it in one iteration out of five on CI.
+        measure(metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true)], options: options) {
             app.launch()
+            XCTAssertTrue(app.buttons["home.favorites"].waitForExistence(timeout: 60), "Home не открылся")
+            stopMeasuring()
+            app.terminate()
         }
     }
 
@@ -62,11 +70,15 @@ final class PerformanceUITests: XCTestCase {
     /// iterations with different metric counts.
     func testHomeReady() throws {
         let app = makeApp()
+        let options = XCTMeasureOptions()
+        options.invocationOptions = [.manuallyStop]
         measure(metrics: [
             XCTOSSignpostMetric(subsystem: Self.subsystem, category: Self.pointsOfInterest, name: "Prepare Home"),
-        ]) {
+        ], options: options) {
             app.launch()
             XCTAssertTrue(app.buttons["home.favorites"].waitForExistence(timeout: 60), "Home не открылся")
+            stopMeasuring()
+            app.terminate()
         }
     }
 
