@@ -6,19 +6,6 @@ import Testing
 // reconciliation and Spotlight sync (docs/state-machines.md, I-5.1, I-5.2,
 // I-6.3).
 
-/// SplitMix64: a fixed seed gives the same event sequences on every run.
-private struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-    init(seed: UInt64) { state = seed }
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
-
 /// For any interleaving of triggers and pass ends: one pass at a time, the
 /// gate's view matches the driver's, and every trigger is served by a pass
 /// that starts at or after it.
