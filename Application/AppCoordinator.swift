@@ -46,7 +46,6 @@ class AppCoordinator: ObservableObject {
     /// snapshot never lands after a newer one.
     private var snapshotWrite: Task<Void, Never>?
     nonisolated static let positionMarkInterval: TimeInterval = 15
-    nonisolated static let snapshotDebounce: DispatchQueue.SchedulerTimeType.Stride = .seconds(1)
     
     // MARK: - Initialization
     
@@ -119,7 +118,7 @@ class AppCoordinator: ObservableObject {
             playlists.$repeatMode.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
             playlists.$currentQueueSource.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher()
         )
-        .debounce(for: Self.snapshotDebounce, scheduler: DispatchQueue.main)
+        .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
         .sink { [weak self] in
             MainActor.assumeIsolated { self?.saveSnapshotAfterChange() }
         }
