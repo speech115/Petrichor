@@ -334,20 +334,8 @@ private enum PlaybackJournalTestError: Error {
 
 // MARK: - Torn tails
 
-/// SplitMix64: a fixed-seed generator, so a failing case reproduces.
-private struct SeededGenerator: RandomNumberGenerator {
-    var state: UInt64
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-}
-
 private func randomJournal(seed: UInt64) -> [PlaybackJournalEvent] {
-    var rng = SeededGenerator(state: seed)
+    var rng = SeededGenerator(seed: seed)
     let names = ["a.mp3", "Моя музыка/б.mp3", "Spotify/0239 - Jeune Ras.mp3", "x/\"quoted\".flac"]
     return (0..<Int.random(in: 1...6, using: &rng)).map { index in
         let path = names[Int.random(in: 0..<names.count, using: &rng)]
