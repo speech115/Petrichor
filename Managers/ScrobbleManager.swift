@@ -47,6 +47,12 @@ class ScrobbleManager: ObservableObject {
             UserDefaults.standard.set(true, forKey: "loveSyncEnabled")
         }
         
+        // The first keychain read can take long on macOS; take it here, off
+        // the main thread, so the first track start finds it cached.
+        Task.detached(priority: .utility) {
+            _ = KeychainManager.retrieve(key: KeychainManager.Keys.lastfmSessionKey)
+        }
+
         // Observe favorite status changes
         NotificationCenter.default.addObserver(
             self,
