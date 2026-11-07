@@ -370,9 +370,13 @@ private func waitFor(_ condition: () -> Bool) async throws {
     NotificationCenter.default.post(name: AVPlayerItem.didPlayToEndTimeNotification, object: ending)
     backend.pause()
     try await waitFor { delegate.currentID == "b" }
+    // The handoff's own play() takes a moment to show in timeControlStatus;
+    // give the next track time to play if it was (wrongly) started.
+    try await Task.sleep(for: .seconds(1.5))
 
     #expect(delegate.finishes == 1)
     #expect(delegate.currentID == "b")
+    #expect(backend.currentPlaybackProgress < 0.3, "the next track played through the pause")
     #expect(backend.state == .paused, "the pause on the boundary was undone")
 }
 
