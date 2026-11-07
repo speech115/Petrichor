@@ -144,12 +144,8 @@ struct PlayerView: View {
     // MARK: - Left Section Components
 
     private var albumArtwork: some View {
-        let trackArtworkInfo = playbackManager.currentTrack.map { track in
-            TrackArtworkInfo(id: track.id, artworkData: track.artworkData)
-        }
-
-        return PlayerAlbumArtView(
-            trackInfo: trackArtworkInfo,
+        PlayerAlbumArtView(
+            artwork: playbackManager.nowPlayingArtwork.shown,
             contextMenuItems: currentTrackContextMenuItems
         ) {
             if let currentTrack = playbackManager.currentTrack {

@@ -153,10 +153,10 @@ struct MiniPlayerAccessory: View {
     }
 
     private func artwork(size: CGFloat) -> some View {
-        ArtworkTile(
-            data: playbackPresentation.currentTrack?.displayArtwork,
-            cacheKey: playbackPresentation.currentTrack.map { ArtworkCacheKey.nowPlaying($0.id) },
+        CrossfadeArtwork(
+            artwork: playbackPresentation.artwork,
             cornerRadius: size * 0.15,
+            iconSize: 16,
             maxPixelSize: 180
         )
         .frame(width: size, height: size)

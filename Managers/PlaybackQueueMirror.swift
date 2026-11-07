@@ -176,6 +176,9 @@ extension PlaybackManager {
         currentEntryId = entryId
         currentTime = position
         loadFullTrack(for: track)
+        // The cover does not wait for the audio to open: the engine's start
+        // callback can come a second later.
+        enrichCurrentTrackArtwork(track, publishingMetadata: false)
     }
 
     // MARK: - Queue mirroring (called by PlaylistManager)

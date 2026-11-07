@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import MediaPlayer
+import UIKit
 import Testing
 @testable import Petrichor
 
@@ -403,6 +404,48 @@ private func waitFor(_ condition: () -> Bool) async throws {
     #expect(backend.queue.map(\.id) == ["b", "c"])
     #expect(delegate.currentID == "b", "the player still holds the removed entry's item")
     #expect(backend.state == .paused, "a paused queue stays paused")
+}
+
+
+/// The lock screen and Control Center keep the previous cover until the next
+/// one is decoded, then switch title and cover together. Publishing the new
+/// title first left a tile without artwork on every track change.
+@Test func trackChangeNeverPublishesATileWithoutItsCover() async throws {
+    func cover(_ color: UIColor) -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 64, height: 64)).pngData { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        }
+    }
+    func published() -> [String: Any]? { MPNowPlayingInfoCenter.default().nowPlayingInfo }
+    func waitForTitle(_ title: String) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline, published()?[MPMediaItemPropertyTitle] as? String != title {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    let backend = AVQueuePlayerBackend()
+    defer { backend.setNowPlayingMetadata(nil) }
+    backend.setNowPlayingMetadata(NowPlayingMetadata(title: "A", artworkData: cover(.red)))
+    try await waitForTitle("A")
+    let firstCover = published()?[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork
+    #expect(firstCover != nil)
+
+    backend.setNowPlayingMetadata(NowPlayingMetadata(title: "B", artworkData: cover(.blue)))
+    // Synchronously after the switch: whatever tile is up still has a cover.
+    #expect(published()?[MPMediaItemPropertyArtwork] != nil, "the tile lost its cover on the track change")
+    #expect(published()?[MPMediaItemPropertyTitle] as? String == "A", "the new title went up before its cover")
+
+    try await waitForTitle("B")
+    let secondCover = published()?[MPMediaItemPropertyArtwork] as? MPMediaItemArtwork
+    #expect(published()?[MPMediaItemPropertyTitle] as? String == "B")
+    #expect(secondCover != nil && secondCover !== firstCover, "title and cover change together")
+
+    // A track that has no cover: the tile goes up at once, without one.
+    backend.setNowPlayingMetadata(NowPlayingMetadata(title: "C"))
+    #expect(published()?[MPMediaItemPropertyTitle] as? String == "C")
+    #expect(published()?[MPMediaItemPropertyArtwork] == nil)
 }
 
 }

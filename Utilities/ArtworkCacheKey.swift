@@ -30,7 +30,6 @@ enum ArtworkCacheKey {
         albumId.map(album) ?? track(trackID)
     }
 
-    static func nowPlaying(_ trackID: String) -> String { "now-playing-\(trackID)" }
     static func playlist(_ id: UUID) -> String { "playlist-\(id)" }
     static func artist(_ name: String) -> String { "artist-\(name)" }
     static func artistDetail(_ name: String) -> String { "artist-detail-\(name)" }
