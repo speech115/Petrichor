@@ -80,7 +80,7 @@ enum LyricsLoader {
     // MARK: - Helpers
 
     /// Try to parse as LRC first, then fallback to plain text lines
-    private static func parseAnyLyrics(_ raw: String) -> [LyricLine] {
+    static func parseAnyLyrics(_ raw: String) -> [LyricLine] {
         // Attempt LRC parsing (covers embedded/online that already have timestamps)
         let lrcResult = LyricLine.parseLRC(from: raw)
         if !lrcResult.isEmpty {

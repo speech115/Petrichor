@@ -130,10 +130,8 @@ extension PlaylistManager {
         let basePlaylistName = url.deletingPathExtension().lastPathComponent
         let sourceDirectory = url.deletingLastPathComponent()
         
-        let fileContent = (try? String(contentsOf: url, encoding: .utf8)) ??
-                          (try? String(contentsOf: url, encoding: .isoLatin1))
-        
-        guard let content = fileContent else {
+        guard let data = try? Data(contentsOf: url),
+              let content = Self.decodeM3UData(data) else {
             Logger.error("Failed to read '\(url.lastPathComponent)' (tried UTF-8 and Latin-1)")
             return PlaylistImportResult(
                 playlistName: basePlaylistName,
@@ -240,6 +238,11 @@ extension PlaylistManager {
         )
     }
     
+    /// The text of an M3U file: UTF-8, else Latin-1 (which accepts any byte).
+    nonisolated static func decodeM3UData(_ data: Data) -> String? {
+        String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
+    }
+
     /// M3U seam (design spec, "Разбор M3U"): turns file content into the
     /// ordered track entries, keeping numeric prefixes and relative paths
     /// exactly as written. Non-empty, non-comment lines in file order.
@@ -333,7 +336,7 @@ extension PlaylistManager {
         }
     }
     
-    private func generateM3UContent(for tracks: [Track]) -> String {
+    func generateM3UContent(for tracks: [Track]) -> String {
         var lines = [M3UFormat.header]
         
         for track in tracks {

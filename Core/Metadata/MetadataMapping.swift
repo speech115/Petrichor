@@ -18,6 +18,31 @@ enum MetadataMapping {
             .map { String(dateString[$0]) }
     }
 
+    /// Track number and optional total from a TRCK-style text value
+    /// ("3", "3/12"), or nil when there is no positive track number.
+    static func trackNumber(from string: String) -> (number: Int, total: Int?)? {
+        let parts = string
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(separator: "/")
+            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        guard let number = parts.first, number > 0 else { return nil }
+        return (number, parts.count > 1 ? parts[1] : nil)
+    }
+
+    /// Track number from a raw ID3 TRCK frame payload. ID3v2 text frames begin
+    /// with a one-byte encoding (0x00 latin-1, 0x01 UTF-16, 0x02 UTF-16BE,
+    /// 0x03 UTF-8); a bare ASCII payload ("3/12") starts with a digit and must
+    /// not lose its first character.
+    static func trackNumber(fromID3TextFrame data: Data) -> (number: Int, total: Int?)? {
+        guard data.count >= 2 else { return nil }
+        var data = data
+        if let first = data.first, (0x00 ... 0x03).contains(first) {
+            data.removeFirst()
+        }
+        guard let string = String(data: data, encoding: .isoLatin1) else { return nil }
+        return trackNumber(from: string)
+    }
+
     /// Normalize a raw rating value onto a 0-5 scale. Handles both a plain 1-5
     /// rating and the ID3v2 POPM 1-255 byte range.
     static func normalizedRating(fromRaw rawRating: Int?) -> Int? {
