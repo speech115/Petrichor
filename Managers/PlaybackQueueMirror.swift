@@ -139,7 +139,9 @@ extension PlaybackManager {
         currentFullTrack = nil
         currentEntryId = entryId
         currentTime = 0
-        isPlaying = true
+        // The engine's word, not an assumption: an advance can land paused
+        // (a pause on the track boundary, D-7).
+        isPlaying = audioPlayer.state == .playing
 
         if let position = queuePosition(ofEntry: entryId) {
             playlistManager.advanceQueueIndex(to: position)
