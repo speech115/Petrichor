@@ -127,15 +127,11 @@ extension PlaylistManager {
             }
 
             do {
-                let currentPlayCount = try await dbManager.getTrackPlayCount(trackId: trackId) ?? track.playCount
-                let newPlayCount = currentPlayCount + 1
                 let lastPlayedDate = Date()
-
-                try await dbManager.updatePlayingTrackMetadata(
+                guard let newPlayCount = try await dbManager.incrementPlayCount(
                     trackId: trackId,
-                    playCount: newPlayCount,
                     lastPlayedDate: lastPlayedDate
-                )
+                ) else { return }
 
                 Logger.info("Incremented play count for track: \(track.title) (now: \(newPlayCount))")
 

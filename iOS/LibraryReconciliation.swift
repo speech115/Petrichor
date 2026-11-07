@@ -41,6 +41,9 @@ extension LibraryManager {
     /// reads, no post-scan steps. Files gone from disk are not a change — the
     /// database keeps their rows on purpose (ADR-0001).
     ///
+    /// The other device's journal is applied last, once the files it may
+    /// name are in the database.
+    ///
     /// M3U playlists in `Documents/Petrichor-Playlists` are auto-imported on
     /// every reconciliation: the scan above only looks at audio files, so a
     /// playlist edit must be checked on its own, against the mtimes remembered
@@ -56,15 +59,24 @@ extension LibraryManager {
     }
 
     private func performReconciliation() async throws {
-        if databaseManager.getAllFolders().isEmpty {
-            try await scanLibraryRoot()
-        } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
-            try await scanLibraryRoot()
-        } else {
-            Logger.info("Library contents unchanged, skipping reconciliation")
+        do {
+            if databaseManager.getAllFolders().isEmpty {
+                try await scanLibraryRoot()
+            } else if await databaseManager.libraryContentsDiffer(from: LibraryPathStore.libraryRoot) {
+                try await scanLibraryRoot()
+            } else {
+                Logger.info("Library contents unchanged, skipping reconciliation")
+            }
+        } catch {
+            await applyPeerJournal()
+            throw error
         }
 
         await importLibraryPlaylistsIfNeeded()
+        // After the scan: the Mac pushes new files and the journal that
+        // played them together, and an event that finds no track is
+        // skipped behind the cursor for good (I-7.3, D-8).
+        await applyPeerJournal()
         // The system search index is kept in step from `scanLibraryRoot()`
         // (the single scheduling call site): a launch whose contents did
         // not change never scans, and never needs a resync.

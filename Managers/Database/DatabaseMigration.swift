@@ -295,8 +295,16 @@ enum DatabaseMigrator {
             Logger.info("v18_listing_indexes: covering indexes for library lists, recency and play count")
         }
 
+        migrator.registerMigration("v19_renormalize_artist_names") { db in
+            // `normalized_name` is `ArtistParser.normalizeArtistName` frozen at
+            // insert time. When the rule changes, stored keys must follow, or
+            // a name already in the library gets a second artist row.
+            let folded = try DatabaseManager.renormalizeArtistNames(in: db)
+            Logger.info("v19_renormalize_artist_names: \(folded) duplicate artists folded")
+        }
+
         // MARK: - Future Migrations
-        // Add new migrations here as: migrator.registerMigration("v19_description") { db in ... }
+        // Add new migrations here as: migrator.registerMigration("v20_description") { db in ... }
         // A column added to albums, artists or tracks lands after their artwork
         // BLOBs; reading it then walks every BLOB's overflow pages. Rebuild with
         // `moveColumnsToEnd` instead of a plain ADD COLUMN on those tables.

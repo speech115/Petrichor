@@ -332,6 +332,53 @@ private enum PlaybackJournalTestError: Error {
     #expect(try PlaybackJournalCodec.decodeLines(String(contentsOf: file, encoding: .utf8)) == expected)
 }
 
+// MARK: - D-8: events in the same second (docs/state-machines.md, I-7.3)
+
+/// A sub-second timestamp survives the JSONL round trip, so two events in the
+/// same second keep their order against the applied-through cursor.
+@Test(arguments: 0..<50)
+func playbackJournalTimestampsKeepMillisecondsThroughTheCodec(seed: Int) throws {
+    // A fixed spread of instants, each with a millisecond fraction.
+    let base = 1_786_000_000.0 + Double(seed) * 3_617.0
+    let millis = Double((seed * 37) % 1_000) / 1_000
+    let at = Date(timeIntervalSince1970: base + millis)
+
+    let decoded = try PlaybackJournalCodec.decodeLine(
+        PlaybackJournalCodec.encodeLine(.played(path: "a.mp3", at: at))
+    )
+    #expect(abs(decoded.timestamp.timeIntervalSince(at)) < 0.001, "\(at) came back as \(decoded.timestamp)")
+}
+
+/// The peer appended a second event in the same second as one already
+/// applied; the next sync carries both. The second must still apply once.
+@Test func playbackJournalAppliesASameSecondEventFromTheNextSync() throws {
+    let second = Date(timeIntervalSince1970: 1_786_000_000)
+    let first = PlaybackJournalEvent.played(path: "Моя музыка/a.mp3", at: second.addingTimeInterval(0.2))
+    let next = PlaybackJournalEvent.favorite(path: "Моя музыка/a.mp3", value: true, at: second.addingTimeInterval(0.7))
+    func roundTrip(_ events: [PlaybackJournalEvent]) throws -> [PlaybackJournalEvent] {
+        try PlaybackJournalCodec.decodeLines(events.map(PlaybackJournalCodec.encodeLine).joined(separator: "\n"))
+    }
+    var tracks = [
+        PlaybackJournalTrackState(path: "Моя музыка/a.mp3", playCount: 0, isFavorite: false, lastPlayedDate: nil)
+    ]
+
+    let firstSync = PlaybackJournalApply.apply(events: try roundTrip([first]), to: &tracks, cursor: nil)
+    let secondSync = PlaybackJournalApply.apply(events: try roundTrip([first, next]), to: &tracks, cursor: firstSync.cursor)
+
+    #expect(secondSync.applied == 1)
+    #expect(tracks[0].playCount == 1)
+    #expect(tracks[0].isFavorite, "the favorite in the same second as the applied play was dropped")
+}
+
+/// Lines written before timestamps carried fractions still decode.
+@Test func playbackJournalStillReadsWholeSecondLines() throws {
+    let line = #"{"path":"a.mp3","ts":"2026-08-09T14:32:11Z","type":"played"}"#
+    #expect(try PlaybackJournalCodec.decodeLine(line) == .played(
+        path: "a.mp3",
+        at: ISO8601DateFormatter().date(from: "2026-08-09T14:32:11Z")!
+    ))
+}
+
 // MARK: - Torn tails
 
 private func randomJournal(seed: UInt64) -> [PlaybackJournalEvent] {

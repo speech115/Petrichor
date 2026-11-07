@@ -388,6 +388,172 @@ jobs:
           retention-days: 5
           if-no-files-found: ignore
 
+  # Reproducible benchmark: launch, opening and scrolling a 1200-track
+  # playlist, opening Now Playing (Tests/PetrichoriOSUITests/PerformanceUITests.swift)
+  # on a 1500-track library the DEBUG app generates itself. The tests only
+  # measure; perf-gate.py compares the medians with .github/perf-budget.json,
+  # whose bounds leave room for the noise of a shared hosted runner, so the
+  # gate catches regressions of the "2x slower" kind, not a few percent.
+  perf:
+    name: Benchmark (iOS)
+    runs-on: macos-26
+    timeout-minutes: 60
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # Commit times instead of checkout time, so the restored DerivedData only
+      # recompiles the files this change touched.
+      - name: Restore source mtimes
+        run: python3 .github/scripts/restore-mtimes.py
+
+      # Pinned Xcode via xcode-select, DerivedData/SwiftPM in the paths
+      # actions/cache restores.
+      - name: Select Xcode and build paths
+        run: |
+          XCODE="/Applications/Xcode_${XCODE_VERSION}.app"
+          sudo xcode-select -s "$XCODE"
+          {
+            echo "DD_DIR=$HOME/Library/Developer/Xcode/DerivedData"
+            echo "SPM_DIR=$GITHUB_WORKSPACE/.spm"
+          } >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE/Contents/Developer" xcodebuild -version
+
+      # The macos-26 image can ship Xcode without iOS simulator runtimes (runner-images
+      # disk-space policy); when the destination device is missing, download the platform
+      # on demand. `xcrun simctl list` first wakes CoreSimulator so downloadPlatform can
+      # connect. No-op when the image already carries the runtime.
+      - name: Download iOS simulator runtime
+        run: |
+          xcrun simctl list > /dev/null
+          if xcrun simctl list devices available | grep -q "iPhone 17 Pro Max"; then
+            echo "Simulator runtime present, nothing to download"
+            exit 0
+          fi
+          n=0
+          until [ "$n" -ge 3 ]; do
+            sudo xcodebuild -downloadPlatform iOS && break
+            n=$((n+1))
+            if [ "$n" -lt 3 ]; then
+              echo "downloadPlatform failed, retry $n of 2 remaining"
+              sleep 20
+            else
+              echo "downloadPlatform failed after 3 attempts"
+            fi
+          done
+          xcrun simctl list devices available | grep -q "iPhone 17 Pro Max" || {
+            echo "::error::iPhone 17 Pro Max simulator not available after platform download"
+            exit 1
+          }
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: .spm
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Cache DerivedData
+        uses: actions/cache@v5
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-dd-mt-perf-${{ hashFiles('**/*.swift', '**/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-dd-mt-perf-
+            ${{ runner.os }}-dd-mt-ios-
+
+      - name: Create Secrets placeholder
+        run: |
+          {
+            echo "// CI placeholder - online features disabled"
+            echo "LASTFM_API_KEY = "
+            echo "LASTFM_SHARED_SECRET = "
+          } > Configuration/Secrets.xcconfig
+          # Fixed mtime: a fresh one each run would look like a config change.
+          touch -t 202001010000 Configuration/Secrets.xcconfig
+
+      - name: Ensure xcbeautify
+        run: command -v xcbeautify >/dev/null || brew install xcbeautify
+
+      - name: Resolve dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -clonedSourcePackagesDirPath "$SPM_DIR"
+
+      # Boot before the build so the simulator's first-boot work overlaps it instead
+      # of the UI tests: on a just-booted device the accessibility audits hit their
+      # internal timeout (Code=-56), and the one-time "Ready for Apple Intelligence"
+      # banner covers the Home title and fails its contrast audit. Booted after the
+      # cache restores: booting first slowed the SwiftPM download to ~3 MB/s.
+      - name: Boot iOS simulator
+        run: |
+          NAME="iPhone 17 Pro Max"
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          name = sys.argv[1]
+          devices = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in devices if ".iOS-" in k), key=lambda k: [int(x) for x in k.rsplit("iOS-", 1)[1].split("-")])
+          hits = [d["udid"] for k in reversed(ios) for d in devices[k] if d["name"] == name]
+          print(hits[0] if hits else "")
+          ' "$NAME")
+          [ -n "$UDID" ] || { echo "::error::No simulator named $NAME"; exit 1; }
+          echo "SIM_UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID" || xcrun simctl bootstatus "$UDID"
+
+      # TEST_RUNNER_ reaches the test runner as PETRICHOR_PERF=1: without it
+      # PerformanceUITests skips itself, so plain `xcodebuild test` and the
+      # ios-test job never pay for the benchmark.
+      - name: Run benchmark
+        env:
+          TEST_RUNNER_PETRICHOR_PERF: '1'
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -configuration Debug \
+            -destination "id=$SIM_UDID" \
+            -only-testing:PetrichoriOSUITests/PerformanceUITests \
+            -clonedSourcePackagesDirPath "$SPM_DIR" \
+            -derivedDataPath "$DD_DIR" \
+            -resultBundlePath "$RUNNER_TEMP/perf.xcresult" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      # Also after a failed test: the metrics that did get measured are
+      # still worth a table.
+      - name: Gate on the performance budget
+        if: always()
+        run: |
+          if [ ! -d "$RUNNER_TEMP/perf.xcresult" ]; then
+            echo "No result bundle: the benchmark did not run"
+            exit 1
+          fi
+          xcrun xcresulttool get test-results metrics \
+            --path "$RUNNER_TEMP/perf.xcresult" > "$RUNNER_TEMP/perf-metrics.json"
+          python3 .github/scripts/perf-gate.py "$RUNNER_TEMP/perf-metrics.json" .github/perf-budget.json
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: |
+            ${{ runner.temp }}/perf.xcresult
+            ${{ runner.temp }}/perf-metrics.json
+          retention-days: 14
+          if-no-files-found: ignore
+
   # iOS Release is exercised on demand only (workflow_dispatch): a manual
   # pre-flight before shipping the app to a device. Same caches/secrets
   # placeholder as ios-test, no signing. Debug-only breakage is caught by
@@ -583,7 +749,7 @@ jobs:
     name: CI Summary
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, lint, actionlint, build-analyze, ios-test, release-build]
+    needs: [changes, lint, actionlint, build-analyze, ios-test, perf, release-build]
     if: always()
     steps:
       - name: Verify required jobs
@@ -595,11 +761,12 @@ jobs:
           ACTIONLINT_RESULT: ${{ needs.actionlint.result }}
           BUILD_RESULT: ${{ needs.build-analyze.result }}
           IOS_RESULT: ${{ needs.ios-test.result }}
+          PERF_RESULT: ${{ needs.perf.result }}
           RELEASE_RESULT: ${{ needs.release-build.result }}
         run: |
           echo "changes=$CHANGES_RESULT code=$CODE"
           echo "lint=$LINT_RESULT actionlint=$ACTIONLINT_RESULT"
-          echo "build-analyze=$BUILD_RESULT ios-test=$IOS_RESULT release-build=$RELEASE_RESULT"
+          echo "build-analyze=$BUILD_RESULT ios-test=$IOS_RESULT perf=$PERF_RESULT release-build=$RELEASE_RESULT"
           if [ "$CHANGES_RESULT" != "success" ] || \
              [ "$LINT_RESULT" != "success" ] || \
              [ "$ACTIONLINT_RESULT" != "success" ]; then
@@ -608,14 +775,15 @@ jobs:
           fi
           if [ "$CODE" = "false" ]; then
             if [ "$BUILD_RESULT" != "skipped" ] || [ "$IOS_RESULT" != "skipped" ] || \
-               [ "$RELEASE_RESULT" != "skipped" ]; then
+               [ "$PERF_RESULT" != "skipped" ] || [ "$RELEASE_RESULT" != "skipped" ]; then
               echo "::error::Docs-only change, but a macOS job did not skip"
               exit 1
             fi
             echo "Docs-only change: lint passed, macOS jobs skipped ✅"
             exit 0
           fi
-          if [ "$BUILD_RESULT" != "success" ] || [ "$IOS_RESULT" != "success" ]; then
+          if [ "$BUILD_RESULT" != "success" ] || [ "$IOS_RESULT" != "success" ] || \
+             [ "$PERF_RESULT" != "success" ]; then
             echo "::error::One or more required checks failed or skipped with code changes"
             exit 1
           fi

@@ -54,7 +54,9 @@ enum ArtistParser {
 
     // Pre-compiled regex for better performance
     private static let initialsRegex: NSRegularExpression? = {
-        try? NSRegularExpression(pattern: #"(\b[a-z]\.?\s*)+"#, options: [])
+        // Any run of dots and spaces after a single letter belongs to the
+        // initials ("j. r. r.", "a..b", "a .b"), so one pass removes all of it.
+        try? NSRegularExpression(pattern: #"(\b[a-z][.\s]*)+"#, options: [])
     }()
 
     private static let extraSpacesRegex: NSRegularExpression? = {
@@ -248,6 +250,14 @@ enum ArtistParser {
         }
 
         var normalized = name.lowercased()
+
+        // Whitespace collapses to plain spaces first: the initials rule below
+        // drops only " ", so a tab or NBSP between initials ("J.\u{00A0}Cole")
+        // used to survive one pass and make a different key from "J. Cole".
+        if let regex = extraSpacesRegex {
+            let range = NSRange(normalized.startIndex..., in: normalized)
+            normalized = regex.stringByReplacingMatches(in: normalized, options: [], range: range, withTemplate: " ")
+        }
 
         // Handle initials with pre-compiled regex
         if let regex = initialsRegex {

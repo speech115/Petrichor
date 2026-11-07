@@ -81,8 +81,12 @@ class AppCoordinator: ObservableObject {
         observePlaybackForPersistence()
 
         // Launch counts as coming to the foreground: a Mac app opened in the
-        // background never becomes active.
-        Task { await libraryManager.applyPeerJournal() }
+        // background never becomes active. A caller that defers launch work
+        // (the iPhone) applies the journal at the end of its launch
+        // reconciliation instead, once the files it names are scanned (D-8).
+        if !deferLaunchWork {
+            Task { await libraryManager.applyPeerJournal() }
+        }
 
         // Check if library is empty at startup - if so, clear any saved state
         if !hadFoldersAtStartup {

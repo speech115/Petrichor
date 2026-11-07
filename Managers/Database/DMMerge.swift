@@ -83,7 +83,7 @@ extension DatabaseManager {
             try db.execute(sql: "UPDATE OR IGNORE album_artists SET artist_id = ? WHERE artist_id IN (\(marks))", arguments: winnerThenLosers)
             try AlbumArtist.filter(loserIds.contains(AlbumArtist.Columns.artistId)).deleteAll(db)
 
-            try carryOverArtistMetadata(winnerId: winnerId, loserIds: loserIds, in: db)
+            try Self.carryOverArtistMetadata(winnerId: winnerId, loserIds: loserIds, in: db)
 
             // Redirect aliases that pointed at a loser to keep chains flat.
             try ArtistAlias
@@ -115,6 +115,104 @@ extension DatabaseManager {
         try updateArtistStats(in: db)
 
         return EntityMergeResult(mergedCount: loserIds.count, canonicalName: renameTarget ?? winner.name)
+    }
+
+    // MARK: - Re-keying (v19)
+
+    /// Recomputes every stored artist key with the current
+    /// `ArtistParser.normalizeArtistName`, and every alias key from its
+    /// display name. Artists whose keys now coincide are one artist spelled
+    /// with different whitespace or dots: the one with the most tracks keeps
+    /// its row, the rest fold into it the way a manual merge does (links,
+    /// metadata, aliases). Returns how many rows folded.
+    static func renormalizeArtistNames(in db: Database) throws -> Int {
+        let rows = try Row.fetchAll(db, sql: "SELECT id, name, normalized_name FROM artists ORDER BY total_tracks DESC, id")
+        var winnerByKey: [String: Int64] = [:]
+        var rekeyed: [(id: Int64, key: String)] = []
+        var folded: [(loser: Int64, winner: Int64)] = []
+        for row in rows {
+            let id: Int64 = row["id"]
+            let key = ArtistParser.normalizeArtistName(row["name"])
+            if let winner = winnerByKey[key] {
+                folded.append((id, winner))
+                continue
+            }
+            winnerByKey[key] = id
+            if key != (row["normalized_name"] as String) {
+                rekeyed.append((id, key))
+            }
+        }
+
+        for (loser, winner) in folded {
+            let arguments: StatementArguments = [winner, loser]
+            // OR IGNORE sidesteps composite-PK collisions; the DELETE clears the ignored rows.
+            try db.execute(sql: "UPDATE OR IGNORE track_artists SET artist_id = ? WHERE artist_id = ?", arguments: arguments)
+            try db.execute(sql: "DELETE FROM track_artists WHERE artist_id = ?", arguments: [loser])
+            try db.execute(sql: "UPDATE OR IGNORE album_artists SET artist_id = ? WHERE artist_id = ?", arguments: arguments)
+            try db.execute(sql: "DELETE FROM album_artists WHERE artist_id = ?", arguments: [loser])
+            try carryOverArtistMetadata(winnerId: winner, loserIds: [loser], in: db)
+            try db.execute(sql: "UPDATE artist_aliases SET canonical_artist_id = ? WHERE canonical_artist_id = ?", arguments: arguments)
+            try db.execute(sql: "DELETE FROM artists WHERE id = ?", arguments: [loser])
+        }
+
+        // Two passes through a placeholder: a row's new key can still be
+        // another row's old key until that row is re-keyed too.
+        for (id, _) in rekeyed {
+            try db.execute(sql: "UPDATE artists SET normalized_name = ? WHERE id = ?", arguments: ["\u{1}v19-\(id)", id])
+        }
+        for (id, key) in rekeyed {
+            try db.execute(sql: "UPDATE artists SET normalized_name = ? WHERE id = ?", arguments: [key, id])
+        }
+
+        try renormalizeArtistAliases(in: db)
+
+        if !folded.isEmpty {
+            try db.execute(sql: """
+                UPDATE artists
+                SET total_tracks = (
+                        SELECT COUNT(DISTINCT ta.track_id)
+                        FROM track_artists ta
+                        JOIN tracks t ON t.id = ta.track_id
+                        WHERE ta.artist_id = artists.id
+                          AND ta.role = 'artist'
+                          AND t.is_duplicate = 0
+                    ),
+                    total_albums = (
+                        SELECT COUNT(DISTINCT album_id)
+                        FROM album_artists
+                        WHERE artist_id = artists.id
+                    )
+                """)
+        }
+        return folded.count
+    }
+
+    /// Alias keys are the normalized display name; two aliases landing on one
+    /// key keep the first (by key, then display name).
+    private static func renormalizeArtistAliases(in db: Database) throws {
+        let rows = try Row.fetchAll(db, sql: "SELECT normalized_alias, display_name FROM artist_aliases ORDER BY normalized_alias, display_name")
+        var taken: Set<String> = []
+        var rekeyed: [(old: String, key: String)] = []
+        var dropped: [String] = []
+        for row in rows {
+            let old: String = row["normalized_alias"]
+            let key = ArtistParser.normalizeArtistName(row["display_name"])
+            if taken.contains(key) {
+                dropped.append(old)
+            } else {
+                taken.insert(key)
+                if key != old { rekeyed.append((old, key)) }
+            }
+        }
+        for old in dropped {
+            try db.execute(sql: "DELETE FROM artist_aliases WHERE normalized_alias = ?", arguments: [old])
+        }
+        for (index, entry) in rekeyed.enumerated() {
+            try db.execute(sql: "UPDATE artist_aliases SET normalized_alias = ? WHERE normalized_alias = ?", arguments: ["\u{1}v19-\(index)", entry.old])
+        }
+        for (index, entry) in rekeyed.enumerated() {
+            try db.execute(sql: "UPDATE artist_aliases SET normalized_alias = ? WHERE normalized_alias = ?", arguments: [entry.key, "\u{1}v19-\(index)"])
+        }
     }
 
     // MARK: - Album Merge
@@ -228,7 +326,7 @@ extension DatabaseManager {
         return try Row.fetchOne(db, sql: sql, arguments: [albumId])?["n"]
     }
 
-    private func carryOverArtistMetadata(winnerId: Int64, loserIds: [Int64], in db: Database) throws {
+    private static func carryOverArtistMetadata(winnerId: Int64, loserIds: [Int64], in db: Database) throws {
         guard let winner = try Artist.fetchOne(db, key: winnerId) else { return }
         let losers = try Artist.filter(loserIds.contains(Artist.Columns.id)).fetchAll(db)
 
