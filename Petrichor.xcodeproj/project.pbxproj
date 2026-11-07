@@ -201,6 +201,7 @@
 				M3UImportTests.swift,
 				MalformedMP3Tests.swift,
 				PlaybackErrorMappingTests.swift,
+				PlaybackRestorationTests.swift,
 				PlaybackStartTests.swift,
 				QueueBackendTests.swift,
 				TrackPersistenceTests.swift,
