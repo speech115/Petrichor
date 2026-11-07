@@ -13,7 +13,8 @@ import TipKit
 enum GestureTips {
     static func configure() {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains(uitestSeedFixturesLaunchArgument) {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains(uitestSeedFixturesLaunchArgument) || arguments.contains(perfSeedLibraryLaunchArgument) {
             Tips.hideAllTipsForTesting()
         }
         #endif

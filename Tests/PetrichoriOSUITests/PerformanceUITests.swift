@@ -1,7 +1,7 @@
 //
 // PerformanceUITests
 //
-// The CI benchmark: launch, the long playlist (opening and scrolling it) and
+// The CI benchmark: launch, Home's data, the long playlist (opening and scrolling it) and
 // opening Now Playing, measured on a 1500-track library with a 1200-track
 // playlist that the DEBUG app generates itself (`--perf-seed-library`, see
 // iOS/PerfLibraryFixtures.swift). Every number comes from a signpost the
@@ -47,14 +47,22 @@ final class PerformanceUITests: XCTestCase {
 
     // MARK: - Benchmarks
 
-    /// Process start to the first responsive frame (system metric), plus the
-    /// app's own "Prepare Home" interval: the Home data Home's first frame
-    /// waits for. The library is already in the database, as on every launch
-    /// but the first.
+    /// Process start to the first responsive frame (system metric). The
+    /// library is already in the database, as on every launch but the first.
     func testLaunch() throws {
         let app = makeApp()
+        measure(metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true)]) {
+            app.launch()
+        }
+    }
+
+    /// The app's own "Prepare Home" interval: the Home data that Home's first
+    /// frame waits for. Its own test: in one `measure` with the launch metric,
+    /// an iteration could end without this interval and XCTest rejects
+    /// iterations with different metric counts.
+    func testHomeReady() throws {
+        let app = makeApp()
         measure(metrics: [
-            XCTApplicationLaunchMetric(waitUntilResponsive: true),
             XCTOSSignpostMetric(subsystem: Self.subsystem, category: Self.pointsOfInterest, name: "Prepare Home"),
         ]) {
             app.launch()

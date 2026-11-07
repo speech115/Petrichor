@@ -530,8 +530,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | xcbeautify --renderer github-actions
 
+      # Also after a failed test: the metrics that did get measured are
+      # still worth a table.
       - name: Gate on the performance budget
+        if: always()
         run: |
+          if [ ! -d "$RUNNER_TEMP/perf.xcresult" ]; then
+            echo "No result bundle: the benchmark did not run"
+            exit 1
+          fi
           xcrun xcresulttool get test-results metrics \
             --path "$RUNNER_TEMP/perf.xcresult" > "$RUNNER_TEMP/perf-metrics.json"
           python3 .github/scripts/perf-gate.py "$RUNNER_TEMP/perf-metrics.json" .github/perf-budget.json
