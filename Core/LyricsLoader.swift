@@ -87,8 +87,8 @@ enum LyricsLoader {
             return lrcResult
         }
         
-        // Plain text: split by newlines, each line with startTime=0
-        let lines = raw.components(separatedBy: "\n")
+        // Plain text: split on CR, LF or CRLF (iTunes writes CR), each line with startTime=0
+        let lines = LyricLine.normalizingNewlines(raw).components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .map { LyricLine(text: $0, startTime: 0, endTime: nil) }

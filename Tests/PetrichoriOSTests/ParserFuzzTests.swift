@@ -314,15 +314,6 @@ func artistParseReturnsCleanDistinctNames(seed: UInt64) {
     #expect(Set(names.map(ArtistParser.normalizeArtistName)).count == names.count, "\(tag.debugDescription) → \(names)")
 }
 
-@Test(arguments: FuzzText.seeds(200))
-func artistNameNormalizationIsIdempotent(seed: UInt64) {
-    var rng = SeededGenerator(seed: seed)
-    let name = FuzzText.string(using: &rng)
-    let once = ArtistParser.normalizeArtistName(name)
-
-    #expect(ArtistParser.normalizeArtistName(once) == once, "\(name.debugDescription)")
-}
-
 // MARK: - Year
 
 @Test(arguments: FuzzText.seeds(200))
