@@ -50,8 +50,11 @@ func artistNamesThatDifferOnlyInWhitespaceOrDotsShareAKey(variant: String, plain
             }
             func artist(_ name: String, key: String, tracks: Int, bio: String? = nil) throws -> Int64 {
                 try db.execute(
-                    sql: "INSERT INTO artists (name, normalized_name, sort_name, total_tracks, total_albums, bio) VALUES (?, ?, ?, ?, 0, ?)",
-                    arguments: [name, key, name, tracks, bio]
+                    sql: """
+                        INSERT INTO artists (name, normalized_name, sort_name, total_tracks, total_albums, bio, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+                        """,
+                    arguments: [name, key, name, tracks, bio, Date(), Date()]
                 )
                 return db.lastInsertedRowID
             }
