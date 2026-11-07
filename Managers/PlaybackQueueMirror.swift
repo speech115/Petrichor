@@ -140,6 +140,7 @@ extension PlaybackManager {
         currentEntryId = entryId
         currentTime = 0
         isPlaying = true
+        recordPlayback(.advance)
 
         if let position = queuePosition(ofEntry: entryId) {
             playlistManager.advanceQueueIndex(to: position)
