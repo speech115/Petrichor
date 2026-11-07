@@ -75,6 +75,11 @@ struct ContentView: View {
             )
             .navigationTransition(.zoom(sourceID: NowPlayingZoomID.player, in: nowPlayingZoomNamespace))
         }
+        // The CI benchmark's "Open Now Playing" interval starts here, whatever
+        // asked for the player (tap or swipe); NowPlayingScreen ends it.
+        .onChange(of: showingNowPlaying) { _, isShowing in
+            if isShowing { PerfSignposts.beginOpenNowPlaying() }
+        }
         .sheet(item: $libraryManager.pendingMergeRequest) { request in
             NavigationStack {
                 MergeEntitySheet(request: request)

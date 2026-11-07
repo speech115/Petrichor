@@ -105,6 +105,7 @@ struct NowPlayingScreen: View {
         .trackActionSheets(isActive: true, playlistManager: playlistManager)
         .toastHost()
         .onAppear {
+            PerfSignposts.endOpenNowPlaying()
             displayedTrack = track
             lastQueueIndex = playlistManager.currentQueueIndex
             // Paint from cache before the first layout so zoom doesn't flash
