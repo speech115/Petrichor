@@ -21,7 +21,7 @@ private struct CrashFixture {
 
     static let savedKeys = ["SavedPlaybackState", "SavedPlaybackUIState", "SavedPlaybackPosition"]
 
-    init(count: Int, seconds: Double = 8) async throws {
+    init(count: Int, seconds: Int = 8) async throws {
         savedDefaults = Self.savedKeys.map { UserDefaults.standard.data(forKey: $0) }
         let database = try DatabaseManager()
         let folderURL = LibraryPathStore.libraryRoot.appendingPathComponent(UUID().uuidString)
@@ -39,7 +39,7 @@ private struct CrashFixture {
                 var full = FullTrack(url: url)
                 full.folderId = folderID
                 full.title = "Crash \(index)"
-                full.duration = seconds
+                full.duration = Double(seconds)
                 try full.insert(db)
                 tracks.append(try #require(try Track.filter(Track.Columns.trackId == db.lastInsertedRowID).fetchOne(db)))
             }
