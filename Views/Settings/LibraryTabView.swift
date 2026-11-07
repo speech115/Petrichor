@@ -443,8 +443,6 @@ struct LibraryTabView: View {
                 UserDefaults.standard.removePersistentDomain(forName: bundleID)
                 UserDefaults.standard.synchronize()
                 Logger.info("All app preferences reset along with library data")
-
-                KeychainManager.delete(key: KeychainManager.Keys.lastfmSessionKey)
             }
         }
 

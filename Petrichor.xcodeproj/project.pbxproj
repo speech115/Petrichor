@@ -958,7 +958,6 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = "Development Build";
-				PETRICHOR_URL_SCHEME = "petrichor-debug";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.debug;
 				PRODUCT_MODULE_NAME = Petrichor;
 				PRODUCT_NAME = "Petrichor Dev";
@@ -1010,7 +1009,6 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.7.2;
 				"OTHER_CODE_SIGN_FLAGS[sdk=*]" = "--timestamp";
-				PETRICHOR_URL_SCHEME = petrichor;
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1117,7 +1115,6 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = "Development Build";
 				"OTHER_CODE_SIGN_FLAGS[sdk=*]" = "--timestamp";
-				PETRICHOR_URL_SCHEME = "petrichor-debug";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.debug;
 				PRODUCT_MODULE_NAME = Petrichor;
 				PRODUCT_NAME = "Petrichor Dev";
@@ -1152,7 +1149,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
-				PETRICHOR_URL_SCHEME = "petrichor-ios";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
 				PRODUCT_MODULE_NAME = Petrichor;
 				PRODUCT_NAME = Petrichor;
@@ -1186,7 +1182,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
-				PETRICHOR_URL_SCHEME = "petrichor-ios";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
 				PRODUCT_MODULE_NAME = Petrichor;
 				PRODUCT_NAME = Petrichor;
@@ -1220,7 +1215,6 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = "Development Build";
-				PETRICHOR_URL_SCHEME = "petrichor-ios";
 				PRODUCT_BUNDLE_IDENTIFIER = org.Petrichor.ios;
 				PRODUCT_MODULE_NAME = Petrichor;
 				PRODUCT_NAME = Petrichor;

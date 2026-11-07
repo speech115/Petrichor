@@ -44,7 +44,6 @@
 - Native macOS integration with menubar and dock playback controls, plus dark mode support.
 - Miniplayer and immersive mode.
 - Gapless playback, Crossfade, ReplayGain volume normalization, Equalizer, Spatial Audio, and AirPlay 2 output.
-- Last.fm scrobbling support.
 - Shortcuts and Automation API support along with Siri.
 - Works well with large libraries containing thousands of songs.
 
@@ -144,9 +143,6 @@ Refer to [official website](https://petrichor.page/features)
     - Fetch artist images and bios from online sources (disabled by default)
     - Download track lyrics from the internet (disabled by default)
     - Stream Internet Radio stations (disabled by default)
-    - Last.fm scrobbling (disabled by default)
-      - When enabled, app may ask to store your Last.fm session information in macOS Keychain, if you choose to allow it, macOS will ask for your user account password to store the information in Keychain.
-      - App **does not** store your Last.fm username or password, you still have to provide it on Last.fm website that opens in browser during configuration, once done, app only receives a session key to scrobble track playbacks with your account.
     - Reporting issues from within the app (user opt-in only)
       - Users can report a problem from within the app by going to Menu > Help > Report a Problem..., this opens a form where user is asked to fill out a few details, including detailed app diagnostics, along with app's log file.
       - This is optional feature and uses network only when user manually initiates this action and sends the information over the internet to app's backend server securely.
