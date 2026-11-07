@@ -110,3 +110,89 @@ func makeSilentWAV(seconds: Int = 2) throws -> URL {
     try data.write(to: url)
     return url
 }
+
+// MARK: - Property-test inputs
+
+/// SplitMix64: a deterministic `RandomNumberGenerator` for property tests.
+/// Each test case takes a seed as its argument, so a failure names the seed
+/// that reproduces it, and every run walks the same inputs.
+struct SeededGenerator: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed
+    }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var mixed = state
+        mixed = (mixed ^ (mixed >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        mixed = (mixed ^ (mixed >> 27)) &* 0x94D0_49BB_1331_11EB
+        return mixed ^ (mixed >> 31)
+    }
+}
+
+/// Malformed text for parser property tests: the pieces that broken tags,
+/// hand-edited playlists and mis-decoded files are actually made of —
+/// separators, every Unicode line break, BOM, NUL, combining marks, mixed
+/// scripts, percent escapes, timestamps.
+enum FuzzText {
+    static let lineBreaks = ["\n", "\r", "\r\n", "\u{0085}", "\u{2028}", "\u{2029}"]
+
+    static let fragments: [String] = [
+        "a", "Z", "q", "0", "7", "42", "1999",
+        " ", "  ", "\t", "\u{00A0}", "\u{3000}",
+        " - ", "-", ",", ";", " , ", " ; ", "&", "/", "\\", "#", ".", "..", "./", "../",
+        "%", "%20", "%2", "file://", "(", ")", "[", "]", "<", ">", ":",
+        "\u{FEFF}", "\u{0000}", "\u{200B}", "e\u{0301}", "İ", "ß", "Ω",
+        "Кино", "ёлка", "Сплин", "宇多田", "🎸", "👩‍👩‍👧",
+        "[00:12.50]", "<00:01.00>", "feat. ", " x ", " vs ", " & "
+    ] + lineBreaks
+
+    /// Seeds for `@Test(arguments:)`: one test case per seed.
+    static func seeds(_ count: Int) -> [UInt64] {
+        (0..<UInt64(count)).map { $0 &* 0x2545_F491_4F6C_DD1D &+ 1 }
+    }
+
+    /// 0...`maxFragments` fragments from `pool`, concatenated.
+    static func string(
+        using rng: inout SeededGenerator,
+        from pool: [String] = fragments,
+        maxFragments: Int = 8
+    ) -> String {
+        (0..<Int.random(in: 0...maxFragments, using: &rng))
+            .map { _ in pool.randomElement(using: &rng)! }
+            .joined()
+    }
+
+    /// Fragments without CR or LF: what one physical line of a text file can
+    /// hold. The other Unicode line breaks stay in — they are ordinary
+    /// characters to a file that separates lines with CR/LF.
+    static let singleLineFragments = fragments.filter { !containsCROrLF($0) }
+
+    /// Fragments a filename can carry: no path separator, no NUL, no line break.
+    static let filenameFragments = fragments.filter { fragment in
+        !fragment.unicodeScalars.contains { $0 == "/" || $0 == "\u{0000}" || isLineBreak($0) }
+    }
+
+    /// Scalar-level, so a `"\r\n"` grapheme counts: `Character` comparison
+    /// would treat it as one character equal to neither CR nor LF.
+    static func containsCROrLF(_ string: String) -> Bool {
+        string.unicodeScalars.contains { $0 == "\n" || $0 == "\r" }
+    }
+
+    static func isLineBreak(_ scalar: Unicode.Scalar) -> Bool {
+        let breaks: [Unicode.Scalar] = ["\n", "\r", "\u{0085}", "\u{2028}", "\u{2029}"]
+        return breaks.contains(scalar)
+    }
+}
+
+/// UTF-16 code units of `text`, without a byte order mark.
+func utf16Bytes(_ text: String, littleEndian: Bool) -> Data {
+    var data = Data()
+    for unit in text.utf16 {
+        let ordered = littleEndian ? unit.littleEndian : unit.bigEndian
+        withUnsafeBytes(of: ordered) { data.append(contentsOf: $0) }
+    }
+    return data
+}

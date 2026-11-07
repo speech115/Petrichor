@@ -80,15 +80,15 @@ enum LyricsLoader {
     // MARK: - Helpers
 
     /// Try to parse as LRC first, then fallback to plain text lines
-    private static func parseAnyLyrics(_ raw: String) -> [LyricLine] {
+    static func parseAnyLyrics(_ raw: String) -> [LyricLine] {
         // Attempt LRC parsing (covers embedded/online that already have timestamps)
         let lrcResult = LyricLine.parseLRC(from: raw)
         if !lrcResult.isEmpty {
             return lrcResult
         }
         
-        // Plain text: split by newlines, each line with startTime=0
-        let lines = raw.components(separatedBy: "\n")
+        // Plain text: split on CR, LF or CRLF (iTunes writes CR), each line with startTime=0
+        let lines = LyricLine.normalizingNewlines(raw).components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .map { LyricLine(text: $0, startTime: 0, endTime: nil) }

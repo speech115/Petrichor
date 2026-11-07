@@ -130,10 +130,8 @@ extension PlaylistManager {
         let basePlaylistName = url.deletingPathExtension().lastPathComponent
         let sourceDirectory = url.deletingLastPathComponent()
         
-        let fileContent = (try? String(contentsOf: url, encoding: .utf8)) ??
-                          (try? String(contentsOf: url, encoding: .isoLatin1))
-        
-        guard let content = fileContent else {
+        guard let data = try? Data(contentsOf: url),
+              let content = Self.decodeM3UData(data) else {
             Logger.error("Failed to read '\(url.lastPathComponent)' (tried UTF-8 and Latin-1)")
             return PlaylistImportResult(
                 playlistName: basePlaylistName,
@@ -240,11 +238,30 @@ extension PlaylistManager {
         )
     }
     
+    /// The text of an M3U file. A UTF-16 byte order mark is unambiguous and
+    /// wins; otherwise UTF-8, else Latin-1 (which accepts any byte). Windows
+    /// tools write UTF-16 playlists, which UTF-8 rejects and Latin-1 turns
+    /// into NUL-riddled noise that matches nothing.
+    nonisolated static func decodeM3UData(_ data: Data) -> String? {
+        if data.starts(with: [0xFF, 0xFE]) || data.starts(with: [0xFE, 0xFF]) {
+            return String(data: data, encoding: .utf16)
+        }
+        return String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1)
+    }
+
     /// M3U seam (design spec, "Разбор M3U"): turns file content into the
     /// ordered track entries, keeping numeric prefixes and relative paths
     /// exactly as written. Non-empty, non-comment lines in file order.
+    ///
+    /// Lines end at CR, LF or CRLF only: U+0085 and U+2028 are ordinary
+    /// characters of a path here (`.newlines` would cut an entry in two).
+    /// A leading byte order mark is not part of the header line.
     func parseM3UContent(_ content: String) -> [String] {
-        content.components(separatedBy: .newlines)
+        let text = content.hasPrefix("\u{FEFF}") ? String(content.dropFirst()) : content
+        return text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty && !$0.hasPrefix(M3UFormat.commentPrefix) }
     }
@@ -333,12 +350,16 @@ extension PlaylistManager {
         }
     }
     
-    private func generateM3UContent(for tracks: [Track]) -> String {
+    func generateM3UContent(for tracks: [Track]) -> String {
         var lines = [M3UFormat.header]
         
         for track in tracks {
             let durationSeconds = Int(track.duration)
+            // A line break inside a tag would end the `#EXTINF` line and turn
+            // the rest of the title into a track entry on the next import.
             let artistTitle = "\(track.artist) - \(track.title)"
+                .components(separatedBy: .newlines)
+                .joined(separator: " ")
             lines.append("\(M3UFormat.infoPrefix)\(durationSeconds),\(artistTitle)")
             lines.append(track.url.path)
         }
