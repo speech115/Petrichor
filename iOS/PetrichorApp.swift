@@ -45,7 +45,6 @@ struct PetrichorApp: App {
     @State private var needsPlaybackSave = false
     @State private var backgroundSaveID = UIBackgroundTaskIdentifier.invalid
     private let launchStart = ContinuousClock.now
-    private let positionTicker = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
     /// Launch phases as Instruments intervals (Points of Interest); the log
     /// line below carries the same numbers off a device without Instruments.
     private static let signposter = OSSignposter(subsystem: "org.Petrichor.ios", category: .pointsOfInterest)
@@ -173,20 +172,6 @@ struct PetrichorApp: App {
                 // .active will never arrive, so the next one is a real return
                 // from background and must reconcile.
                 if scenePhase == .active { hasAppearedActiveOnce = true }
-            }
-            // The playhead mark: a few bytes in UserDefaults, so a kill
-            // while playing loses seconds, not the whole session since
-            // the last backgrounding. The full snapshot stays on
-            // scenePhase: it carries the queue and costs a real write.
-            .onReceive(positionTicker) { _ in
-                if appCoordinator.playbackManager.isPlaying {
-                    appCoordinator.savePlaybackPosition()
-                }
-            }
-            .onReceive(appCoordinator.playbackManager.$isPlaying.removeDuplicates().dropFirst()) { playing in
-                if !playing {
-                    appCoordinator.savePlaybackPosition()
-                }
             }
             .onChange(of: scenePhase) { _, phase in
                 switch phase {

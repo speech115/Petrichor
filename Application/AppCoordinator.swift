@@ -4,6 +4,7 @@
 // This class handles playback initialization & state saving and restoration based on library updates.
 //
 
+import Combine
 import SwiftUI
 
 @MainActor
@@ -25,9 +26,8 @@ class AppCoordinator: ObservableObject {
     private let playbackUIStateKey = "SavedPlaybackUIState"
     nonisolated private static let playbackPositionKey = "SavedPlaybackPosition"
 
-    /// The playhead alone. The full snapshot is written only when the app
-    /// leaves the foreground, so a kill or crash while playing rolled the
-    /// position back to the last backgrounding; iOS writes this mark every few
+    /// The playhead alone. A kill or crash runs neither the backgrounding nor
+    /// the termination save, so both platforms write this mark every few
     /// seconds of playback and on pause, and restoration prefers it whenever
     /// it names a track from the saved queue. Every full write refreshes it,
     /// so it is never older than the snapshot.
@@ -39,6 +39,13 @@ class AppCoordinator: ObservableObject {
     // Track restoration state to prevent race conditions
     private var isRestoringPlayback = false
     private var libraryObserver: NSObjectProtocol?
+
+    /// What a kill would otherwise lose: see `observePlaybackForPersistence`.
+    private var persistenceObservers: Set<AnyCancellable> = []
+    /// The last full snapshot write; the next one waits for it, so an older
+    /// snapshot never lands after a newer one.
+    private var snapshotWrite: Task<Void, Never>?
+    nonisolated static let positionMarkInterval: TimeInterval = 15
     
     // MARK: - Initialization
     
@@ -71,6 +78,8 @@ class AppCoordinator: ObservableObject {
 
         Self.shared = self
 
+        observePlaybackForPersistence()
+
         // Launch counts as coming to the foreground: a Mac app opened in the
         // background never becomes active.
         Task { await libraryManager.applyPeerJournal() }
@@ -96,7 +105,70 @@ class AppCoordinator: ObservableObject {
     }
     
     // MARK: - Playback State Persistence
-    
+
+    /// A kill or crash never reaches `savePlaybackState` or the backgrounding
+    /// save, so what the next launch restores is written as it changes: the
+    /// full snapshot shortly after the queue, shuffle, repeat or queue source
+    /// changes, and the playhead mark while playing and on pause.
+    private func observePlaybackForPersistence() {
+        let playlists = playlistManager
+        Publishers.MergeMany(
+            playlists.$currentQueue.map { $0.map(\.id) }.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            playlists.$isShuffleEnabled.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            playlists.$repeatMode.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            playlists.$currentQueueSource.removeDuplicates().dropFirst().map { _ in () }.eraseToAnyPublisher()
+        )
+        .debounce(for: .seconds(1), scheduler: DispatchQueue.main)
+        .sink { [weak self] in
+            MainActor.assumeIsolated { self?.saveSnapshotAfterChange() }
+        }
+        .store(in: &persistenceObservers)
+
+        Timer.publish(every: Self.positionMarkInterval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated {
+                    guard let self, self.playbackManager.isPlaying else { return }
+                    self.savePlaybackPosition()
+                }
+            }
+            .store(in: &persistenceObservers)
+
+        playbackManager.$isPlaying
+            .removeDuplicates()
+            .dropFirst()
+            .filter { !$0 }
+            .sink { [weak self] _ in
+                MainActor.assumeIsolated { self?.savePlaybackPosition() }
+            }
+            .store(in: &persistenceObservers)
+    }
+
+    /// The change-driven snapshot. Unlike the backgrounding save it never
+    /// clears anything: with no current track there is nothing worth keeping
+    /// over what is saved, and the temporary tile has no identity yet (I-3.4).
+    private func saveSnapshotAfterChange() {
+        guard let currentTrack = playbackManager.currentTrack, currentTrack.trackId != nil else { return }
+        enqueueSnapshotWrite(snapshotInput(currentTrack: currentTrack), priority: .utility)
+    }
+
+    /// Builds, encodes and writes a snapshot off the main actor, after any
+    /// write still in flight.
+    @discardableResult
+    private func enqueueSnapshotWrite(_ input: SnapshotInput, priority: TaskPriority) -> Task<Void, Never> {
+        let previous = snapshotWrite
+        let stateKey = playbackStateKey
+        let uiStateKey = playbackUIStateKey
+        let task = Task {
+            await previous?.value
+            await Task.detached(priority: priority) {
+                Self.write(Self.snapshot(from: input), stateKey: stateKey, uiStateKey: uiStateKey)
+            }.value
+        }
+        snapshotWrite = task
+        return task
+    }
+
     func savePlaybackPosition() {
         guard let trackId = playbackManager.currentTrack?.trackId else { return }
         Self.write(PlaybackPositionMark(trackId: trackId, position: playbackManager.currentTime))
@@ -116,11 +188,10 @@ class AppCoordinator: ObservableObject {
         UserDefaults.standard.removeObject(forKey: playbackStateKey)
         UserDefaults.standard.removeObject(forKey: playbackUIStateKey)
         UserDefaults.standard.removeObject(forKey: Self.playbackPositionKey)
-        playbackManager.restoredUITrack = nil
-        playbackManager.currentTrack = nil
-        // Play pressed on the restored UI track latches until the restore lands;
-        // a restore that is dropped instead must not leave it showing "playing".
-        playbackManager.abandonPendingPlayOnRestore()
+        // Only the restored tile goes: a track the user started meanwhile
+        // keeps playing and showing (I-3.3, D-2). Play pressed on the tile
+        // latches until the restore lands; a dropped restore releases it.
+        playbackManager.dropRestoredTile()
     }
     
     func savePlaybackState() {
@@ -153,12 +224,7 @@ class AppCoordinator: ObservableObject {
 
         guard currentTrack.trackId != nil else { return }
 
-        let input = snapshotInput(currentTrack: currentTrack)
-        let stateKey = playbackStateKey
-        let uiStateKey = playbackUIStateKey
-        await Task.detached(priority: .userInitiated) {
-            Self.write(Self.snapshot(from: input), stateKey: stateKey, uiStateKey: uiStateKey)
-        }.value
+        await enqueueSnapshotWrite(snapshotInput(currentTrack: currentTrack), priority: .userInitiated).value
     }
 
     private struct PlaybackStateSnapshot: Sendable {
@@ -312,7 +378,7 @@ class AppCoordinator: ObservableObject {
     
     private func performActualRestoration() {
         guard let data = UserDefaults.standard.data(forKey: playbackStateKey) else {
-            playbackManager.abandonPendingPlayOnRestore()
+            playbackManager.dropRestoredTile()
             isRestoringPlayback = false
             return
         }
@@ -425,6 +491,12 @@ class AppCoordinator: ObservableObject {
     }
 
     private func apply(_ restoration: Restoration) {
+        // A track the user started while restoration waited for the library
+        // owns the queue and the player now (I-3.3, D-2).
+        guard !playbackManager.hasEngineSession else {
+            Logger.info("Playback started before restoration finished; keeping it")
+            return
+        }
         let state = restoration.state
         let restoredQueue = restoration.queue
 
@@ -463,7 +535,9 @@ class AppCoordinator: ObservableObject {
             playbackManager.prepareTrackForRestoration(currentTrack, at: restoration.position)
             Logger.info("Playback state restored")
         } else {
-            playbackManager.abandonPendingPlayOnRestore()
+            // The queue came back but not its current track: no tile may stay
+            // behind with nothing to play (I-3.1, D-3).
+            playbackManager.dropRestoredTile()
         }
     }
     

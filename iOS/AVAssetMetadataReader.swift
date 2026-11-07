@@ -220,39 +220,19 @@ struct AVAssetMetadataReader: MetadataReader {
     private static func trackNumberInfo(from item: AVMetadataItem, url: URL) async -> (number: Int?, total: Int?) {
         // TRCK is a text frame ("3" or "3/12"), so try the text forms first.
         // The `.dataValue` path below is a fallback for files whose value
-        // AVFoundation only surfaces as raw bytes; those begin with the
-        // ID3v2.3 text-encoding byte, which must be stripped rather than read
-        // as a digit.
+        // AVFoundation only surfaces as raw bytes.
         if let string = await loggedLoad(tag: "trackNumber", url: url, { try await item.load(.stringValue) }),
-           let parsed = parseTrackNumber(string) {
+           let parsed = MetadataMapping.trackNumber(from: string) {
             return (parsed.number, parsed.total)
         }
         if let number = try? await item.load(.numberValue), number.intValue > 0 {
             return (number.intValue, nil)
         }
-        if var data = try? await item.load(.dataValue), data.count >= 2 {
-            // ID3v2.3 text frames begin with a one-byte encoding (0x00 latin-1,
-            // 0x01 UTF-16, 0x02 UTF-16BE, 0x03 UTF-8). Strip it only when it
-            // looks like one — a bare ASCII payload ("3/12") starts with a
-            // digit and must not lose its first character.
-            if let first = data.first, (0x00 ... 0x03).contains(first) {
-                data.removeFirst()
-            }
-            if let string = String(data: data, encoding: .isoLatin1),
-               let parsed = parseTrackNumber(string) {
-                return (parsed.number, parsed.total)
-            }
+        if let data = try? await item.load(.dataValue),
+           let parsed = MetadataMapping.trackNumber(fromID3TextFrame: data) {
+            return (parsed.number, parsed.total)
         }
         return (nil, nil)
-    }
-
-    private static func parseTrackNumber(_ string: String) -> (number: Int, total: Int?)? {
-        let parts = string
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(separator: "/")
-            .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
-        guard let number = parts.first, number > 0 else { return nil }
-        return (number, parts.count > 1 ? parts[1] : nil)
     }
 
     private static func codecName(for subtype: CMFormatDescription.MediaSubType) -> String {

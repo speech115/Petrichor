@@ -20,13 +20,19 @@ import Foundation
 
 enum M3UFilenameNormalizer {
     /// The filename with transfer-rename noise removed:
-    /// 1. a leading `NNNN - ` numeric prefix is stripped;
-    /// 2. `;` becomes `,`;
-    /// 3. spaces around commas and repeated whitespace collapse;
+    /// 1. whitespace runs collapse to one space and the ends are trimmed;
+    /// 2. a leading `NNNN - ` numeric prefix is stripped;
+    /// 3. `;` becomes `,`, and spaces around commas go;
     /// 4. the key is lowercased — the filesystem is case-insensitive, so the
     ///    M3U entry and the stored filename must match despite case drift.
+    ///
+    /// Whitespace collapses first so the later steps see single spaces: done
+    /// last, `Foo;  Bar` kept a space after its comma that `Foo, Bar` lost,
+    /// and the two never met on one key.
     static func normalize(_ filename: String) -> String {
-        var name = filename
+        var name = filename.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
 
         if let digitsEnd = name.firstIndex(where: { !$0.isNumber }), digitsEnd != name.startIndex {
             let remainder = name[digitsEnd...]
@@ -36,11 +42,8 @@ enum M3UFilenameNormalizer {
         }
 
         name = name.replacingOccurrences(of: ";", with: ",")
-        name = name.replacingOccurrences(of: ", ", with: ",")
         name = name.replacingOccurrences(of: " ,", with: ",")
-        name = name.components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
+        name = name.replacingOccurrences(of: ", ", with: ",")
 
         return name.lowercased()
     }

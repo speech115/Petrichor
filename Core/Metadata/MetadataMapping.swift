@@ -18,6 +18,39 @@ enum MetadataMapping {
             .map { String(dateString[$0]) }
     }
 
+    /// Track number and optional total from a TRCK-style text value
+    /// ("3", "3/12"), or nil when there is no positive track number. NULs and
+    /// a BOM are ignored: ID3 writers often leave the frame's terminator in.
+    /// "/12" is a total without a number, not track 12.
+    static func trackNumber(from string: String) -> (number: Int, total: Int?)? {
+        let ignored = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\u{0000}\u{FEFF}"))
+        let parts = string
+            .trimmingCharacters(in: ignored)
+            .split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false)
+            .map { Int($0.trimmingCharacters(in: ignored)) }
+        guard let number = parts.first ?? nil, number > 0 else { return nil }
+        let total = parts.count > 1 ? parts[1].flatMap { $0 > 0 ? $0 : nil } : nil
+        return (number, total)
+    }
+
+    /// Track number from a raw ID3 TRCK frame payload. ID3v2 text frames begin
+    /// with a one-byte encoding (0x00 latin-1, 0x01 UTF-16 with BOM, 0x02
+    /// UTF-16BE, 0x03 UTF-8), decoded as that encoding; a bare ASCII payload
+    /// ("3/12") starts with a digit and is read whole.
+    static func trackNumber(fromID3TextFrame data: Data) -> (number: Int, total: Int?)? {
+        guard let first = data.first else { return nil }
+        let text = Data(data.dropFirst())
+        let string: String?
+        switch first {
+        case 0x00: string = String(data: text, encoding: .isoLatin1)
+        case 0x01: string = String(data: text, encoding: .utf16)
+        case 0x02: string = String(data: text, encoding: .utf16BigEndian)
+        case 0x03: string = String(data: text, encoding: .utf8)
+        default: string = String(data: data, encoding: .isoLatin1)
+        }
+        return string.flatMap(trackNumber(from:))
+    }
+
     /// Normalize a raw rating value onto a 0-5 scale. Handles both a plain 1-5
     /// rating and the ID3v2 POPM 1-255 byte range.
     static func normalizedRating(fromRaw rawRating: Int?) -> Int? {
