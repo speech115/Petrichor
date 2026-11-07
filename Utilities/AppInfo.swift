@@ -53,21 +53,11 @@ enum AppInfo {
         Bundle.main.bundleIdentifier ?? About.bundleIdentifier
     }
 
-    /// The app's registered URL scheme from Info.plist
-    /// "petrichor-debug" for dev build and "petrichor" for prod
-    static var urlScheme: String {
-        let types = Bundle.main.infoDictionary?["CFBundleURLTypes"] as? [[String: Any]]
-        let scheme = types?
-            .compactMap { ($0["CFBundleURLSchemes"] as? [String])?.first }
-            .first
-        return scheme ?? "petrichor"
-    }
-    
     // MARK: - Networking
 
     /// Refuses https->http redirects for everything sent through it. ATS used to guarantee
     /// that until the radio feature turned it off process-wide, and credential-bearing
-    /// requests (Last.fm session key, TMDB bearer) go this way. A per-task delegate
+    /// requests (the TMDB bearer) go this way. A per-task delegate
     /// overrides it where a caller needs something stricter or different.
     static let urlSession: URLSession = {
         let config = URLSessionConfiguration.default

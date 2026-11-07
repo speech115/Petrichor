@@ -50,10 +50,6 @@ final class PlaybackPresentationObservation: ObservableObject {
 class PlaybackManager: NSObject, ObservableObject {
     let playbackProgressState = PlaybackProgressState()
     
-    var scrobbleManager: ScrobbleManager? {
-        AppCoordinator.shared?.scrobbleManager
-    }
-
     // MARK: - Published Properties
 
     @Published var currentTrack: Track?
@@ -737,9 +733,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
 
         if stopReason == .eof, let finishedTrack {
             self.playlistManager.incrementPlayCount(for: finishedTrack)
-            self.scrobbleManager?.trackFinished(finishedTrack)
-
-            Logger.info("Track completed naturally, updating play count, last played date, and scrobbling it if configured")
+            Logger.info("Track completed naturally, updating play count and last played date")
         }
 
         // Only tear down current playback when the finished entry is still

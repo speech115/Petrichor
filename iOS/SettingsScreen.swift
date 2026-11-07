@@ -3,7 +3,7 @@
 //
 // iPhone settings: exactly what the design spec lists — rescan the library,
 // lyrics and artist info toggles, color scheme with artwork tinting, hiding
-// duplicate tracks, and About. Equalizer, scrobbling, scheduled auto-scan and
+// duplicate tracks, and About. Equalizer, scheduled auto-scan and
 // technical track details are macOS-only and intentionally absent.
 //
 // The rescan reuses `LibraryManager.scanLibraryRoot()`: it runs on a utility

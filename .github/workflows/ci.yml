@@ -156,7 +156,6 @@ jobs:
           {
             echo "// CI placeholder - online features disabled"
             echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
           # Fixed mtime: a fresh one each run would look like a config change.
           touch -t 202001010000 Configuration/Secrets.xcconfig
@@ -300,7 +299,6 @@ jobs:
           {
             echo "// CI placeholder - online features disabled"
             echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
           # Fixed mtime: a fresh one each run would look like a config change.
           touch -t 202001010000 Configuration/Secrets.xcconfig
@@ -473,7 +471,6 @@ jobs:
           {
             echo "// CI placeholder - online features disabled"
             echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
           # Fixed mtime: a fresh one each run would look like a config change.
           touch -t 202001010000 Configuration/Secrets.xcconfig
@@ -625,7 +622,6 @@ jobs:
           {
             echo "// CI placeholder - online features disabled"
             echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
           # Fixed mtime: a fresh one each run would look like a config change.
           touch -t 202001010000 Configuration/Secrets.xcconfig
@@ -709,7 +705,6 @@ jobs:
           {
             echo "// CI placeholder - online features disabled"
             echo "LASTFM_API_KEY = "
-            echo "LASTFM_SHARED_SECRET = "
           } > Configuration/Secrets.xcconfig
           # Fixed mtime: a fresh one each run would look like a config change.
           touch -t 202001010000 Configuration/Secrets.xcconfig

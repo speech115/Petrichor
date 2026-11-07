@@ -17,7 +17,6 @@ class AppCoordinator: ObservableObject {
     #if os(macOS)
     let menuBarManager: MenuBarManager
     #endif
-    let scrobbleManager: ScrobbleManager
     /// Fifth seam: this device's listen/favorite journal for the other device.
     let playbackJournal: any PlaybackJournal
     
@@ -69,9 +68,6 @@ class AppCoordinator: ObservableObject {
         menuBarManager = MenuBarManager(playbackManager: playbackManager, playlistManager: playlistManager)
         #endif
         
-        // Setup Scrobbling
-        scrobbleManager = ScrobbleManager()
-
         playbackJournal = JSONLPlaybackJournal()
 
         hadFoldersAtStartup = !libraryManager.folders.isEmpty
