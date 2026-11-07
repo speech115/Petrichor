@@ -347,9 +347,12 @@ class PlaybackManager: NSObject, ObservableObject {
     func publishNowPlayingMetadata(for track: Track) {
         // Adoption may have loaded the cover already.
         let loaded = currentTrack?.id == track.id ? currentTrack?.artworkData : nil
-        let artwork = track.artworkData ?? loaded
-        setNowPlayingMetadata(for: track, artworkData: artwork)
-        guard artwork == nil else { return }
+        if let artwork = track.artworkData ?? loaded {
+            setNowPlayingMetadata(for: track, artworkData: artwork)
+            return
+        }
+        // No tile without its cover: the system tile keeps the previous track
+        // until the load says what this one shows, or that it has none.
         enrichCurrentTrackArtwork(track, publishingMetadata: true)
     }
 
@@ -365,7 +368,8 @@ class PlaybackManager: NSObject, ObservableObject {
         let identity = track.id
 
         artworkEnrichmentTask = Task { @MainActor [weak self] in
-            let artwork = await Task.detached(priority: .utility) {
+            // Someone is looking at a held cover while this runs.
+            let artwork = await Task.detached(priority: .userInitiated) {
                 database.getArtworkData(albumId: albumId, trackId: trackId)
             }.value
             guard !Task.isCancelled,
@@ -374,6 +378,9 @@ class PlaybackManager: NSObject, ObservableObject {
             guard let artwork else {
                 // No cover: the held one gives way to the placeholder.
                 self.nowPlayingArtwork.artworkResolved(for: identity, artwork: nil)
+                if publishingMetadata {
+                    self.setNowPlayingMetadata(for: self.currentTrack ?? track, artworkData: nil)
+                }
                 return
             }
 

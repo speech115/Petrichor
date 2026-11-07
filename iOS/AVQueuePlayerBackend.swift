@@ -65,11 +65,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     private var durationObservation: NSKeyValueObservation?
     private var timeControlObservation: NSKeyValueObservation?
     private var previousState: AudioPlayerState = .stopped
-    /// The last metadata handed to `setNowPlayingMetadata`, so the backend can
-    /// re-publish it on its own play/pause/seek events (the lock screen
-    /// extrapolates elapsed time from the published rate+elapsed anchor, and
-    /// a stale anchor drifts while paused).
+    /// The metadata on the published tile, so the backend can re-publish it
+    /// on its own play/pause/seek events (the lock screen extrapolates elapsed
+    /// time from the published rate+elapsed anchor, and a stale anchor drifts
+    /// while paused).
     private var nowPlayingMetadata: NowPlayingMetadata?
+    /// The last metadata handed to `setNowPlayingMetadata`. It differs from
+    /// `nowPlayingMetadata` while its cover decodes.
+    private var requestedNowPlayingMetadata: NowPlayingMetadata?
     private var nowPlayingArtwork: MPMediaItemArtwork?
     private var nowPlayingArtworkTask: Task<Void, Never>?
     private var nowPlayingArtworkRevision = 0
@@ -773,10 +776,14 @@ extension AVQueuePlayerBackend {
     }
 
     private func applyNowPlayingMetadata(_ metadata: NowPlayingMetadata?) {
-        let artworkChanged = metadata?.artworkData != nowPlayingMetadata?.artworkData
-        nowPlayingMetadata = metadata
+        let previous = requestedNowPlayingMetadata
+        requestedNowPlayingMetadata = metadata
 
-        guard artworkChanged else {
+        guard metadata?.artworkData != previous?.artworkData else {
+            // Same cover: publish now, unless its decode is still in flight
+            // and will publish this metadata when it lands.
+            guard nowPlayingArtworkTask == nil else { return }
+            nowPlayingMetadata = metadata
             publishNowPlaying()
             return
         }
@@ -784,16 +791,27 @@ extension AVQueuePlayerBackend {
         nowPlayingArtworkRevision += 1
         let revision = nowPlayingArtworkRevision
         nowPlayingArtworkTask?.cancel()
-        nowPlayingArtwork = nil
-        publishNowPlaying()
+        nowPlayingArtworkTask = nil
 
-        guard let artworkData = metadata?.artworkData else { return }
+        guard let artworkData = metadata?.artworkData else {
+            nowPlayingMetadata = metadata
+            nowPlayingArtwork = nil
+            publishNowPlaying()
+            return
+        }
+
+        // The current tile, cover included, stays up until the new cover is
+        // decoded, and then title and cover change together. Publishing the
+        // new title first meant a tile without artwork: the lock screen and
+        // Control Center blanked the cover on every track change.
         nowPlayingArtworkTask = Task { @MainActor [weak self] in
-            let prepared = await Task.detached(priority: .utility) {
+            let prepared = await Task.detached(priority: .userInitiated) {
                 NowPlayingPublisher.prepareArtwork(from: artworkData)
             }.value
             guard !Task.isCancelled else { return }
             guard let self, self.nowPlayingArtworkRevision == revision else { return }
+            self.nowPlayingArtworkTask = nil
+            self.nowPlayingMetadata = self.requestedNowPlayingMetadata
             self.nowPlayingArtwork = NowPlayingPublisher.artwork(from: prepared)
             self.publishNowPlaying()
         }
