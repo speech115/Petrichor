@@ -5,6 +5,10 @@ enum KeychainManager {
     enum Keys {
         static let lastfmSessionKey = "org.Petrichor.lastfm.sessionKey"
     }
+
+    /// Every read and write goes through here, so a key is read from the
+    /// keychain once per launch (see `SecretCache`).
+    private static let cache = SecretCache()
     
     // MARK: - Save
     
@@ -28,6 +32,7 @@ enum KeychainManager {
         let status = SecItemAdd(query as CFDictionary, nil)
         
         if status == errSecSuccess {
+            cache.set(value, for: key)
             Logger.info("KeychainManager: Saved value for key: \(key)")
             return true
         } else {
@@ -39,6 +44,10 @@ enum KeychainManager {
     // MARK: - Retrieve
     
     static func retrieve(key: String) -> String? {
+        cache.value(for: key, load: readFromKeychain)
+    }
+
+    private static func readFromKeychain(_ key: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
@@ -70,6 +79,7 @@ enum KeychainManager {
         let status = SecItemDelete(query as CFDictionary)
         
         if status == errSecSuccess || status == errSecItemNotFound {
+            cache.set(nil, for: key)
             Logger.info("KeychainManager: Deleted key: \(key)")
             return true
         } else {
