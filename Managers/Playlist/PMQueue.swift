@@ -161,9 +161,20 @@ extension PlaylistManager {
         guard !currentQueue.isEmpty else { return }
 
         guard let audioPlayer, audioPlayer.hasMirroredQueue else {
-            // No engine queue to disagree with; reorder the whole thing app-side.
-            currentQueue.shuffle()
-            currentQueueIndex = 0
+            // No engine queue to disagree with. A restored track waiting for
+            // Play stays current, with its predecessors, like the engine-side
+            // shuffle keeps the playing one (I-2.2, D-1); with no current track
+            // the whole queue is reordered.
+            let currentId = audioPlayer?.currentTrack?.id
+            if currentQueueIndex >= 0, let anchor = currentQueue.firstIndex(where: { $0.id == currentId }) {
+                replaceCurrentQueue(
+                    Array(currentQueue[...anchor]) + currentQueue[(anchor + 1)...].shuffled(),
+                    index: anchor
+                )
+            } else {
+                currentQueue.shuffle()
+                currentQueueIndex = 0
+            }
             Logger.info("Shuffled the playback queue")
             return
         }

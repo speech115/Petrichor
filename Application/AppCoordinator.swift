@@ -120,11 +120,10 @@ class AppCoordinator: ObservableObject {
         UserDefaults.standard.removeObject(forKey: playbackStateKey)
         UserDefaults.standard.removeObject(forKey: playbackUIStateKey)
         UserDefaults.standard.removeObject(forKey: Self.playbackPositionKey)
-        playbackManager.restoredUITrack = nil
-        playbackManager.currentTrack = nil
-        // Play pressed on the restored UI track latches until the restore lands;
-        // a restore that is dropped instead must not leave it showing "playing".
-        playbackManager.abandonPendingPlayOnRestore()
+        // Only the restored tile goes: a track the user started meanwhile
+        // keeps playing and showing (I-3.3, D-2). Play pressed on the tile
+        // latches until the restore lands; a dropped restore releases it.
+        playbackManager.dropRestoredTile()
     }
     
     func savePlaybackState() {
@@ -316,7 +315,7 @@ class AppCoordinator: ObservableObject {
     
     private func performActualRestoration() {
         guard let data = UserDefaults.standard.data(forKey: playbackStateKey) else {
-            playbackManager.abandonPendingPlayOnRestore()
+            playbackManager.dropRestoredTile()
             isRestoringPlayback = false
             return
         }
@@ -429,6 +428,12 @@ class AppCoordinator: ObservableObject {
     }
 
     private func apply(_ restoration: Restoration) {
+        // A track the user started while restoration waited for the library
+        // owns the queue and the player now (I-3.3, D-2).
+        guard !playbackManager.hasEngineSession else {
+            Logger.info("Playback started before restoration finished; keeping it")
+            return
+        }
         let state = restoration.state
         let restoredQueue = restoration.queue
 
@@ -467,7 +472,9 @@ class AppCoordinator: ObservableObject {
             playbackManager.prepareTrackForRestoration(currentTrack, at: restoration.position)
             Logger.info("Playback state restored")
         } else {
-            playbackManager.abandonPendingPlayOnRestore()
+            // The queue came back but not its current track: no tile may stay
+            // behind with nothing to play (I-3.1, D-3).
+            playbackManager.dropRestoredTile()
         }
     }
     

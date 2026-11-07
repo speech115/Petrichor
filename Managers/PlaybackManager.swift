@@ -192,6 +192,9 @@ class PlaybackManager: NSObject, ObservableObject {
                 }
 
                 await MainActor.run {
+                    // The user started something while this fetch ran: that
+                    // session wins over the saved one (I-3.3, D-2).
+                    guard !self.hasEngineSession else { return }
                     self.currentTrack = track
                     self.currentFullTrack = fullTrack
                     self.restoredPosition = position
@@ -215,6 +218,22 @@ class PlaybackManager: NSObject, ObservableObject {
                 }
             }
         }
+    }
+
+    /// Whether the engine holds a session started since launch (a tap, Play
+    /// on the restored track). Restoration never overrides one.
+    var hasEngineSession: Bool {
+        currentEntryId != nil
+    }
+
+    /// Drops the temporary tile `restoreUIState` showed, once restoration
+    /// ends without a real track to put behind it (I-3.1). Leaves a real
+    /// track alone.
+    func dropRestoredTile() {
+        abandonPendingPlayOnRestore()
+        guard !hasEngineSession, currentTrack?.trackId == nil else { return }
+        restoredUITrack = nil
+        currentTrack = nil
     }
 
     /// Resets a latched play when the restore it was waiting on failed.
@@ -443,7 +462,10 @@ class PlaybackManager: NSObject, ObservableObject {
 
         // A track that is in the queue starts as a queue entry, so the engine can
         // advance through the rest of the queue by itself.
-        if let position = playlistManager.currentQueue.firstIndex(where: { $0.url == lightweightTrack.url }) {
+        let queue = playlistManager.currentQueue
+        let cursor = playlistManager.currentQueueIndex
+        let cursorNamesTrack = queue.indices.contains(cursor) && queue[cursor].url == lightweightTrack.url
+        if let position = cursorNamesTrack ? cursor : queue.firstIndex(where: { $0.url == lightweightTrack.url }) {
             startQueue(at: position, resumeAt: resumeAt)
         } else {
             startOffQueueTrack(lightweightTrack, url: fullTrack.url, resumeAt: resumeAt)

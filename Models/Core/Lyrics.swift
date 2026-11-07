@@ -24,7 +24,7 @@ extension Collection where Element == LyricLine {
 extension LyricLine {
     /// Normalize CRLF / lone CR line endings to LF so block- and line-splitting
     /// behave consistently regardless of how the lyric file was authored.
-    private static func normalizingNewlines(_ string: String) -> String {
+    static func normalizingNewlines(_ string: String) -> String {
         string
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -36,7 +36,8 @@ extension LyricLine {
         var lyrics: [LyricLine] = []
 
         // Use the regular expression to parse the time stamps
-        let pattern = "\\[(\\d+):(\\d+)(?:\\.(\\d+))?\\]"
+        // Fraction after "." or ":" — `[mm:ss:xx]` is a common variant.
+        let pattern = "\\[(\\d+):(\\d+)(?:[.:](\\d+))?\\]"
         // Enhanced-LRC inline word timing tags, e.g. <00:12.50>, are stripped from the displayed text
         let wordTagPattern = "<\\d+:\\d+(?:\\.\\d+)?>"
         guard let regex = try? NSRegularExpression(pattern: pattern) else {

@@ -26,9 +26,11 @@ enum FilenameMetadataFallback {
         }
 
         // `#### - Исполнитель - Название`: префикс остаётся частью заголовка.
+        // An empty artist slot (`0001 -  - Title`) is no artist: an empty
+        // string would bypass the "Unknown Artist" placeholder downstream.
         if parts.count >= 3, !parts[0].isEmpty, parts[0].allSatisfy(\.isNumber) {
             let artist = parts[1].trimmingCharacters(in: .whitespaces)
-            return (artist, base)
+            return (artist.isEmpty ? nil : artist, base)
         }
 
         // `Исполнитель - Название`.
