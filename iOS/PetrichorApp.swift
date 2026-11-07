@@ -64,6 +64,15 @@ struct PetrichorApp: App {
                 Logger.error("Failed to seed UI-test fixtures: \(error)")
             }
         }
+        // The CI benchmark's library (PerformanceUITests): 1500 tracks and a
+        // 1200-track playlist, generated once per simulator.
+        if ProcessInfo.processInfo.arguments.contains(perfSeedLibraryLaunchArgument) {
+            do {
+                try seedPerfLibraryIfNeeded()
+            } catch {
+                Logger.error("Failed to seed the benchmark library: \(error)")
+            }
+        }
         #endif
 
         // Settings shows this toggle on by default; without the registered

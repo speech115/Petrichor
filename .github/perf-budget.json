@@ -1,0 +1,4 @@
+{
+  "_comment": "Upper bounds for the CI benchmark's medians (Tests/PetrichoriOSUITests/PerformanceUITests.swift), read by .github/scripts/perf-gate.py. Calibrated on GitHub-hosted macos-26 runners with headroom for their noise; see the perf job in .github/workflows/ci.yml.",
+  "budgets": []
+}
