@@ -331,3 +331,70 @@ private enum PlaybackJournalTestError: Error {
     await journal.flush()
     #expect(try PlaybackJournalCodec.decodeLines(String(contentsOf: file, encoding: .utf8)) == expected)
 }
+
+// MARK: - Torn tails
+
+/// SplitMix64: a fixed-seed generator, so a failing case reproduces.
+private struct SeededGenerator: RandomNumberGenerator {
+    var state: UInt64
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+}
+
+private func randomJournal(seed: UInt64) -> [PlaybackJournalEvent] {
+    var rng = SeededGenerator(state: seed)
+    let names = ["a.mp3", "Моя музыка/б.mp3", "Spotify/0239 - Jeune Ras.mp3", "x/\"quoted\".flac"]
+    return (0..<Int.random(in: 1...6, using: &rng)).map { index in
+        let path = names[Int.random(in: 0..<names.count, using: &rng)]
+        let at = Date(timeIntervalSince1970: 1_700_000_000 + Double(index * 61))
+        return Bool.random(using: &rng)
+            ? .played(path: path, at: at)
+            : .favorite(path: path, value: Bool.random(using: &rng), at: at)
+    }
+}
+
+/// A journal cut anywhere — the app killed mid-append, or the sync job
+/// copying the file while it grows — still decodes: every newline-terminated
+/// line comes back, and the unterminated tail is either a whole event or
+/// left for the next read. One torn line must not stop the whole journal.
+@Test(arguments: 0..<40 as Range<UInt64>)
+func playbackJournalCutAnywhereDecodesItsCompleteLines(seed: UInt64) throws {
+    let events = randomJournal(seed: seed)
+    let text = try events.map { try PlaybackJournalCodec.encodeLine($0) + "\n" }.joined()
+    let utf8 = Array(text.utf8)
+    for cut in 0...utf8.count {
+        let prefix = String(decoding: utf8[..<cut], as: UTF8.self)
+        let terminated = utf8[..<cut].filter { $0 == UInt8(ascii: "\n") }.count
+        let decoded = try PlaybackJournalCodec.decodeLines(prefix)
+        #expect(decoded == Array(events.prefix(decoded.count)), "cut at \(cut) reordered or invented events")
+        #expect(decoded.count >= terminated, "cut at \(cut) dropped a complete line")
+    }
+}
+
+/// A kill that left a torn line at the end of this device's own journal must
+/// not glue the next event onto it: the writer drops the fragment first.
+@Test @MainActor func journalWriterDropsATornTailBeforeAppending() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let file = root.appendingPathComponent("playback-journal.jsonl")
+    let before = PlaybackJournalEvent.played(path: "before.mp3", at: Date(timeIntervalSince1970: 1_000))
+    let torn = try PlaybackJournalCodec.encodeLine(
+        .played(path: "torn.mp3", at: Date(timeIntervalSince1970: 1_500))
+    ).prefix(20)
+    try Data((try PlaybackJournalCodec.encodeLine(before) + "\n" + torn).utf8).write(to: file)
+
+    let journal = JSONLPlaybackJournal(fileURL: file)
+    let after = PlaybackJournalEvent.played(path: "after.mp3", at: Date(timeIntervalSince1970: 2_000))
+    journal.trackPlayed(relativePath: "after.mp3", at: Date(timeIntervalSince1970: 2_000))
+    await journal.flush()
+
+    let text = try String(contentsOf: file, encoding: .utf8)
+    #expect(text.hasSuffix("\n"))
+    #expect(try PlaybackJournalCodec.decodeLines(text) == [before, after])
+}
