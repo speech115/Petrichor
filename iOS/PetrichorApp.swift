@@ -180,7 +180,8 @@ struct PetrichorApp: App {
                         hasAppearedActiveOnce = true
                         return
                     }
-                    Task { await appCoordinator.libraryManager.applyPeerJournal() }
+                    // Reconciliation applies the other device's journal
+                    // once the files it names are scanned.
                     Task(priority: .utility) {
                         do {
                             try await appCoordinator.libraryManager.reconcileLibrary()
