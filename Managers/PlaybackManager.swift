@@ -63,6 +63,10 @@ class PlaybackManager: NSObject, ObservableObject {
                 name: NSNotification.Name("PlaybackStateChanged"), object: nil)
         }
     }
+    /// The explicit playback lifecycle (`PlaybackPhase`), fed by the same engine
+    /// callbacks that set `isPlaying`. Nothing reads it yet: it runs alongside
+    /// `isPlaying` so the two can be compared before `isPlaying` derives from it.
+    @Published private(set) var phase: PlaybackPhase = .idle
     var currentTime: Double {
         get { playbackProgressState.currentTime }
         set { playbackProgressState.currentTime = newValue }
@@ -262,6 +266,7 @@ class PlaybackManager: NSObject, ObservableObject {
     func stopGracefully() {
         audioPlayer.stop()
         isPlaying = false
+        recordPlayback(.stop)
         pendingPlayOnRestore = false
         Logger.info("Playback stopped gracefully")
     }
@@ -277,7 +282,18 @@ class PlaybackManager: NSObject, ObservableObject {
         injectedNext = nil
         currentTime = 0
         isPlaying = false
+        recordPlayback(.stop)
         pendingPlayOnRestore = false
+    }
+
+    /// Moves `phase` on by `event`. An event the phase cannot take is a stale or
+    /// out-of-order engine callback: it is logged and the phase stays put.
+    func recordPlayback(_ event: PlaybackEvent) {
+        guard let next = phase.applying(event) else {
+            Logger.warning("Playback phase \(phase) refused \(event)")
+            return
+        }
+        phase = next
     }
     
     func seekTo(time: Double) {
@@ -437,6 +453,7 @@ class PlaybackManager: NSObject, ObservableObject {
     // MARK: - Private Methods
     
     private func startPlayback(of fullTrack: FullTrack, lightweightTrack: Track) {
+        recordPlayback(.load)
         // Hand the restore/watchdog position over explicitly (see startQueue's resumeAt).
         let resumeAt = restoredPosition
         restoredPosition = 0
@@ -629,11 +646,13 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
             // A paused load (the player rebuilt after a media services reset)
             // also reports its item here.
             self.isPlaying = self.audioPlayer.state == .playing
+            self.recordPlayback(self.isPlaying ? .start : .pause)
             // Adopted now, so the tile's timeline is this track's. Resolved by
             // id so a superseded load can't publish the wrong track.
             self.publishNowPlayingMetadata(for: started)
         } else {
             self.isPlaying = true
+            self.recordPlayback(.start)
             Logger.warning("Started an entry the mirror cannot name: \(entryId.id)")
         }
         if self.audioPlayer.state == .playing, let started = self.track(forEntry: entryId) {
@@ -648,8 +667,10 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
         switch newState {
         case .playing:
             self.isPlaying = true
+            self.recordPlayback(.start)
         case .paused:
             self.isPlaying = false
+            self.recordPlayback(.pause)
         case .stopped:
             self.isPlaying = false
         case .ready:
@@ -735,6 +756,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
             if self.audioPlayer.state != .playing, !self.engineHasSuccessor, finishedEntryIsCurrent {
                 self.currentTime = 0
                 self.isPlaying = false
+                self.recordPlayback(.finish)
             }
 
         case .userAction:
@@ -743,6 +765,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
         case .error:
             self.currentTime = 0
             self.isPlaying = false
+            self.recordPlayback(.fail)
             Logger.error("Playback finished with error")
             NotificationManager.shared.addMessage(.error, String(localized: "Playback error occurred"))
         }
