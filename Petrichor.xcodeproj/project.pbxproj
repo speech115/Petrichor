@@ -196,6 +196,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AVAssetMetadataReaderTests.swift,
+				CorruptAudioFuzzTests.swift,
 				FolderScanTests.swift,
 				LibraryPathStoreTests.swift,
 				M3UImportTests.swift,
