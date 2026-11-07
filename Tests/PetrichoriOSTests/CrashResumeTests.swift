@@ -98,11 +98,13 @@ private func waitUntil(_ timeout: Duration = .seconds(8), _ condition: () -> Boo
 }
 
 /// A coordinator launched against whatever the previous one left behind,
-/// waited until its restoration applied.
+/// waited until its restoration applied. Restoration is left to the one the
+/// coordinator schedules itself: a second, manual one would land after the
+/// test starts playing and replace it (D-2, fixed separately).
 @MainActor
 private func relaunch(expectingQueueCount count: Int) async throws -> AppCoordinator {
     let coordinator = AppCoordinator()
-    coordinator.restorePlaybackState()
+    coordinator.playbackManager.volume = 0
     try await waitUntil {
         coordinator.playlistManager.currentQueue.count == count
             && coordinator.playbackManager.currentFullTrack != nil
@@ -122,11 +124,8 @@ struct CrashResumeTests {
         let old = [fixture.tracks[0], fixture.tracks[1]]
         try fixture.saveSession(current: old[0], queue: old, index: 0, position: 1)
 
-        let first = AppCoordinator()
+        let first = try await relaunch(expectingQueueCount: old.count)
         defer { first.playbackManager.stop() }
-        first.playbackManager.volume = 0
-        first.restorePlaybackState()
-        try await waitUntil { first.playbackManager.currentFullTrack != nil }
 
         let fresh = [fixture.tracks[2], fixture.tracks[3]]
         first.playlistManager.playTrack(fresh[1], fromTracks: fresh)
@@ -159,11 +158,8 @@ struct CrashResumeTests {
         defer { fixture.cleanUp() }
         try fixture.saveSession(current: fixture.tracks[0], queue: fixture.tracks, index: 0, position: 0)
 
-        let first = AppCoordinator()
+        let first = try await relaunch(expectingQueueCount: fixture.tracks.count)
         defer { first.playbackManager.stop() }
-        first.playbackManager.volume = 0
-        first.restorePlaybackState()
-        try await waitUntil { first.playbackManager.currentFullTrack != nil }
 
         let target = fixture.tracks[1]
         first.playlistManager.playTrack(target, fromTracks: fixture.tracks)
