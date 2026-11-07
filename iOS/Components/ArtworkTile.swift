@@ -71,11 +71,6 @@ struct ArtworkTile: View {
     /// Largest decoded edge in physical pixels. A 44-point row needs about
     /// 132 pixels on a 3x phone, not the source image's full dimensions.
     var maxPixelSize: CGFloat = 180
-    /// An already-decoded smaller rendition that can be shown on the first
-    /// frame while this tile prepares its larger image. Now Playing uses the
-    /// mini player's cached rendition so artwork moves with the screen instead
-    /// of popping in after the opening transition.
-    var fallbackMaxPixelSize: CGFloat? = nil
     /// Fetches the artwork for rows that arrive without any, called at most
     /// once per appearance and never on the main thread.
     var loader: ArtworkDataLoader? = nil
@@ -87,10 +82,6 @@ struct ArtworkTile: View {
 
     private var sizedCacheKey: String? {
         versionedCacheKey(maxPixelSize: maxPixelSize)
-    }
-
-    private var fallbackCacheKey: String? {
-        fallbackMaxPixelSize.flatMap { versionedCacheKey(maxPixelSize: $0) }
     }
 
     nonisolated static func dataCacheKey(_ data: Data) -> String {
@@ -136,13 +127,12 @@ struct ArtworkTile: View {
     var body: some View {
         let currentKey = sizedCacheKey
         let resolvedData = data ?? (loadedDataKey == currentKey ? loadedData : nil)
-        let fallbackImage = fallbackCacheKey.flatMap { RowArtworkCache.shared.image(forKey: $0) }
 
         Group {
             if let currentKey, let cached = RowArtworkCache.shared.image(forKey: currentKey) {
                 artworkImage(cached)
             } else if let resolvedData {
-                decodeView(data: resolvedData, cacheKey: currentKey, fallbackImage: fallbackImage)
+                decodeView(data: resolvedData, cacheKey: currentKey)
             } else if let loader {
                 placeholder.task(id: sizedCacheKey) {
                     // Visible rows can start several reads at once. Utility
@@ -172,17 +162,11 @@ struct ArtworkTile: View {
     /// this branch: a cache hit is drawn on the first frame by the caller above
     /// and never changes state, so a scrolled-back row shows its cover outright
     /// instead of blinking. The fade belongs to the decode, not to the tile.
-    private func decodeView(data: Data, cacheKey: String?, fallbackImage: UIImage?) -> some View {
+    private func decodeView(data: Data, cacheKey: String?) -> some View {
         Group {
             if decodedImageKey == cacheKey, let decodedImage {
                 artworkImage(decodedImage)
                     .transition(.opacity)
-            } else if let fallbackImage {
-                artworkImage(fallbackImage)
-                    .transition(.opacity)
-                    .task(id: cacheKey) {
-                        await decode(data, cacheKey: cacheKey)
-                    }
             } else {
                 placeholder
                     .transition(.opacity)
@@ -210,7 +194,7 @@ struct ArtworkTile: View {
         }
         // No cross-fade: a 180ms opacity tween on decode fights Navigation
         // zoom and fullScreenCover zoom, and reads as hitch. Cache hits already
-        // paint instantly; decode into a fallback should too.
+        // paint instantly.
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {

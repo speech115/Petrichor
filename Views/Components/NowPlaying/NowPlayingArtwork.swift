@@ -88,15 +88,15 @@ enum NowPlayingArtwork {
         #endif
     }
 
-    /// Decodes the track's embedded artwork into an image (nil when absent).
-    static func image(for track: Track?) -> PlatformImage? {
-        guard let data = track?.artworkData else { return nil }
+    /// Decodes the cover the player shows into an image (nil when absent).
+    static func image(for shown: NowPlayingArtworkHold.Shown?) -> PlatformImage? {
+        guard let data = shown?.artwork else { return nil }
         return PlatformImage(data: data)
     }
 
     /// Identity for refreshing player artwork when enrichment fills full art.
-    static func artworkByteCount(for track: Track?) -> Int? {
-        track?.artworkData?.count
+    static func artworkByteCount(for shown: NowPlayingArtworkHold.Shown?) -> Int? {
+        shown?.artwork?.count
     }
 
     /// Artwork-derived background gradient (cached per track), or empty when disabled

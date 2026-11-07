@@ -209,12 +209,11 @@ struct NowPlayingScreen: View {
                 .transition(.opacity.combined(with: .offset(y: 24)))
             } else {
                 Spacer(minLength: 12)
-                // The track swap happens inside a stable container, so the
-                // cover's slide and the shrink into the panel stay separate.
+                // The cover cross-fades in place on a track change rather
+                // than sliding: a slid-in tile is a new view with nothing
+                // decoded yet, and showed a placeholder until it was.
                 ZStack {
                     artwork
-                        .id(displayedTrack?.id)
-                        .transition(coverTransition)
                 }
                 // Apple Music's pause cue: the cover steps back while paused.
                 .animation(coverScaleAnimation) {
@@ -265,13 +264,6 @@ struct NowPlayingScreen: View {
 
     // MARK: - Artwork
 
-    /// A slide rather than a clip: the cover carries a 24pt shadow, and any
-    /// container tight enough to clip the travel would cut the shadow off. 40pt
-    /// of offset under a cross-fade reads as direction without needing one.
-    private var coverTransition: AnyTransition {
-        directionalTransition(distance: 40)
-    }
-
     private var coverScaleAnimation: Animation {
         reduceMotion
             ? .easeInOut(duration: AnimationDuration.mediumDuration)
@@ -307,15 +299,14 @@ struct NowPlayingScreen: View {
     }
 
     private var artwork: some View {
-        ArtworkTile(
-            data: displayedTrack?.displayArtwork,
-            cacheKey: displayedTrack.map { ArtworkCacheKey.nowPlaying($0.id) },
+        // The title and artist right below name the content; the cover
+        // itself adds nothing VoiceOver cannot already say.
+        CrossfadeArtwork(
+            artwork: playbackPresentation.artwork,
             cornerRadius: 12,
             iconSize: 72,
             maxPixelSize: 960,
-            fallbackMaxPixelSize: 180,
-            // The title and artist right below name the content; the cover
-            // itself adds nothing VoiceOver cannot already say.
+            fallbackMaxPixelSize: 180
         )
         .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }

@@ -75,6 +75,14 @@ extension PlatformFont {
 }
 
 extension PlatformImage {
+    /// A platform image over a decoded `CGImage`, at the bitmap's own size.
+    static func from(cgImage: CGImage) -> PlatformImage {
+        #if os(macOS)
+        NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        #else
+        UIImage(cgImage: cgImage)
+        #endif
+    }
 }
 
 #if !os(macOS)

@@ -30,11 +30,20 @@ final class PlaybackAvailabilityObservation: ObservableObject {
 final class PlaybackPresentationObservation: ObservableObject {
     @Published private(set) var currentTrack: Track?
     @Published private(set) var isPlaying: Bool
+    /// The cover to draw; see `PlaybackManager.nowPlayingArtwork`.
+    @Published private(set) var artwork: NowPlayingArtworkHold.Shown?
     private var subscriptions: Set<AnyCancellable> = []
 
     init(manager: PlaybackManager) {
         currentTrack = manager.currentTrack
         isPlaying = manager.isPlaying
+        artwork = manager.nowPlayingArtwork.shown
+
+        manager.$nowPlayingArtwork
+            .map(\.shown)
+            .removeDuplicates()
+            .sink { [weak self] in self?.artwork = $0 }
+            .store(in: &subscriptions)
 
         manager.$currentTrack
             .sink { [weak self] in self?.currentTrack = $0 }
@@ -56,7 +65,17 @@ class PlaybackManager: NSObject, ObservableObject {
 
     // MARK: - Published Properties
 
-    @Published var currentTrack: Track?
+    @Published var currentTrack: Track? {
+        didSet {
+            var hold = nowPlayingArtwork
+            hold.trackChanged(to: currentTrack?.id, artwork: currentTrack?.artworkData)
+            if hold != nowPlayingArtwork { nowPlayingArtwork = hold }
+        }
+    }
+    /// The cover the player surfaces draw. Unlike `currentTrack.artworkData`
+    /// it keeps the previous cover while the next track's loads, so a track
+    /// change never blanks the artwork to a placeholder.
+    @Published private(set) var nowPlayingArtwork = NowPlayingArtworkHold()
     @Published var isPlaying: Bool = false {
         didSet {
             NotificationCenter.default.post(
@@ -326,14 +345,18 @@ class PlaybackManager: NSObject, ObservableObject {
     /// Feeds the engine the metadata for its system Now Playing tile. Called only
     /// when the engine adopts a new entry; it keeps elapsed and rate current itself.
     func publishNowPlayingMetadata(for track: Track) {
-        setNowPlayingMetadata(for: track, artworkData: track.artworkData)
+        // Adoption may have loaded the cover already.
+        let loaded = currentTrack?.id == track.id ? currentTrack?.artworkData : nil
+        let artwork = track.artworkData ?? loaded
+        setNowPlayingMetadata(for: track, artworkData: artwork)
+        guard artwork == nil else { return }
         enrichCurrentTrackArtwork(track, publishingMetadata: true)
     }
 
     /// Queue entries are stored without artwork. Loads the cover for the light
     /// `track` and attaches it to `currentTrack`; restoration needs it too,
     /// because a restored track sits paused with no engine entry to trigger it.
-    private func enrichCurrentTrackArtwork(_ track: Track, publishingMetadata: Bool) {
+    func enrichCurrentTrackArtwork(_ track: Track, publishingMetadata: Bool) {
         artworkEnrichmentTask?.cancel()
         guard track.artworkData == nil else { return }
         let database = libraryManager.databaseManager
@@ -347,8 +370,12 @@ class PlaybackManager: NSObject, ObservableObject {
             }.value
             guard !Task.isCancelled,
                   let self,
-                  let artwork,
                   self.currentTrack?.id == identity else { return }
+            guard let artwork else {
+                // No cover: the held one gives way to the placeholder.
+                self.nowPlayingArtwork.artworkResolved(for: identity, artwork: nil)
+                return
+            }
 
             var enriched = self.currentTrack ?? track
             enriched.albumArtworkData = artwork
