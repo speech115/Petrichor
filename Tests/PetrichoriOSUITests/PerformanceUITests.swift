@@ -91,8 +91,10 @@ final class PerformanceUITests: XCTestCase {
         }
     }
 
-    /// A fast fling through the long playlist: the system's scroll
-    /// deceleration interval with its hitch time ratio.
+    /// A fast fling through the long playlist. The simulator reports the
+    /// deceleration interval without its hitch submetrics, and the interval
+    /// itself is the fixed length of the animation, so the signal is the
+    /// app's CPU time while the rows stream past (row bodies, artwork decode).
     func testScrollLongPlaylist() throws {
         let app = makeApp()
         app.launch()
@@ -105,7 +107,7 @@ final class PerformanceUITests: XCTestCase {
         let list = app.collectionViews.firstMatch
         let options = XCTMeasureOptions()
         options.invocationOptions = [.manuallyStop]
-        measure(metrics: [XCTOSSignpostMetric.scrollDecelerationMetric], options: options) {
+        measure(metrics: [XCTOSSignpostMetric.scrollDecelerationMetric, XCTCPUMetric(application: app)], options: options) {
             list.swipeUp(velocity: .fast)
             stopMeasuring()
             list.swipeDown(velocity: .fast)

@@ -1,4 +1,9 @@
 {
-  "_comment": "Upper bounds for the CI benchmark's medians (Tests/PetrichoriOSUITests/PerformanceUITests.swift), read by .github/scripts/perf-gate.py. Calibrated on GitHub-hosted macos-26 runners with headroom for their noise; see the perf job in .github/workflows/ci.yml.",
-  "budgets": []
+  "_comment": "Upper bounds for the CI benchmark's medians (Tests/PetrichoriOSUITests/PerformanceUITests.swift), read by .github/scripts/perf-gate.py. Calibrated on GitHub-hosted macos-26 (Debug build, iPhone 17 Pro Max simulator), 2026-11-07: about 2x the observed median, so a gross regression fails and runner noise does not. NavigationTransition includes the fixed ~1 s zoom animation, so its headroom is in absolute terms (+0.6 s of main-thread stall). Recalibrate from several runs' tables, never from one outlier.",
+  "budgets": [
+    { "test": "testLaunch", "metric": "ApplicationFirstFramePresentationResponsive", "max": 6.0, "observed": 3.12 },
+    { "test": "testHomeReady", "metric": "Prepare Home", "max": 0.6, "observed": 0.18 },
+    { "test": "testOpenLongPlaylist", "metric": "NavigationTransition", "max": 1.6, "observed": 1.02 },
+    { "test": "testOpenNowPlaying", "metric": "Open Now Playing", "max": 0.4, "observed": 0.13 }
+  ]
 }
