@@ -96,26 +96,17 @@ struct FavoriteButtonView: View, Equatable {
     }
 }
 
-struct TrackArtworkInfo: Equatable {
-    let id: String
-    let artworkData: Data?
-
-    static func == (lhs: TrackArtworkInfo, rhs: TrackArtworkInfo) -> Bool {
-        lhs.id == rhs.id && lhs.artworkData?.count == rhs.artworkData?.count
-    }
-}
-
 struct PlayerAlbumArtView: View, Equatable {
-    let trackInfo: TrackArtworkInfo?
+    let artwork: NowPlayingArtworkHold.Shown?
     let contextMenuItems: [ContextMenuItem]
     let onTap: (() -> Void)?
 
     static func == (lhs: PlayerAlbumArtView, rhs: PlayerAlbumArtView) -> Bool {
-        lhs.trackInfo == rhs.trackInfo
+        lhs.artwork == rhs.artwork
     }
 
     var body: some View {
-        AlbumArtworkImage(trackInfo: trackInfo)
+        AlbumArtworkImage(artwork: artwork)
             .onTapGesture {
                 onTap?()
             }
@@ -126,13 +117,14 @@ struct PlayerAlbumArtView: View, Equatable {
 }
 
 private struct AlbumArtworkImage: View {
-    let trackInfo: TrackArtworkInfo?
+    let artwork: NowPlayingArtworkHold.Shown?
     @State private var isHovered = false
 
     var body: some View {
         ZStack {
-            // Static image content
-            AlbumArtworkContent(trackInfo: trackInfo)
+            // Holds the previous cover until the next is decoded, then
+            // cross-fades, so a track change never blanks the slot.
+            CrossfadeArtwork(artwork: artwork, cornerRadius: 5, iconSize: 22, maxPixelSize: 152)
         }
         .frame(width: 76, height: 76)
         .shadow(
@@ -146,29 +138,6 @@ private struct AlbumArtworkImage: View {
         .contentShape(Rectangle())
         .onHover { hovering in
             isHovered = hovering
-        }
-    }
-}
-
-private struct AlbumArtworkContent: View {
-    let trackInfo: TrackArtworkInfo?
-
-    var body: some View {
-        if let artworkData = trackInfo?.artworkData,
-           let platformImage = PlatformImage(data: artworkData) {
-            Image(platformImage: platformImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 76, height: 76)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-        } else {
-            RoundedRectangle(cornerRadius: 5)
-                .fill(Color.secondary.opacity(0.15))
-                .overlay(
-                    Image(systemName: Icons.musicNote)
-                        .font(.system(size: 22, weight: .light))
-                        .foregroundColor(.secondary)
-                )
         }
     }
 }

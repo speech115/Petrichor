@@ -163,7 +163,10 @@ struct ImmersiveView: View {
             refreshArtwork()
             updateGradientColors()
         }
-        .onChange(of: NowPlayingArtwork.artworkByteCount(for: playbackManager.currentTrack)) {
+        .onChange(of: playbackManager.nowPlayingArtwork.shown?.trackID) {
+            refreshArtwork()
+        }
+        .onChange(of: NowPlayingArtwork.artworkByteCount(for: playbackManager.nowPlayingArtwork.shown)) {
             refreshArtwork()
             updateGradientColors()
         }
@@ -448,13 +451,15 @@ struct ImmersiveView: View {
     // MARK: - Helpers
 
     private func refreshArtwork() {
-        let track = playbackManager.currentTrack
-        let artCount = NowPlayingArtwork.artworkByteCount(for: track)
-        guard track?.id != currentTrackId || artCount != cachedArtworkByteCount else { return }
+        // The held cover, not `currentTrack`'s: a new track arrives without
+        // artwork, and drawing that blanked the slot until it loaded.
+        let shown = playbackManager.nowPlayingArtwork.shown
+        let artCount = NowPlayingArtwork.artworkByteCount(for: shown)
+        guard shown?.trackID != currentTrackId || artCount != cachedArtworkByteCount else { return }
 
-        currentTrackId = track?.id
+        currentTrackId = shown?.trackID
         cachedArtworkByteCount = artCount
-        cachedArtwork = NowPlayingArtwork.image(for: track)
+        cachedArtwork = NowPlayingArtwork.image(for: shown)
     }
 
     private func updateGradientColors() {

@@ -111,13 +111,13 @@ struct ContentView: View {
             if isImmersiveActive {
                 ImmersiveView(
                     isPresented: $isImmersiveActive,
-                    artwork: NowPlayingArtwork.image(for: playbackManager.currentTrack),
+                    artwork: NowPlayingArtwork.image(for: playbackManager.nowPlayingArtwork.shown),
                     gradient: NowPlayingArtwork.gradient(
                         for: playbackManager.currentTrack,
                         isDark: colorScheme == .dark,
                         enabled: useArtworkColors && tintNowPlayingBackground
                     ),
-                    trackID: playbackManager.currentTrack?.id,
+                    trackID: playbackManager.nowPlayingArtwork.shown?.trackID,
                     isDarkMode: colorScheme == .dark
                 )
                 .transition(.move(edge: .bottom))
