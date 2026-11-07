@@ -23,11 +23,10 @@ private struct TrackFixture {
         let database = try DatabaseManager()
         let folderURL = LibraryPathStore.libraryRoot.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
-        var urls: [URL] = []
-        for index in 0..<count {
+        let urls = try (0..<count).map { index in
             let url = folderURL.appendingPathComponent("Track \(index).wav")
             try FileManager.default.moveItem(at: try makeSilentWAV(seconds: 4), to: url)
-            urls.append(url)
+            return url
         }
         let (folderID, tracks) = try await database.dbQueue.write { db -> (Int64, [Track]) in
             try Folder(url: folderURL).insert(db)
