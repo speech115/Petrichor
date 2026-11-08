@@ -1,16 +1,16 @@
 import SwiftUI
 
-/// The album, artist and playlist pages share the iPhone's detail-page look:
-/// a large cover, Play and Shuffle as equal capsules, and the cover's colors
-/// washing the page.
+/// The album, artist and playlist pages share one look, after the Music app:
+/// a large cover, a bold title, Play and Shuffle in gray, and the cover's
+/// colors washing the page.
 enum DetailPageStyle {
     static let artworkSize: CGFloat = 200
     static let titleFont = Font.system(size: 28, weight: .bold)
 }
 
-/// Play and Shuffle as equal capsules, as on the iPhone: on a long list people
-/// press Shuffle, so it must not read as secondary. `extra` adds page-specific
-/// buttons (Edit) in the same style.
+/// The detail pages' actions as in the Music app: Play as a gray capsule with
+/// its label, Shuffle as a round gray button beside it. `extra` adds
+/// page-specific buttons (Edit) in the same gray style.
 struct PlayShuffleButtons<Extra: View>: View {
     let onPlay: () -> Void
     let onShuffle: () -> Void
@@ -18,26 +18,27 @@ struct PlayShuffleButtons<Extra: View>: View {
     @ViewBuilder var extra: () -> Extra
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button(action: onPlay) {
                 Label("Play", systemImage: Icons.playFill)
-                    .frame(width: 110)
+                    .padding(.horizontal, 8)
             }
+            .buttonBorderShape(.capsule)
             .disabled(isDisabled)
 
             Button(action: onShuffle) {
-                Label("Shuffle", systemImage: Icons.shuffleFill)
-                    .frame(width: 110)
+                Image(systemName: Icons.shuffleFill)
             }
+            .buttonBorderShape(.circle)
             .disabled(isDisabled)
+            .help("Shuffle")
 
             extra()
+                .buttonBorderShape(.capsule)
         }
         .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(.tint)
+        .foregroundStyle(.primary)
         .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
-        .tint(.accentColor)
         .controlSize(.large)
     }
 }

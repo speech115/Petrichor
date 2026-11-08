@@ -139,11 +139,6 @@ struct PlaylistDetailView: View {
 
     private var playlistInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(playlistTypeText)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fontWeight(.medium)
-
             Text(playlist.map(PlaylistDisplay.name) ?? "")
                 .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
@@ -276,17 +271,6 @@ struct PlaylistDetailView: View {
         guard let playlist = playlist else { return Icons.musicNoteList }
 
         return Icons.defaultPlaylistIcon(for: playlist)
-    }
-
-    private var playlistTypeText: String {
-        guard let playlist = playlist else { return "" }
-
-        switch playlist.type {
-        case .smart:
-            return String(localized: "SMART PLAYLIST")
-        case .regular:
-            return String(localized: "PLAYLIST")
-        }
     }
 
     private var emptyStateTitle: String {
