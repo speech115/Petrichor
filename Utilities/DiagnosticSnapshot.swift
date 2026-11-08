@@ -117,7 +117,6 @@ enum DiagnosticSnapshot {
 
         payload["settings"] = [
             "general": [
-                "closeToMenubar": defaults.boolOrNull("closeToMenubar"),
                 "startAtLogin": defaults.boolOrNull("startAtLogin"),
                 "hideDuplicateTracks": defaults.boolOrNull("hideDuplicateTracks")
             ],

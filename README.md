@@ -41,7 +41,7 @@
 - Manage the play queue interactively using drag and drop.
 - Browse music using folder view when needed.
 - Navigate easily: right-click a track to go to its album, artist, year, etc.
-- Native macOS integration with menubar and dock playback controls, plus dark mode support.
+- Native macOS integration with dock playback controls, plus dark mode support.
 - Miniplayer and immersive mode.
 - Gapless playback, Crossfade, ReplayGain volume normalization, Equalizer, Spatial Audio, and AirPlay 2 output.
 - Shortcuts and Automation API support along with Siri.

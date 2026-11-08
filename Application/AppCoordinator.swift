@@ -15,7 +15,6 @@ class AppCoordinator: ObservableObject {
     let playlistManager: PlaylistManager
     let playbackManager: PlaybackManager
     #if os(macOS)
-    let menuBarManager: MenuBarManager
     #endif
     /// Fifth seam: this device's listen/favorite journal for the other device.
     let playbackJournal: any PlaybackJournal
@@ -62,11 +61,6 @@ class AppCoordinator: ObservableObject {
         
         // Setup now playing - PlaybackManager owns the single Now Playing path
         playbackManager.connectRemoteCommandCenter()
-        
-        #if os(macOS)
-        // Setup menubar
-        menuBarManager = MenuBarManager(playbackManager: playbackManager, playlistManager: playlistManager)
-        #endif
         
         playbackJournal = JSONLPlaybackJournal()
 

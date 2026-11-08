@@ -8,9 +8,6 @@ struct GeneralTabView: View {
     @AppStorage("startAtLogin")
     private var startAtLogin = false
 
-    @AppStorage("closeToMenubar")
-    private var closeToMenubar = true
-
     @AppStorage("hideDuplicateTracks")
     private var hideDuplicateTracks: Bool = true
 
@@ -20,8 +17,6 @@ struct GeneralTabView: View {
             Section("Behavior") {
                 Toggle("Start at login", isOn: $startAtLogin)
                     .help("Starts app on login")
-                Toggle("Keep running in menubar on close", isOn: $closeToMenubar)
-                    .help("Keeps the app running in the menubar even after closing")
                 Toggle("Hide duplicate songs", isOn: $hideDuplicateTracks)
                     .help("Shows only the highest quality version in the library; explicit playlist entries remain visible")
                     .onChange(of: hideDuplicateTracks) {
