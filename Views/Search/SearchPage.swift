@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// Search results, as on the iPhone: artists and albums as shelves that open
-/// their pages, then the matching songs as a track table. The query is the
-/// toolbar's search field (`LibraryManager.globalSearchText`).
+/// Search, a sidebar section as in the Music app: a large title and the search
+/// field on top, then artists and albums as shelves that open their pages and
+/// the matching songs as a track table. The field edits
+/// `LibraryManager.globalSearchText`.
 struct SearchPage: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
 
+    /// Flips to true when ⌘F asks for the cursor in the field.
+    var shouldFocusField = false
     let onOpen: (any Entity) -> Void
 
     @State private var selectedTrackID: String?
@@ -44,6 +47,19 @@ struct SearchPage: View {
         let tracks = tracks
 
         VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Search")
+                    .font(DetailPageStyle.titleFont)
+
+                SearchInputField(
+                    text: $libraryManager.globalSearchText,
+                    placeholder: String(localized: "Artists, Albums, Songs"),
+                    fontSize: 13,
+                    shouldFocus: shouldFocusField
+                )
+                .frame(maxWidth: 420)
+            }
+
             if !artists.isEmpty {
                 EntityShelf(title: LibraryFilterType.artists.pluralDisplayName) {
                     ForEach(artists) { artist in
@@ -92,7 +108,9 @@ struct SearchPage: View {
         .padding([.top, .horizontal], 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay {
-            if !isSearching {
+            if query.isEmpty {
+                EmptyView()
+            } else if !isSearching {
                 ContentUnavailableView(
                     String(localized: "Keep Typing"),
                     systemImage: Icons.magnifyingGlass,

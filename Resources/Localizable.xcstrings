@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Artists, Albums, Songs" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Исполнители, альбомы, песни"
+          }
+        }
+      }
+    },
     "Library Unavailable" : {
       "localizations" : {
         "ru" : {
