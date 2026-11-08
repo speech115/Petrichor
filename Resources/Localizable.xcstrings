@@ -1,6 +1,26 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Paused" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На паузе"
+          }
+        }
+      }
+    },
+    "Playing" : {
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Играет"
+          }
+        }
+      }
+    },
     "Library Unavailable" : {
       "localizations" : {
         "ru" : {
