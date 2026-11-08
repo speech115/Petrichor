@@ -1,14 +1,18 @@
 import SwiftUI
 
-/// Home, as on the iPhone: a shelf of recently played albums and the
-/// Favorites card. Albums open their page, the shelf title and the card
-/// open their smart playlists.
+/// Home, laid out as the Music app's: shelves of recently played albums,
+/// the playlists and the library's most played artists. Albums and artists
+/// open their pages, playlists open in the Playlists section.
 struct HomePage: View {
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playlistManager: PlaylistManager
 
-    let onOpenAlbum: (AlbumEntity) -> Void
+    let onOpenEntity: (any Entity) -> Void
     let onOpenPlaylist: (Playlist) -> Void
+
+    /// Artists on the shelf: the library's largest, a stand-in for "your
+    /// artists" that needs no play history.
+    private static let artistLimit = 15
 
     /// The last shelf, so Home shows it at once while the fresh one loads.
     @MainActor private static var lastRecentAlbums: [AlbumEntity] = []
@@ -24,8 +28,22 @@ struct HomePage: View {
                     recentShelf
                 }
 
-                if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
-                    favoritesCard(favorites)
+                if !shelfPlaylists.isEmpty {
+                    EntityShelf(title: String(localized: "Playlists")) {
+                        ForEach(shelfPlaylists) { playlist in
+                            PlaylistTile(playlist: playlist) { onOpenPlaylist(playlist) }
+                        }
+                    }
+                }
+
+                if !topArtists.isEmpty {
+                    EntityShelf(title: LibraryFilterType.artists.pluralDisplayName) {
+                        ForEach(topArtists) { artist in
+                            EntityTile(entity: artist, subtitle: String(localized: "\(artist.trackCount) songs"), size: 140) {
+                                onOpenEntity(artist)
+                            }
+                        }
+                    }
                 }
             }
             .padding(24)
@@ -59,42 +77,25 @@ struct HomePage: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 16) {
                     ForEach(recentAlbums) { album in
-                        EntityTile(entity: album, subtitle: album.artistName) { onOpenAlbum(album) }
+                        EntityTile(entity: album, subtitle: album.artistName) { onOpenEntity(album) }
                     }
                 }
             }
         }
     }
 
-    // MARK: - Favorites
+    // MARK: - Data
 
-    private func favoritesCard(_ favorites: Playlist) -> some View {
-        Button { onOpenPlaylist(favorites) } label: {
-            HStack(spacing: 20) {
-                Image(systemName: Icons.starFill)
-                    .font(.system(size: 36))
-                    .foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(DefaultPlaylists.displayName(for: favorites))
-                        .font(.title2.bold())
-                    Text("\(favorites.trackCount) songs")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: Icons.chevronRight)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(24)
-            .frame(maxWidth: 520, minHeight: 110, alignment: .leading)
-            .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-            .contentShape(RoundedRectangle(cornerRadius: 16))
-        }
-        .buttonStyle(.plain)
+    /// Favorites first, then the user's and imported playlists in sidebar order.
+    private var shelfPlaylists: [Playlist] {
+        let favorites = smartPlaylist(DefaultPlaylists.favorites).map { [$0] } ?? []
+        let others = playlistManager.playlists.filter { $0.type == .regular && !PlaylistSource.isHidden($0) }
+        return favorites + others
     }
 
-    // MARK: - Data
+    private var topArtists: [ArtistEntity] {
+        Array(libraryManager.artistEntities.sorted { $0.trackCount > $1.trackCount }.prefix(Self.artistLimit))
+    }
 
     private func smartPlaylist(_ name: String) -> Playlist? {
         playlistManager.playlists.first { $0.type == .smart && $0.name == name }
@@ -115,5 +116,75 @@ struct HomePage: View {
         let shelf = { (albums: [AlbumEntity]) in albums.map { "\($0.albumId ?? 0)|\($0.name)|\($0.trackCount)" } }
         guard shelf(albums) != shelf(recentAlbums) else { return }
         recentAlbums = albums
+    }
+}
+
+/// A playlist on the Home shelf: its cover (pinned cover, saved artwork or
+/// the four-cover collage) with the name and song count under it.
+private struct PlaylistTile: View {
+    let playlist: Playlist
+    let onOpen: () -> Void
+
+    private static let size: CGFloat = 160
+
+    @EnvironmentObject private var libraryManager: LibraryManager
+    @State private var artwork: SidebarItemArtwork?
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 6) {
+                cover
+                    .frame(width: Self.size, height: Self.size)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .shadow(color: .black.opacity(0.15), radius: 6, y: 3)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(PlaylistDisplay.name(for: playlist))
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(String(localized: "\(playlist.trackCount) songs"))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .lineLimit(1)
+            }
+            .frame(width: Self.size, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .task(id: playlist.id) {
+            artwork = PlaylistSidebarArtwork.resolve(for: playlist)
+            if artwork == nil {
+                artwork = await PlaylistSidebarArtwork.resolveOrWarmCollage(
+                    for: playlist,
+                    database: libraryManager.databaseManager
+                )
+            }
+        }
+    }
+
+    @ViewBuilder private var cover: some View {
+        switch artwork {
+        case .data(let data):
+            if let image = PlatformImage(data: data) {
+                Image(platformImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder
+            }
+        case .playlistCover(let cover):
+            PlaylistCoverView(cover: cover, cornerRadius: 10)
+        case nil:
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color.secondary.opacity(0.15)
+            Image(systemName: Icons.musicNoteList)
+                .font(.system(size: 40))
+                .foregroundStyle(.secondary)
+        }
     }
 }
