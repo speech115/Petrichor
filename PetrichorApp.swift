@@ -14,9 +14,6 @@ struct PetrichorApp: App {
 
     private var appCoordinator: AppCoordinator? { launch.running }
 
-    @AppStorage("closeToMenubar")
-    private var closeToMenubar = true
-
     @AppStorage("miniPlayerAlwaysOnTop")
     private var miniPlayerAlwaysOnTop = false
 
@@ -225,12 +222,9 @@ extension PetrichorApp {
 
         let isMainWindow = window.identifier?.rawValue == WindowIdentifier.mainWindow
 
-        if closeToMenubar && isMainWindow {
+        if isMainWindow {
             appCoordinator?.savePlaybackState()
             window.orderOut(nil)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                NSApp.setActivationPolicy(.accessory)
-            }
         } else {
             window.close()
         }

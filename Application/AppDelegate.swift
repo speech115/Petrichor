@@ -28,11 +28,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        // Check user preference for background running
-        let closeToMenubar = UserDefaults.standard.bool(forKey: "closeToMenubar")
-
-        // If closeToMenubar is true, keep running in background, otherwise terminate the app.
-        return !closeToMenubar
+        // Keep running (and playing) after the main window is closed, like Music.app.
+        false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -178,16 +175,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        // Prevent creating new windows when clicking dock icon
-        if UserDefaults.standard.bool(forKey: "closeToMenubar") {
-            // If we have a window, show it
-            if let window = WindowManager.shared.mainWindow {
-                NSApp.setActivationPolicy(.regular)
-                window.makeKeyAndOrderFront(nil)
-            }
-            return false
-        }
-        return true
+        // Prevent creating new windows when clicking dock icon; show the hidden one instead
+        WindowManager.shared.mainWindow?.makeKeyAndOrderFront(nil)
+        return false
     }
 
     // MARK: - Dock Menu
@@ -397,7 +387,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func registerUserDefaultsDefaults() {
         let defaults: [String: Any] = [
-            "closeToMenubar": true,
             "startAtLogin": false,
             "hideDuplicateTracks": true,
             "colorMode": "Auto",

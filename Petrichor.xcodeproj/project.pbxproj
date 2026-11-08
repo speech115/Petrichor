@@ -109,7 +109,6 @@
 				Automation/AutomationIntents.swift,
 				Automation/AutomationManager.swift,
 				Automation/AutomationShortcuts.swift,
-				MenuBarManager.swift,
 			);
 			target = 55A000000000000000000020 /* PetrichoriOS */;
 		};

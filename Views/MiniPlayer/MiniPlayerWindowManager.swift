@@ -9,8 +9,7 @@
 // `setFrame` + `contentAspectRatio`/min/max (dispatched async, never during layout).
 //
 // The window uses normal level and opens alongside the main window. Closing it
-// only closes this window; with "keep running in menubar on close" enabled the
-// app stays alive via the existing AppDelegate logic.
+// only closes this window; the app stays alive via the existing AppDelegate logic.
 //
 
 import SwiftUI
