@@ -42,6 +42,26 @@ final class NowPlayingScrubberUITests: XCTestCase {
         try assertScrubKeepsPlayerOpen(from: .justAbove, dx: 160, dy: 120, named: "above")
     }
 
+    /// Control: the same drag from the cover, where it is meant to dismiss.
+    /// If this one leaves the player open, the scrub tests above prove
+    /// nothing — a synthesized drag would not reach the dismiss pan at all.
+    func testDragFromTheCoverDismissesThePlayer() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        app.launch()
+
+        let closeButton = openNowPlaying(in: app)
+        let window = app.windows.firstMatch
+        let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 60, dy: 260)))
+
+        attachBestEffortScreenshot(of: app, named: "after-cover-drag")
+        XCTAssertTrue(
+            closeButton.waitForNonExistence(timeout: 3),
+            "свайп вниз по обложке не закрыл Now Playing — синтетический драг не доходит до жеста закрытия"
+        )
+    }
+
     private enum Start {
         case onBar, onTimes, justAbove
     }
