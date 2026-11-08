@@ -6,10 +6,12 @@
 // transition, whose interactive dismissal is a pan of its own; when it won the
 // touch, a slightly downward scrub started closing the player instead of
 // seeking (the lock screen's scrubber never did that). A drag that starts on
-// the bar itself already won; the drags that lost started a few points off
-// the thin bar, on the elapsed/remaining times under it or just above it,
-// which a thumb hits as often as the bar. The tests drag from each of those
-// places with a downward component and check the player is still there.
+// the bar's 20 pt row already won. The drags that lost started a few points
+// off it, on the elapsed/remaining times under it or just above it, which a
+// thumb hits as often as the bar. The tests drag from each of those places
+// with a downward component and check the player is still there; a control
+// checks the same drag from the cover does close it, so the tests can see a
+// dismissal at all.
 //
 
 import XCTest
@@ -26,7 +28,7 @@ final class NowPlayingScrubberUITests: XCTestCase {
     }
 
     /// A steep drag from the bar: still a scrub, as in Apple Music, because it
-    /// started on the bar. This is the case the dismiss pan won every time.
+    /// started on the bar.
     func testSteepScrubKeepsThePlayerOpen() throws {
         try assertScrubKeepsPlayerOpen(from: .onBar, dx: 60, dy: 260, named: "steep")
     }
@@ -34,12 +36,12 @@ final class NowPlayingScrubberUITests: XCTestCase {
     /// The times under the bar read as part of the scrubber, and a thumb
     /// aimed at the bar lands on them.
     func testScrubFromTheTimesKeepsThePlayerOpen() throws {
-        try assertScrubKeepsPlayerOpen(from: .onTimes, dx: 160, dy: 120, named: "times")
+        try assertScrubKeepsPlayerOpen(from: .onTimes, dx: 60, dy: 260, named: "times")
     }
 
     /// A touch a few points above the thin bar is still aimed at it.
     func testScrubFromJustAboveTheBarKeepsThePlayerOpen() throws {
-        try assertScrubKeepsPlayerOpen(from: .justAbove, dx: 160, dy: 120, named: "above")
+        try assertScrubKeepsPlayerOpen(from: .justAbove, dx: 60, dy: 260, named: "above")
     }
 
     /// Control: the same drag from the cover, where it is meant to dismiss.
