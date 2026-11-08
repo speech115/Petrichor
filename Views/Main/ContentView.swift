@@ -347,14 +347,14 @@ struct ContentView: View {
         switch rightSidebarContent {
         case .queue:
             PlayQueueView()
-            .background(.ultraThinMaterial)
+                .background(.ultraThinMaterial)
         case .trackDetail(let track):
             TrackDetailView(track: track) {
                 rightSidebarContent = .none
             }
         case .lyrics:
             TrackLyricsView()
-            .background(.ultraThinMaterial)
+                .background(.ultraThinMaterial)
         case .none:
             EmptyView()
         }
