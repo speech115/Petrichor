@@ -187,6 +187,11 @@ struct EntityDetailView: View {
         entity is ArtistEntity
     }
 
+    /// Artists are round, albums square with rounded corners, as in the Music app.
+    private var artworkShape: AnyShape {
+        isPersonEntity ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 10))
+    }
+
     private var entityArtwork: some View {
         Group {
             if let artworkData = displayedArtworkData,
@@ -195,10 +200,10 @@ struct EntityDetailView: View {
                     .resizable()
                     .scaledToFill()
                     .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(artworkShape)
                     .shadow(color: .black.opacity(0.25), radius: 16, x: 0, y: 6)
             } else {
-                RoundedRectangle(cornerRadius: 10)
+                artworkShape
                     .fill(Color.secondary.opacity(0.2))
                     .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
@@ -224,7 +229,7 @@ struct EntityDetailView: View {
         }
         .overlay {
             if isPersonEntity {
-                RoundedRectangle(cornerRadius: 10)
+                artworkShape
                     .fill(Color.black.opacity(0.4))
                     .frame(width: DetailPageStyle.artworkSize, height: DetailPageStyle.artworkSize)
                     .overlay(
@@ -263,11 +268,6 @@ struct EntityDetailView: View {
 
     private var artistEntityInfo: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Artist")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fontWeight(.medium)
-
             Text(entity.name)
                 .font(DetailPageStyle.titleFont)
                 .lineLimit(2)
@@ -293,10 +293,19 @@ struct EntityDetailView: View {
                 .lineLimit(2)
 
             if let artistName = albumEntity?.artistName, !artistName.isEmpty {
+                // The album's artist in the accent, linking to the artist's
+                // page, as in the Music app.
                 Text(artistName)
-                    .font(.title3)
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.tint)
                     .lineLimit(1)
+                    .link {
+                        NotificationCenter.default.post(
+                            name: .goToLibraryFilter,
+                            object: nil,
+                            userInfo: ["filterType": LibraryFilterType.artists, "filterValue": artistName]
+                        )
+                    }
             }
 
             trackStats {

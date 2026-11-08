@@ -32,7 +32,10 @@ struct TrackTable: NSViewRepresentable {
         let table = TrackNSTableView()
         table.style = .inset
         table.backgroundColor = .clear
-        table.usesAlternatingRowBackgroundColors = layout == .standard
+        // Thin separators instead of zebra stripes, as the Music app's lists.
+        table.usesAlternatingRowBackgroundColors = false
+        table.gridStyleMask = .solidHorizontalGridLineMask
+        table.gridColor = NSColor.separatorColor.withAlphaComponent(0.35)
         table.allowsMultipleSelection = true
         table.allowsColumnReordering = layout == .standard
         table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
