@@ -1,32 +1,11 @@
 import SwiftUI
 
+/// The main window's lyrics panel, as in the Music app: full height, no
+/// header, large bold lines aligned left. The capsule's lyrics button opens
+/// and closes it.
 struct TrackLyricsView: View {
-    let onClose: () -> Void
-
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            TrackLyricsContent()
-        }
-    }
-
-    // MARK: - Header
-    private var header: some View {
-        ListHeader(opaque: true) {
-            HStack(spacing: 12) {
-                Button(action: onClose) {
-                    Image(systemName: Icons.xmarkCircleFill)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-
-                Text("Lyrics")
-                    .headerTitleStyle()
-            }
-            Spacer()
-        }
+        TrackLyricsContent(fontSize: 22, isPanelStyle: true)
     }
 }
 
@@ -43,6 +22,10 @@ struct TrackLyricsContent: View {
     var activeColor: Color = .primary
     /// Color for inactive lines.
     var inactiveColor: Color = .secondary
+    /// The Music app's panel look: every line bold and aligned left, the
+    /// current one in `activeColor`, the rest dimmed; a click on a timed line
+    /// seeks to it.
+    var isPanelStyle = false
 
     @EnvironmentObject var libraryManager: LibraryManager
     @EnvironmentObject var playbackManager: PlaybackManager
@@ -140,37 +123,23 @@ struct TrackLyricsContent: View {
     private var lyricsContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(spacing: fontSize * 0.7) {
+                VStack(alignment: isPanelStyle ? .leading : .center, spacing: fontSize * (isPanelStyle ? 0.6 : 0.7)) {
                     ForEach(Array(lyricLines.enumerated()), id: \.offset) { index, line in
                         let isActive = hasTimedLyrics && currentLineIndex == index
                         let lyricText = line.text.isEmpty ? " " : line.text
 
-                        ZStack {
-                            Text(lyricText)
-                                .font(.system(size: fontSize))
-                                .foregroundColor(inactiveColor)
-                                .opacity(isActive ? 0.0 : 1.0)
-                                .accessibilityHidden(true)
-
-                            Text(lyricText)
-                                .font(.system(size: fontSize, weight: .bold))
-                                .foregroundColor(activeColor)
-                                .opacity(isActive ? 1.0 : 0.0)
-                                .accessibilityHidden(true)
-                                .allowsHitTesting(false)
+                        Group {
+                            if isPanelStyle {
+                                panelLine(lyricText, line: line, isActive: isActive)
+                            } else {
+                                centeredLine(lyricText, isActive: isActive)
+                            }
                         }
-                        .scaleEffect(isActive ? 1.05 : 1.0)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(6)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(lyricText)
                         .id(index)
-                        .animation(.smooth(duration: 0.25), value: isActive)
                     }
                 }
-                .padding(20)
+                .padding(isPanelStyle ? 24 : 20)
                 .frame(maxWidth: .infinity)
-                .textSelection(.enabled)
             }
             .scrollIndicators(.never)
             .onChange(of: currentLineIndex) { _, newIndex in
@@ -180,6 +149,50 @@ struct TrackLyricsContent: View {
                 }
             }
         }
+    }
+
+    /// One line of the compact style (mini player, immersive): the current
+    /// line turns bold and grows slightly; the text is selectable.
+    private func centeredLine(_ text: String, isActive: Bool) -> some View {
+        ZStack {
+            Text(text)
+                .font(.system(size: fontSize))
+                .foregroundColor(inactiveColor)
+                .opacity(isActive ? 0.0 : 1.0)
+                .accessibilityHidden(true)
+
+            Text(text)
+                .font(.system(size: fontSize, weight: .bold))
+                .foregroundColor(activeColor)
+                .opacity(isActive ? 1.0 : 0.0)
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+        }
+        .scaleEffect(isActive ? 1.05 : 1.0)
+        .multilineTextAlignment(.center)
+        .lineSpacing(6)
+        .textSelection(.enabled)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+        .animation(.smooth(duration: 0.25), value: isActive)
+    }
+
+    /// One line of the panel style. Untimed lyrics have no current line, so
+    /// they all read in `activeColor`.
+    private func panelLine(_ text: String, line: LyricLine, isActive: Bool) -> some View {
+        Text(text)
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundStyle(isActive || !hasTimedLyrics ? activeColor : inactiveColor.opacity(0.55))
+            .multilineTextAlignment(.leading)
+            .lineSpacing(4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard hasTimedLyrics else { return }
+                playbackManager.seekTo(time: line.startTime)
+            }
+            .accessibilityAddTraits(hasTimedLyrics ? .isButton : [])
+            .animation(.easeInOut(duration: 0.25), value: isActive)
     }
 
     // MARK: - Helper Methods

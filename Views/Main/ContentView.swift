@@ -343,20 +343,15 @@ struct ContentView: View {
     @ViewBuilder private var sidePanel: some View {
         switch rightSidebarContent {
         case .queue:
-            PlayQueueView(showingQueue: Binding(
-                get: { rightSidebarContent == .queue },
-                set: { if !$0 { rightSidebarContent = .none } }
-            ))
-            .background(.ultraThinMaterial)
+            PlayQueueView()
+                .background(.ultraThinMaterial)
         case .trackDetail(let track):
             TrackDetailView(track: track) {
                 rightSidebarContent = .none
             }
         case .lyrics:
-            TrackLyricsView {
-                rightSidebarContent = .none
-            }
-            .background(.ultraThinMaterial)
+            TrackLyricsView()
+                .background(.ultraThinMaterial)
         case .none:
             EmptyView()
         }

@@ -1,17 +1,16 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The main window's queue panel, as in the Music app: a large "Up Next"
+/// title with the count and Clear, then the rows. The capsule's queue button
+/// opens and closes it.
 struct PlayQueueView: View {
-    @EnvironmentObject var playbackManager: PlaybackManager
     @EnvironmentObject var playlistManager: PlaylistManager
     @State private var showingClearConfirmation = false
-    @Binding var showingQueue: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            queueHeader
-            Divider()
-
+        VStack(alignment: .leading, spacing: 0) {
+            header
             PlayQueueContent()
         }
         .clearQueueConfirmation(isPresented: $showingClearConfirmation) {
@@ -20,50 +19,29 @@ struct PlayQueueView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Queue Header
-
-    private var queueHeader: some View {
-        ListHeader(opaque: true) {
-            HStack(spacing: 12) {
-                Button {
-                    showingQueue = false
-                } label: {
-                    Image(systemName: Icons.xmarkCircleFill)
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-
-                Text("Play Queue")
-                    .headerTitleStyle()
-            }
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("Up Next")
+                .font(.system(size: 20, weight: .bold))
 
             Spacer()
-            queueHeaderControls
-        }
-    }
-
-    private var queueHeaderControls: some View {
-        HStack(spacing: 12) {
-            Text("\(playlistManager.currentQueue.count) tracks")
-                .headerSubtitleStyle()
 
             if !playlistManager.currentQueue.isEmpty {
-                clearQueueButton
+                Text("\(playlistManager.currentQueue.count) songs")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+
+                Button("Clear") {
+                    showingClearConfirmation = true
+                }
+                .buttonStyle(.borderless)
+                .font(.system(size: 11, weight: .medium))
+                .help("Clear Queue")
             }
         }
-    }
-
-    private var clearQueueButton: some View {
-        Button {
-            showingClearConfirmation = true
-        } label: {
-            Image(systemName: Icons.trash)
-                .font(.system(size: 14))
-                .foregroundColor(.secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Clear Queue")
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 6)
     }
 }
 
@@ -207,20 +185,21 @@ struct PlayQueueRow: View {
 
     var body: some View {
         HStack(spacing: 8 * scale) {
-            positionIndicator
             trackInfo
-            Spacer()
+            Spacer(minLength: 4)
             trackControls
         }
-        .padding(.horizontal, 6 * scale)
+        .padding(.horizontal, 10 * scale)
         .padding(.vertical, 6 * scale)
         .background(rowBackground)
         .contentShape(Rectangle())
+        // Played songs stay in the list, dimmed, as the Music app shows history.
+        .opacity(isPlayed ? 0.5 : 1)
         .overlay(
             isLastItem ? nil : Rectangle()
                 .frame(height: 0.5)
-                .foregroundColor(Color.secondary.opacity(0.3))
-                .padding(.horizontal, 14),
+                .foregroundColor(Color.secondary.opacity(0.2))
+                .padding(.horizontal, 10 * scale),
             alignment: .bottom
         )
         .onHover { hovering in
@@ -233,36 +212,29 @@ struct PlayQueueRow: View {
         .onTapGesture(count: 2) { handleDoubleClick() }
     }
 
-    private var positionIndicator: some View {
-        ZStack {
-            if isCurrentTrack {
-                Image(systemName: isPlaying ? Icons.playFill : Icons.pauseFill)
-                    .font(.system(size: 12 * scale))
-                    .foregroundColor(.white)
-                    .frame(width: 20 * scale)
-            } else {
-                Text("\(position + 1)")
-                    .font(.system(size: 12 * scale))
-                    .foregroundColor(secondaryTextColor)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-        }
-        .frame(width: 55 * scale)
+    private var isPlayed: Bool {
+        position < playlistManager.currentQueueIndex
     }
 
     private var trackInfo: some View {
         VStack(alignment: .leading, spacing: 2 * scale) {
-            Text(track.title)
-                .font(.system(size: 13 * scale, weight: isCurrentTrack ? .semibold : .regular))
-                .lineLimit(1)
-                .foregroundColor(isCurrentTrack ? .white : primaryTextColor)
+            HStack(spacing: 5 * scale) {
+                if isCurrentTrack {
+                    Image(systemName: isPlaying ? "speaker.wave.2.fill" : "speaker.fill")
+                        .font(.system(size: 10 * scale))
+                        .foregroundStyle(accentColor)
+                        .help(isPlaying ? String(localized: "Playing") : String(localized: "Paused"))
+                }
+                Text(track.title)
+                    .font(.system(size: 13 * scale, weight: isCurrentTrack ? .semibold : .regular))
+                    .lineLimit(1)
+                    .foregroundColor(primaryTextColor)
+            }
 
             Text(track.displayArtist)
                 .font(.system(size: 11 * scale))
                 .lineLimit(1)
-                .foregroundColor(isCurrentTrack ? .white : secondaryTextColor)
+                .foregroundColor(secondaryTextColor)
         }
     }
 
@@ -270,7 +242,7 @@ struct PlayQueueRow: View {
         HStack(spacing: 5 * scale) {
             Text(HelperUtils.formattedShortDuration(track.duration))
                 .font(.system(size: 11 * scale))
-                .foregroundColor(isCurrentTrack ? .white : secondaryTextColor)
+                .foregroundColor(secondaryTextColor)
                 .monospacedDigit()
 
             if isHovered && !isCurrentTrack {
@@ -295,9 +267,9 @@ struct PlayQueueRow: View {
     private var rowBackground: some View {
         ZStack {
             if isCurrentTrack {
-                accentColor
+                primaryTextColor.opacity(0.1)
             } else if isHovered {
-                accentColor.opacity(0.1)
+                primaryTextColor.opacity(0.05)
             } else {
                 Color.clear
             }
@@ -336,9 +308,7 @@ struct QueueDropDelegate: DropDelegate {
 // MARK: - Preview
 
 #Preview {
-    @Previewable @State var showingQueue = true
-
-    return PlayQueueView(showingQueue: $showingQueue)
+    PlayQueueView()
         .environmentObject({
             let playbackManager = PlaybackManager(
                 libraryManager: LibraryManager(),
@@ -363,9 +333,7 @@ struct QueueDropDelegate: DropDelegate {
 }
 
 #Preview("Empty Queue") {
-    @Previewable @State var showingQueue = true
-
-    return PlayQueueView(showingQueue: $showingQueue)
+    PlayQueueView()
         .environmentObject({
             let playbackManager = PlaybackManager(
                 libraryManager: LibraryManager(),
