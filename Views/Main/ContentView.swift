@@ -258,8 +258,11 @@ struct ContentView: View {
                 center: {
                     sectionContent
                         // The player floats over the content column, as in the
-                        // Music app; lists scroll on under it.
-                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                        // Music app: lists keep scrolling under it, and their
+                        // last rows stop above it (track tables reserve the same
+                        // space in `TrackTable`).
+                        .contentMargins(.bottom, PlayerView.reservedHeight, for: .scrollContent)
+                        .overlay(alignment: .bottom) {
                             playerCapsule
                         }
                 },
@@ -370,7 +373,7 @@ struct ContentView: View {
     private var playerCapsule: some View {
         PlayerView(rightSidebarContent: $rightSidebarContent)
             .padding(.horizontal, 16)
-            .padding(.bottom, 14)
+            .padding(.bottom, PlayerView.bottomMargin)
             .frame(maxWidth: .infinity)
     }
 

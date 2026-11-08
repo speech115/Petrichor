@@ -13,8 +13,12 @@ struct PlayerView: View {
     @State private var previousVolume: Float = 0.7
     @State private var showingVolume = false
 
-    /// Fixed height of the capsule; the content column reserves it at the bottom.
+    /// Fixed height of the capsule.
     static let height: CGFloat = 56
+    /// Gap between the capsule and the window's bottom edge.
+    static let bottomMargin: CGFloat = 14
+    /// Space lists leave at their end so their last row clears the capsule.
+    static let reservedHeight: CGFloat = height + bottomMargin + 10
 
     var body: some View {
         HStack(spacing: 6) {
@@ -28,11 +32,15 @@ struct PlayerView: View {
             )
             .equatable()
             .overlay(alignment: .bottom) {
-                PlayerProgressBar()
-                    .padding(.leading, PlayerLCD.textInset)
-                    .padding(.trailing, 8)
+                if hasCurrentTrack {
+                    PlayerProgressBar()
+                        .padding(.leading, PlayerLCD.textInset)
+                        .padding(.trailing, 8)
+                }
             }
-            .frame(minWidth: 160, maxWidth: 380)
+            // The LCD gives way first when the content column is narrow.
+            .frame(minWidth: 120, maxWidth: 380)
+            .layoutPriority(-1)
 
             panelButtons
         }
@@ -66,9 +74,11 @@ struct PlayerView: View {
                 PlayPauseIcon(isPlaying: playbackManager.isPlaying, size: 20, color: .primary)
                     .frame(width: 34, height: 34)
                     .contentShape(Rectangle())
+                    .opacity(hasCurrentTrack ? 1 : Self.disabledOpacity)
             }
             .buttonStyle(ControlButtonStyle())
             .disabled(!hasCurrentTrack)
+            .accessibilityLabel(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
             .help(playbackManager.isPlaying ? String(localized: "Pause") : String(localized: "Play"))
             .id("playPause")
 
@@ -129,7 +139,8 @@ struct PlayerView: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
+                .opacity(hasCurrentTrack ? 1 : Self.disabledOpacity)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
@@ -139,6 +150,7 @@ struct PlayerView: View {
         .fixedSize()
         .disabled(!hasCurrentTrack)
         .help("More")
+        .accessibilityLabel(String(localized: "More"))
     }
 
     private var volumeButton: some View {
@@ -146,13 +158,14 @@ struct PlayerView: View {
             showingVolume.toggle()
         } label: {
             Image(systemName: volumeIcon)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.primary)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
         .buttonStyle(ControlButtonStyle())
         .help("Volume")
+        .accessibilityLabel(String(localized: "Volume"))
         .popover(isPresented: $showingVolume, arrowEdge: .top) {
             HStack(spacing: 10) {
                 Button(action: toggleMute) {
@@ -198,7 +211,8 @@ struct PlayerView: View {
         help: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        let isEnabled = enabled ?? hasCurrentTrack
+        return Button(action: action) {
             Group {
                 if isCustomSymbol {
                     Image(symbol)
@@ -207,14 +221,19 @@ struct PlayerView: View {
                 }
             }
             .font(.system(size: size, weight: .semibold))
+            // An explicit style overrides the disabled dimming, so dim by hand.
             .foregroundStyle(isActive ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+            .opacity(isEnabled ? 1 : Self.disabledOpacity)
             .frame(width: 28, height: 28)
             .contentShape(Rectangle())
         }
         .buttonStyle(ControlButtonStyle())
-        .disabled(!(enabled ?? hasCurrentTrack))
+        .disabled(!isEnabled)
         .help(help)
+        .accessibilityLabel(help)
     }
+
+    private static let disabledOpacity: Double = 0.3
 
     private var hasCurrentTrack: Bool {
         playbackManager.currentTrack != nil
