@@ -11,7 +11,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 struct PlayerScrubber: View {
     let palette: PlayerPalette
@@ -23,10 +22,16 @@ struct PlayerScrubber: View {
     @State private var isScrubbing = false
     @State private var scrubTime: Double = 0
     @State private var dragAnchor: DragAnchor?
+    /// Resets on its own when the system cancels the drag, which skips
+    /// `onEnded`; `endCancelledDrag` clears the scrub then.
+    @GestureState private var isDragging = false
     @State private var releaseTask: Task<Void, Never>?
     /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
     /// playback samples (see `followFraction`).
     @State private var shownFraction: Double = 0
+    /// The bar's width, which a drag's translation is measured against. The
+    /// drag itself lives on the whole scrubber, not on the bar.
+    @State private var barWidth: CGFloat = 0
 
     /// Where a drag started, and on which queue entry. The track keeps playing
     /// under the finger, so it can end mid-drag; the release must not seek the
@@ -61,6 +66,15 @@ struct PlayerScrubber: View {
     /// catch up with the seek instead of snapping back for one frame.
     private static let releaseDelay: TimeInterval = 0.12
 
+    /// How far above the bar a touch still scrubs. The bar is 7 pt tall and its
+    /// own row 20 pt; a thumb aimed at it lands a little above it or on the
+    /// times under it as often as on it. Outside the drag's area the touch
+    /// went to the zoom transition's dismiss pan, and a scrub that drifted
+    /// down started closing the player instead. With the slop and the times
+    /// row the area is about 50 pt, and the slop stays inside the gap to the
+    /// title row.
+    private static let touchSlop: CGFloat = 12
+
     var body: some View {
         VStack(spacing: 6) {
             track
@@ -78,6 +92,13 @@ struct PlayerScrubber: View {
             .monospacedDigit()
             .foregroundColor(palette.secondary)
         }
+        .padding(.top, Self.touchSlop)
+        .contentShape(Rectangle())
+        .gesture(scrubGesture(width: barWidth))
+        .onChange(of: isDragging) { _, dragging in
+            if !dragging { endCancelledDrag() }
+        }
+        .padding(.top, -Self.touchSlop)
         .disabled(playbackPresentation.currentTrack == nil)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Playback position"))
@@ -126,14 +147,13 @@ struct PlayerScrubber: View {
             .clipShape(Capsule())
             .scaleEffect(y: isScrubbing ? 1 : 7 / 12)
             .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .gesture(scrubGesture(width: geometry.size.width))
             .animation(
                 reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88),
                 value: isScrubbing
             )
         }
         .frame(height: 20)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
         .sensoryFeedback(.impact(flexibility: .soft), trigger: isScrubbing) { _, scrubbing in scrubbing }
         .onAppear { shownFraction = fraction }
         .onChange(of: fraction) { old, new in followFraction(from: old, to: new) }
@@ -166,119 +186,66 @@ struct PlayerScrubber: View {
         )
     }
 
-    /// The bar's own pan, not a SwiftUI `DragGesture`: the full player is a
-    /// zoom-transition cover whose interactive dismissal is a UIKit pan, and a
-    /// SwiftUI drag could not make it wait. With a slight downward drift the
-    /// dismiss pan won and the player started closing instead of seeking. A
-    /// drag that starts on the bar is a seek, as on the lock screen.
-    private func scrubGesture(width: CGFloat) -> ScrubPanGesture {
-        ScrubPanGesture(
-            onChanged: { dragChanged(translation: $0, width: width) },
-            onEnded: { dragEnded(translation: $0, width: width) },
-            onCancelled: endCancelledDrag
-        )
+    private func scrubGesture(width: CGFloat) -> some Gesture {
+        // The standard movement threshold ignores taps and stationary touches.
+        DragGesture()
+            .updating($isDragging) { _, dragging, _ in dragging = true }
+            .onChanged { value in
+                releaseTask?.cancel()
+                let entryID = playbackManager.currentEntryId
+                if dragAnchor == nil {
+                    dragAnchor = DragAnchor(entryID: entryID, startTime: elapsed)
+                    isScrubbing = true
+                }
+                guard let dragAnchor, dragAnchor.entryID == entryID else {
+                    isScrubbing = false
+                    return
+                }
+                let time = SeekScrub.dragTime(
+                    startTime: dragAnchor.startTime,
+                    translation: Double(value.translation.width),
+                    width: Double(width),
+                    duration: duration
+                )
+                // Only the bar follows the finger; the audio seeks once on
+                // release, as on the lock screen. Seeking while dragging
+                // replayed audio fragments.
+                scrubTime = time
+            }
+            .onEnded { value in
+                guard let dragAnchor else { return }
+                self.dragAnchor = nil
+                guard dragAnchor.entryID == playbackManager.currentEntryId else {
+                    isScrubbing = false
+                    return
+                }
+                let time = SeekScrub.dragTime(
+                    startTime: dragAnchor.startTime,
+                    translation: Double(value.translation.width),
+                    width: Double(width),
+                    duration: duration
+                )
+                scrubTime = time
+                playbackManager.seekTo(time: time)
+                // The playhead needs a beat to catch up with the seek; ending
+                // the scrub immediately would snap the bar back to the old
+                // position for one frame.
+                releaseTask?.cancel()
+                releaseTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(Int(Self.releaseDelay * 1000)))
+                    guard !Task.isCancelled else { return }
+                    isScrubbing = false
+                }
+            }
     }
 
-    private func dragChanged(translation: CGFloat, width: CGFloat) {
-        releaseTask?.cancel()
-        let entryID = playbackManager.currentEntryId
-        if dragAnchor == nil {
-            dragAnchor = DragAnchor(entryID: entryID, startTime: elapsed)
-            isScrubbing = true
-        }
-        guard let dragAnchor, dragAnchor.entryID == entryID else {
-            isScrubbing = false
-            return
-        }
-        // Only the bar follows the finger; the audio seeks once on release,
-        // as on the lock screen. Seeking while dragging replayed audio
-        // fragments.
-        scrubTime = SeekScrub.dragTime(
-            startTime: dragAnchor.startTime,
-            translation: Double(translation),
-            width: Double(width),
-            duration: duration
-        )
-    }
-
-    private func dragEnded(translation: CGFloat, width: CGFloat) {
-        guard let dragAnchor else { return }
-        self.dragAnchor = nil
-        guard dragAnchor.entryID == playbackManager.currentEntryId else {
-            isScrubbing = false
-            return
-        }
-        let time = SeekScrub.dragTime(
-            startTime: dragAnchor.startTime,
-            translation: Double(translation),
-            width: Double(width),
-            duration: duration
-        )
-        scrubTime = time
-        playbackManager.seekTo(time: time)
-        // The playhead needs a beat to catch up with the seek; ending the
-        // scrub immediately would snap the bar back to the old position for
-        // one frame.
-        releaseTask?.cancel()
-        releaseTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(Int(Self.releaseDelay * 1000)))
-            guard !Task.isCancelled else { return }
-            isScrubbing = false
-        }
-    }
-
-    /// A drag that ended normally has already cleared its anchor in
-    /// `dragEnded`. One still anchored was cancelled: the bar returns to the playhead and
+    /// A drag that ended normally has already cleared its anchor in `onEnded`.
+    /// One still anchored was cancelled: the bar returns to the playhead and
     /// the audio stays where it is.
     private func endCancelledDrag() {
         guard dragAnchor != nil else { return }
         dragAnchor = nil
         releaseTask?.cancel()
         isScrubbing = false
-    }
-}
-
-/// A one-finger pan that every other recognizer touching the bar must wait on,
-/// above all the zoom transition's dismiss pan. A pan fails only when the
-/// finger lifts without moving, so once a touch on the bar moves, it scrubs;
-/// a tap still passes through. Reports the horizontal translation.
-private struct ScrubPanGesture: UIGestureRecognizerRepresentable {
-    let onChanged: (CGFloat) -> Void
-    let onEnded: (CGFloat) -> Void
-    let onCancelled: () -> Void
-
-    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
-        let pan = UIPanGestureRecognizer()
-        pan.maximumNumberOfTouches = 1
-        pan.delegate = context.coordinator
-        return pan
-    }
-
-    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
-        let translation = recognizer.translation(in: recognizer.view).x
-        switch recognizer.state {
-        case .began, .changed:
-            onChanged(translation)
-        case .ended:
-            onEnded(translation)
-        case .cancelled, .failed:
-            onCancelled()
-        default:
-            break
-        }
-    }
-
-    @MainActor
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            otherGestureRecognizer !== gestureRecognizer
-        }
     }
 }
