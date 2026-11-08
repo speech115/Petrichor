@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The main window's single sidebar, shaped like the iPhone app: Home,
-/// Discover and the playlists in one list, imports grouped under their
-/// service the way the iPhone's Playlists tab groups them. Picking a row sets
+/// The main window's single sidebar, laid out as in the Music app: Search,
+/// Home and Discover on top, the library's browsers, then the playlists with
+/// imports grouped under their service the way the iPhone's Playlists tab
+/// groups them. Picking a row sets
 /// the section shown in the center and that section's own selection.
 struct MainSidebarView: View {
     @EnvironmentObject var libraryManager: LibraryManager
@@ -16,6 +17,10 @@ struct MainSidebarView: View {
     /// Called whenever a row is picked.
     let onSelect: () -> Void
 
+    /// The library browser's column, shared with ContentView's library section.
+    @AppStorage("librarySelectedFilterType")
+    private var libraryFilterType: LibraryFilterType = .artists
+
     @State private var collageArtwork: [UUID: SidebarItemArtwork] = [:]
     @State private var playlistToDelete: Playlist?
     @State private var showingDeleteConfirmation = false
@@ -27,8 +32,16 @@ struct MainSidebarView: View {
             let displayed = displayedPlaylists
 
             Section {
+                sectionRow(.search)
                 sectionRow(.home)
                 sectionRow(.discover)
+            }
+
+            Section("Library") {
+                ForEach(Self.libraryRows, id: \.self) { filterType in
+                    SidebarRowLabel(item: LibrarySidebarRowItem(filterType: filterType))
+                        .tag(Selection.library(filterType))
+                }
             }
 
             Section {
@@ -91,21 +104,29 @@ struct MainSidebarView: View {
 
     private enum Selection: Hashable {
         case section(Sections)
+        case library(LibraryFilterType)
         case playlist(UUID)
     }
+
+    /// The library browsers the sidebar lists, as the Music app lists
+    /// Artists, Albums and Genres under Library.
+    private static let libraryRows: [LibraryFilterType] = [.artists, .albums, .albumArtists, .genres, .years]
 
     private var selection: Binding<Selection?> {
         Binding {
             guard !isShowingPage else { return nil }
             switch selectedTab {
-            case .home, .discover: return .section(selectedTab)
+            case .home, .discover, .search: return .section(selectedTab)
+            case .library: return .library(libraryFilterType)
             case .playlists: return selectedPlaylist.map { .playlist($0.id) }
-            case .library, .search: return nil
             }
         } set: { newValue in
             switch newValue {
             case .section(let section):
                 selectedTab = section
+            case .library(let filterType):
+                libraryFilterType = filterType
+                selectedTab = .library
             case .playlist(let id):
                 guard let playlist = playlistManager.playlists.first(where: { $0.id == id }) else { return }
                 selectedPlaylist = playlist
@@ -264,6 +285,29 @@ private struct SectionSidebarItem: SidebarItem {
     var icon: String? { section.icon }
 }
 
+/// A row that opens the library browser on one column (Artists, Albums…).
+private struct LibrarySidebarRowItem: SidebarItem {
+    let filterType: LibraryFilterType
+
+    var id: UUID {
+        UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, UInt8(filterType.stableIndex)))
+    }
+
+    var title: String { filterType.pluralDisplayName }
+    var subtitle: String? { nil }
+    /// Outline glyphs in the Music app's manner rather than the browser's filled ones.
+    var icon: String? {
+        switch filterType {
+        case .artists: return "music.microphone"
+        case .albums: return "square.stack"
+        case .albumArtists: return "person.2"
+        case .composers: return "music.quarternote.3"
+        case .genres: return "guitars"
+        case .decades, .years: return "calendar"
+        }
+    }
+}
+
 /// A sidebar row's content; the list draws the highlight.
 private struct SidebarRowLabel<Item: SidebarItem>: View {
     let item: Item
@@ -294,12 +338,16 @@ private struct SidebarRowLabel<Item: SidebarItem>: View {
         }
     }
 
+    /// Monochrome, as the Music app draws its sidebar glyphs.
     @ViewBuilder private var symbol: some View {
         let icon = item.icon ?? Icons.musicNoteList
-        if icon.hasPrefix("custom.") {
-            Image(icon)
-        } else {
-            Image(systemName: icon)
+        Group {
+            if icon.hasPrefix("custom.") {
+                Image(icon)
+            } else {
+                Image(systemName: icon)
+            }
         }
+        .foregroundStyle(.secondary)
     }
 }

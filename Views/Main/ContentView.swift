@@ -147,9 +147,14 @@ struct ContentView: View {
                 rightSidebarContent = .trackDetail(newTrack)
             }
         }
-        .onChange(of: selectedTab) {
+        .onChange(of: selectedTab) { oldTab, _ in
             // Any section change (a new playlist, a search) leaves the page.
             detailEntity = nil
+            // The query also filters the library browser, so it stays on the
+            // Search page and does not follow into other sections.
+            if oldTab == .search {
+                libraryManager.globalSearchText = ""
+            }
         }
         .onChange(of: rightSidebarContent) { _, newValue in
             mainWindowPanelState = MainWindowPanelState(content: newValue)
@@ -158,22 +163,9 @@ struct ContentView: View {
             if !newValue.isEmpty {
                 detailEntity = nil
             }
-            if !newValue.isEmpty && selectedTab != .search {
-                selectedTab = .search
-            } else if newValue.isEmpty && selectedTab == .search {
-                // Search has no sidebar row; a cleared search goes back home.
-                selectedTab = .home
-            }
         }
         .background(WindowAccessor(windowDelegate: windowDelegate))
         .navigationTitle("")
-        .toolbar {
-            if #available(macOS 26.0, *) {
-                modernToolbarContent
-            } else {
-                toolbarContent
-            }
-        }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
                 .environmentObject(libraryManager)
@@ -330,7 +322,7 @@ struct ContentView: View {
             }
 
             if selectedTab == .search {
-                SearchPage { detailEntity = $0 }
+                SearchPage(shouldFocusField: shouldFocusSearch) { detailEntity = $0 }
             }
 
             if let entity = detailEntity {
@@ -374,40 +366,6 @@ struct ContentView: View {
             .background(.windowBackground)
             .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: -4)
             .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder private var toolbarContent: some ToolbarContent {
-        // Do not remove this spacer, it allows
-        // for pushing toolbar items below to the
-        // right-edge of window frame on macOS 14.x
-        ToolbarItem { Spacer() }
-
-        ToolbarItem(placement: .confirmationAction) {
-            SearchInputField(
-                text: $libraryManager.globalSearchText,
-                placeholder: String(localized: "Search"),
-                fontSize: 12,
-                shouldFocus: shouldFocusSearch
-            )
-            .frame(width: 280)
-            .disabled(!libraryManager.shouldShowMainUI)
-        }
-    }
-
-    @available(macOS 26.0, *)
-    @ToolbarContentBuilder private var modernToolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .confirmationAction) {
-            SearchInputField(
-                text: $libraryManager.globalSearchText,
-                placeholder: String(localized: "Search"),
-                fontSize: 12,
-                shouldFocus: shouldFocusSearch
-            )
-            .frame(width: 280)
-            .disabled(!libraryManager.shouldShowMainUI)
         }
     }
 
@@ -557,7 +515,13 @@ extension View {
     ) -> some View {
         self
             .onReceive(NotificationCenter.default.publisher(for: .focusSearchField)) { _ in
-                shouldFocusSearch.wrappedValue.toggle()
+                // Search is a sidebar section, as in the Music app: ⌘F opens it
+                // and puts the cursor in its field.
+                selectedTab.wrappedValue = .search
+                shouldFocusSearch.wrappedValue = false
+                DispatchQueue.main.async {
+                    shouldFocusSearch.wrappedValue = true
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .goToLibraryFilter)) { notification in
                 if let filterType = notification.userInfo?["filterType"] as? LibraryFilterType,

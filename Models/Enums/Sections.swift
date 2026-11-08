@@ -6,7 +6,7 @@ enum Sections: String, CaseIterable, Identifiable {
     case discover
     case library
     case playlists
-    /// Results for the toolbar search field; it has no sidebar row.
+    /// The Search page with its own field, the sidebar's first row.
     case search
 
     var id: String { rawValue }
