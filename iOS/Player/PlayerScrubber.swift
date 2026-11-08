@@ -29,9 +29,6 @@ struct PlayerScrubber: View {
     /// The fill's drawn fraction. Follows `fraction`, tweening only ordinary
     /// playback samples (see `followFraction`).
     @State private var shownFraction: Double = 0
-    /// The bar's width, which a drag's translation is measured against. The
-    /// drag itself lives on the whole scrubber, not on the bar.
-    @State private var barWidth: CGFloat = 0
 
     /// Where a drag started, and on which queue entry. The track keeps playing
     /// under the finger, so it can end mid-drag; the release must not seek the
@@ -66,15 +63,6 @@ struct PlayerScrubber: View {
     /// catch up with the seek instead of snapping back for one frame.
     private static let releaseDelay: TimeInterval = 0.12
 
-    /// How far above the bar a touch still scrubs. The bar is 7 pt tall and its
-    /// own row 20 pt; a thumb aimed at it lands a little above it or on the
-    /// times under it as often as on it. Outside the drag's area the touch
-    /// went to the zoom transition's dismiss pan, and a scrub that drifted
-    /// down started closing the player instead. With the slop and the times
-    /// row the area is about 50 pt, and the slop stays inside the gap to the
-    /// title row.
-    private static let touchSlop: CGFloat = 12
-
     var body: some View {
         VStack(spacing: 6) {
             track
@@ -92,13 +80,6 @@ struct PlayerScrubber: View {
             .monospacedDigit()
             .foregroundColor(palette.secondary)
         }
-        .padding(.top, Self.touchSlop)
-        .contentShape(Rectangle())
-        .gesture(scrubGesture(width: barWidth))
-        .onChange(of: isDragging) { _, dragging in
-            if !dragging { endCancelledDrag() }
-        }
-        .padding(.top, -Self.touchSlop)
         .disabled(playbackPresentation.currentTrack == nil)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(String(localized: "Playback position"))
@@ -147,13 +128,17 @@ struct PlayerScrubber: View {
             .clipShape(Capsule())
             .scaleEffect(y: isScrubbing ? 1 : 7 / 12)
             .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(scrubGesture(width: geometry.size.width))
+            .onChange(of: isDragging) { _, dragging in
+                if !dragging { endCancelledDrag() }
+            }
             .animation(
                 reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.88),
                 value: isScrubbing
             )
         }
         .frame(height: 20)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
         .sensoryFeedback(.impact(flexibility: .soft), trigger: isScrubbing) { _, scrubbing in scrubbing }
         .onAppear { shownFraction = fraction }
         .onChange(of: fraction) { old, new in followFraction(from: old, to: new) }

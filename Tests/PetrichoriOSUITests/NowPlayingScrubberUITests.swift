@@ -33,6 +33,13 @@ final class NowPlayingScrubberUITests: XCTestCase {
         try assertScrubKeepsPlayerOpen(from: .onBar, dx: 60, dy: 260, named: "steep")
     }
 
+    /// On device the dismiss won on the first scrub right after the player
+    /// opened, while the zoom was still settling. XCUITest waits for
+    /// animations before acting, so this may not reach that window.
+    func testScrubRightAfterOpeningKeepsThePlayerOpen() throws {
+        try assertScrubKeepsPlayerOpen(from: .onBar, dx: 160, dy: 45, named: "right-after-open", settle: false)
+    }
+
     /// The times under the bar read as part of the scrubber, and a thumb
     /// aimed at the bar lands on them.
     func testScrubFromTheTimesKeepsThePlayerOpen() throws {
@@ -72,13 +79,14 @@ final class NowPlayingScrubberUITests: XCTestCase {
         from startPoint: Start,
         dx: CGFloat,
         dy: CGFloat,
-        named name: String
+        named name: String,
+        settle: Bool = true
     ) throws {
         let app = XCUIApplication()
         app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
 
-        let closeButton = openNowPlaying(in: app)
+        let closeButton = openNowPlaying(in: app, settle: settle)
 
         let scrubber = app.descendants(matching: .any)["Playback position"].firstMatch
         XCTAssertTrue(scrubber.waitForExistence(timeout: 5), "скраббер не найден в Now Playing")
@@ -108,7 +116,7 @@ final class NowPlayingScrubberUITests: XCTestCase {
 
     /// Starts "Alpha One" from Songs and opens the full player from the mini
     /// player. Returns the player's Close control.
-    private func openNowPlaying(in app: XCUIApplication) -> XCUIElement {
+    private func openNowPlaying(in app: XCUIApplication, settle: Bool = true) -> XCUIElement {
         XCTAssertTrue(app.buttons["home.favorites"].waitForExistence(timeout: 60), "библиотека не загрузилась")
         app.tabBars.buttons["Search"].tap()
         let songsRow = app.buttons["library.allMusic"]
@@ -127,8 +135,8 @@ final class NowPlayingScrubberUITests: XCTestCase {
 
         let closeButton = app.buttons["Close"].firstMatch
         XCTAssertTrue(closeButton.waitForExistence(timeout: 10), "Now Playing не открылся")
-        // Let the zoom settle: a drag during the transition is a different case.
-        sleep(1)
+        // Let the zoom settle, unless the test is about the settling window.
+        if settle { sleep(1) }
         return closeButton
     }
 }
