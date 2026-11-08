@@ -5,8 +5,11 @@
 // thumb drifts. The full player is a `fullScreenCover` with the system zoom
 // transition, whose interactive dismissal is a pan of its own; when it won the
 // touch, a slightly downward scrub started closing the player instead of
-// seeking (the lock screen's scrubber never did that). The test drags from the
-// bar with a downward component and checks the player is still there.
+// seeking (the lock screen's scrubber never did that). A drag that starts on
+// the bar itself already won; the drags that lost started a few points off
+// the thin bar, on the elapsed/remaining times under it or just above it,
+// which a thumb hits as often as the bar. The tests drag from each of those
+// places with a downward component and check the player is still there.
 //
 
 import XCTest
@@ -19,16 +22,36 @@ final class NowPlayingScrubberUITests: XCTestCase {
     /// A shallow drag, the way a thumb usually scrubs: mostly sideways,
     /// drifting down a little.
     func testShallowScrubKeepsThePlayerOpen() throws {
-        try assertScrubKeepsPlayerOpen(dx: 160, dy: 45, named: "shallow")
+        try assertScrubKeepsPlayerOpen(from: .onBar, dx: 160, dy: 45, named: "shallow")
     }
 
     /// A steep drag from the bar: still a scrub, as in Apple Music, because it
     /// started on the bar. This is the case the dismiss pan won every time.
     func testSteepScrubKeepsThePlayerOpen() throws {
-        try assertScrubKeepsPlayerOpen(dx: 60, dy: 260, named: "steep")
+        try assertScrubKeepsPlayerOpen(from: .onBar, dx: 60, dy: 260, named: "steep")
     }
 
-    private func assertScrubKeepsPlayerOpen(dx: CGFloat, dy: CGFloat, named name: String) throws {
+    /// The times under the bar read as part of the scrubber, and a thumb
+    /// aimed at the bar lands on them.
+    func testScrubFromTheTimesKeepsThePlayerOpen() throws {
+        try assertScrubKeepsPlayerOpen(from: .onTimes, dx: 160, dy: 120, named: "times")
+    }
+
+    /// A touch a few points above the thin bar is still aimed at it.
+    func testScrubFromJustAboveTheBarKeepsThePlayerOpen() throws {
+        try assertScrubKeepsPlayerOpen(from: .justAbove, dx: 160, dy: 120, named: "above")
+    }
+
+    private enum Start {
+        case onBar, onTimes, justAbove
+    }
+
+    private func assertScrubKeepsPlayerOpen(
+        from startPoint: Start,
+        dx: CGFloat,
+        dy: CGFloat,
+        named name: String
+    ) throws {
         let app = XCUIApplication()
         app.launchArguments += ["--uitest-seed-fixtures", "-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
@@ -38,7 +61,18 @@ final class NowPlayingScrubberUITests: XCTestCase {
         let scrubber = app.descendants(matching: .any)["Playback position"].firstMatch
         XCTAssertTrue(scrubber.waitForExistence(timeout: 5), "скраббер не найден в Now Playing")
 
-        let start = scrubber.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.3))
+        // The accessibility element spans the 20 pt bar row and the times
+        // row under it; the visible bar sits in the middle of the top 20 pt.
+        let top = scrubber.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0))
+        let start: XCUICoordinate
+        switch startPoint {
+        case .onBar:
+            start = top.withOffset(CGVector(dx: 0, dy: 10))
+        case .onTimes:
+            start = scrubber.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.85))
+        case .justAbove:
+            start = top.withOffset(CGVector(dx: 0, dy: -6))
+        }
         let end = start.withOffset(CGVector(dx: dx, dy: dy))
         start.press(forDuration: 0.05, thenDragTo: end)
 
