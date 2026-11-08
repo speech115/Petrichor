@@ -10,19 +10,20 @@ import SwiftUI
 struct PlayPauseIcon: View {
     let isPlaying: Bool
     var size: CGFloat = 20
+    var color: Color = .white
 
     var body: some View {
         ZStack {
             Image(systemName: Icons.playFill)
                 .font(.system(size: size, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(color)
                 .opacity(isPlaying ? 0 : 1)
                 .scaleEffect(isPlaying ? 0.8 : 1)
                 .rotationEffect(.degrees(isPlaying ? -90 : 0))
 
             Image(systemName: Icons.pauseFill)
                 .font(.system(size: size, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(color)
                 .opacity(isPlaying ? 1 : 0)
                 .scaleEffect(isPlaying ? 1 : 0.8)
                 .rotationEffect(.degrees(isPlaying ? 0 : 90))

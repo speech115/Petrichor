@@ -88,9 +88,6 @@ struct ContentView: View {
             Divider()
             // Main Content Area with Queue
             mainContentArea
-
-            playerControls
-                .animation(.easeInOut(duration: 0.3), value: libraryManager.folders.isEmpty)
         }
         .onKeyPress(.space) {
             if isCurrentlyEditingText() {
@@ -260,6 +257,14 @@ struct ContentView: View {
                 },
                 center: {
                     sectionContent
+                        // The player floats over the content column, as in the
+                        // Music app: lists keep scrolling under it, and their
+                        // last rows stop above it (track tables reserve the same
+                        // space in `TrackTable`).
+                        .contentMargins(.bottom, PlayerView.reservedHeight, for: .scrollContent)
+                        .overlay(alignment: .bottom) {
+                            playerCapsule
+                        }
                 },
                 right: {
                     sidePanel
@@ -365,16 +370,11 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder private var playerControls: some View {
-        if libraryManager.shouldShowMainUI {
-            PlayerView(
-                rightSidebarContent: $rightSidebarContent
-            )
-            .frame(height: 110)
-            .background(.windowBackground)
-            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: -4)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
+    private var playerCapsule: some View {
+        PlayerView(rightSidebarContent: $rightSidebarContent)
+            .padding(.horizontal, 16)
+            .padding(.bottom, PlayerView.bottomMargin)
+            .frame(maxWidth: .infinity)
     }
 
     // MARK: - Toolbar

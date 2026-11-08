@@ -394,7 +394,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "showTrackTechnicalInfo": true,
             "tintPlaybackControls": true,
             "tintNowPlayingBackground": true,
-            "playerBarBackgroundStyle": "Full width",
             "discoverUpdateInterval": "weekly",
             "discoverTrackCount": 50
         ]

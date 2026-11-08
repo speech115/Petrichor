@@ -124,7 +124,6 @@ enum DiagnosticSnapshot {
                 "miniPlayerAlwaysOnTop": defaults.boolOrNull("miniPlayerAlwaysOnTop"),
                 "colorMode": defaults.stringOrNull("colorMode"),
                 "useArtworkColors": defaults.boolOrNull("useArtworkColors"),
-                "playerBarBackgroundStyle": defaults.stringOrNull("playerBarBackgroundStyle"),
                 "tintPlaybackControls": defaults.boolOrNull("tintPlaybackControls"),
                 "tintNowPlayingBackground": defaults.boolOrNull("tintNowPlayingBackground")
             ],

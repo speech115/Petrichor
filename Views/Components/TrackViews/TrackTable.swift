@@ -70,6 +70,10 @@ struct TrackTable: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
+        // Rows scroll on under the floating player, and the last one stops above it.
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: PlayerView.reservedHeight, right: 0)
+        scrollView.scrollerInsets = NSEdgeInsets(top: 0, left: 0, bottom: PlayerView.reservedHeight, right: 0)
         coordinator.table = table
         coordinator.appliedRowSize = rowSize
         coordinator.applySortIndicator()
