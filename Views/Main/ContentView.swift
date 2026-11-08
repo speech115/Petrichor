@@ -286,9 +286,13 @@ struct ContentView: View {
 
             if selectedTab == .home {
                 HomePage(
-                    onOpenAlbum: { album in
-                        // The shelf's entity carries only a thumbnail; the library's has the cover.
-                        detailEntity = libraryManager.albumEntities.first { $0.albumId == album.albumId } ?? album
+                    onOpenEntity: { entity in
+                        // The shelf's album carries only a thumbnail; the library's has the cover.
+                        if let album = entity as? AlbumEntity {
+                            detailEntity = libraryManager.albumEntities.first { $0.albumId == album.albumId } ?? album
+                        } else {
+                            detailEntity = entity
+                        }
                     },
                     onOpenPlaylist: { playlist in
                         selectedPlaylist = playlist
