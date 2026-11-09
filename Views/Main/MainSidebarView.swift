@@ -70,6 +70,8 @@ struct MainSidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        // The backdrop is the sidebar's glass (`sidebarGlass()`), not the list's.
+        .scrollContentBackground(.hidden)
         .task(id: displayedPlaylists.map(\.id)) {
             await warmCollageArtwork()
             await preloadPlaylistTracks()

@@ -12,11 +12,11 @@ enum SplitViewType {
 
 enum SplitViewConstants {
     // Default widths
-    static let leftSidebarDefaultWidth: CGFloat = 250
+    static let leftSidebarDefaultWidth: CGFloat = 220
     static let rightSidebarDefaultWidth: CGFloat = 350
 
-    // Left sidebar constraints
-    static let leftSidebarMinWidth: CGFloat = 250
+    // Left sidebar constraints: as narrow as the Music app's sidebar.
+    static let leftSidebarMinWidth: CGFloat = 180
     static let leftSidebarMaxWidth: CGFloat = 500
 
     static let rightSidebarMaxWidth: CGFloat = 500
@@ -99,16 +99,15 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         HStack(spacing: 0) {
             // Left sidebar
             if type == .leftOnly || type == .both {
-                left()
+                leftColumn
                     .frame(width: leftWidth)
-                    .frame(maxHeight: .infinity)
-                    .background(.ultraThinMaterial)
                     .layoutPriority(1)
 
                 SplitDivider(
                     splitWidth: $leftWidth,
                     minWidth: SplitViewConstants.leftSidebarMinWidth,
-                    maxWidth: SplitViewConstants.leftSidebarMaxWidth
+                    maxWidth: SplitViewConstants.leftSidebarMaxWidth,
+                    showsLine: !(isWindowSidebar && SidebarGlass.isFloating)
                 ) {
                     UserDefaults.standard.set(Double(leftWidth), forKey: storageKeyLeft)
                 }
@@ -143,6 +142,23 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         }
     }
 
+    /// The three-column split is the window's own sidebar, drawn as system
+    /// glass; a left-only split is a column inside the content (the library's
+    /// list of artists or albums) and keeps a plain material.
+    private var isWindowSidebar: Bool { type == .both }
+
+    @ViewBuilder private var leftColumn: some View {
+        if isWindowSidebar {
+            left()
+                .frame(maxHeight: .infinity)
+                .sidebarGlass()
+        } else {
+            left()
+                .frame(maxHeight: .infinity)
+                .background(.ultraThinMaterial)
+        }
+    }
+
     private func hasRightContent() -> Bool {
         !(Right.self == EmptyView.self)
     }
@@ -171,6 +187,7 @@ private struct SplitDivider: View {
     let minWidth: CGFloat
     let maxWidth: CGFloat
     let isLeading: Bool
+    let showsLine: Bool
     let onDragEnded: () -> Void
 
     @State private var isHovering = false
@@ -180,18 +197,20 @@ private struct SplitDivider: View {
         minWidth: CGFloat,
         maxWidth: CGFloat,
         isLeading: Bool = true,
+        showsLine: Bool = true,
         onDragEnded: @escaping () -> Void = {}
     ) {
         self._splitWidth = splitWidth
         self.minWidth = minWidth
         self.maxWidth = maxWidth
         self.isLeading = isLeading
+        self.showsLine = showsLine
         self.onDragEnded = onDragEnded
     }
 
     var body: some View {
         Rectangle()
-            .fill(Color(NSColor.separatorColor))
+            .fill(showsLine ? Color(NSColor.separatorColor) : .clear)
             .frame(width: 1)
             .overlay(
                 Rectangle()
