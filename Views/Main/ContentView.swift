@@ -84,11 +84,9 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-            // Main Content Area with Queue
-            mainContentArea
-        }
+        // No divider above the columns: the sidebar's glass runs up to the
+        // window's top edge, with the window buttons inside it.
+        mainContentArea
         .onKeyPress(.space) {
             if isCurrentlyEditingText() {
                 return .ignored
