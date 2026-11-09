@@ -108,8 +108,8 @@ struct MainSidebarView: View {
         case playlist(UUID)
     }
 
-    /// The library browsers the sidebar lists, as the Music app lists
-    /// Artists, Albums and Genres under Library.
+    /// The library browsers the sidebar lists. Album artists, genres and years
+    /// stay reachable from the library column's view switcher.
     private static let libraryRows: [LibraryFilterType] = [.artists, .albums]
 
     private var selection: Binding<Selection?> {
