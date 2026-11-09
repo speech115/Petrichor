@@ -14,13 +14,18 @@ struct HomePage: View {
     /// artists" that needs no play history.
     private static let artistLimit = 15
 
+    /// Tile sizes chosen so all three shelves fit above the floating player
+    /// in a 900 pt window: the artist names no longer sit under the capsule.
+    static let tileSize: CGFloat = 140
+    private static let artistTileSize: CGFloat = 112
+
     /// The last shelf, so Home shows it at once while the fresh one loads.
     @MainActor private static var lastRecentAlbums: [AlbumEntity] = []
     @State private var recentAlbums: [AlbumEntity] = HomePage.lastRecentAlbums
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
+            VStack(alignment: .leading, spacing: 24) {
                 Text("Home")
                     .font(.system(size: 28, weight: .bold))
 
@@ -39,14 +44,15 @@ struct HomePage: View {
                 if !topArtists.isEmpty {
                     EntityShelf(title: LibraryFilterType.artists.pluralDisplayName) {
                         ForEach(topArtists) { artist in
-                            EntityTile(entity: artist, subtitle: String(localized: "\(artist.trackCount) songs"), size: 140) {
+                            EntityTile(entity: artist, subtitle: String(localized: "\(artist.trackCount) songs"), size: Self.artistTileSize) {
                                 onOpenEntity(artist)
                             }
                         }
                     }
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Reloaded whenever Home is shown: the shelf follows what was just played.
@@ -77,7 +83,7 @@ struct HomePage: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 16) {
                     ForEach(recentAlbums) { album in
-                        EntityTile(entity: album, subtitle: album.artistName) { onOpenEntity(album) }
+                        EntityTile(entity: album, subtitle: album.artistName, size: Self.tileSize) { onOpenEntity(album) }
                     }
                 }
             }
@@ -125,7 +131,7 @@ private struct PlaylistTile: View {
     let playlist: Playlist
     let onOpen: () -> Void
 
-    private static let size: CGFloat = 160
+    private static let size = HomePage.tileSize
 
     @EnvironmentObject private var libraryManager: LibraryManager
     @State private var artwork: SidebarItemArtwork?
