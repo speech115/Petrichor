@@ -110,7 +110,7 @@ struct MainSidebarView: View {
 
     /// The library browsers the sidebar lists, as the Music app lists
     /// Artists, Albums and Genres under Library.
-    private static let libraryRows: [LibraryFilterType] = [.artists, .albums, .albumArtists, .genres, .years]
+    private static let libraryRows: [LibraryFilterType] = [.artists, .albums]
 
     private var selection: Binding<Selection?> {
         Binding {
