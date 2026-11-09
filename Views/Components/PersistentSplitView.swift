@@ -123,6 +123,9 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
                 ) {
                     UserDefaults.standard.set(Double(leftWidth), forKey: storageKeyLeft)
                 }
+                // The hairline runs up under the title bar too, so no sliver of
+                // window background shows between the sidebar and a page's wash.
+                .ignoresSafeArea(.container, edges: .top)
             }
 
             // Center content
