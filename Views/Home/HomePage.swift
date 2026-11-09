@@ -18,6 +18,8 @@ struct HomePage: View {
     /// in a 900 pt window: the artist names no longer sit under the capsule.
     static let tileSize: CGFloat = 140
     private static let artistTileSize: CGFloat = 112
+    /// The page's side margin, kept inside the shelves' scrolls.
+    private static let margin: CGFloat = 24
 
     /// The last shelf, so Home shows it at once while the fresh one loads.
     @MainActor private static var lastRecentAlbums: [AlbumEntity] = []
@@ -28,13 +30,14 @@ struct HomePage: View {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Home")
                     .font(.system(size: 28, weight: .bold))
+                    .padding(.horizontal, Self.margin)
 
                 if !recentAlbums.isEmpty {
                     recentShelf
                 }
 
                 if !shelfPlaylists.isEmpty {
-                    EntityShelf(title: String(localized: "Playlists")) {
+                    EntityShelf(title: String(localized: "Playlists"), horizontalInset: Self.margin) {
                         ForEach(shelfPlaylists) { playlist in
                             PlaylistTile(playlist: playlist) { onOpenPlaylist(playlist) }
                         }
@@ -42,7 +45,7 @@ struct HomePage: View {
                 }
 
                 if !topArtists.isEmpty {
-                    EntityShelf(title: LibraryFilterType.artists.pluralDisplayName) {
+                    EntityShelf(title: LibraryFilterType.artists.pluralDisplayName, horizontalInset: Self.margin) {
                         ForEach(topArtists) { artist in
                             EntityTile(entity: artist, subtitle: String(localized: "\(artist.trackCount) songs"), size: Self.artistTileSize) {
                                 onOpenEntity(artist)
@@ -51,7 +54,6 @@ struct HomePage: View {
                     }
                 }
             }
-            .padding(.horizontal, 24)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -75,9 +77,11 @@ struct HomePage: View {
                     .font(.title2.bold())
                 }
                 .buttonStyle(.plain)
+                .padding(.horizontal, Self.margin)
             } else {
                 Text("Recently Played")
                     .font(.title2.bold())
+                    .padding(.horizontal, Self.margin)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -87,6 +91,7 @@ struct HomePage: View {
                     }
                 }
             }
+            .contentMargins(.horizontal, Self.margin, for: .scrollContent)
         }
     }
 

@@ -12,7 +12,7 @@ enum SplitViewType {
 
 enum SplitViewConstants {
     // Default widths
-    static let leftSidebarDefaultWidth: CGFloat = 220
+    static let leftSidebarDefaultWidth: CGFloat = 200
     static let rightSidebarDefaultWidth: CGFloat = 350
 
     // Left sidebar constraints: as narrow as the Music app's sidebar.
@@ -37,6 +37,10 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
     @State private var rightWidth: CGFloat
 
     // MARK: - Initializers
+
+    /// Where the window sidebar's width is kept. A new key: widths saved under
+    /// the old one were mostly the former 250 pt minimum, not a choice.
+    static var windowSidebarStorageKey: String { "leftSidebarWidth" }
 
     // Left sidebar only
     init(
@@ -76,7 +80,7 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
 
     // Both sidebars
     init(
-        leftStorageKey: String = "leftSidebarSplitPosition",
+        leftStorageKey: String = windowSidebarStorageKey,
         rightStorageKey: String = "rightSidebarSplitPosition",
         @ViewBuilder left: @escaping () -> Left,
         @ViewBuilder center: @escaping () -> Center,
@@ -99,15 +103,16 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         HStack(spacing: 0) {
             // Left sidebar
             if type == .leftOnly || type == .both {
-                leftColumn
+                left()
                     .frame(width: leftWidth)
+                    .frame(maxHeight: .infinity)
+                    .background(.ultraThinMaterial)
                     .layoutPriority(1)
 
                 SplitDivider(
                     splitWidth: $leftWidth,
                     minWidth: SplitViewConstants.leftSidebarMinWidth,
-                    maxWidth: SplitViewConstants.leftSidebarMaxWidth,
-                    showsLine: !(isWindowSidebar && SidebarGlass.isFloating)
+                    maxWidth: SplitViewConstants.leftSidebarMaxWidth
                 ) {
                     UserDefaults.standard.set(Double(leftWidth), forKey: storageKeyLeft)
                 }
@@ -142,23 +147,6 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
         }
     }
 
-    /// The three-column split is the window's own sidebar, drawn as system
-    /// glass; a left-only split is a column inside the content (the library's
-    /// list of artists or albums) and keeps a plain material.
-    private var isWindowSidebar: Bool { type == .both }
-
-    @ViewBuilder private var leftColumn: some View {
-        if isWindowSidebar {
-            left()
-                .frame(maxHeight: .infinity)
-                .sidebarGlass()
-        } else {
-            left()
-                .frame(maxHeight: .infinity)
-                .background(.ultraThinMaterial)
-        }
-    }
-
     private func hasRightContent() -> Bool {
         !(Right.self == EmptyView.self)
     }
@@ -187,7 +175,6 @@ private struct SplitDivider: View {
     let minWidth: CGFloat
     let maxWidth: CGFloat
     let isLeading: Bool
-    let showsLine: Bool
     let onDragEnded: () -> Void
 
     @State private var isHovering = false
@@ -197,20 +184,18 @@ private struct SplitDivider: View {
         minWidth: CGFloat,
         maxWidth: CGFloat,
         isLeading: Bool = true,
-        showsLine: Bool = true,
         onDragEnded: @escaping () -> Void = {}
     ) {
         self._splitWidth = splitWidth
         self.minWidth = minWidth
         self.maxWidth = maxWidth
         self.isLeading = isLeading
-        self.showsLine = showsLine
         self.onDragEnded = onDragEnded
     }
 
     var body: some View {
         Rectangle()
-            .fill(showsLine ? Color(NSColor.separatorColor) : .clear)
+            .fill(Color(NSColor.separatorColor))
             .frame(width: 1)
             .overlay(
                 Rectangle()

@@ -130,7 +130,6 @@
 				Components/Sidebar/SidebarItemRow.swift,
 				Components/Sidebar/SidebarListView.swift,
 				Components/Sidebar/SidebarProtocol.swift,
-				Components/SidebarGlass.swift,
 				Components/SidebarView.swift,
 				Components/TrackView.swift,
 				Components/TrackViews/TrackTable.swift,
