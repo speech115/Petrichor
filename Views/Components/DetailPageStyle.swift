@@ -51,7 +51,7 @@ extension PlayShuffleButtons where Extra == EmptyView {
 
 extension View {
     /// The window background with the cover's colors washing the page from the
-    /// top and fading out downward, as on the iPhone detail pages.
+    /// window's top edge and fading out downward, as on the iPhone detail pages.
     func artworkWash(_ colors: [Color]) -> some View {
         background {
             ZStack {
@@ -62,6 +62,8 @@ extension View {
                         .transaction { $0.animation = nil }
                 }
             }
+            // Up to the window's top edge: no blank title-bar strip above the wash.
+            .ignoresSafeArea(.container, edges: .top)
         }
     }
 }
