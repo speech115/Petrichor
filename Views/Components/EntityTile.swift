@@ -113,17 +113,23 @@ struct EntityTile: View {
 /// A titled horizontal row of tiles, as the iPhone's shelves.
 struct EntityShelf<Content: View>: View {
     let title: String
+    /// The page's side margin. The shelf itself spans the full width and keeps
+    /// this margin inside its scroll, so tiles scroll out at the window's edge
+    /// instead of being cut short of it, as in the Music app.
+    var horizontalInset: CGFloat = 0
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.title2.bold())
+                .padding(.horizontal, horizontalInset)
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: 16) {
                     content()
                 }
             }
+            .contentMargins(.horizontal, horizontalInset, for: .scrollContent)
             // A horizontal ScrollView is greedy vertically; keep the shelf at its tiles' height.
             .fixedSize(horizontal: false, vertical: true)
         }
