@@ -12,12 +12,16 @@ enum SplitViewType {
 
 enum SplitViewConstants {
     // Default widths
-    static let leftSidebarDefaultWidth: CGFloat = 200
+    static let leftSidebarDefaultWidth: CGFloat = 250
     static let rightSidebarDefaultWidth: CGFloat = 350
 
-    // Left sidebar constraints: as narrow as the Music app's sidebar.
-    static let leftSidebarMinWidth: CGFloat = 180
+    // Left column constraints (the library's list of artists or albums)
+    static let leftSidebarMinWidth: CGFloat = 250
     static let leftSidebarMaxWidth: CGFloat = 500
+
+    // The window's sidebar: as narrow as the Music app's.
+    static let windowSidebarDefaultWidth: CGFloat = 200
+    static let windowSidebarMinWidth: CGFloat = 180
 
     static let rightSidebarMaxWidth: CGFloat = 500
 }
@@ -95,7 +99,7 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
 
         let leftStored = UserDefaults.standard.double(forKey: leftStorageKey)
         let rightStored = UserDefaults.standard.double(forKey: rightStorageKey)
-        self._leftWidth = State(initialValue: leftStored > 0 ? CGFloat(leftStored) : SplitViewConstants.leftSidebarDefaultWidth)
+        self._leftWidth = State(initialValue: leftStored > 0 ? CGFloat(leftStored) : SplitViewConstants.windowSidebarDefaultWidth)
         self._rightWidth = State(initialValue: rightStored > 0 ? CGFloat(rightStored) : SplitViewConstants.rightSidebarDefaultWidth)
     }
 
@@ -106,12 +110,15 @@ struct PersistentSplitView<Left: View, Center: View, Right: View>: View {
                 left()
                     .frame(width: leftWidth)
                     .frame(maxHeight: .infinity)
-                    .background(.ultraThinMaterial)
+                    // Up to the window's top edge, under the title bar.
+                    .background {
+                        Rectangle().fill(.ultraThinMaterial).ignoresSafeArea(.container, edges: .top)
+                    }
                     .layoutPriority(1)
 
                 SplitDivider(
                     splitWidth: $leftWidth,
-                    minWidth: SplitViewConstants.leftSidebarMinWidth,
+                    minWidth: type == .both ? SplitViewConstants.windowSidebarMinWidth : SplitViewConstants.leftSidebarMinWidth,
                     maxWidth: SplitViewConstants.leftSidebarMaxWidth
                 ) {
                     UserDefaults.standard.set(Double(leftWidth), forKey: storageKeyLeft)
