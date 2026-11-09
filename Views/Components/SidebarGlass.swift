@@ -1,10 +1,12 @@
 import AppKit
 import SwiftUI
 
-/// The left sidebar's backdrop, as in the system's own sidebars: translucent,
-/// showing the desktop and windows behind it. On macOS 26 it is a floating
-/// Liquid Glass pane inset from the window edges, as in the Music app and
-/// Finder; earlier systems get the classic full-height sidebar vibrancy.
+/// The left sidebar's backdrop, as in the system's own sidebars: the sidebar
+/// material blended with the desktop and windows behind the window. On
+/// macOS 26 it is a floating pane inset from the window edges, as in the
+/// Music app and Finder; earlier systems get the classic full-height sidebar.
+/// No SwiftUI `glassEffect` on top: it samples only the window's own content,
+/// cannot see through the behind-window material and renders it opaque.
 enum SidebarGlass {
     static let inset: CGFloat = 8
     static let cornerRadius: CGFloat = 16
@@ -20,11 +22,17 @@ extension View {
     func sidebarGlass() -> some View {
         if #available(macOS 26.0, *) {
             let shape = RoundedRectangle(cornerRadius: SidebarGlass.cornerRadius, style: .continuous)
+            // The pane runs up to the window's top edge, so the window buttons
+            // sit inside it; the list itself stays below them.
             self
-                .clipShape(shape)
-                .background(BehindWindowSidebarMaterial().clipShape(shape))
-                .glassEffect(.clear, in: shape)
-                .padding(SidebarGlass.inset)
+                .padding([.horizontal, .bottom], SidebarGlass.inset)
+                .background {
+                    BehindWindowSidebarMaterial()
+                        .clipShape(shape)
+                        .overlay(shape.strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+                        .padding(SidebarGlass.inset)
+                        .ignoresSafeArea(.container, edges: .top)
+                }
         } else {
             background(BehindWindowSidebarMaterial().ignoresSafeArea())
         }
