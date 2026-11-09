@@ -67,6 +67,8 @@ struct NowPlayingScreen: View {
     /// Counts taps on the star, so its bounce and haptic answer the tap and
     /// not a skip to a track that happens to differ in favorite state.
     @State private var favoriteTaps = 0
+    /// Keeps the zoom dismissal off the seek bar and the volume slider.
+    @State private var dismissGuard = ZoomDismissGuard()
 
     // The player is a fixed composition: title, scrubber, transport, volume
     // and accessory share the space the artwork leaves. Glyphs scale with
@@ -99,6 +101,7 @@ struct NowPlayingScreen: View {
                 content(in: geometry.size)
             }
         }
+        .zoomDismissGuard(dismissGuard)
         // Keep the player's controls legible on its dark artwork surface
         // without changing the color scheme of the playlist underneath it.
         .environment(\.colorScheme, .dark)
@@ -230,6 +233,7 @@ struct NowPlayingScreen: View {
                     palette: palette,
                     playbackManager: playbackManager
                 )
+                .blocksZoomDismiss(dismissGuard, id: "scrubber")
                 PlayerTransport(
                     palette: palette,
                     playbackManager: playbackManager,
@@ -406,6 +410,7 @@ struct NowPlayingScreen: View {
                 .accessibilityHidden(true)
             SystemVolumeSlider(tint: UIColor.white.withAlphaComponent(0.85))
                 .frame(height: 24)
+                .blocksZoomDismiss(dismissGuard, id: "volume")
             Image(systemName: "speaker.wave.3.fill")
                 .accessibilityHidden(true)
         }
@@ -517,5 +522,7 @@ struct NowPlayingScreen: View {
     // presented surface can be grabbed mid-flight and pulled down, or closed
     // with the grabber. No custom drag lives here — a `DragGesture` on the
     // content would claim the pan and starve the system gesture, which is the
-    // "only responds after the animation ends" feel.
+    // "only responds after the animation ends" feel. The seek bar and the
+    // volume slider are kept out of it by `ZoomDismissGuard`: the system grabs
+    // a touch on them too while the opening zoom settles.
 }
