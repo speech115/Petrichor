@@ -84,11 +84,9 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-            // Main Content Area with Queue
-            mainContentArea
-        }
+        // No divider under the title bar, as in the Music app: the sidebar's
+        // material runs up to the window's top edge around the window buttons.
+        mainContentArea
         .onKeyPress(.space) {
             if isCurrentlyEditingText() {
                 return .ignored
