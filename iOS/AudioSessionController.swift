@@ -52,6 +52,8 @@ final class AudioSessionController {
         }
         do {
             try AVAudioSession.sharedInstance().setActive(true)
+            // Playback the user starts closes any interruption left open.
+            interruption.reset()
             return true
         } catch {
             Logger.error("The system refused to activate the audio session: \(error)")

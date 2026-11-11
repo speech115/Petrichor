@@ -76,13 +76,25 @@ class RemoteCommandManager {
         playback: PlaybackManager,
         playlists: PlaylistManager
     ) -> MPRemoteCommandHandlerStatus {
+        // Decided on the engine's live state (`isPlaybackOn`), not the cached
+        // `isPlaying`: a lock-screen Pause that read a stale cache returned
+        // `.commandFailed` and left the music playing. A no-op Play/Pause
+        // still returns `.commandFailed`, which keeps the system's button
+        // state honest.
+        Logger.info("Remote command: \(command), playback on: \(playback.isPlaybackOn)")
         switch command {
         case .play:
-            guard !playback.isPlaying else { return .commandFailed }
-            playback.togglePlayPause()
+            guard !playback.isPlaybackOn else {
+                playback.healTransportState()
+                return .commandFailed
+            }
+            playback.play()
         case .pause:
-            guard playback.isPlaying else { return .commandFailed }
-            playback.togglePlayPause()
+            guard playback.isPlaybackOn else {
+                playback.healTransportState()
+                return .commandFailed
+            }
+            playback.pause()
         case .togglePlayPause:
             playback.togglePlayPause()
         case .nextTrack:

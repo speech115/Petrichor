@@ -33,19 +33,12 @@ import Foundation
 import MediaPlayer
 import os
 
-private enum ObservedTimeControlStatus: Sendable {
-    case playing
-    case paused
-    case waiting
-    case unknown
-}
-
 private enum AVFoundationEvent: Sendable {
     case currentItemChanged(ObjectIdentifier?)
     case durationChanged(ObjectIdentifier)
     case itemEnded(ObjectIdentifier)
     case itemFailed(ObjectIdentifier, error: NSError?)
-    case timeControlChanged(ObservedTimeControlStatus, currentItemKey: ObjectIdentifier?)
+    case timeControlChanged
     case seekCompleted
 }
 
@@ -485,21 +478,8 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
     /// transitions on `AVQueuePlayer` - there is no "did start/stop" delegate
     /// callback to hook into, unlike `AVAudioPlayerDelegate`.
     private func observeStateChanges() {
-        timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, change in
-            guard let status = change.newValue else { return }
-            self?.enqueueAVFoundationEvent(.timeControlChanged(
-                Self.observedStatus(status),
-                currentItemKey: player.currentItem.map(ObjectIdentifier.init)
-            ))
-        }
-    }
-
-    nonisolated private static func observedStatus(_ status: AVPlayer.TimeControlStatus) -> ObservedTimeControlStatus {
-        switch status {
-        case .playing: .playing
-        case .paused: .paused
-        case .waitingToPlayAtSpecifiedRate: .waiting
-        @unknown default: .unknown
+        timeControlObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] _, _ in
+            self?.enqueueAVFoundationEvent(.timeControlChanged)
         }
     }
 
@@ -524,9 +504,14 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
             handleItemEnded(key: key)
         case .itemFailed(let key, let error):
             handleItemFailure(key: key, notificationError: error)
-        case .timeControlChanged(let status, let eventItemKey):
-            guard eventItemKey == player.currentItem.map(ObjectIdentifier.init) else { return }
-            notifyStateIfChanged(observedStatus: status)
+        case .timeControlChanged:
+            // The event only says that something changed; the player says
+            // what. Reading the live status means an event that lands late
+            // (behind a newer pause or play) cannot report a state the player
+            // already left, and none needs dropping for a stale item: dropping
+            // one used to lose the only report of a system pause or resume,
+            // leaving the app and the lock screen on the wrong button.
+            notifyStateIfChanged()
             publishNowPlaying()
         case .seekCompleted:
             publishNowPlaying()
@@ -535,20 +520,6 @@ final class AVQueuePlayerBackend: NSObject, PlaybackBackend {
 
     private func notifyStateIfChanged() {
         let newState = mapState(player.timeControlStatus)
-        guard newState != previousState else { return }
-        let previous = previousState
-        previousState = newState
-        backendDelegate?.backendStateChanged(with: newState, previous: previous)
-    }
-
-    private func notifyStateIfChanged(observedStatus: ObservedTimeControlStatus) {
-        let newState: AudioPlayerState
-        switch observedStatus {
-        case .playing, .waiting:
-            newState = entries.isEmpty ? .stopped : .playing
-        case .paused, .unknown:
-            newState = entries.isEmpty ? .stopped : .paused
-        }
         guard newState != previousState else { return }
         let previous = previousState
         previousState = newState

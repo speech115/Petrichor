@@ -84,3 +84,12 @@ func anInterruptionNeverStartsMusicThatWasNotPlaying(seed: UInt64) {
     interruption.outputMovedToPhone()
     #expect(!interruption.ended(shouldResume: true))
 }
+
+@Test func playingAgainClosesAnInterruptionThatNeverEnded() {
+    var interruption = InterruptionResume()
+    interruption.began(wantsPlayback: false)
+    // No `ended` arrives; the user presses Play, then a call comes.
+    interruption.reset()
+    interruption.began(wantsPlayback: true)
+    #expect(interruption.ended(shouldResume: true), "a stale interruption swallowed the next call's resume")
+}

@@ -61,7 +61,11 @@ enum NowPlayingPublisher {
             MPMediaItemPropertyAlbumTitle: metadata.albumTitle ?? "",
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsed,
-            MPNowPlayingInfoPropertyPlaybackRate: rate
+            MPNowPlayingInfoPropertyPlaybackRate: rate,
+            // The rate playback resumes at, so the system knows a 0 rate is
+            // a pause and not an unknown speed.
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
         ]
 
         if let artwork {
