@@ -79,27 +79,19 @@ struct PetrichorApp: App {
         UserDefaults.standard.register(defaults: ["hideDuplicateTracks": true])
         GestureTips.configure()
 
-        // Built here, not lazily by `StateObject` on the first scene: a
-        // lock-screen or Control Center button can launch the app in the
-        // background with no scene at all, and its command must find the
-        // remote-command targets and the control actions already wired.
-        let launch = Self.processLaunch
-        _launch = StateObject(wrappedValue: launch)
-    }
-
-    /// One object graph per process.
-    @MainActor private static let processLaunch = AppLaunch<AppCoordinator> { databaseManager in
-        let coordinator = AppCoordinator(databaseManager: databaseManager, deferLaunchWork: true)
-        // Control Center buttons run their intents here, in the app's process.
-        PlaybackControlActions.playPause = { [playbackManager = coordinator.playbackManager] in
-            playbackManager.togglePlayPause()
-        }
-        PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
-            playlistManager.playNextTrack()
-        }
-        return coordinator
-    } didReset: { coordinator in
-        SpotlightIndexer.scheduleReset(with: coordinator.libraryManager.databaseManager)
+        _launch = StateObject(wrappedValue: AppLaunch { databaseManager in
+            let coordinator = AppCoordinator(databaseManager: databaseManager, deferLaunchWork: true)
+            // Control Center buttons run their intents here, in the app's process.
+            PlaybackControlActions.playPause = { [playbackManager = coordinator.playbackManager] in
+                playbackManager.togglePlayPause()
+            }
+            PlaybackControlActions.nextTrack = { [playlistManager = coordinator.playlistManager] in
+                playlistManager.playNextTrack()
+            }
+            return coordinator
+        } didReset: { coordinator in
+            SpotlightIndexer.scheduleReset(with: coordinator.libraryManager.databaseManager)
+        })
     }
 
     var body: some Scene {
