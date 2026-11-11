@@ -16,13 +16,11 @@ extension AutomationManager {
     }
 
     func play() {
-        guard let playback, !playback.isPlaying else { return }
-        playback.togglePlayPause()
+        playback?.play()
     }
 
     func pause() {
-        guard let playback, playback.isPlaying else { return }
-        playback.togglePlayPause()
+        playback?.pause()
     }
 
     func nextTrack() {

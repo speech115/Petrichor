@@ -176,6 +176,10 @@ struct PetrichorApp: App {
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
                 case .active:
+                    // Whatever happened in the background (a call, a lock-screen
+                    // button, a missed engine event), the buttons show what the
+                    // player does now.
+                    appCoordinator.playbackManager.refreshAfterReturningToForeground()
                     guard hasAppearedActiveOnce else {
                         hasAppearedActiveOnce = true
                         return

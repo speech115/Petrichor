@@ -260,13 +260,29 @@ class PlaybackManager: NSObject, ObservableObject {
     
     // MARK: - Playback Controls
     
+    /// Whether playback is on: the engine plays, or Play is latched while a
+    /// restored track loads. The engine's live state, never the cached
+    /// `isPlaying`, which a missed engine event can leave stale: a toggle
+    /// that read the cache restarted a playing track instead of pausing it.
+    var isPlaybackOn: Bool {
+        audioPlayer.state == .playing || pendingPlayOnRestore
+    }
+
     func togglePlayPause() {
-        if isPlaying {
-            // Pausing while a restored track is still loading cancels the latched play.
-            pendingPlayOnRestore = false
-            audioPlayer.pause()
-            isPlaying = false
-        } else if audioPlayer.state == .paused {
+        if isPlaybackOn {
+            pause()
+        } else {
+            play()
+        }
+    }
+
+    /// Starts or resumes playback. Does nothing while it is already on.
+    func play() {
+        guard !isPlaybackOn else {
+            syncTransportState()
+            return
+        }
+        if audioPlayer.state == .paused {
             // A loaded, paused session always just resumes. Checked first because the
             // full track is fetched asynchronously after every advance and jump, so it
             // is briefly nil for a track that is perfectly resumable. isPlaying follows
@@ -278,9 +294,64 @@ class PlaybackManager: NSObject, ObservableObject {
         } else if currentTrack != nil {
             // Restored track still loading; resume() would no-op, so latch the intent
             pendingPlayOnRestore = true
-            isPlaying = true
         } else {
             audioPlayer.resume()
+        }
+        syncTransportState()
+    }
+
+    /// Pauses playback, including a Play latched while a restored track loads.
+    func pause() {
+        pendingPlayOnRestore = false
+        pendingRestoreResume = nil
+        audioPlayer.pause()
+        syncTransportState()
+    }
+
+    /// Re-reads the play/pause state from the engine. `isPlaying` is only a
+    /// cache of it for the buttons; every engine callback, every command,
+    /// the progress tick and the return to the foreground end here, so an
+    /// engine event that never arrived cannot leave the app on Play over
+    /// music (or on Pause over silence) for longer than a tick. A correction
+    /// re-publishes the lock-screen tile too, whose rate came from the same
+    /// missed event.
+    func syncTransportState(engineState: AudioPlayerState? = nil) {
+        let engine = engineState ?? audioPlayer.state
+        let shown: Bool
+        switch engine {
+        case .playing:
+            shown = true
+        case .paused, .stopped:
+            // A restore-resume settles in `.paused` right before it plays.
+            shown = pendingPlayOnRestore
+                || (pendingRestoreResume != nil && pendingRestoreResume?.entryId == currentEntryId)
+        case .ready:
+            // Loading: the next callback settles it.
+            return
+        }
+        guard shown != isPlaying else { return }
+        isPlaying = shown
+    }
+
+    /// `syncTransportState` for the progress tick, the foreground and no-op
+    /// remote commands: logs and re-publishes only when the cache had drifted,
+    /// which means an engine event went missing.
+    func healTransportState() {
+        let cached = isPlaying
+        syncTransportState()
+        guard cached != isPlaying else { return }
+        Logger.warning("Play/pause state drifted from the engine (showed \(cached ? "playing" : "paused")); corrected")
+        if let track = currentTrack, track.trackId != nil {
+            publishNowPlayingMetadata(for: track)
+        }
+    }
+
+    /// The app came to the foreground: the buttons and the lock-screen tile
+    /// show what the engine does now, whatever happened in the background.
+    func refreshAfterReturningToForeground() {
+        healTransportState()
+        if audioPlayer.state == .playing {
+            currentTime = audioPlayer.currentPlaybackProgress
         }
     }
     
@@ -521,9 +592,11 @@ class PlaybackManager: NSObject, ObservableObject {
         playbackProgressState.sampleInterval = seconds
 
         timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            self.healTransportState()
             // Gate on the engine's live state, not the cached isPlaying flag, which
             // can be briefly stale and freeze the bar at 0.
-            guard let self = self, self.audioPlayer.state == .playing else { return }
+            guard self.audioPlayer.state == .playing else { return }
             let sampled = self.audioPlayer.currentPlaybackProgress
             self.currentTime = sampled
             self.watchProgressForFreeze(sampled)
@@ -697,16 +770,7 @@ extension PlaybackManager: @MainActor AudioPlayerDelegate {
     }
     
     func audioPlayerStateChanged(with newState: AudioPlayerState, previous: AudioPlayerState) {
-        switch newState {
-        case .playing:
-            self.isPlaying = true
-        case .paused:
-            self.isPlaying = false
-        case .stopped:
-            self.isPlaying = false
-        case .ready:
-            break
-        }
+        self.syncTransportState(engineState: newState)
 
         // Finish a deferred restore-resume: the startPaused load has now
         // settled in `.paused`, so the asset is open and the seek+resume is
