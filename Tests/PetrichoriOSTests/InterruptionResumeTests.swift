@@ -25,7 +25,8 @@ private enum InterruptionEvent: CustomStringConvertible {
     interruption.began(wantsPlayback: true)
     // The app paused for the first one, so the second reads `false`.
     interruption.began(wantsPlayback: false)
-    #expect(interruption.ended(shouldResume: true), "music did not come back after the call")
+    let resumes = interruption.ended(shouldResume: true)
+    #expect(resumes, "music did not come back after the call")
 }
 
 @Test(arguments: FuzzText.seeds(200))
@@ -52,8 +53,10 @@ func repeatedBeganNotificationsNeverChangeTheOutcome(seed: UInt64) {
         }
     }
 
+    let resumes = withRepeats.ended(shouldResume: shouldResume)
+    let expected = reference.ended(shouldResume: shouldResume)
     #expect(
-        withRepeats.ended(shouldResume: shouldResume) == reference.ended(shouldResume: shouldResume),
+        resumes == expected,
         "began(\(wantsAtStart)) then \(tail), shouldResume \(shouldResume)"
     )
 }
@@ -66,23 +69,27 @@ func anInterruptionNeverStartsMusicThatWasNotPlaying(seed: UInt64) {
     for _ in 0..<Int.random(in: 0...3, using: &rng) {
         interruption.began(wantsPlayback: Bool.random(using: &rng))
     }
-    #expect(!interruption.ended(shouldResume: Bool.random(using: &rng)))
+    let resumes = interruption.ended(shouldResume: Bool.random(using: &rng))
+    #expect(!resumes)
 }
 
 @Test func endingAnInterruptionClosesIt() {
     var interruption = InterruptionResume()
     interruption.began(wantsPlayback: true)
-    #expect(interruption.ended(shouldResume: true))
+    let firstResumes = interruption.ended(shouldResume: true)
+    #expect(firstResumes)
     // A new call while paused must not inherit the previous call's resume.
     interruption.began(wantsPlayback: false)
-    #expect(!interruption.ended(shouldResume: true))
+    let secondResumes = interruption.ended(shouldResume: true)
+    #expect(!secondResumes)
 }
 
 @Test func headphonesGoneDuringACallKeepTheSpeakerQuiet() {
     var interruption = InterruptionResume()
     interruption.began(wantsPlayback: true)
     interruption.outputMovedToPhone()
-    #expect(!interruption.ended(shouldResume: true))
+    let resumes = interruption.ended(shouldResume: true)
+    #expect(!resumes)
 }
 
 @Test func playingAgainClosesAnInterruptionThatNeverEnded() {
@@ -91,5 +98,6 @@ func anInterruptionNeverStartsMusicThatWasNotPlaying(seed: UInt64) {
     // No `ended` arrives; the user presses Play, then a call comes.
     interruption.reset()
     interruption.began(wantsPlayback: true)
-    #expect(interruption.ended(shouldResume: true), "a stale interruption swallowed the next call's resume")
+    let resumes = interruption.ended(shouldResume: true)
+    #expect(resumes, "a stale interruption swallowed the next call's resume")
 }
