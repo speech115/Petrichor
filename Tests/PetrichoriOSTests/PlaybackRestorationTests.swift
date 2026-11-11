@@ -19,13 +19,13 @@ private struct TrackFixture {
 
     static let savedKeys = ["SavedPlaybackState", "SavedPlaybackUIState", "SavedPlaybackPosition"]
 
-    init(count: Int) async throws {
+    init(count: Int, seconds: Int = 4) async throws {
         let database = try DatabaseManager()
         let folderURL = LibraryPathStore.libraryRoot.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
         let urls = try (0..<count).map { index in
             let url = folderURL.appendingPathComponent("Track \(index).wav")
-            try FileManager.default.moveItem(at: try makeSilentWAV(seconds: 4), to: url)
+            try FileManager.default.moveItem(at: try makeSilentWAV(seconds: seconds), to: url)
             return url
         }
         let (folderID, tracks) = try await database.dbQueue.write { db -> (Int64, [Track]) in
@@ -36,7 +36,7 @@ private struct TrackFixture {
                 var full = FullTrack(url: url)
                 full.folderId = folderID
                 full.title = "Track \(index)"
-                full.duration = 4
+                full.duration = Double(seconds)
                 try full.insert(db)
                 tracks.append(try #require(try Track.filter(Track.Columns.trackId == db.lastInsertedRowID).fetchOne(db)))
             }
@@ -219,6 +219,89 @@ struct RestorationRaceTests {
         playback.togglePlayPause()
         try await waitUntil(.seconds(3)) { playback.audioPlayer.state == .playing }
         #expect(!playback.isPlaying || playback.audioPlayer.state == .playing, "Play latched over silence")
+    }
+}
+}
+
+// MARK: - Transport state: the engine is the source of truth
+
+/// `PlaybackManager.isPlaying` is the cache the play/pause buttons draw from;
+/// the engine's state is what actually plays. A missed engine event leaves
+/// the two apart: the app shows Play over music (the reported "launch while
+/// playing" bug), and a lock-screen Pause that consulted the cache did
+/// nothing. These tests stale the cache on purpose and expect every command
+/// and the next progress tick to go by the engine.
+extension PlaybackTests {
+@MainActor
+struct TransportStateTests {
+    /// Plays the first of `fixture`'s tracks and returns once the engine
+    /// is really playing.
+    private func startPlaying(_ fixture: TrackFixture) async throws -> (PlaylistManager, PlaybackManager) {
+        let (playlists, playback) = fixture.makeManagers()
+        playlists.replaceCurrentQueue(fixture.tracks, index: 0)
+        playback.prepareTrackForRestoration(fixture.tracks[0], at: 0)
+        try await waitUntil { playback.currentFullTrack != nil }
+        playback.togglePlayPause()
+        try await waitUntil(.seconds(30)) { playback.audioPlayer.state == .playing && playback.isPlaying }
+        try #require(playback.audioPlayer.state == .playing)
+        // Let the start's own queued AVFoundation events land first, so
+        // nothing but the code under test can touch the cache afterwards.
+        try await Task.sleep(for: .milliseconds(300))
+        return (playlists, playback)
+    }
+
+    @Test func lockScreenPauseActsOnTheEngineWhenTheCachedStateIsStale() async throws {
+        let fixture = try await TrackFixture(count: 2, seconds: 30)
+        defer { fixture.cleanUp() }
+        let (playlists, playback) = try await startPlaying(fixture)
+        defer { playback.stop() }
+
+        playback.isPlaying = false
+        let status = RemoteCommandManager.perform(.pause, playback: playback, playlists: playlists)
+
+        #expect(status == .success, "Pause refused while music plays")
+        #expect(playback.audioPlayer.state == .paused, "lock-screen Pause left the music playing")
+        #expect(!playback.isPlaying)
+    }
+
+    @Test func lockScreenPlayDoesNotRestartWhatAlreadyPlays() async throws {
+        let fixture = try await TrackFixture(count: 2, seconds: 30)
+        defer { fixture.cleanUp() }
+        let (playlists, playback) = try await startPlaying(fixture)
+        defer { playback.stop() }
+        let entry = playback.currentEntryId
+
+        playback.isPlaying = false
+        _ = RemoteCommandManager.perform(.play, playback: playback, playlists: playlists)
+
+        #expect(playback.audioPlayer.state == .playing)
+        #expect(playback.currentEntryId == entry, "Play over playing music rebuilt the queue")
+        #expect(playback.isPlaying, "Play left the button on Play over playing music")
+    }
+
+    @Test func inAppPlayPauseOverAStaleStatePausesInsteadOfRestarting() async throws {
+        let fixture = try await TrackFixture(count: 2, seconds: 30)
+        defer { fixture.cleanUp() }
+        let (_, playback) = try await startPlaying(fixture)
+        defer { playback.stop() }
+
+        playback.isPlaying = false
+        playback.togglePlayPause()
+
+        #expect(playback.audioPlayer.state == .paused, "the shown Play button restarted the track instead of pausing it")
+    }
+
+    @Test func aStaleStateHealsFromTheEngineWithinAProgressTick() async throws {
+        let fixture = try await TrackFixture(count: 2, seconds: 30)
+        defer { fixture.cleanUp() }
+        let (_, playback) = try await startPlaying(fixture)
+        defer { playback.stop() }
+
+        playback.isPlaying = false
+        try await waitUntil(.seconds(3)) { playback.isPlaying }
+
+        #expect(playback.isPlaying, "the app kept showing Play over playing music")
+        #expect(playback.audioPlayer.state == .playing)
     }
 }
 }

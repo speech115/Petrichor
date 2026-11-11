@@ -18,10 +18,10 @@ final class AudioSessionController {
     private let wantsPlayback: () -> Bool
     private var pendingMediaServicesReset: DispatchWorkItem?
 
-    /// True when the app meant to be playing when the interruption began. An
-    /// interruption that ends with `.shouldResume` resumes only then: it never
-    /// starts audio that was paused when the call/alarm arrived.
-    private var wasPlayingBeforeInterruption = false
+    /// Resumes an interruption that ends with `.shouldResume` only when the
+    /// app was playing as it began: it never starts audio that was paused when
+    /// the call/alarm arrived.
+    private var interruption = InterruptionResume()
 
     init(
         onPause: @escaping () -> Void,
@@ -133,8 +133,8 @@ final class AudioSessionController {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    self.wasPlayingBeforeInterruption = self.wantsPlayback()
-                    Logger.info("Audio interruption began, was playing: \(self.wasPlayingBeforeInterruption)")
+                    self.interruption.began(wantsPlayback: self.wantsPlayback())
+                    Logger.info("Audio interruption began, resumes on end: \(self.interruption.resumesOnEnd)")
                     self.onPause()
                 }
             }
@@ -144,8 +144,9 @@ final class AudioSessionController {
             DispatchQueue.main.async { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
-                    Logger.info("Audio interruption ended, should resume: \(shouldResume), was playing: \(self.wasPlayingBeforeInterruption)")
-                    guard shouldResume, self.wasPlayingBeforeInterruption else { return }
+                    let resumes = self.interruption.ended(shouldResume: shouldResume)
+                    Logger.info("Audio interruption ended, should resume: \(shouldResume), resuming: \(resumes)")
+                    guard resumes else { return }
                     self.onResume()
                 }
             }
@@ -169,7 +170,7 @@ final class AudioSessionController {
                 MainActor.assumeIsolated {
                     // Headphones unplugged mid-call: the call's end must not
                     // resume playback through the speaker.
-                    self?.wasPlayingBeforeInterruption = false
+                    self?.interruption.outputMovedToPhone()
                     self?.onPause()
                 }
             }
