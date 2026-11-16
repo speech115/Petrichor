@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./Configuration/Secrets.xcconfig)",
+      "Edit(./Configuration/Secrets.xcconfig)",
+      "Bash(xcrun devicectl device uninstall:*)",
+      "Bash(devicectl device uninstall:*)"
+    ]
+  }
+}

@@ -37,6 +37,14 @@ ones and installs on "iPhone 228". Expiry of the last install:
 A manual `deploy.sh` install of another branch replaces that build on the phone
 until the next renewal.
 
+## Secrets on Sergei's Mac
+
+`Configuration/Secrets.xcconfig` is generated, not edited: `~/bin/petrichor-secrets
+[checkout]` (outside this repo) fills the Last.fm and TMDB keys from 1Password
+and prints only `written` or `unchanged`. The re-sign job runs it for its own
+worktree before each build. A new worktree builds with those integrations off
+until you run it there. Never open the generated file; see `AGENTS.md`.
+
 ## Favorites and listens sync
 
 The LaunchAgent `local.sereja.petrichor-phone-sync` runs
