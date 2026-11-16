@@ -1,0 +1,39 @@
+#!/bin/sh
+# Refuse a commit of Swift files that no Xcode build of this checkout has
+# compiled since they were last saved. CI builds too, but a red CI run costs a
+# ~10 minute round trip; a local build catches the same error in one.
+# Enable once per clone: git config core.hooksPath .githooks
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR -- '*.swift' ':!.scratch/')
+[ -z "$staged" ] && exit 0
+
+root=$(git rev-parse --show-toplevel)
+project="$root/Petrichor.xcodeproj"
+
+newest_edit=0
+for f in $staged; do
+    [ -f "$root/$f" ] || continue
+    m=$(stat -f %m "$root/$f")
+    [ "$m" -gt "$newest_edit" ] && newest_edit=$m
+done
+
+last_build=0
+for info in "$HOME"/Library/Developer/Xcode/DerivedData/*/info.plist; do
+    [ "$(plutil -extract WorkspacePath raw "$info" 2>/dev/null)" = "$project" ] || continue
+    for log in "$(dirname "$info")"/Logs/Build/*.xcactivitylog "$(dirname "$info")"/Logs/Test/*.xcresult; do
+        [ -e "$log" ] || continue
+        m=$(stat -f %m "$log")
+        [ "$m" -gt "$last_build" ] && last_build=$m
+    done
+done
+
+[ "$last_build" -ge "$newest_edit" ] && exit 0
+
+cat >&2 <<EOF
+pre-commit: these Swift files changed after the last build of this checkout:
+$(echo "$staged" | sed 's/^/  /')
+Build first (add \`test\` for logic changes):
+  xcodebuild -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max' build
+A commit that deliberately skips the build: git commit --no-verify
+EOF
+exit 1

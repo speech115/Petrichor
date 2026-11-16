@@ -169,6 +169,23 @@ xcodebuild test -scheme PetrichoriOS -destination 'platform=iOS Simulator,name=i
 Обычный device destination на этой машине не работает: Xcode 26.6 против iOS 27
 beta на устройстве. Не чините его, читайте скилл.
 
+Git-хуки лежат в `.githooks/` и включаются один раз на клон:
+`git config core.hooksPath .githooks`. `pre-commit` не пускает коммит
+Swift-файлов, которые эта копия не собирала после последней правки; `pre-push`
+прогоняет SwiftLint по изменённым файлам.
+
+## Что агенту трогать нельзя
+
+- **`Configuration/Secrets.xcconfig`** — настоящие API-ключи. Не читай, не
+  правь, не копируй и не добавляй в git: ключи попадут в контекст модели или в
+  публичный репозиторий. Новый ключ добавляется в `Secrets.xcconfig.template`,
+  а сам файл Сергей обновляет у себя. В Claude Code чтение и правку запрещает
+  `.claude/settings.json`; Codex держит это правило сам.
+- **Удаление приложения с телефона** (`devicectl device uninstall` или любым
+  другим способом). Удаление стирает контейнер приложения, а с ним музыкальную
+  библиотеку. Подпись обновляется переустановкой поверх, см. скилл
+  `petrichor-device`.
+
 ## Cursor Cloud specific instructions
 
 The Cursor Cloud VM is **Linux x86_64**, not macOS. Petrichor is an Xcode-only
