@@ -34,6 +34,12 @@ struct PlaylistDetailScreen: View {
     /// Apple Music's Edit: handles for reordering and delete circles. Drag
     /// reorder and swipe delete also work outside it.
     @State private var editMode = EditMode.inactive
+    /// Music's "Find in Playlist", pulled down from under the bar.
+    @State private var findText = ""
+
+    private var isFinding: Bool {
+        !findText.allSatisfy(\.isWhitespace)
+    }
 
     private var playlist: Playlist? {
         playlistCatalog.playlists.first { $0.id == playlistID }
@@ -46,19 +52,23 @@ struct PlaylistDetailScreen: View {
                     identity: AnyHashable(tracksTaskID(playlist)),
                     load: { await loadTracks(playlist) },
                     sectioner: { [IndexedSection(key: "", items: $0)] },
-                    initialRows: playlist.tracks.isEmpty && playlist.trackCount > 0 ? nil : playlist.tracks,
+                    initialRows: rows(playlist),
                     usesPlainStyle: true,
                     showEmptyState: false,
-                    onMove: canEditContent(playlist) ? { offsets, destination in
+                    // Offsets in a found subset are not playlist positions.
+                    onMove: canEditContent(playlist) && !isFinding ? { offsets, destination in
                         move(offsets, to: destination, in: playlist)
                     } : nil,
-                    onDelete: canEditContent(playlist) ? { offsets in
+                    onDelete: canEditContent(playlist) && !isFinding ? { offsets in
                         remove(offsets, from: playlist)
                     } : nil,
                     header: { tracks in
                         VStack(spacing: 16) {
-                            header(playlist, tracks: tracks)
-                            if tracks.isEmpty {
+                            // Play and Shuffle stay on the whole playlist.
+                            header(playlist, tracks: isFinding ? playlist.tracks : tracks)
+                            if isFinding, tracks.isEmpty {
+                                ContentUnavailableView.search(text: findText)
+                            } else if tracks.isEmpty {
                                 ContentUnavailableView {
                                     Label(DefaultPlaylists.noSongsText(for: playlist), systemImage: Icons.musicNoteList)
                                 } description: {
@@ -86,6 +96,11 @@ struct PlaylistDetailScreen: View {
                 } action: { _, offset in
                     heroScroll.offset = offset
                 }
+                .searchable(
+                    text: $findText,
+                    placement: .navigationBarDrawer(displayMode: .automatic),
+                    prompt: String(localized: "Find in Playlist")
+                )
                 .environment(\.editMode, $editMode)
             } else {
                 ContentUnavailableView(
@@ -249,6 +264,13 @@ struct PlaylistDetailScreen: View {
                 }
             }
         )
+    }
+
+    /// The live playlist rows, narrowed to the find text. Nil until a
+    /// playlist that has songs has loaded them, so the screen loads first.
+    private func rows(_ playlist: Playlist) -> [Track]? {
+        if playlist.tracks.isEmpty && playlist.trackCount > 0 { return nil }
+        return isFinding ? PlaylistFind.filter(playlist.tracks, query: findText) : playlist.tracks
     }
 
     /// Favorites opens as Music's Favorite Songs page: the star alone, large,
