@@ -123,11 +123,13 @@ struct FavoritesHeroStar: View {
             // fills 0.527 of its square: the square is drawn 1.118 screens
             // wide. Scaled, not framed — a width read from the container
             // inside a List row sends the collection view into a layout loop.
-            // The star's own empty margin above it stands in for the gap
-            // under the bar.
+            // Music runs the page up under the bar: on an iPhone 17 Pro Max
+            // with the search field out, the star's top sits at 146 pt and
+            // the title at 518 pt. The square's own empty margin above the
+            // star is pulled up under the bar to match.
             .scaleEffect(1.118)
             .padding(.horizontal, -16)
-            .padding(.top, -48)
+            .padding(.top, -124)
             .accessibilityHidden(true)
     }
 }

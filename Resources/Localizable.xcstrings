@@ -33,17 +33,6 @@
         }
       }
     },
-    "Find in Playlist" : {
-      "comment" : "Playlist page: prompt of the search field pulled down from under the bar.",
-      "localizations" : {
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Найти в плейлисте"
-          }
-        }
-      }
-    },
     "Library Unavailable" : {
       "localizations" : {
         "ru" : {

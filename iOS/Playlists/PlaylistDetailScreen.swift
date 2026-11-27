@@ -34,7 +34,7 @@ struct PlaylistDetailScreen: View {
     /// Apple Music's Edit: handles for reordering and delete circles. Drag
     /// reorder and swipe delete also work outside it.
     @State private var editMode = EditMode.inactive
-    /// Music's "Find in Playlist", pulled down from under the bar.
+    /// Music's search in a playlist, pulled down from under the bar.
     @State private var findText = ""
 
     private var isFinding: Bool {
@@ -99,7 +99,7 @@ struct PlaylistDetailScreen: View {
                 .searchable(
                     text: $findText,
                     placement: .navigationBarDrawer(displayMode: .automatic),
-                    prompt: String(localized: "Find in Playlist")
+                    prompt: String(localized: "Search")
                 )
                 .environment(\.editMode, $editMode)
             } else {
