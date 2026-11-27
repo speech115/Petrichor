@@ -10,20 +10,23 @@
 import SwiftUI
 
 extension View {
-    func detailPageWash(_ tint: Color?) -> some View {
-        modifier(DetailPageWashModifier(tint: tint))
+    /// `base` replaces the system background under the wash, for a page
+    /// that has a color of its own (Favorites).
+    func detailPageWash(_ tint: Color?, base: Color? = nil) -> some View {
+        modifier(DetailPageWashModifier(tint: tint, base: base))
     }
 }
 
 private struct DetailPageWashModifier: ViewModifier {
     let tint: Color?
+    let base: Color?
 
     func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
             .background {
                 ZStack {
-                    Color(.systemBackground)
+                    base ?? Color(.systemBackground)
                     if let tint {
                         LinearGradient(
                             colors: [

@@ -7,7 +7,7 @@
 // background — the accessibility audit flags every normal-size label using
 // it. Dark mode keeps the system secondary label, which already clears 4.5:1
 // there. The light-mode value is the system secondary's own hue, darkened
-// until it passes on both white and grouped backgrounds.
+// until it passes on white, grouped and the Favorites page gray (#E8EBED).
 //
 
 import SwiftUI
@@ -15,6 +15,6 @@ import SwiftUI
 extension Color {
     static let secondaryText = Color(uiColor: UIColor { traits in
         guard traits.userInterfaceStyle != .dark else { return .secondaryLabel }
-        return UIColor(red: 0.42, green: 0.42, blue: 0.44, alpha: 1)
+        return UIColor(red: 0.40, green: 0.40, blue: 0.42, alpha: 1)
     })
 }

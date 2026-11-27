@@ -7,7 +7,6 @@
 import SwiftUI
 
 struct HomeTabView: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var libraryManager: LibraryManager
     @EnvironmentObject private var playlistManager: PlaylistManager
     @EnvironmentObject private var playbackManager: PlaybackManager
@@ -84,44 +83,41 @@ struct HomeTabView: View {
 
     // MARK: - Library
 
+    /// Music's Favorite Songs tile: the star cover as a square with a soft
+    /// shadow and the name under it, centered. The cover alone is the zoom
+    /// source, so the open grows the tile into the page of the same color.
     @ViewBuilder
     private var favoritesButton: some View {
         if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
             NavigationLink(value: LibraryDestination.playlist(favorites.id)) {
-                let layout = dynamicTypeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-                    : AnyLayout(HStackLayout(spacing: 20))
-                layout {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(DefaultPlaylists.displayName(for: favorites))
-                            .font(.title2.bold())
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(TrackCountText.songs(favorites.trackCount))
-                            .font(.subheadline)
-                    }
-                    if !dynamicTypeSize.isAccessibilitySize {
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                            .accessibilityHidden(true)
-                    }
+                VStack(spacing: 8) {
+                    PlaylistCoverView(cover: .appleFavorites, cornerRadius: Self.favoritesCornerRadius)
+                        .frame(width: Self.favoritesTileSide, height: Self.favoritesTileSide)
+                        .detailZoomSource(
+                            .playlist(favorites.id),
+                            in: zoomNamespace,
+                            cornerRadius: Self.favoritesCornerRadius
+                        )
+                        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                    Text(DefaultPlaylists.displayName(for: favorites))
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(24)
-                .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 20))
-                .contentShape(RoundedRectangle(cornerRadius: 20))
-                .detailZoomSource(.playlist(favorites.id), in: zoomNamespace, cornerRadius: 20)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FavoritesTilePressStyle())
+            .accessibilityElement(children: .combine)
+            .accessibilityValue(TrackCountText.songs(favorites.trackCount))
             .accessibilityIdentifier("home.favorites")
             .padding(.horizontal, 16)
         }
     }
+
+    private static let favoritesTileSide: CGFloat = 132
+    private static let favoritesCornerRadius: CGFloat = 12
 
     private func smartPlaylist(_ name: String) -> Playlist? {
         playlistManager.playlists.first { $0.type == .smart && $0.name == name }
@@ -179,6 +175,16 @@ struct HomeTabView: View {
         withTransaction(transaction) {
             recentAlbums = albums
         }
+    }
+}
+
+/// Music's tiles give under the finger: a small press-in, released with a
+/// spring.
+private struct FavoritesTilePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

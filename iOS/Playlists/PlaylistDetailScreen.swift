@@ -30,6 +30,7 @@ struct PlaylistDetailScreen: View {
     @State private var renameText = ""
     @State private var showingDeleteConfirmation = false
     @State private var headerTint: Color?
+    @State private var heroScroll = FavoritesHeroScroll()
     /// Apple Music's Edit: handles for reordering and delete circles. Drag
     /// reorder and swipe delete also work outside it.
     @State private var editMode = EditMode.inactive
@@ -78,7 +79,13 @@ struct PlaylistDetailScreen: View {
                     },
                     row: { track, _ in playlistTrackRow(track, playlist: playlist) }
                 )
-                .detailPageWash(headerTint)
+                .detailPageWash(isFavorites(playlist) ? nil : headerTint,
+                                base: isFavorites(playlist) ? .appleFavoritesBackground : nil)
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.contentOffset.y + geometry.contentInsets.top
+                } action: { _, offset in
+                    heroScroll.offset = offset
+                }
                 .environment(\.editMode, $editMode)
             } else {
                 ContentUnavailableView(
@@ -214,6 +221,9 @@ struct PlaylistDetailScreen: View {
                 .equatable()
             }
         }
+        // Favorites keeps its page color under the songs, as in Music; other
+        // playlists keep the system row background over their wash.
+        .listRowBackground(isFavorites(playlist) ? Color.clear : nil)
     }
 
     // MARK: - Header
@@ -226,15 +236,25 @@ struct PlaylistDetailScreen: View {
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
             artwork: {
-                PlaylistArtworkView(
-                    playlist: playlist,
-                    tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
-                    cornerRadius: 12,
-                    iconSize: 56
-                )
-                    .frame(width: 280, height: 280)
+                if isFavorites(playlist) {
+                    FavoritesHeroStar(scroll: heroScroll)
+                } else {
+                    PlaylistArtworkView(
+                        playlist: playlist,
+                        tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
+                        cornerRadius: 12,
+                        iconSize: 56
+                    )
+                        .frame(width: 280, height: 280)
+                }
             }
         )
+    }
+
+    /// Favorites opens as Music's Favorite Songs page: the star alone, large,
+    /// on a page the color of its tile, instead of a framed cover.
+    private func isFavorites(_ playlist: Playlist) -> Bool {
+        PlaylistCover.of(playlist) == .appleFavorites
     }
 
     /// "N songs" plus the total duration, mirroring the macOS header.
@@ -298,6 +318,45 @@ struct PlaylistDetailScreen: View {
         playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .playlist
         playlistManager.queueSourceName = playlist.name
+    }
+}
+
+// MARK: - Favorites Hero
+
+/// The list's scroll position, read only by the hero star, so scrolling
+/// redraws the star and never the screen around it.
+@Observable
+final class FavoritesHeroScroll {
+    /// Points scrolled past the top: negative while the list is pulled down.
+    var offset: CGFloat = 0
+}
+
+/// Music's large favorites star. Pulled down, it stretches from its bottom
+/// edge so its top stays put; scrolled up, it trails the list and softens
+/// into a blur as it goes under the bar.
+private struct FavoritesHeroStar: View {
+    let scroll: FavoritesHeroScroll
+
+    var body: some View {
+        let offset = scroll.offset
+        Image("cover-apple-favorites")
+            .resizable()
+            .aspectRatio(1, contentMode: .fit)
+            .visualEffect { content, proxy in
+                let side = max(proxy.size.height, 1)
+                let pull = max(-offset, 0)
+                let push = max(offset, 0)
+                return content
+                    .scaleEffect(1 + pull / side, anchor: .bottom)
+                    .offset(y: push * 0.4)
+                    .blur(radius: min(push / 14, 18))
+                    .opacity(1 - min(push / side, 1) * 0.6)
+            }
+            // Full width under DetailHeader's side padding; the star's own
+            // empty margin above it stands in for the gap under the bar.
+            .padding(.horizontal, -16)
+            .padding(.top, -48)
+            .accessibilityHidden(true)
     }
 }
 
