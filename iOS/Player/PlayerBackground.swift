@@ -4,7 +4,7 @@
 // The Now Playing surface as a slowly drifting mesh of the artwork's colors,
 // the way Apple Music's player background breathes behind the controls. The
 // palette's three tones keep their top-to-bottom order; only the inner mesh
-// points wander, so the colors pool and flow without ever swapping places.
+// points wander, so the light shifts without the colors ever swapping places.
 //
 // It drifts only while the music plays and stands still under Reduce Motion.
 // A separate view, so the per-frame timeline redraws the backdrop alone.
@@ -45,10 +45,12 @@ struct PlayerBackground: View {
                 [0, 0.45 + drift(19, 0.10)], [0.5 + drift(29, 0.18), 0.45 + drift(17, 0.12)], [1, 0.45 + drift(31, 0.10)],
                 [0, 1], [0.5 + drift(37, 0.12), 1], [1, 1]
             ],
+            // Each row is one tone, as in Apple Music: the surface darkens
+            // downwards and never changes color from side to side.
             colors: [
                 top, top, top,
-                middle, top, middle,
-                bottom, middle, bottom
+                middle, middle, middle,
+                bottom, bottom, bottom
             ]
         )
     }

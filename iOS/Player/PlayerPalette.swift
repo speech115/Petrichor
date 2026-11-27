@@ -2,7 +2,7 @@
 // PlayerPalette (iOS)
 //
 // The colors the Now Playing screen paints itself with, derived from the
-// track's dominant artwork colors.
+// track artwork's average color.
 //
 // The screen is a single dark surface, the way Apple Music's player is: the
 // artwork colors set the hue, but brightness is clamped into a narrow dark
@@ -40,14 +40,14 @@ struct PlayerPalette: Equatable {
         Color(white: 0.06)
     ])
 
-    /// Synchronous palette from the warm dominant-color cache; nil when artwork
-    /// colors are off or the cache hasn't computed this artwork yet. The first
-    /// Now Playing frame paints from this so the zoom doesn't flash neutral.
+    /// Synchronous palette from the warm color cache; nil when artwork colors
+    /// are off or the cache hasn't computed this artwork yet. The first Now
+    /// Playing frame paints from this so the zoom doesn't flash neutral.
     @MainActor
     static func cachedPalette(for track: Track?, useArtworkColors: Bool) -> PlayerPalette? {
         guard useArtworkColors, let track,
-              let cached = track.cachedDominantColors, !cached.isEmpty else { return nil }
-        return palette(from: Array(cached.prefix(2)))
+              let cached = track.cachedAverageArtworkColor, let average = cached.first else { return nil }
+        return palette(from: average)
     }
 
     @MainActor
@@ -55,31 +55,33 @@ struct PlayerPalette: Equatable {
         if let cached = cachedPalette(for: track, useArtworkColors: useArtworkColors) {
             return cached
         }
-        guard useArtworkColors, let track else { return neutral }
-
-        let dominant = Array((await track.loadDominantColors()).prefix(2))
-        guard !dominant.isEmpty else { return neutral }
-        return palette(from: dominant)
+        guard useArtworkColors, let track,
+              let average = await track.loadAverageArtworkColor().first else { return neutral }
+        return palette(from: average)
     }
 
-    private static func palette(from dominant: [PlatformColor]) -> PlayerPalette {
-        guard let top = dominant.first else { return neutral }
-        let second = dominant.count > 1 ? dominant[1] : top
-        return PlayerPalette(gradient: [
-            surface(top, brightness: 0.52),
-            surface(second, brightness: 0.30),
-            surface(second, brightness: 0.12)
+    /// Apple Music paints the player in one tone: the cover's average color,
+    /// its hue kept, its saturation lifted, its brightness pinned and falling
+    /// off towards the bottom. The most saturated patch of the cover, or a
+    /// second, contrasting one, would split the surface into bands of
+    /// unrelated colors — a pink top over a teal bottom on a desert cover.
+    private static func palette(from average: PlatformColor) -> PlayerPalette {
+        PlayerPalette(gradient: [
+            surface(average, brightness: 0.40, saturationScale: 1),
+            surface(average, brightness: 0.36, saturationScale: 1),
+            surface(average, brightness: 0.21, saturationScale: 0.6)
         ])
     }
 
-    /// Keeps the artwork's hue, tames its saturation and pins its brightness,
-    /// so a washed-out cover and a neon one both land on the same dark surface.
-    private static func surface(_ color: UIColor, brightness: CGFloat) -> Color {
+    /// Saturation doubles and is capped, so a muted cover still reads as its
+    /// color and a neon one stays calm; brightness ignores the cover entirely,
+    /// so white text and controls stay legible on any of them.
+    private static func surface(_ color: UIColor, brightness: CGFloat, saturationScale: CGFloat) -> Color {
         var hue: CGFloat = 0, saturation: CGFloat = 0, value: CGFloat = 0, alpha: CGFloat = 0
         color.getHue(&hue, saturation: &saturation, brightness: &value, alpha: &alpha)
         return Color(
             hue: Double(hue),
-            saturation: Double(min(saturation, 0.72)),
+            saturation: Double(min(saturation * 2, 0.75) * saturationScale),
             brightness: Double(brightness)
         )
     }

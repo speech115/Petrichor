@@ -103,6 +103,22 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
         return await ImageUtils.cachedDominantColors(id: artworkIdentity, imageData: original)
     }
 
+    /// Cached area-average artwork color: `nil` = not computed yet; empty = no
+    /// artwork or undecodable. Use `loadAverageArtworkColor()` to populate it.
+    @MainActor
+    var cachedAverageArtworkColor: [PlatformColor]? {
+        guard let original = albumArtworkData else { return [] }
+        let artworkIdentity = ArtworkCacheKey.trackColorIdentity(albumId: albumId, trackID: id)
+        return ImageUtils.cachedAverageColorIfAvailable(id: artworkIdentity, imageData: original)
+    }
+
+    @MainActor
+    func loadAverageArtworkColor() async -> [PlatformColor] {
+        guard let original = albumArtworkData else { return [] }
+        let artworkIdentity = ArtworkCacheKey.trackColorIdentity(albumId: albumId, trackID: id)
+        return await ImageUtils.cachedAverageColor(id: artworkIdentity, imageData: original)
+    }
+
     @MainActor
     func backgroundGradientColors(isDark: Bool) async -> [Color] {
         guard let original = albumArtworkData else { return [] }
