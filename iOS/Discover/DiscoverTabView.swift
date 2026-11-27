@@ -56,6 +56,7 @@ struct DiscoverTabView: View {
                         playbackManager: playbackManager
                     )
                     .equatable()
+                    .songRowListStyle()
                 }
             )
             .rootTitle(String(localized: "Discover"))

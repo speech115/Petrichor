@@ -271,6 +271,7 @@ struct SearchView: View {
                             playbackManager: playbackManager
                         )
                         .equatable()
+                        .songRowListStyle()
                     }
                 }
             }

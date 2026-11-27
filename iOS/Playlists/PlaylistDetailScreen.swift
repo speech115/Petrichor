@@ -234,6 +234,7 @@ struct PlaylistDetailScreen: View {
                     menuContext: .playlist(playlist)
                 )
                 .equatable()
+                .songRowListStyle()
             }
         }
         // Favorites keeps its page color under the songs, as in Music; other

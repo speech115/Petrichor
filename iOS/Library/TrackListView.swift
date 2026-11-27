@@ -59,6 +59,7 @@ struct TrackListView: View {
                     playbackManager: playbackManager
                 )
                 .equatable()
+                .songRowListStyle()
             }
         )
         // A bar with no background of its own: the rows scroll under it and
