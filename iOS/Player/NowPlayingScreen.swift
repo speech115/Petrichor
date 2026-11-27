@@ -13,7 +13,7 @@
 // all: the grabber dismisses on tap, a downward drag dismisses on release,
 // and the track menu lives next to the title.
 //
-// Queue and lyrics replace the large artwork while transport remains visible.
+// Queue and lyrics replace the large artwork; the controls below hold still.
 //
 
 import SwiftUI
@@ -190,26 +190,29 @@ struct NowPlayingScreen: View {
             grabber
 
             if let panelKind {
-                HStack(spacing: 12) {
+                HStack(spacing: 14) {
                     // Apple Music's way back to the big cover: tap the small one.
                     Button(action: dismissPanel) {
                         artwork
                             .matchedGeometryEffect(id: "artwork", in: artworkNamespace)
-                            .frame(width: 48, height: 48)
+                            .frame(width: 64, height: 64)
                     }
                     .buttonStyle(TransportButtonStyle())
                     .accessibilityLabel(String(localized: "Close"))
                     titleRow
+                        .matchedGeometryEffect(id: "title", in: artworkNamespace, properties: .position, anchor: .trailing)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 28)
+                .padding(.top, 8)
                 .padding(.bottom, 12)
 
-                NowPlayingPanel {
-                    panelContent(for: panelKind)
-                }
-                .frame(maxHeight: .infinity)
-                .padding(.bottom, 12)
-                .transition(.opacity.combined(with: .offset(y: 24)))
+                // Straight on the player surface, as in Apple Music: the
+                // panel rises a little and fades in once the cover is on its
+                // way up, and leaves at once so it never sits under the title
+                // travelling back down.
+                panelContent(for: panelKind)
+                    .frame(maxHeight: .infinity)
+                    .transition(panelTransition)
             } else {
                 Spacer(minLength: 12)
                 // The cover cross-fades in place on a track change rather
@@ -223,10 +226,18 @@ struct NowPlayingScreen: View {
                 .matchedGeometryEffect(id: "artwork", in: artworkNamespace)
                 .frame(width: artworkSide, height: artworkSide)
                 Spacer(minLength: 12)
+                // The big title rides up with the cover into the header
+                // rather than fading where it stood, over the opening list.
+                titleRow
+                    .matchedGeometryEffect(id: "title", in: artworkNamespace, properties: .position, anchor: .trailing)
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, controlSpacing)
             }
 
-            VStack(spacing: panelKind == nil ? controlSpacing : 10) {
-                if panelKind == nil { titleRow }
+            // Scrubber, transport, volume and the accessory row hold still
+            // while a panel opens or closes, as in Apple Music: only what is
+            // above them changes.
+            VStack(spacing: controlSpacing) {
                 PlayerScrubber(
                     palette: palette,
                     playbackManager: playbackManager
@@ -237,7 +248,7 @@ struct NowPlayingScreen: View {
                     playbackManager: playbackManager,
                     playlistManager: playlistManager
                 )
-                if panelKind == nil { volumeRow }
+                volumeRow
                 accessoryRow
             }
             .padding(.horizontal, 28)
@@ -455,7 +466,7 @@ struct NowPlayingScreen: View {
     private var accessoryRow: some View {
         HStack(spacing: 0) {
             accessoryButton(.lyrics, label: String(localized: "Lyrics")) {
-                SymbolImage(Icons.customLyrics)
+                Image(systemName: Icons.lyricsBubble)
             }
             .disabled(track == nil)
 
@@ -473,8 +484,8 @@ struct NowPlayingScreen: View {
         .sensoryFeedback(.selection, trigger: panelKind)
     }
 
-    /// Lit while its panel is open, the way Apple Music lights these and the
-    /// queue's shuffle/repeat: a solid light capsule behind a dark glyph. The
+    /// Lit while its panel is open, the way Apple Music lights these: a solid
+    /// light circle behind a dark glyph. The
     /// lit button is also how the panel closes, so its state has to read at
     /// a glance rather than as a slightly brighter icon.
     private func accessoryButton<Glyph: View>(
@@ -489,9 +500,9 @@ struct NowPlayingScreen: View {
             glyph()
                 .font(.system(size: min(accessoryIconSize, 24)))
                 .foregroundColor(isActive ? Color.black.opacity(0.8) : palette.accessory)
-                .frame(width: 52, height: 36)
+                .frame(width: 38, height: 38)
                 .background {
-                    Capsule()
+                    Circle()
                         .fill(palette.control)
                         .opacity(isActive ? 1 : 0)
                         .scaleEffect(isActive ? 1 : 0.7)
@@ -526,6 +537,15 @@ struct NowPlayingScreen: View {
     /// layering a fresh curve on top of the unfinished one.
     private var panelAnimation: Animation? {
         reduceMotion ? nil : .smooth(duration: 0.3)
+    }
+
+    private var panelTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(y: 16))
+                .animation(.smooth(duration: 0.35).delay(0.08)),
+            removal: .opacity.animation(.easeOut(duration: 0.15))
+        )
     }
 
     private func presentPanel(_ kind: PanelKind) {

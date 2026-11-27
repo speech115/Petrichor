@@ -79,6 +79,8 @@ enum Icons {
     static let customLossless = "custom.lossless"
     static let customMusicNoteRectangleStack = "custom.music.note.rectangle.stack"
     static let customLyrics = "custom.music.microphone.bubble.right"
+    /// Apple Music's lyrics glyph on iPhone.
+    static let lyricsBubble = "quote.bubble"
 }
 
 // MARK: - About
