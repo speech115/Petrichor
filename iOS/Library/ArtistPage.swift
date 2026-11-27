@@ -2,10 +2,11 @@
 // ArtistPage (iOS)
 //
 // Artist detail page in Apple Music's layout: the page filled with the
-// photo's color, photo and name, then Info / Play / Shuffle. The bio (from the
-// database cache populated offline-capable by ArtistBioManager) opens from
-// Info instead of pushing the songs off screen. "Top Songs" shows the five
-// most played and links to all of them; the albums follow as a shelf. Play
+// photo's color, photo and name, then Info / Play / Shuffle. "Top Songs" shows
+// the five most played and links to all of them; the albums follow as a
+// shelf, and "About" closes the page with the start of the bio (from the
+// database cache ArtistBioManager fills, so it works offline); Info or a tap
+// on it opens the whole bio. Play
 // covers the whole discography. Offline there is no error: whatever the cache
 // holds is shown, the rest stays empty.
 //
@@ -72,6 +73,26 @@ struct ArtistPage: View {
                         .listRowBackground(Color.clear)
                 } header: {
                     sectionTitle(Text(String(localized: "Albums")))
+                }
+            }
+
+            if let bio, !bio.isEmpty {
+                Section {
+                    Button { showingBio = true } label: {
+                        Text(bio)
+                            .font(.subheadline)
+                            .foregroundStyle(Color.secondaryText)
+                            .lineLimit(4)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .accessibilityHint(String(localized: "Opens the full biography"))
+                } header: {
+                    sectionTitle(Text(String(localized: "About the Artist")))
                 }
             }
         }

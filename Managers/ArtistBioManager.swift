@@ -2,8 +2,9 @@
 //  ArtistBioManager.swift
 //  Petrichor
 //
-//  Handles fetching artist images (MusicBrainz/Wikidata, TMDB) and bios (Last.fm)
-//  from online sources and storing them in the database.
+//  Handles fetching artist photos and bios and storing them in the database.
+//  Apple Music comes first for both; MusicBrainz/Wikidata and TMDB (photos)
+//  and Last.fm (bios) fill in for an artist Apple Music has nothing on.
 //
 
 import CryptoKit
@@ -44,6 +45,19 @@ actor ArtistBioManager {
         static let rateLimitDelay: TimeInterval = 0.3 // ~40 req / 10s
     }
 
+    /// The iTunes Search API finds the artist (about 20 requests a minute
+    /// are allowed); the public artist page carries the photo and the bio.
+    /// The Russian storefront has Russian bios of Russian artists and no bio
+    /// of many others, which the US storefront has in English.
+    private enum AppleMusic {
+        static let searchURL = "https://itunes.apple.com/search"
+        static let lookupURL = "https://itunes.apple.com/lookup"
+        static let pageURL = "https://music.apple.com"
+        static let storefronts = ["ru", "us"]
+        static let searchDelay: TimeInterval = 3.1
+        static let pageDelay: TimeInterval = 1.0
+    }
+
     private enum LastFM {
         static let apiBaseURL = "https://ws.audioscrobbler.com/2.0/"
         static let rateLimitDelay: TimeInterval = 0.25
@@ -67,6 +81,8 @@ actor ArtistBioManager {
     private var lastWikimediaRequest: Date?
     private var lastTMDBRequest: Date?
     private var lastLastFMRequest: Date?
+    private var lastITunesRequest: Date?
+    private var lastAppleMusicPageRequest: Date?
     /// Requests that failed at the transport level (offline, DNS, timeout),
     /// as opposed to answering "nothing found". Drives the offline breaker.
     private var networkErrors = 0
@@ -93,6 +109,11 @@ actor ArtistBioManager {
         let imageData: Data
         let imageUrl: String
         let source: String
+    }
+
+    private struct AppleMusicInfo {
+        let image: ImageResult?
+        let bio: String?
     }
 
     // MARK: - Public Methods
@@ -144,29 +165,40 @@ actor ArtistBioManager {
             let maxConsecutiveFailures = 10
             var consecutiveFailures = 0
 
-            // Without a Last.fm key no bio can come back, so it isn't attempted.
-            let canFetchBio = !(self.lastfmApiKey ?? "").isEmpty
-
             for artist in artists {
                 guard !Task.isCancelled, self.isArtistInfoFetchEnabled else {
                     Logger.info("Fetch stopped")
                     break
                 }
 
-                let wantsImage = !artist.hasImage
-                let wantsBio = !artist.hasBio && canFetchBio
-                guard wantsImage || wantsBio else { continue }
-
-                // Fetch image and bio, then write once
-                Logger.info("Fetching info for '\(artist.name)' (image: \(wantsImage), bio: \(wantsBio))")
+                Logger.info("Fetching info for '\(artist.name)' (image: \(artist.wantsImage), bio: \(artist.wantsBio))")
                 // Failures are tracked per field, so a bio that arrived doesn't turn an
-                // image request that failed in transit into a seven-day miss.
+                // image request that failed in transit into a month-long miss.
                 var errorsBefore = await self.networkErrors
-                let imageResult = wantsImage ? await self.fetchArtistImage(name: artist.name) : nil
-                let imageFailed = await self.networkErrors != errorsBefore
+                let apple = await self.fetchAppleMusicInfo(name: artist.name) {
+                    databaseManager.getAlbumTitles(artistId: artist.id)
+                }
+                let appleFailed = await self.networkErrors != errorsBefore
+
+                // The old sources only fill a gap: an artist that already has a
+                // photo or bio from them keeps it when Apple Music has none.
                 errorsBefore = await self.networkErrors
-                let bio = wantsBio ? await self.fetchArtistBio(name: artist.name) : nil
-                let bioFailed = await self.networkErrors != errorsBefore
+                var imageResult = artist.wantsImage ? apple?.image : nil
+                if artist.wantsImage, imageResult == nil, !artist.hasImage {
+                    imageResult = await self.fetchArtistImage(name: artist.name)
+                }
+                let imageErrorsAfter = await self.networkErrors
+                let imageFailed = appleFailed || imageErrorsAfter != errorsBefore
+
+                errorsBefore = await self.networkErrors
+                var bio = artist.wantsBio ? apple?.bio : nil
+                var bioSource = ArtistInfoSource.appleMusic
+                if artist.wantsBio, bio == nil, !artist.hasBio {
+                    bio = await self.fetchArtistBio(name: artist.name)
+                    bioSource = "last.fm"
+                }
+                let bioErrorsAfter = await self.networkErrors
+                let bioFailed = appleFailed || bioErrorsAfter != errorsBefore
 
                 // A cancel mid-fetch surfaces as nil results; bail before treating them
                 // as misses so we don't stamp an interrupted artist as failed.
@@ -181,10 +213,10 @@ actor ArtistBioManager {
                         imageUrl: imageResult.imageUrl,
                         imageSource: source,
                         bio: bio,
-                        bioSource: bio != nil ? "last.fm" : nil
+                        bioSource: bio != nil ? bioSource : nil
                     )
                 } else if let bio {
-                    databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: "last.fm")
+                    databaseManager.updateArtistInfo(artistId: artist.id, bio: bio, bioSource: bioSource)
                 }
 
                 if (imageFailed || bioFailed) && imageResult == nil && bio == nil {
@@ -198,11 +230,13 @@ actor ArtistBioManager {
                 } else {
                     // A miss = an attempted fetch that got an empty remote response.
                     // (A downloaded image that fails local compression is not a miss; it
-                    // stays unstamped so it retries rather than being skipped for 7 days.)
-                    if wantsImage && imageResult == nil && !imageFailed {
+                    // stays unstamped so it retries rather than being skipped.)
+                    if artist.wantsImage && imageResult == nil && !imageFailed {
                         databaseManager.markArtistImageFetchFailed(artistId: artist.id)
                     }
-                    if wantsBio && bio == nil && !bioFailed { databaseManager.markArtistBioFetchFailed(artistId: artist.id) }
+                    if artist.wantsBio && bio == nil && !bioFailed {
+                        databaseManager.markArtistBioFetchFailed(artistId: artist.id)
+                    }
                     consecutiveFailures = 0
                 }
             }
@@ -227,6 +261,93 @@ actor ArtistBioManager {
         }
         // Fall back to TMDB
         return await searchTMDBImages(name: name, limit: 1).first
+    }
+
+    // MARK: - Apple Music
+
+    /// The artist's Apple Music photo and bio, or nil when the catalog has no
+    /// artist that is surely this one. The bio is taken from the first
+    /// storefront that has one; the photo is the same in all of them.
+    private func fetchAppleMusicInfo(name: String, libraryAlbums: @Sendable () -> [String]) async -> AppleMusicInfo? {
+        guard var components = URLComponents(string: AppleMusic.searchURL) else { return nil }
+        components.queryItems = [
+            URLQueryItem(name: "term", value: name),
+            URLQueryItem(name: "entity", value: "musicArtist"),
+            URLQueryItem(name: "limit", value: "10"),
+            URLQueryItem(name: "country", value: AppleMusic.storefronts[0])
+        ]
+        guard let searchURL = components.url,
+              let searchData = await appleMusicData(searchURL, isSearch: true) else { return nil }
+
+        let candidates = AppleMusicArtist.candidates(fromSearch: searchData)
+        // Albums are looked up only to tell same-named artists apart.
+        let named = AppleMusicArtist.sameName(as: name, in: candidates)
+        var lookups: [Int: [String]] = [:]
+        if named.count > 1 {
+            for candidate in named.prefix(3) {
+                lookups[candidate.id] = await catalogAlbums(artistId: candidate.id)
+            }
+        }
+        guard let artist = AppleMusicArtist.pick(
+            name: name,
+            candidates: candidates,
+            catalogAlbums: { lookups[$0.id] ?? [] },
+            libraryAlbums: lookups.isEmpty ? [] : libraryAlbums()
+        ) else { return nil }
+
+        var imageURL: URL?
+        var bio: String?
+        for storefront in AppleMusic.storefronts {
+            guard let pageURL = URL(string: "\(AppleMusic.pageURL)/\(storefront)/artist/\(artist.id)"),
+                  let pageData = await appleMusicData(pageURL, isSearch: false),
+                  let html = String(bytes: pageData, encoding: .utf8),
+                  let page = AppleMusicArtist.parsePage(html: html) else { continue }
+            imageURL = imageURL ?? page.imageURL
+            bio = page.bio
+            if bio != nil { break }
+        }
+
+        var image: ImageResult?
+        if let imageURL, let data = await downloadImageData(from: imageURL.absoluteString) {
+            image = ImageResult(imageData: data, imageUrl: imageURL.absoluteString, source: ArtistInfoSource.appleMusic)
+        }
+        return AppleMusicInfo(image: image, bio: bio)
+    }
+
+    private func catalogAlbums(artistId: Int) async -> [String] {
+        guard var components = URLComponents(string: AppleMusic.lookupURL) else { return [] }
+        components.queryItems = [
+            URLQueryItem(name: "id", value: String(artistId)),
+            URLQueryItem(name: "entity", value: "album"),
+            URLQueryItem(name: "limit", value: "200"),
+            URLQueryItem(name: "country", value: AppleMusic.storefronts[0])
+        ]
+        guard let url = components.url, let data = await appleMusicData(url, isSearch: true) else { return [] }
+        return AppleMusicArtist.albumTitles(fromLookup: data)
+    }
+
+    /// The body of a 200 answer, rate-limited per host; nil otherwise. A 404
+    /// page (an artist the storefront doesn't carry) is an empty answer.
+    private func appleMusicData(_ url: URL, isSearch: Bool) async -> Data? {
+        if isSearch {
+            lastITunesRequest = await waitForRateLimit(lastRequest: lastITunesRequest, delay: AppleMusic.searchDelay)
+        } else {
+            lastAppleMusicPageRequest = await waitForRateLimit(
+                lastRequest: lastAppleMusicPageRequest,
+                delay: AppleMusic.pageDelay
+            )
+        }
+        var request = URLRequest(url: url)
+        request.setValue(AppInfo.userAgent, forHTTPHeaderField: "User-Agent")
+        do {
+            let (data, response) = try await fetch(request)
+            return (response as? HTTPURLResponse)?.statusCode == 200 ? data : nil
+        } catch {
+            if isCancellation(error) { return nil }
+            if error is URLError { networkErrors += 1 }
+            Logger.error("Apple Music error for '\(url.absoluteString)': \(error.localizedDescription)")
+            return nil
+        }
     }
 
     // MARK: - MusicBrainz / Wikidata Search
