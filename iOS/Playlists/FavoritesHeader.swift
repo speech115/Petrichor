@@ -2,9 +2,7 @@
 // FavoritesHeader (iOS)
 //
 // The top of Music's Favorite Songs page: the large star, the title with its
-// small grey star, and the round Shuffle, black Play and round Download
-// buttons, closed by a line across the page. Download is a placeholder: the
-// library is already on the phone.
+// small grey star, and Music's action row (`MusicActionRow`).
 //
 
 import SwiftUI
@@ -16,8 +14,6 @@ struct FavoritesHeader: View {
     let playDisabled: Bool
     let onPlay: () -> Void
     let onShuffle: () -> Void
-
-    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,47 +40,9 @@ struct FavoritesHeader: View {
             .padding(.top, 12)
             .padding(.horizontal, 16)
 
-            HStack(spacing: 14) {
-                RoundHeaderButton(systemImage: "shuffle", label: String(localized: "Shuffle"), action: onShuffle)
-                    .disabled(playDisabled)
-                Button(action: onPlay) {
-                    Label(String(localized: "Play"), systemImage: Icons.playFill)
-                        .font(.headline)
-                        .foregroundStyle(Color(.systemBackground))
-                        .frame(width: 160, height: 48)
-                        .background(Color.primary, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(playDisabled)
-                RoundHeaderButton(systemImage: "arrow.down", label: String(localized: "Download")) {}
-            }
-            .padding(.top, 20)
-
-            Rectangle()
-                .fill(Color.primary.opacity(0.12))
-                .frame(height: 1 / displayScale)
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
+            MusicActionRow(playDisabled: playDisabled, onPlay: onPlay, onShuffle: onShuffle)
+                .padding(.top, 20)
         }
-    }
-}
-
-/// Music's 48 pt round grey button beside Play.
-private struct RoundHeaderButton: View {
-    let systemImage: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Color.primary)
-                .frame(width: 48, height: 48)
-                .background(Color.primary.opacity(0.09), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
     }
 }
 
