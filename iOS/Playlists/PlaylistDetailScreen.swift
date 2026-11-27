@@ -30,9 +30,16 @@ struct PlaylistDetailScreen: View {
     @State private var renameText = ""
     @State private var showingDeleteConfirmation = false
     @State private var headerTint: Color?
+    @State private var heroScroll = FavoritesHeroScroll()
     /// Apple Music's Edit: handles for reordering and delete circles. Drag
     /// reorder and swipe delete also work outside it.
     @State private var editMode = EditMode.inactive
+    /// Music's "Find in Playlist", pulled down from under the bar.
+    @State private var findText = ""
+
+    private var isFinding: Bool {
+        !findText.allSatisfy(\.isWhitespace)
+    }
 
     private var playlist: Playlist? {
         playlistCatalog.playlists.first { $0.id == playlistID }
@@ -45,19 +52,23 @@ struct PlaylistDetailScreen: View {
                     identity: AnyHashable(tracksTaskID(playlist)),
                     load: { await loadTracks(playlist) },
                     sectioner: { [IndexedSection(key: "", items: $0)] },
-                    initialRows: playlist.tracks.isEmpty && playlist.trackCount > 0 ? nil : playlist.tracks,
+                    initialRows: rows(playlist),
                     usesPlainStyle: true,
                     showEmptyState: false,
-                    onMove: canEditContent(playlist) ? { offsets, destination in
+                    // Offsets in a found subset are not playlist positions.
+                    onMove: canEditContent(playlist) && !isFinding ? { offsets, destination in
                         move(offsets, to: destination, in: playlist)
                     } : nil,
-                    onDelete: canEditContent(playlist) ? { offsets in
+                    onDelete: canEditContent(playlist) && !isFinding ? { offsets in
                         remove(offsets, from: playlist)
                     } : nil,
                     header: { tracks in
                         VStack(spacing: 16) {
-                            header(playlist, tracks: tracks)
-                            if tracks.isEmpty {
+                            // Play and Shuffle stay on the whole playlist.
+                            header(playlist, tracks: isFinding ? playlist.tracks : tracks)
+                            if isFinding, tracks.isEmpty {
+                                ContentUnavailableView.search(text: findText)
+                            } else if tracks.isEmpty {
                                 ContentUnavailableView {
                                     Label(DefaultPlaylists.noSongsText(for: playlist), systemImage: Icons.musicNoteList)
                                 } description: {
@@ -78,7 +89,18 @@ struct PlaylistDetailScreen: View {
                     },
                     row: { track, _ in playlistTrackRow(track, playlist: playlist) }
                 )
-                .detailPageWash(headerTint)
+                .detailPageWash(isFavorites(playlist) ? nil : headerTint,
+                                base: isFavorites(playlist) ? .appleFavoritesBackground : nil)
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.contentOffset.y + geometry.contentInsets.top
+                } action: { _, offset in
+                    heroScroll.offset = offset
+                }
+                .searchable(
+                    text: $findText,
+                    placement: .navigationBarDrawer(displayMode: .automatic),
+                    prompt: String(localized: "Find in Playlist")
+                )
                 .environment(\.editMode, $editMode)
             } else {
                 ContentUnavailableView(
@@ -214,6 +236,9 @@ struct PlaylistDetailScreen: View {
                 .equatable()
             }
         }
+        // Favorites keeps its page color under the songs, as in Music; other
+        // playlists keep the system row background over their wash.
+        .listRowBackground(isFavorites(playlist) ? Color.clear : nil)
     }
 
     // MARK: - Header
@@ -226,15 +251,32 @@ struct PlaylistDetailScreen: View {
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
             artwork: {
-                PlaylistArtworkView(
-                    playlist: playlist,
-                    tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
-                    cornerRadius: 12,
-                    iconSize: 56
-                )
-                    .frame(width: 280, height: 280)
+                if isFavorites(playlist) {
+                    FavoritesHeroStar(scroll: heroScroll)
+                } else {
+                    PlaylistArtworkView(
+                        playlist: playlist,
+                        tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
+                        cornerRadius: 12,
+                        iconSize: 56
+                    )
+                        .frame(width: 280, height: 280)
+                }
             }
         )
+    }
+
+    /// The live playlist rows, narrowed to the find text. Nil until a
+    /// playlist that has songs has loaded them, so the screen loads first.
+    private func rows(_ playlist: Playlist) -> [Track]? {
+        if playlist.tracks.isEmpty && playlist.trackCount > 0 { return nil }
+        return isFinding ? PlaylistFind.filter(playlist.tracks, query: findText) : playlist.tracks
+    }
+
+    /// Favorites opens as Music's Favorite Songs page: the star alone, large,
+    /// on a page the color of its tile, instead of a framed cover.
+    private func isFavorites(_ playlist: Playlist) -> Bool {
+        PlaylistCover.of(playlist) == .appleFavorites
     }
 
     /// "N songs" plus the total duration, mirroring the macOS header.
@@ -298,6 +340,50 @@ struct PlaylistDetailScreen: View {
         playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .playlist
         playlistManager.queueSourceName = playlist.name
+    }
+}
+
+// MARK: - Favorites Hero
+
+/// The list's scroll position, read only by the hero star, so scrolling
+/// redraws the star and never the screen around it.
+@Observable
+final class FavoritesHeroScroll {
+    /// Points scrolled past the top: negative while the list is pulled down.
+    var offset: CGFloat = 0
+}
+
+/// Music's large favorites star. Pulled down, it stretches from its bottom
+/// edge so its top stays put; scrolled up, it trails the list and softens
+/// into a blur as it goes under the bar.
+private struct FavoritesHeroStar: View {
+    let scroll: FavoritesHeroScroll
+
+    var body: some View {
+        let offset = scroll.offset
+        Image("cover-apple-favorites")
+            .resizable()
+            .aspectRatio(1, contentMode: .fit)
+            .visualEffect { content, proxy in
+                let side = max(proxy.size.height, 1)
+                let pull = max(-offset, 0)
+                let push = max(offset, 0)
+                return content
+                    .scaleEffect(1 + pull / side, anchor: .bottom)
+                    .offset(y: push * 0.4)
+                    .blur(radius: min(push / 14, 18))
+                    .opacity(1 - min(push / side, 1) * 0.6)
+            }
+            // Music draws the star at 0.589 of the screen width and the star
+            // fills 0.527 of its square: the square is drawn 1.118 screens
+            // wide. Scaled, not framed — a width read from the container
+            // inside a List row sends the collection view into a layout loop.
+            // The star's own empty margin above it stands in for the gap
+            // under the bar.
+            .scaleEffect(1.118)
+            .padding(.horizontal, -16)
+            .padding(.top, -48)
+            .accessibilityHidden(true)
     }
 }
 

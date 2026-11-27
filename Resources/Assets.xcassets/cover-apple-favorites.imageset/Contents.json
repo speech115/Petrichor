@@ -3,16 +3,6 @@
     {
       "filename" : "AppleFavorites.svg",
       "idiom" : "universal"
-    },
-    {
-      "appearances" : [
-        {
-          "appearance" : "luminosity",
-          "value" : "dark"
-        }
-      ],
-      "filename" : "AppleFavoritesDark.svg",
-      "idiom" : "universal"
     }
   ],
   "info" : {

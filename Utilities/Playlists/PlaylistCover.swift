@@ -16,9 +16,10 @@
 // "Мне нравится" wears, off their own avatars CDN; `tylerInstrumental` is
 // the artwork its owner picked for that playlist.
 //
-// `appleFavorites` is Apple Music's favorites star, redrawn as a vector so it
-// can carry a light and a dark version of itself — the asset catalog swaps
-// them, which a bitmap could not do.
+// `appleFavorites` is Apple Music's favorites star, redrawn as a vector from a
+// screen recording of Music (star `#FC293E`, tile `#E8EBED`). The star is
+// drawn alone; the tile color is its own asset so the iPhone Favorites page
+// can wear the same color behind the large star.
 //
 
 import SwiftUI
@@ -51,6 +52,11 @@ enum PlaylistCover: Equatable {
     }
 }
 
+extension Color {
+    /// The tile behind the favorites star, light and dark.
+    static let appleFavoritesBackground = Color("cover-apple-favorites-background")
+}
+
 struct PlaylistCoverView: View {
     let cover: PlaylistCover
     var cornerRadius: CGFloat = 8
@@ -59,7 +65,7 @@ struct PlaylistCoverView: View {
         Group {
             switch cover {
             case .appleFavorites:
-                artwork("cover-apple-favorites")
+                appleFavorites
             case .frankieShow:
                 artwork("cover-frankie-show")
             case .likedSongs:
@@ -96,6 +102,18 @@ struct PlaylistCoverView: View {
                     .foregroundStyle(Color(red: 0.0, green: 0.53, blue: 1.0))
                     .frame(width: side * 0.86, height: side * 0.86)
             }
+        }
+    }
+
+    // MARK: - Apple Favorites
+
+    private var appleFavorites: some View {
+        ZStack {
+            Color.appleFavoritesBackground
+            // Decorative: the tile's own name labels it, never the asset name.
+            Image(decorative: "cover-apple-favorites")
+                .resizable()
+                .scaledToFit()
         }
     }
 
