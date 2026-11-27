@@ -376,6 +376,28 @@ struct ShuffleRepeatTests {
         try await Task.sleep(for: .seconds(2.5))
         #expect(playback.currentTrack?.url == tracks[0].url, "repeat-one должен повторять тот же трек после shuffle")
     }
+
+    /// Music's Shuffle under a playlist title switches the player's shuffle
+    /// on, so the player shows it and Next keeps shuffling; it used to start
+    /// a shuffled queue with the player's shuffle left off.
+    @Test func headerShuffleTurnsThePlayersShuffleOn() async throws {
+        let urls = try (0..<6).map { _ in try makeSilentWAV(seconds: 1) }
+        defer { urls.forEach { try? FileManager.default.removeItem(at: $0) } }
+        let tracks = urls.map(Track.init(url:))
+        let coordinator = AppCoordinator()
+        let playback = coordinator.playbackManager
+        let playlists = coordinator.playlistManager
+        defer {
+            playback.stop()
+            playlists.isShuffleEnabled = false
+        }
+        playlists.isShuffleEnabled = false
+
+        playlists.playTrackShuffled(tracks)
+
+        #expect(playlists.isShuffleEnabled, "Shuffle в шапке должен включать перемешивание в плеере")
+        #expect(Set(playlists.currentQueue.map(\.url)) == Set(urls), "в очереди должны быть все песни плейлиста")
+    }
 }
 }
 
