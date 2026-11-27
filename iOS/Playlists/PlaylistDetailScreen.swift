@@ -243,7 +243,23 @@ struct PlaylistDetailScreen: View {
 
     // MARK: - Header
 
+    @ViewBuilder
     private func header(_ playlist: Playlist, tracks: [Track]) -> some View {
+        if isFavorites(playlist) {
+            FavoritesHeader(
+                title: PlaylistDisplay.name(for: playlist),
+                subtitle: subtitle(playlist),
+                scroll: heroScroll,
+                playDisabled: tracks.isEmpty,
+                onPlay: { playAll(playlist, tracks: tracks) },
+                onShuffle: { shuffleAll(playlist, tracks: tracks) }
+            )
+        } else {
+            artworkHeader(playlist, tracks: tracks)
+        }
+    }
+
+    private func artworkHeader(_ playlist: Playlist, tracks: [Track]) -> some View {
         DetailHeader(
             onPlay: { playAll(playlist, tracks: tracks) },
             onShuffle: { shuffleAll(playlist, tracks: tracks) },
@@ -251,17 +267,13 @@ struct PlaylistDetailScreen: View {
             title: PlaylistDisplay.name(for: playlist),
             subtitle: subtitle(playlist),
             artwork: {
-                if isFavorites(playlist) {
-                    FavoritesHeroStar(scroll: heroScroll)
-                } else {
-                    PlaylistArtworkView(
-                        playlist: playlist,
-                        tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
-                        cornerRadius: 12,
-                        iconSize: 56
-                    )
-                        .frame(width: 280, height: 280)
-                }
+                PlaylistArtworkView(
+                    playlist: playlist,
+                    tracks: screenCache.playlistPreviews[playlist.id] ?? tracks,
+                    cornerRadius: 12,
+                    iconSize: 56
+                )
+                    .frame(width: 280, height: 280)
             }
         )
     }
@@ -340,50 +352,6 @@ struct PlaylistDetailScreen: View {
         playlistManager.playTrackShuffled(tracks)
         playlistManager.currentQueueSource = .playlist
         playlistManager.queueSourceName = playlist.name
-    }
-}
-
-// MARK: - Favorites Hero
-
-/// The list's scroll position, read only by the hero star, so scrolling
-/// redraws the star and never the screen around it.
-@Observable
-final class FavoritesHeroScroll {
-    /// Points scrolled past the top: negative while the list is pulled down.
-    var offset: CGFloat = 0
-}
-
-/// Music's large favorites star. Pulled down, it stretches from its bottom
-/// edge so its top stays put; scrolled up, it trails the list and softens
-/// into a blur as it goes under the bar.
-private struct FavoritesHeroStar: View {
-    let scroll: FavoritesHeroScroll
-
-    var body: some View {
-        let offset = scroll.offset
-        Image("cover-apple-favorites")
-            .resizable()
-            .aspectRatio(1, contentMode: .fit)
-            .visualEffect { content, proxy in
-                let side = max(proxy.size.height, 1)
-                let pull = max(-offset, 0)
-                let push = max(offset, 0)
-                return content
-                    .scaleEffect(1 + pull / side, anchor: .bottom)
-                    .offset(y: push * 0.4)
-                    .blur(radius: min(push / 14, 18))
-                    .opacity(1 - min(push / side, 1) * 0.6)
-            }
-            // Music draws the star at 0.589 of the screen width and the star
-            // fills 0.527 of its square: the square is drawn 1.118 screens
-            // wide. Scaled, not framed — a width read from the container
-            // inside a List row sends the collection view into a layout loop.
-            // The star's own empty margin above it stands in for the gap
-            // under the bar.
-            .scaleEffect(1.118)
-            .padding(.horizontal, -16)
-            .padding(.top, -48)
-            .accessibilityHidden(true)
     }
 }
 

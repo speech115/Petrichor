@@ -17,7 +17,7 @@
 // the artwork its owner picked for that playlist.
 //
 // `appleFavorites` is Apple Music's favorites star, redrawn as a vector from a
-// screen recording of Music (star `#FC293E`, tile `#E8EBED`). The star is
+// screen recording of Music (star `#FC293E`, page `#E9EAED`). The star is
 // drawn alone; the tile color is its own asset so the iPhone Favorites page
 // can wear the same color behind the large star.
 //
