@@ -132,8 +132,8 @@ actor ArtistBioManager {
         // Checked before the cancel: a second trigger (scan, refresh, Settings)
         // must leave a run that started recently alone, not cut it short and
         // then refuse to start another.
-        let lastStart = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastFetchStart) as? Date ?? .distantPast
-        guard Date().timeIntervalSince(lastStart) >= Self.minimumRunInterval else {
+        let lastStart = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastFetchStart) as? Date
+        guard ArtistInfoSource.isRunDue(lastStart: lastStart, now: Date(), interval: Self.minimumRunInterval) else {
             Logger.info("Artist info fetch ran recently, skipping")
             return
         }

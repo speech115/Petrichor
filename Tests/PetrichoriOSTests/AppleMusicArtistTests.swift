@@ -140,6 +140,22 @@ struct AppleMusicArtistTests {
         #expect(AppleMusicArtist.albumKey(key) == key)
     }
 
+    // MARK: - Run spacing
+
+    /// A run of the old sources two hours before the update must not hold
+    /// the first Apple Music run for another two hours; after that, runs are
+    /// spaced as before.
+    @Test func firstAppleMusicRunIgnoresTheOldSourcesRun() {
+        let since = ArtistInfoSource.appleMusicSince
+        let interval: TimeInterval = 4 * 60 * 60
+        let now = since.addingTimeInterval(60)
+
+        #expect(ArtistInfoSource.isRunDue(lastStart: nil, now: now, interval: interval))
+        #expect(ArtistInfoSource.isRunDue(lastStart: since.addingTimeInterval(-2 * 60 * 60), now: now, interval: interval))
+        #expect(!ArtistInfoSource.isRunDue(lastStart: since.addingTimeInterval(30), now: now, interval: interval))
+        #expect(ArtistInfoSource.isRunDue(lastStart: since, now: since.addingTimeInterval(interval), interval: interval))
+    }
+
     // MARK: - Search answers
 
     @Test func readsArtistsAndAlbumsFromITunesAnswers() {

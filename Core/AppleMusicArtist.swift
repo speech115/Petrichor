@@ -15,6 +15,14 @@ enum ArtistInfoSource {
     /// When Apple Music became the source. A row stamped earlier was filled
     /// from the old sources and is due for an Apple Music attempt.
     static let appleMusicSince = Date(timeIntervalSince1970: 1_795_780_800) // 2026-11-27 12:00 UTC
+
+    /// Whether a fetch run may start. Runs are spaced by `interval`, but the
+    /// first one after Apple Music arrived starts at once instead of waiting
+    /// out a run of the old sources.
+    static func isRunDue(lastStart: Date?, now: Date, interval: TimeInterval) -> Bool {
+        guard let lastStart, lastStart >= appleMusicSince else { return true }
+        return now.timeIntervalSince(lastStart) >= interval
+    }
 }
 
 enum AppleMusicArtist {
