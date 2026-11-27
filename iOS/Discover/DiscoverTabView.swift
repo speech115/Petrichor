@@ -42,7 +42,9 @@ struct DiscoverTabView: View {
                             header(tracks)
                         }
                     }
-                        .padding(.bottom, 16)
+                        // The action row's line sits right above the first
+                        // song, as in Music; only the empty state keeps a gap.
+                        .padding(.bottom, tracks.isEmpty ? 16 : 0)
                         .frame(maxWidth: .infinity)
                         .listRowInsets(EdgeInsets())
                         .listRowSeparator(.hidden)

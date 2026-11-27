@@ -1,8 +1,8 @@
 //
 // DetailHeader (iOS)
 //
-// Shared detail-page header: artwork slot, title and subtitle, and the
-// Play/Shuffle row. Replaces the three per-screen copies (artist photo +
+// Shared detail-page header: artwork slot, title and subtitle, and Music's
+// action row (Shuffle, Play, Download). Replaces the three per-screen copies (artist photo +
 // bio, album artwork + year, playlist mosaic + count).
 //
 // The screen owns the continuous artwork tint through detailPageWash.
@@ -38,14 +38,12 @@ struct DetailHeader<Artwork: View>: View {
                     .multilineTextAlignment(.center)
             }
 
-            PlayShuffleRow(
-                onPlay: onPlay,
-                onShuffle: onShuffle,
-                playDisabled: playDisabled
-            )
-            .padding(.top, 4)
+            MusicActionRow(playDisabled: playDisabled, onPlay: onPlay, onShuffle: onShuffle)
+                .padding(.top, 8)
+                // The line under the buttons runs 20 pt from the page edges,
+                // not from this header's 16 pt padding.
+                .padding(.horizontal, -16)
         }
         .padding(.horizontal, 16)
-        .padding(.bottom, 16)
     }
 }
