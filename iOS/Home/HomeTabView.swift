@@ -90,8 +90,15 @@ struct HomeTabView: View {
     @ViewBuilder
     private var favoritesButton: some View {
         if let favorites = smartPlaylist(DefaultPlaylists.favorites) {
-            NavigationLink(value: LibraryDestination.playlist(favorites.id)) {
-                VStack(spacing: 8) {
+            // Two links to the same page: the cover, hidden from
+            // accessibility, and the name, which is the tile's one element.
+            // As one combined button the accessibility audit measured the
+            // whole tile and read the red star on its grey square as text
+            // contrast (~3.4:1); the name alone is black on white.
+            // The name's 44 pt hit area grows downwards from its line, so
+            // it never overlaps the cover's grey square.
+            VStack(spacing: 8) {
+                NavigationLink(value: LibraryDestination.playlist(favorites.id)) {
                     PlaylistCoverView(cover: .appleFavorites, cornerRadius: Self.favoritesCornerRadius)
                         .frame(width: Self.favoritesTileSide, height: Self.favoritesTileSide)
                         .detailZoomSource(
@@ -100,19 +107,24 @@ struct HomeTabView: View {
                             cornerRadius: Self.favoritesCornerRadius
                         )
                         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                }
+                .buttonStyle(FavoritesTilePressStyle())
+                .accessibilityHidden(true)
+
+                NavigationLink(value: LibraryDestination.playlist(favorites.id)) {
                     Text(DefaultPlaylists.displayName(for: favorites))
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(minWidth: Self.favoritesTileSide, minHeight: 44, alignment: .top)
+                        .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityValue(TrackCountText.songs(favorites.trackCount))
+                .accessibilityIdentifier("home.favorites")
             }
-            .buttonStyle(FavoritesTilePressStyle())
-            .accessibilityElement(children: .combine)
-            .accessibilityValue(TrackCountText.songs(favorites.trackCount))
-            .accessibilityIdentifier("home.favorites")
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, 16)
         }
     }

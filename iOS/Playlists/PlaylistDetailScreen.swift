@@ -223,7 +223,7 @@ struct PlaylistDetailScreen: View {
         Group {
             if missingPaths.contains(track.url.path) {
                 MissingTrackRow(track: track)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .songRowListStyle()
             } else {
                 TrackRow(
                     track: track,
@@ -373,7 +373,7 @@ private struct MissingTrackRow: View {
                     .font(.body)
                     .foregroundColor(.secondary)
             }
-            .frame(width: 44, height: 44)
+            .frame(width: 48, height: 48)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.title)
