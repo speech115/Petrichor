@@ -47,12 +47,14 @@ extension PlaylistManager {
         beginPlayback(of: track, in: contextTracks ?? [track])
     }
 
-    /// Starts `tracks` in a locally shuffled order without touching the user's
-    /// shuffle setting (a "Shuffle" header action plays one shuffled queue).
+    /// Music's Shuffle under a title: switches the player's shuffle on and
+    /// starts `tracks` from a random song, the rest following in random
+    /// order. With shuffle on, `beginPlayback` puts the chosen song first and
+    /// shuffles the others; the player then shows shuffle as on.
     func playTrackShuffled(_ tracks: [Track]) {
-        let shuffled = tracks.shuffled()
-        guard let first = shuffled.first else { return }
-        playTrack(first, fromTracks: shuffled)
+        guard let first = tracks.randomElement() else { return }
+        isShuffleEnabled = true
+        playTrack(first, fromTracks: tracks)
     }
 
     /// Plays a whole library-context list from its first track — the header
@@ -62,8 +64,8 @@ extension PlaylistManager {
         play(first, source: .library(context: tracks))
     }
 
-    /// Shuffles and plays a library-context list — the header "Shuffle" action.
-    /// A one-off shuffle, not a change to the user's shuffle setting.
+    /// Shuffles and plays a library-context list — the header "Shuffle" action,
+    /// which turns the player's shuffle on, as in Music.
     func shuffleLibrary(_ tracks: [Track]) {
         playTrackShuffled(tracks)
         currentQueueSource = .library
