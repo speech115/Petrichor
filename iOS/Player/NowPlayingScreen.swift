@@ -69,10 +69,8 @@ struct NowPlayingScreen: View {
     @State private var favoriteTaps = 0
     /// Keeps the zoom dismissal off the seek bar and the volume slider.
     @State private var dismissGuard = ZoomDismissGuard()
-    /// Music's cover swipe: how far the cover follows the finger, and which
-    /// axis the touch committed to (a vertical pull belongs to the dismissal).
+    /// Music's cover swipe: how far the cover follows the finger.
     @State private var coverDrag: CGFloat = 0
-    @State private var coverDragIsHorizontal: Bool?
     /// The song a committed cover swipe slid in, held at the centre until the
     /// player reports it, so the cover never jumps back to the old one.
     @State private var swipedInTrack: Track?
@@ -331,7 +329,7 @@ struct NowPlayingScreen: View {
         }
         .offset(x: coverDrag)
         .contentShape(Rectangle())
-        .simultaneousGesture(coverSwipe(side: side, gap: gap))
+        .gesture(coverSwipe(side: side, gap: gap))
         .onChange(of: track?.id) { _, newID in
             // The player caught up with the swipe: show its own cover again.
             guard let swipedInTrack, swipedInTrack.id == newID else { return }
@@ -344,43 +342,40 @@ struct NowPlayingScreen: View {
         }
     }
 
-    private func coverSwipe(side: CGFloat, gap: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                if coverDragIsHorizontal == nil {
-                    coverDragIsHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.2
-                }
-                guard coverDragIsHorizontal == true, swipedInTrack == nil else { return }
-                let dx = value.translation.width
-                let hasNeighbor = playlistManager.adjacentQueueTrack(forward: dx < 0) != nil
-                coverDrag = hasNeighbor ? dx : dx * 0.25
+    /// Sideways only (`HorizontalPanGesture`): a pull down on the cover
+    /// must stay the system's dismissal.
+    private func coverSwipe(side: CGFloat, gap: CGFloat) -> HorizontalPanGesture {
+        HorizontalPanGesture { dx in
+            guard swipedInTrack == nil else { return }
+            let hasNeighbor = playlistManager.adjacentQueueTrack(forward: dx < 0) != nil
+            coverDrag = hasNeighbor ? dx : dx * 0.25
+        } onEnded: { _, velocity in
+            guard swipedInTrack == nil, coverDrag != 0 else { return }
+            let forward = coverDrag < 0
+            // Where a flick would carry the cover: a quarter second of its
+            // speed past where the finger let go.
+            let flung = abs(coverDrag + velocity * 0.25) > side * 0.45
+            guard let neighbor = playlistManager.adjacentQueueTrack(forward: forward),
+                  abs(coverDrag) > side / 4 || flung else {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { coverDrag = 0 }
+                return
             }
-            .onEnded { value in
-                defer { coverDragIsHorizontal = nil }
-                guard coverDragIsHorizontal == true, swipedInTrack == nil else { return }
-                let forward = coverDrag < 0
-                let flung = abs(value.predictedEndTranslation.width) > side * 0.45
-                guard let neighbor = playlistManager.adjacentQueueTrack(forward: forward),
-                      abs(coverDrag) > side / 4 || flung else {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { coverDrag = 0 }
-                    return
+            let travel = (forward ? -1 : 1) * (side + gap)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.95)) {
+                coverDrag = travel
+            } completion: {
+                // Re-centre on the slid-in cover in one frame, then ask the
+                // player for that song.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    swipedInTrack = neighbor.track
+                    coverDrag = 0
                 }
-                let travel = (forward ? -1 : 1) * (side + gap)
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.95)) {
-                    coverDrag = travel
-                } completion: {
-                    // Re-centre on the slid-in cover in one frame, then ask
-                    // the player for that song.
-                    var transaction = Transaction()
-                    transaction.disablesAnimations = true
-                    withTransaction(transaction) {
-                        swipedInTrack = neighbor.track
-                        coverDrag = 0
-                    }
-                    playlistManager.playFromQueue(at: neighbor.index)
-                }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                playlistManager.playFromQueue(at: neighbor.index)
             }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 
     /// A queue neighbour's cover, styled like the player's own.
