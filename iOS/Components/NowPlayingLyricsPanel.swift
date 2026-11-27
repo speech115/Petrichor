@@ -128,7 +128,7 @@ struct NowPlayingLyricsPanel: View {
     private var emptyLyricsView: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Image(systemName: Icons.customLyrics)
+                Image(systemName: Icons.lyricsBubble)
                     .font(.system(size: min(emptyStateIconSize, 72)))
                     .foregroundColor(.secondary)
 
@@ -189,7 +189,7 @@ struct NowPlayingLyricsPanel: View {
     private var lyricsContent: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 12) {
+                LazyVStack(alignment: .leading, spacing: 22) {
                     if hasTimedLyrics {
                         TipView(tapTip)
                     }
@@ -197,11 +197,13 @@ struct NowPlayingLyricsPanel: View {
                         lyricLine(line, index: index, proxy: proxy)
                     }
                 }
-                .padding(20)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
             }
             .scrollIndicators(.never)
+            .panelEdgeFade(top: 24, bottom: 48)
             .onScrollPhaseChange { _, phase in
                 handleScrollPhase(phase)
             }
@@ -221,12 +223,17 @@ struct NowPlayingLyricsPanel: View {
         let text = Text(line.text.isEmpty ? " " : line.text)
             // Content text in a scrolling panel: a real text
             // style, free to grow with Dynamic Type.
-            .font(.title2.weight(.semibold))
+            .font(.title.weight(.bold))
             .textRenderer(LyricLineFill(progress: min(1, max(0, sungPosition - Double(index))), isLit: isActive))
-            .opacity(!hasTimedLyrics || isActive ? 1 : 0.60)
-            .scaleEffect(isActive ? 1.06 : 1.0)
-            .multilineTextAlignment(.center)
-            .lineSpacing(6)
+            .opacity(!hasTimedLyrics || isActive ? 1 : 0.35)
+            // Apple Music softens the lines around the sung one while the
+            // text follows the song, and sharpens all of them for reading
+            // once the reader scrolls by hand.
+            .blur(radius: hasTimedLyrics && !isActive && followsPlayhead && !reduceMotion ? 1.5 : 0)
+            .scaleEffect(isActive ? 1.02 : 1.0, anchor: .leading)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .lineSpacing(2)
             .animation(highlightAnimation, value: isActive)
             .id(index)
 
@@ -251,7 +258,7 @@ struct NowPlayingLyricsPanel: View {
     private func scrollToCurrentLine(_ proxy: ScrollViewProxy) {
         guard followsPlayhead, hasTimedLyrics, currentLineIndex >= 0 else { return }
         withAnimation(scrollAnimation) {
-            proxy.scrollTo(currentLineIndex, anchor: .center)
+            proxy.scrollTo(currentLineIndex, anchor: UnitPoint(x: 0.5, y: 0.3))
         }
     }
 

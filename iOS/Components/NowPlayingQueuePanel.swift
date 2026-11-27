@@ -69,6 +69,8 @@ struct NowPlayingQueuePanel: View {
     // MARK: - Queue List
 
     private static let upNextAnchor = "queue.upNext"
+    /// The player's own margin, so rows line up with the header and scrubber.
+    private static let margin: CGFloat = 28
 
     private var queueList: some View {
         VStack(spacing: 0) {
@@ -88,7 +90,8 @@ struct NowPlayingQueuePanel: View {
                     playlistManager.toggleRepeatMode()
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, Self.margin)
+            .padding(.top, 6)
 
             ScrollViewReader { proxy in
                 List {
@@ -130,6 +133,9 @@ struct NowPlayingQueuePanel: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .listRowSpacing(0)
+                .listSectionSpacing(0)
+                .environment(\.defaultMinListRowHeight, 0)
+                .panelEdgeFade()
                 .onAppear {
                     proxy.scrollTo(Self.upNextAnchor, anchor: .top)
                 }
@@ -157,6 +163,7 @@ struct NowPlayingQueuePanel: View {
         }
         .textCase(nil)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .listRowInsets(EdgeInsets(top: 14, leading: Self.margin, bottom: 8, trailing: Self.margin))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
     }
@@ -177,7 +184,7 @@ struct NowPlayingQueuePanel: View {
                 .font(.system(size: min(modeIconSize, 22), weight: .semibold))
                 .foregroundColor(isActive ? Color.black.opacity(0.8) : palette.accessory)
                 .contentTransition(.symbolEffect(.replace.offUp))
-                .frame(maxWidth: .infinity, minHeight: 36)
+                .frame(maxWidth: .infinity, minHeight: 37)
                 .background {
                     Capsule()
                         .fill(isActive ? palette.control : palette.chip)
@@ -222,7 +229,7 @@ struct NowPlayingQueuePanel: View {
                         .font(.body)
                         .lineLimit(1)
                     Text(track.displayArtist)
-                        .font(.subheadline)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -234,14 +241,15 @@ struct NowPlayingQueuePanel: View {
                 if isReorderable {
                     Image(systemName: "line.3.horizontal")
                         .font(.body)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.tertiary)
                         .accessibilityHidden(true)
                 }
             }
-            .padding(.vertical, 2)
+            .frame(height: 56)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 0, leading: Self.margin, bottom: 0, trailing: Self.margin))
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
@@ -281,8 +289,8 @@ struct NowPlayingQueuePanel: View {
             maxPixelSize: 144,
             loader: artworkLoader(for: track)
         )
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .frame(width: 48, height: 48)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
     private func artworkLoader(for track: Track) -> ArtworkDataLoader? {
