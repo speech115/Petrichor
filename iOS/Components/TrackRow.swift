@@ -159,6 +159,18 @@ struct TrackRow: View {
             .overlay {
                 ArtworkPlayingIndicator(track: track, playbackManager: playbackManager)
             }
+            // Music's grey star for a favorite song, in the margin left of
+            // the cover: 9 pt, centred 10 pt from the row's edge.
+            .overlay(alignment: .leading) {
+                if track.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color.secondaryText)
+                        .frame(width: 20)
+                        .offset(x: -20)
+                        .accessibilityHidden(true)
+                }
+            }
     }
 }
 
