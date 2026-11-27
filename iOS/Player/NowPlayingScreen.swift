@@ -69,11 +69,6 @@ struct NowPlayingScreen: View {
     @State private var favoriteTaps = 0
     /// Keeps the zoom dismissal off the seek bar and the volume slider.
     @State private var dismissGuard = ZoomDismissGuard()
-    /// Music's cover swipe: how far the cover follows the finger.
-    @State private var coverDrag: CGFloat = 0
-    /// The song a committed cover swipe slid in, held at the centre until the
-    /// player reports it, so the cover never jumps back to the old one.
-    @State private var swipedInTrack: Track?
 
     // The player is a fixed composition: title, scrubber, transport, volume
     // and accessory share the space the artwork leaves. Glyphs scale with
@@ -220,7 +215,7 @@ struct NowPlayingScreen: View {
                 // The cover cross-fades in place on a track change rather
                 // than sliding: a slid-in tile is a new view with nothing
                 // decoded yet, and showed a placeholder until it was.
-                swipeableCover(side: artworkSide)
+                swipeableCover
                 // Apple Music's pause cue: the cover steps back while paused.
                 .animation(coverScaleAnimation) {
                     $0.scaleEffect(playbackPresentation.isPlaying ? 1 : 0.78)
@@ -307,114 +302,28 @@ struct NowPlayingScreen: View {
 
     // MARK: - Cover swipe
 
-    /// Music's full-player swipe: the cover follows the finger sideways and
-    /// the neighbouring song's cover comes in from that edge. Let go past a
-    /// quarter of the cover, or with a flick, and it carries on to the next or
-    /// previous song; short of that it springs back. With nothing on that
-    /// side the cover only gives a little.
-    private func swipeableCover(side: CGFloat) -> some View {
-        let gap: CGFloat = 24
-        let forward = coverDrag < 0
-        let neighbor = coverDrag == 0 ? nil : playlistManager.adjacentQueueTrack(forward: forward)
-        return ZStack {
-            if let swipedInTrack {
-                neighborCover(swipedInTrack)
-            } else {
-                artwork
-            }
-            if let neighbor {
-                neighborCover(neighbor.track)
-                    .offset(x: (forward ? 1 : -1) * (side + gap))
-            }
-        }
-        .offset(x: coverDrag)
-        .contentShape(Rectangle())
-        .gesture(coverSwipe(side: side, gap: gap))
-        .onChange(of: track?.id) { _, _ in
-            // The player moved on, to the swiped-in song or anywhere else:
-            // show its own cover again.
-            releaseSwipeHold()
-        }
-    }
-
-    private func releaseSwipeHold() {
-        guard swipedInTrack != nil else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            swipedInTrack = nil
-            coverDrag = 0
-        }
+    /// Music's full-player swipe: a sideways swipe on the cover skips to the
+    /// next or previous song. The cover stays put and cross-fades; only the
+    /// title and artist slide, as on a skip from the buttons.
+    private var swipeableCover: some View {
+        artwork
+            .contentShape(Rectangle())
+            .gesture(coverSwipe)
     }
 
     /// Sideways only (`HorizontalPanGesture`): a pull down on the cover
     /// must stay the system's dismissal.
-    private func coverSwipe(side: CGFloat, gap: CGFloat) -> HorizontalPanGesture {
-        HorizontalPanGesture { dx in
-            guard swipedInTrack == nil else { return }
-            let hasNeighbor = playlistManager.adjacentQueueTrack(forward: dx < 0) != nil
-            coverDrag = hasNeighbor ? dx : dx * 0.25
-        } onEnded: { _, velocity in
-            guard swipedInTrack == nil, coverDrag != 0 else { return }
-            let forward = coverDrag < 0
-            // Where a flick would carry the cover: a quarter second of its
-            // speed past where the finger let go.
-            let flung = abs(coverDrag + velocity * 0.25) > side * 0.45
-            guard let neighbor = playlistManager.adjacentQueueTrack(forward: forward),
-                  abs(coverDrag) > side / 4 || flung else {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { coverDrag = 0 }
-                return
-            }
-            let travel = (forward ? -1 : 1) * (side + gap)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.95)) {
-                coverDrag = travel
-            } completion: {
-                // Re-centre on the slid-in cover in one frame, then ask the
-                // player for that song. When the player already shows that
-                // song (it advanced during the animation, or the queue holds
-                // the same song twice) no track change will come to release
-                // a hold, so none is taken.
-                let alreadyShown = track?.id == neighbor.track.id
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    if !alreadyShown { swipedInTrack = neighbor.track }
-                    coverDrag = 0
-                }
-                if playlistManager.currentQueueIndex != neighbor.index {
-                    playlistManager.playFromQueue(at: neighbor.index)
-                }
-                // A jump that fails never changes the track: let go anyway.
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(2))
-                    if swipedInTrack?.id == neighbor.track.id { releaseSwipeHold() }
-                }
-            }
+    private var coverSwipe: HorizontalPanGesture {
+        HorizontalPanGesture { _ in
+        } onEnded: { dx, velocity in
+            let swiped = abs(dx) > 40 || (abs(dx) > 12 && abs(velocity) > 400)
+            guard swiped else { return }
+            // The neighbouring song itself: a swipe back never just
+            // restarts the current one, as Previous does after a few seconds.
+            guard let neighbor = playlistManager.adjacentQueueTrack(forward: dx < 0) else { return }
+            playlistManager.playFromQueue(at: neighbor.index)
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
-    }
-
-    /// A queue neighbour's cover, styled like the player's own.
-    private func neighborCover(_ track: Track) -> some View {
-        let database = AppCoordinator.shared?.libraryManager.databaseManager
-        return ArtworkTile(
-            data: track.displayArtwork,
-            cacheKey: ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId),
-            cornerRadius: 12,
-            iconSize: 72,
-            maxPixelSize: 960,
-            loader: database.flatMap { database in
-                track.trackId.flatMap { trackId in
-                    ArtworkDataLoader.trackListArtwork(
-                        database: database,
-                        albumId: track.albumId,
-                        trackId: trackId,
-                        hasDisplayArtwork: track.displayArtwork != nil
-                    )
-                }
-            }
-        )
-        .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
     }
 
     private var artwork: some View {
