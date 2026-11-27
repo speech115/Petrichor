@@ -215,9 +215,7 @@ struct NowPlayingScreen: View {
                 // The cover cross-fades in place on a track change rather
                 // than sliding: a slid-in tile is a new view with nothing
                 // decoded yet, and showed a placeholder until it was.
-                ZStack {
-                    artwork
-                }
+                swipeableCover
                 // Apple Music's pause cue: the cover steps back while paused.
                 .animation(coverScaleAnimation) {
                     $0.scaleEffect(playbackPresentation.isPlaying ? 1 : 0.78)
@@ -302,6 +300,32 @@ struct NowPlayingScreen: View {
         }
     }
 
+    // MARK: - Cover swipe
+
+    /// Music's full-player swipe: a sideways swipe on the cover skips to the
+    /// next or previous song. The cover stays put and cross-fades; only the
+    /// title and artist slide, as on a skip from the buttons.
+    private var swipeableCover: some View {
+        artwork
+            .contentShape(Rectangle())
+            .gesture(coverSwipe)
+    }
+
+    /// Sideways only (`HorizontalPanGesture`): a pull down on the cover
+    /// must stay the system's dismissal.
+    private var coverSwipe: HorizontalPanGesture {
+        HorizontalPanGesture { _ in
+        } onEnded: { dx, velocity in
+            let swiped = abs(dx) > 40 || (abs(dx) > 12 && abs(velocity) > 400)
+            guard swiped else { return }
+            // The neighbouring song itself: a swipe back never just
+            // restarts the current one, as Previous does after a few seconds.
+            guard let neighbor = playlistManager.adjacentQueueTrack(forward: dx < 0) else { return }
+            playlistManager.playFromQueue(at: neighbor.index)
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+    }
+
     private var artwork: some View {
         // The title and artist right below name the content; the cover
         // itself adds nothing VoiceOver cannot already say.
@@ -369,6 +393,10 @@ struct NowPlayingScreen: View {
                     } label: {
                         chipLabel(icon: track.isFavorite ? Icons.starFill : Icons.star)
                         .symbolEffect(.bounce, value: favoriteTaps)
+                        // Music lights a favorite: the filled star wears a
+                        // soft glow of its own colour; an empty one has none.
+                        .shadow(color: palette.foreground.opacity(track.isFavorite ? 0.4 : 0), radius: 6)
+                        .animation(.easeOut(duration: 0.25), value: track.isFavorite)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "Favorite"))
@@ -379,6 +407,10 @@ struct NowPlayingScreen: View {
                     } label: {
                         chipLabel(icon: "ellipsis")
                     }
+                    // Music keeps Favorite and Share on top even when the
+                    // menu opens upwards, with white glyphs, not tinted ones.
+                    .menuOrder(.fixed)
+                    .tint(.primary)
                     .accessibilityLabel(String(localized: "Track menu"))
                 }
                 // The trailing hit area overhangs the content edge so the
