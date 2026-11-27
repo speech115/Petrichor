@@ -379,29 +379,48 @@ extension DatabaseManager {
     struct ArtistFetchInfo {
         let id: Int64
         let name: String
-        let hasImage: Bool
+        let imageSource: String?
+        let bioSource: String?
         let hasBio: Bool
+
+        var hasImage: Bool { imageSource != nil }
+        /// Apple Music is the source of record: anything else (MusicBrainz,
+        /// TMDB, Last.fm) is a fallback that an Apple Music photo or bio
+        /// replaces. A photo the user deleted stays deleted.
+        var wantsImage: Bool { imageSource != ArtistInfoSource.appleMusic && imageSource != "deleted" }
+        var wantsBio: Bool { bioSource != ArtistInfoSource.appleMusic }
     }
 
+    /// Artists to ask about: those without an Apple Music photo or bio whose
+    /// last attempt is older than a month. Rows stamped before Apple Music
+    /// became a source are due at once, found by the old sources or not, so
+    /// the first run upgrades the whole library; each attempt restamps the
+    /// row, so that happens once and later runs only see new artists and
+    /// monthly retries.
     func getArtistsNeedingImageOrBio() -> [ArtistFetchInfo] {
         do {
             return try dbQueue.read { db in
-                let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+                let retryBefore = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+                let appleMusic = ArtistInfoSource.appleMusic
+                let appleMusicSince = ArtistInfoSource.appleMusicSince
 
-                let needsImage = Artist.Columns.imageSource == nil && (
-                    Artist.Columns.imageUpdatedAt == nil ||
-                    Artist.Columns.imageUpdatedAt < sevenDaysAgo.databaseValue
-                )
-                let needsBio = Artist.Columns.bio == nil && (
-                    Artist.Columns.bioUpdatedAt == nil ||
-                    Artist.Columns.bioUpdatedAt < sevenDaysAgo.databaseValue
-                )
+                func isDue(_ updatedAt: Column) -> SQLExpression {
+                    updatedAt == nil
+                        || updatedAt < retryBefore.databaseValue
+                        || updatedAt < appleMusicSince.databaseValue
+                }
+                let needsImage = (Artist.Columns.imageSource == nil
+                    || ![appleMusic, "deleted"].contains(Artist.Columns.imageSource))
+                    && isDue(Artist.Columns.imageUpdatedAt)
+                let needsBio = (Artist.Columns.bioSource == nil || Artist.Columns.bioSource != appleMusic)
+                    && isDue(Artist.Columns.bioUpdatedAt)
 
                 let rows = try Artist
                     .select(
                         Artist.Columns.id,
                         Artist.Columns.name,
                         Artist.Columns.imageSource,
+                        Artist.Columns.bioSource,
                         Artist.Columns.bio
                     )
                     // INNER JOIN to require >=1 track; .distinct() collapses the
@@ -416,18 +435,40 @@ extension DatabaseManager {
                 return rows.compactMap { row in
                     guard let id: Int64 = row["id"],
                           let name: String = row["name"] else { return nil }
-                    let imageSource: String? = row["image_source"]
                     let bio: String? = row["bio"]
                     return ArtistFetchInfo(
                         id: id,
                         name: name,
-                        hasImage: imageSource != nil,
+                        imageSource: row["image_source"],
+                        bioSource: row["bio_source"],
                         hasBio: bio != nil
                     )
                 }
             }
         } catch {
             Logger.error("Failed to get artists needing image or bio: \(error)")
+            return []
+        }
+    }
+
+    /// Titles of the albums the artist has tracks on, to tell same-named
+    /// catalog artists apart.
+    func getAlbumTitles(artistId: Int64) -> [String] {
+        do {
+            return try dbQueue.read { db in
+                try String.fetchAll(
+                    db,
+                    sql: """
+                        SELECT DISTINCT albums.title FROM albums
+                        JOIN tracks ON tracks.album_id = albums.id
+                        JOIN track_artists ON track_artists.track_id = tracks.id
+                        WHERE track_artists.artist_id = ?
+                        """,
+                    arguments: [artistId]
+                )
+            }
+        } catch {
+            Logger.error("Failed to get album titles for artist \(artistId): \(error)")
             return []
         }
     }
