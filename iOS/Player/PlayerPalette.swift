@@ -15,8 +15,12 @@ import SwiftUI
 import UIKit
 
 struct PlayerPalette: Equatable {
-    /// Top-to-bottom background gradient.
+    /// Top-to-bottom background gradient: the surface when there is no
+    /// cover, and the tone the blurred cover sits on.
     let gradient: [Color]
+
+    /// The blurred cover the background is painted with; nil without artwork.
+    var backdrop: UIImage?
 
     /// Primary text and active controls.
     let foreground = Color.white
@@ -46,8 +50,11 @@ struct PlayerPalette: Equatable {
     @MainActor
     static func cachedPalette(for track: Track?, useArtworkColors: Bool) -> PlayerPalette? {
         guard useArtworkColors, let track,
-              let cached = track.cachedAverageArtworkColor, let average = cached.first else { return nil }
-        return palette(from: average)
+              let cached = track.cachedAverageArtworkColor, let average = cached.first,
+              let backdrop = PlayerBackdrop.cached(for: track) else { return nil }
+        var palette = palette(from: average)
+        palette.backdrop = backdrop
+        return palette
     }
 
     @MainActor
@@ -55,9 +62,11 @@ struct PlayerPalette: Equatable {
         if let cached = cachedPalette(for: track, useArtworkColors: useArtworkColors) {
             return cached
         }
-        guard useArtworkColors, let track,
-              let average = await track.loadAverageArtworkColor().first else { return neutral }
-        return palette(from: average)
+        guard useArtworkColors, let track else { return neutral }
+        guard let average = await track.loadAverageArtworkColor().first else { return neutral }
+        var palette = palette(from: average)
+        palette.backdrop = await PlayerBackdrop.load(for: track)
+        return palette
     }
 
     /// Apple Music paints the player in one tone: the cover's average color,
