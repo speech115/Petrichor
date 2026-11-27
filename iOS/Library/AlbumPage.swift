@@ -348,6 +348,7 @@ struct AlbumPage: View {
             showsTrackNumber: Track.hasPlausibleTrackNumbers(context)
         )
         .equatable()
+        .songRowListStyle()
         .listRowBackground(Color.clear)
     }
 
