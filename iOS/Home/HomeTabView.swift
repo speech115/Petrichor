@@ -23,15 +23,16 @@ struct HomeTabView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
+                    // First, as Music's Library opens on Favorite Songs.
+                    if !isEmpty {
+                        favoritesButton
+                    }
                     if !recentAlbums.isEmpty {
                         RecentAlbumsShelf(
                             albums: recentAlbums,
                             headerValue: smartPlaylistID(DefaultPlaylists.recentlyPlayed),
                             zoomNamespace: zoomNamespace
                         )
-                    }
-                    if !isEmpty {
-                        favoritesButton
                     }
                 }
                 .padding(.vertical, 8)

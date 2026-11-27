@@ -352,8 +352,13 @@ private struct FavoritesHeroStar: View {
                     .blur(radius: min(push / 14, 18))
                     .opacity(1 - min(push / side, 1) * 0.6)
             }
-            // Full width under DetailHeader's side padding; the star's own
-            // empty margin above it stands in for the gap under the bar.
+            // Music draws the star at 0.589 of the screen width and the star
+            // fills 0.527 of its square: the square is drawn 1.118 screens
+            // wide. Scaled, not framed — a width read from the container
+            // inside a List row sends the collection view into a layout loop.
+            // The star's own empty margin above it stands in for the gap
+            // under the bar.
+            .scaleEffect(1.118)
             .padding(.horizontal, -16)
             .padding(.top, -48)
             .accessibilityHidden(true)
