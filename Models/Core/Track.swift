@@ -107,14 +107,16 @@ struct Track: Identifiable, Equatable, Hashable, FetchableRecord, PersistableRec
     /// artwork or undecodable. Use `loadAverageArtworkColor()` to populate it.
     @MainActor
     var cachedAverageArtworkColor: [PlatformColor]? {
-        guard let original = albumArtworkData else { return [] }
+        // The thumbnail: it is there the moment a track becomes current,
+        // while the full artwork arrives later, and an average needs no detail.
+        guard let original = displayArtwork else { return [] }
         let artworkIdentity = ArtworkCacheKey.trackColorIdentity(albumId: albumId, trackID: id)
         return ImageUtils.cachedAverageColorIfAvailable(id: artworkIdentity, imageData: original)
     }
 
     @MainActor
     func loadAverageArtworkColor() async -> [PlatformColor] {
-        guard let original = albumArtworkData else { return [] }
+        guard let original = displayArtwork else { return [] }
         let artworkIdentity = ArtworkCacheKey.trackColorIdentity(albumId: albumId, trackID: id)
         return await ImageUtils.cachedAverageColor(id: artworkIdentity, imageData: original)
     }

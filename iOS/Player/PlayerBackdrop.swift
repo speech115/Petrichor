@@ -2,8 +2,8 @@
 // PlayerBackdrop (iOS)
 //
 // The picture Apple Music paints its player with: the cover itself, shrunk to
-// a few dozen pixels, blurred until no shape is left, its colors lifted and
-// its exposure pulled to one level so a white sleeve and a black one both end
+// a few dozen pixels, blurred until no shape is left, its colors kept as they
+// are and its exposure pulled to one level so a white sleeve and a black one both end
 // up as a mid-dark wash. `PlayerBackground` turns copies of it slowly over
 // one another. There is no public API for Apple Music's own background, so
 // this rebuilds it from the same source rather than from a derived color.
@@ -25,7 +25,7 @@ enum PlayerBackdrop {
 
     @MainActor
     static func load(for track: Track) async -> UIImage? {
-        guard let key = cacheKey(for: track), let data = track.albumArtworkData else { return nil }
+        guard let key = cacheKey(for: track), let data = track.displayArtwork else { return nil }
         if let cached = cache.object(forKey: key) { return cached }
         let image = await Task.detached(priority: .userInitiated) {
             render(from: data)
@@ -36,9 +36,12 @@ enum PlayerBackdrop {
         return backdrop
     }
 
+    /// Built from the thumbnail, which a track has from the moment it becomes
+    /// current. Keyed on it too, so the full artwork arriving a moment later
+    /// changes nothing on screen: the wash is the same picture either way.
     @MainActor
     private static func cacheKey(for track: Track) -> NSString? {
-        guard let data = track.albumArtworkData else { return nil }
+        guard let data = track.displayArtwork else { return nil }
         return "\(track.albumId ?? -1)|\(track.id)|\(data.count)" as NSString
     }
 
@@ -65,7 +68,6 @@ enum PlayerBackdrop {
             .clampedToExtent()
             .applyingGaussianBlur(sigma: Double(extent.width) / 10)
             .cropped(to: extent)
-            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 1.3])
 
         let luminance = averageLuminance(of: blurred, in: context)
         let exposure = log2(targetLuminance / max(luminance, 0.02))

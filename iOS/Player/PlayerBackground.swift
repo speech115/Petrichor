@@ -22,16 +22,28 @@ struct PlayerBackground: View {
     @Environment(\.accessibilityReduceMotion)
     private var reduceMotion
 
+    /// The cover being faded out after a track change. Apple Music lets the
+    /// old wash melt into the new one in place: the new one rises over the
+    /// old at full strength underneath, so the surface never dips through a
+    /// half-transparent mix of the two.
+    @State private var outgoing: UIImage?
+    @State private var incomingOpacity: Double = 1
+
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || !isPlaying)) { timeline in
             let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
             GeometryReader { geometry in
                 ZStack {
                     tones
+                    if let outgoing {
+                        // In and out at once: a default fade here would ride
+                        // the incoming wash's animation and dim both together.
+                        swirl(outgoing, in: geometry.size, at: time)
+                            .transition(.identity)
+                    }
                     if let backdrop = palette.backdrop {
                         swirl(backdrop, in: geometry.size, at: time)
-                            .id(ObjectIdentifier(backdrop))
-                            .transition(.opacity)
+                            .opacity(incomingOpacity)
                     }
                     LinearGradient(
                         colors: [.black.opacity(0), .black.opacity(0.08), .black.opacity(0.3)],
@@ -42,6 +54,21 @@ struct PlayerBackground: View {
             }
         }
         .ignoresSafeArea()
+        .onChange(of: palette.backdrop) { previous, _ in
+            // Start from the old wash at once, outside whatever animation
+            // carried the palette change, then fade the new one in.
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) {
+                outgoing = previous
+                incomingOpacity = 0
+            }
+            withAnimation(.easeInOut(duration: 1.0)) {
+                incomingOpacity = 1
+            } completion: {
+                outgoing = nil
+            }
+        }
     }
 
     private var tones: some View {
