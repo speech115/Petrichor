@@ -166,6 +166,20 @@ extension PlaylistManager {
         return (currentQueue[nextIndex], nextIndex)
     }
 
+    /// The song a swipe on the player's cover moves to: the queue's next or
+    /// previous entry, wrapping only under repeat-all. Unlike Next, a swipe
+    /// never stays on the same song under repeat-one, and unlike Previous it
+    /// never restarts the current one.
+    func adjacentQueueTrack(forward: Bool) -> (track: Track, index: Int)? {
+        guard !currentQueue.isEmpty else { return nil }
+        var index = currentQueueIndex + (forward ? 1 : -1)
+        if !currentQueue.indices.contains(index) {
+            guard repeatMode == .all, currentQueue.count > 1 else { return nil }
+            index = forward ? 0 : currentQueue.count - 1
+        }
+        return (currentQueue[index], index)
+    }
+
     /// Moves the cursor after the engine advanced by itself. Does not trigger
     /// playback; keeps `PlaylistManager` the sole writer of `currentQueueIndex`.
     func advanceQueueIndex(to index: Int) {

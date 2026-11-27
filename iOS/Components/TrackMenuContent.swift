@@ -1,9 +1,12 @@
 //
 // TrackMenuContent (iOS)
 //
-// The track actions that every iOS menu shares: info, "Go to",
-// playlists and favorites. The row's long-press menu puts the playback actions
-// above these; the player's ellipsis button shows them on their own.
+// The track actions that every iOS menu shares, in Music's order: Favorite
+// and Share side by side on top, then Add to Playlist, then Go to, View
+// Credits and Share Lyrics. The row's long-press menu puts the playback
+// actions above these; the player's ellipsis button shows them on their own.
+// Music's Pin Song, Create Station and Remove Download have no counterpart
+// in a local library and are left out.
 //
 // Each entry is a plain `Button` with a `Label` and nothing else. That is what
 // lets UIKit turn the menu into native `UIAction`s. Wrapping a label in an
@@ -21,48 +24,68 @@ struct TrackMenuContent: View {
     let playlistManager: PlaylistManager
 
     var body: some View {
-        Button {
-            NotificationCenter.default.post(
-                name: .showTrackInfo,
-                object: nil,
-                userInfo: ["track": track]
-            )
-        } label: {
-            Label(String(localized: "Show Info"), systemImage: Icons.infoCircle)
+        // Music's top row: Favorite and Share side by side, each a glyph
+        // over its name.
+        ControlGroup {
+            Button {
+                ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
+            } label: {
+                Label(
+                    track.isFavorite ? String(localized: "Undo Favorite") : String(localized: "Favorite"),
+                    systemImage: track.isFavorite ? "star.slash" : Icons.star
+                )
+            }
+            ShareLink(item: track.url, preview: SharePreview(track.title)) {
+                Label(String(localized: "Share"), systemImage: "square.and.arrow.up")
+            }
         }
 
-        Menu {
-            ForEach(goToDestinations) { destination in
-                Button(destination.title) {
-                    NotificationCenter.default.post(
-                        name: .goToLibraryFilter,
-                        object: nil,
-                        userInfo: [
-                            "filterType": destination.filterType,
-                            "filterValue": destination.value
-                        ]
-                    )
+        Section {
+            Button {
+                NotificationCenter.default.post(name: .addTrackToPlaylist, object: nil, userInfo: ["track": track])
+            } label: {
+                Label(String(localized: "Add to Playlist"), systemImage: "text.badge.plus")
+            }
+        }
+
+        Section {
+            Menu {
+                ForEach(goToDestinations) { destination in
+                    Button(destination.title) {
+                        NotificationCenter.default.post(
+                            name: .goToLibraryFilter,
+                            object: nil,
+                            userInfo: [
+                                "filterType": destination.filterType,
+                                "filterValue": destination.value
+                            ]
+                        )
+                    }
+                }
+            } label: {
+                Label(String(localized: "Go to"), systemImage: "arrow.up.right")
+            }
+
+            Button {
+                NotificationCenter.default.post(
+                    name: .showTrackInfo,
+                    object: nil,
+                    userInfo: ["track": track]
+                )
+            } label: {
+                Label(String(localized: "View Credits"), systemImage: Icons.infoCircle)
+            }
+
+            // Only once the lyrics are loaded (the player's lyrics panel
+            // loads them): a menu cannot wait on a file read.
+            if let lyrics = LyricsStore.shared.cachedLyrics(for: track.id), !lyrics.lines.isEmpty {
+                ShareLink(
+                    item: lyrics.lines.map(\.text).joined(separator: "\n"),
+                    subject: Text(track.title)
+                ) {
+                    Label(String(localized: "Share Lyrics"), systemImage: "quote.bubble")
                 }
             }
-        } label: {
-            Label(String(localized: "Go to"), systemImage: "arrow.up.right.square")
-        }
-
-        Button {
-            NotificationCenter.default.post(name: .addTrackToPlaylist, object: nil, userInfo: ["track": track])
-        } label: {
-            Label(String(localized: "Add to Playlist"), systemImage: "text.badge.plus")
-        }
-
-        Button {
-            ToastCenter.shared.toggleFavorite(track, playlistManager: playlistManager)
-        } label: {
-            Label(
-                track.isFavorite
-                    ? String(localized: "Remove from Favorites")
-                    : String(localized: "Add to Favorites"),
-                systemImage: track.isFavorite ? Icons.starFill : Icons.star
-            )
         }
     }
 

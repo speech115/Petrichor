@@ -69,6 +69,13 @@ struct NowPlayingScreen: View {
     @State private var favoriteTaps = 0
     /// Keeps the zoom dismissal off the seek bar and the volume slider.
     @State private var dismissGuard = ZoomDismissGuard()
+    /// Music's cover swipe: how far the cover follows the finger, and which
+    /// axis the touch committed to (a vertical pull belongs to the dismissal).
+    @State private var coverDrag: CGFloat = 0
+    @State private var coverDragIsHorizontal: Bool?
+    /// The song a committed cover swipe slid in, held at the centre until the
+    /// player reports it, so the cover never jumps back to the old one.
+    @State private var swipedInTrack: Track?
 
     // The player is a fixed composition: title, scrubber, transport, volume
     // and accessory share the space the artwork leaves. Glyphs scale with
@@ -215,9 +222,7 @@ struct NowPlayingScreen: View {
                 // The cover cross-fades in place on a track change rather
                 // than sliding: a slid-in tile is a new view with nothing
                 // decoded yet, and showed a placeholder until it was.
-                ZStack {
-                    artwork
-                }
+                swipeableCover(side: artworkSide)
                 // Apple Music's pause cue: the cover steps back while paused.
                 .animation(coverScaleAnimation) {
                     $0.scaleEffect(playbackPresentation.isPlaying ? 1 : 0.78)
@@ -302,6 +307,105 @@ struct NowPlayingScreen: View {
         }
     }
 
+    // MARK: - Cover swipe
+
+    /// Music's full-player swipe: the cover follows the finger sideways and
+    /// the neighbouring song's cover comes in from that edge. Let go past a
+    /// quarter of the cover, or with a flick, and it carries on to the next or
+    /// previous song; short of that it springs back. With nothing on that
+    /// side the cover only gives a little.
+    private func swipeableCover(side: CGFloat) -> some View {
+        let gap: CGFloat = 24
+        let forward = coverDrag < 0
+        let neighbor = coverDrag == 0 ? nil : playlistManager.adjacentQueueTrack(forward: forward)
+        return ZStack {
+            if let swipedInTrack {
+                neighborCover(swipedInTrack)
+            } else {
+                artwork
+            }
+            if let neighbor {
+                neighborCover(neighbor.track)
+                    .offset(x: (forward ? 1 : -1) * (side + gap))
+            }
+        }
+        .offset(x: coverDrag)
+        .contentShape(Rectangle())
+        .simultaneousGesture(coverSwipe(side: side, gap: gap))
+        .onChange(of: track?.id) { _, newID in
+            // The player caught up with the swipe: show its own cover again.
+            guard let swipedInTrack, swipedInTrack.id == newID else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                self.swipedInTrack = nil
+                coverDrag = 0
+            }
+        }
+    }
+
+    private func coverSwipe(side: CGFloat, gap: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                if coverDragIsHorizontal == nil {
+                    coverDragIsHorizontal = abs(value.translation.width) > abs(value.translation.height) * 1.2
+                }
+                guard coverDragIsHorizontal == true, swipedInTrack == nil else { return }
+                let dx = value.translation.width
+                let hasNeighbor = playlistManager.adjacentQueueTrack(forward: dx < 0) != nil
+                coverDrag = hasNeighbor ? dx : dx * 0.25
+            }
+            .onEnded { value in
+                defer { coverDragIsHorizontal = nil }
+                guard coverDragIsHorizontal == true, swipedInTrack == nil else { return }
+                let forward = coverDrag < 0
+                let flung = abs(value.predictedEndTranslation.width) > side * 0.45
+                guard let neighbor = playlistManager.adjacentQueueTrack(forward: forward),
+                      abs(coverDrag) > side / 4 || flung else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { coverDrag = 0 }
+                    return
+                }
+                let travel = (forward ? -1 : 1) * (side + gap)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.95)) {
+                    coverDrag = travel
+                } completion: {
+                    // Re-centre on the slid-in cover in one frame, then ask
+                    // the player for that song.
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        swipedInTrack = neighbor.track
+                        coverDrag = 0
+                    }
+                    playlistManager.playFromQueue(at: neighbor.index)
+                }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+    }
+
+    /// A queue neighbour's cover, styled like the player's own.
+    private func neighborCover(_ track: Track) -> some View {
+        let database = AppCoordinator.shared?.libraryManager.databaseManager
+        return ArtworkTile(
+            data: track.displayArtwork,
+            cacheKey: ArtworkDataLoader.cacheKey(albumId: track.albumId, trackId: track.trackId),
+            cornerRadius: 12,
+            iconSize: 72,
+            maxPixelSize: 960,
+            loader: database.flatMap { database in
+                track.trackId.flatMap { trackId in
+                    ArtworkDataLoader.trackListArtwork(
+                        database: database,
+                        albumId: track.albumId,
+                        trackId: trackId,
+                        hasDisplayArtwork: track.displayArtwork != nil
+                    )
+                }
+            }
+        )
+        .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
+    }
+
     private var artwork: some View {
         // The title and artist right below name the content; the cover
         // itself adds nothing VoiceOver cannot already say.
@@ -369,6 +473,10 @@ struct NowPlayingScreen: View {
                     } label: {
                         chipLabel(icon: track.isFavorite ? Icons.starFill : Icons.star)
                         .symbolEffect(.bounce, value: favoriteTaps)
+                        // Music lights a favorite: the filled star wears a
+                        // soft glow of its own colour; an empty one has none.
+                        .shadow(color: palette.foreground.opacity(track.isFavorite ? 0.4 : 0), radius: 6)
+                        .animation(.easeOut(duration: 0.25), value: track.isFavorite)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "Favorite"))
@@ -379,6 +487,10 @@ struct NowPlayingScreen: View {
                     } label: {
                         chipLabel(icon: "ellipsis")
                     }
+                    // Music keeps Favorite and Share on top even when the
+                    // menu opens upwards, with white glyphs, not tinted ones.
+                    .menuOrder(.fixed)
+                    .tint(.primary)
                     .accessibilityLabel(String(localized: "Track menu"))
                 }
                 // The trailing hit area overhangs the content edge so the
