@@ -55,6 +55,7 @@ struct ArtistPage: View {
                             playbackManager: playbackManager
                         )
                         .equatable()
+                        .songRowListStyle()
                         // The page fill shows through, as on the album page.
                         .listRowBackground(Color.clear)
                     }

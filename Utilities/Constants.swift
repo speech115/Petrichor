@@ -228,7 +228,7 @@ extension DefaultPlaylists {
     static func displayName(forStoredName name: String) -> String {
         switch name {
         case DefaultPlaylists.favorites:
-            return String(localized: "Favorites")
+            return String(localized: "Favorite Songs", comment: "Display name for the built-in Favorites smart playlist, as Music names it.")
         case DefaultPlaylists.mostPlayed:
             return String(localized: "Top 25 Most Played")
         case DefaultPlaylists.recentlyPlayed:

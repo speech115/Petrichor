@@ -32,30 +32,54 @@ struct TrackRow: View {
     @ScaledMetric(relativeTo: .body) private var trackNumberWidth: CGFloat = 40
 
     var body: some View {
-        Button(action: onPlay) {
-            HStack(spacing: 12) {
-                if showsTrackNumber {
-                    Text(track.trackNumber.map(String.init) ?? "")
-                        .font(.body.monospacedDigit())
-                        .foregroundStyle(Color.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .frame(width: trackNumberWidth, alignment: .trailing)
-                } else {
-                    artworkView
-                        .frame(width: 44, height: 44)
-                }
+        HStack(spacing: 0) {
+            Button(action: onPlay) {
+                HStack(spacing: 12) {
+                    if showsTrackNumber {
+                        Text(track.trackNumber.map(String.init) ?? "")
+                            .font(.body.monospacedDigit())
+                            .foregroundStyle(Color.secondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                            .frame(width: trackNumberWidth, alignment: .trailing)
+                    } else {
+                        artworkView
+                    }
 
-                TrackPlaybackStatus(track: track, playbackManager: playbackManager)
+                    TrackPlaybackStatus(
+                        track: track,
+                        playbackManager: playbackManager,
+                        showsBars: showsTrackNumber
+                    )
+                    // Music starts the line between rows under the title,
+                    // not under the cover.
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                }
+                .frame(minHeight: 48)
+                .contentShape(Rectangle())
             }
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            .buttonStyle(TrackRowPressStyle())
+            // One VoiceOver element per row: "title, artist" in a single phrase.
+            // The custom actions below stay on that same element, so the row
+            // remains operable after combining.
+            .accessibilityElement(children: .combine)
+            .accessibilityAction(named: String(localized: "Play Next")) {
+                playNextWithConfirmation()
+            }
+
+            // Music's "…" at the end of every song: the same menu as a long
+            // press, one tap away.
+            Menu {
+                contextMenuContent
+            } label: {
+                Label(String(localized: "More"), systemImage: "ellipsis")
+                    .labelStyle(.iconOnly)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Color.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
         }
-        .buttonStyle(TrackRowPressStyle())
-        // One VoiceOver element per row: "title, artist" in a single phrase.
-        // The custom actions below stay on that same element, so the row
-        // remains operable after combining.
-        .accessibilityElement(children: .combine)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
                 playNextWithConfirmation()
@@ -66,9 +90,6 @@ struct TrackRow: View {
         }
         .contextMenu {
             contextMenuContent
-        }
-        .accessibilityAction(named: String(localized: "Play Next")) {
-            playNextWithConfirmation()
         }
     }
 
@@ -125,6 +146,7 @@ struct TrackRow: View {
         )
     }
 
+    /// Music's 48 pt cover, with the playing mark drawn over it.
     private var artworkView: some View {
         ArtworkTile(
             data: track.displayArtwork,
@@ -132,8 +154,36 @@ struct TrackRow: View {
             maxPixelSize: 144,
             loader: trackArtworkLoader
         )
-            .frame(width: 44, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .frame(width: 48, height: 48)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay {
+                ArtworkPlayingIndicator(track: track, playbackManager: playbackManager)
+            }
+            // Music's grey star for a favorite song, in the margin left of
+            // the cover: 9 pt, centred 10 pt from the row's edge.
+            .overlay(alignment: .leading) {
+                if track.isFavorite {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color.secondaryText)
+                        .frame(width: 20)
+                        .offset(x: -20)
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+}
+
+extension View {
+    /// Music's song row in a list: a 48 pt cover with 4 pt above and below
+    /// (56 pt in all), 20 pt in from the edge, the "…" close to the right
+    /// edge, and a light line between rows. Callers apply it after
+    /// `.equatable()`: list-row settings made inside an `EquatableView` never
+    /// reach the list, which then pads the row to 78 pt. Lists with the A–Z
+    /// index pass a wider `trailing` so the "…" stays clear of the index.
+    func songRowListStyle(trailing: CGFloat = 9) -> some View {
+        listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: trailing))
+            .listRowSeparatorTint(Color.primary.opacity(0.12))
     }
 }
 
@@ -187,13 +237,12 @@ extension TrackRow: Equatable {
 private struct TrackPlaybackStatus: View {
     let track: Track
     @ObservedObject var playbackManager: PlaybackManager
+    /// Rows without a cover (an album's numbered songs) keep the trailing
+    /// bars; rows with one mark the cover instead.
+    var showsBars: Bool
 
     private var isCurrent: Bool {
-        guard let current = playbackManager.currentTrack else { return false }
-        if let currentID = current.trackId, let trackID = track.trackId {
-            return currentID == trackID
-        }
-        return current.url.path == track.url.path
+        playbackManager.isCurrent(track)
     }
 
     var body: some View {
@@ -214,11 +263,13 @@ private struct TrackPlaybackStatus: View {
 
             Spacer(minLength: 8)
 
-            if isCurrent {
-                EqualizerBars(animating: playbackManager.isPlaying)
-            } else {
-                Color.clear
-                    .frame(width: 18)
+            if showsBars {
+                if isCurrent {
+                    EqualizerBars(animating: playbackManager.isPlaying)
+                } else {
+                    Color.clear
+                        .frame(width: 18)
+                }
             }
         }
     }

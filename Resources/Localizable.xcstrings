@@ -11,6 +11,28 @@
         }
       }
     },
+    "Download" : {
+      "comment" : "Favorites page: round placeholder button beside Play.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузить"
+          }
+        }
+      }
+    },
+    "Favorite Songs" : {
+      "comment" : "Display name for the built-in Favorites smart playlist, as Music names it.",
+      "localizations" : {
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Избранные песни"
+          }
+        }
+      }
+    },
     "Library Unavailable" : {
       "localizations" : {
         "ru" : {

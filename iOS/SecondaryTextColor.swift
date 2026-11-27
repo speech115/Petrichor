@@ -7,7 +7,7 @@
 // background — the accessibility audit flags every normal-size label using
 // it. Dark mode keeps the system secondary label, which already clears 4.5:1
 // there. The light-mode value is the system secondary's own hue, darkened
-// until it passes on white, grouped and the Favorites page gray (#E8EBED).
+// until it passes on white, grouped and the Favorites page gray (#E9EAED).
 //
 
 import SwiftUI
