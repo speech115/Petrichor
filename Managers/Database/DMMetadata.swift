@@ -393,9 +393,10 @@ extension DatabaseManager {
 
     /// Artists to ask about: those without an Apple Music photo or bio whose
     /// last attempt is older than a month. Rows stamped before Apple Music
-    /// became a source are due at once, so the first run upgrades a library
-    /// filled from the old sources; each attempt restamps the row, so that
-    /// happens once and later runs only see new artists and monthly retries.
+    /// became a source are due at once, found by the old sources or not, so
+    /// the first run upgrades the whole library; each attempt restamps the
+    /// row, so that happens once and later runs only see new artists and
+    /// monthly retries.
     func getArtistsNeedingImageOrBio() -> [ArtistFetchInfo] {
         do {
             return try dbQueue.read { db in
@@ -403,16 +404,16 @@ extension DatabaseManager {
                 let appleMusic = ArtistInfoSource.appleMusic
                 let appleMusicSince = ArtistInfoSource.appleMusicSince
 
-                func isDue(_ updatedAt: Column, source: Column) -> SQLExpression {
+                func isDue(_ updatedAt: Column) -> SQLExpression {
                     updatedAt == nil
                         || updatedAt < retryBefore.databaseValue
-                        || (source != nil && updatedAt < appleMusicSince.databaseValue)
+                        || updatedAt < appleMusicSince.databaseValue
                 }
                 let needsImage = (Artist.Columns.imageSource == nil
                     || ![appleMusic, "deleted"].contains(Artist.Columns.imageSource))
-                    && isDue(Artist.Columns.imageUpdatedAt, source: Artist.Columns.imageSource)
+                    && isDue(Artist.Columns.imageUpdatedAt)
                 let needsBio = (Artist.Columns.bioSource == nil || Artist.Columns.bioSource != appleMusic)
-                    && isDue(Artist.Columns.bioUpdatedAt, source: Artist.Columns.bioSource)
+                    && isDue(Artist.Columns.bioUpdatedAt)
 
                 let rows = try Artist
                     .select(

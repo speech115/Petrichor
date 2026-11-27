@@ -116,6 +116,21 @@ struct AppleMusicArtistTests {
         #expect(Self.pick("Decades", candidates, catalog: catalog, library: library) == nil)
     }
 
+    /// A same-named candidate whose albums were never looked up could own the
+    /// same album, so a match among the checked ones is not enough.
+    @Test func uncheckedSameNamedCandidateMakesThePickAmbiguous() {
+        let candidates = (1...4).map { Candidate(id: $0, name: "RAM") }
+
+        let picked = AppleMusicArtist.pick(
+            name: "RAM",
+            candidates: candidates,
+            catalogAlbums: { $0.id == 4 ? nil : ($0.id == 1 ? ["Reptile"] : ["Other"]) },
+            libraryAlbums: ["Reptile"]
+        )
+
+        #expect(picked == nil)
+    }
+
     /// Whatever the names, the pick is a same-named candidate or nothing.
     @Test(arguments: FuzzText.seeds(200))
     func pickIsAlwaysSameNamed(seed: UInt64) {

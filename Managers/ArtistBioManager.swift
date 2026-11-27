@@ -280,7 +280,8 @@ actor ArtistBioManager {
               let searchData = await appleMusicData(searchURL, isSearch: true) else { return nil }
 
         let candidates = AppleMusicArtist.candidates(fromSearch: searchData)
-        // Albums are looked up only to tell same-named artists apart.
+        // Albums are looked up only to tell same-named artists apart, for at
+        // most three of them; with more, the pick stays undecided.
         let named = AppleMusicArtist.sameName(as: name, in: candidates)
         var lookups: [Int: [String]] = [:]
         if named.count > 1 {
@@ -291,7 +292,7 @@ actor ArtistBioManager {
         guard let artist = AppleMusicArtist.pick(
             name: name,
             candidates: candidates,
-            catalogAlbums: { lookups[$0.id] ?? [] },
+            catalogAlbums: { lookups[$0.id] },
             libraryAlbums: lookups.isEmpty ? [] : libraryAlbums()
         ) else { return nil }
 

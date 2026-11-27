@@ -55,17 +55,21 @@ enum AppleMusicArtist {
     /// One same-named candidate is taken. Several ("RAM", "Decades") are told
     /// apart by the albums: the one whose catalog has an album the library
     /// has wins, and when none or more than one does, nothing is taken, since
-    /// someone else's face is worse than initials.
+    /// someone else's face is worse than initials. `catalogAlbums` is nil for
+    /// a candidate whose albums were not looked up; it could own the album
+    /// too, so it also leaves the pick undecided.
     static func pick(
         name: String,
         candidates: [Candidate],
-        catalogAlbums: (Candidate) -> [String],
+        catalogAlbums: (Candidate) -> [String]?,
         libraryAlbums: [String]
     ) -> Candidate? {
         let named = sameName(as: name, in: candidates)
         if named.count <= 1 { return named.first }
-        let confirmed = named.filter { sharesAlbum(catalogAlbums($0), libraryAlbums) }
-        return confirmed.count == 1 ? confirmed[0] : nil
+        let catalogs = named.map(catalogAlbums)
+        guard !catalogs.contains(where: { $0 == nil }) else { return nil }
+        let confirmed = zip(named, catalogs).filter { sharesAlbum($0.1 ?? [], libraryAlbums) }
+        return confirmed.count == 1 ? confirmed[0].0 : nil
     }
 
     /// True when a catalog album and a library album are the same record.
