@@ -110,7 +110,8 @@ struct PlaylistCoverView: View {
     private var appleFavorites: some View {
         ZStack {
             Color.appleFavoritesBackground
-            Image("cover-apple-favorites")
+            // Decorative: the tile's own name labels it, never the asset name.
+            Image(decorative: "cover-apple-favorites")
                 .resizable()
                 .scaledToFit()
         }
