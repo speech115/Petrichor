@@ -394,6 +394,53 @@ enum ImageUtils {
         return colors
     }
 
+    /// The artwork's area-average color, the single tone Apple Music's player
+    /// background is painted in. Empty when the image cannot be decoded.
+    @MainActor
+    static func cachedAverageColor(id: String, imageData: Data) async -> [PlatformColor] {
+        let cacheKey = ArtworkColorCacheKey(id: id, variant: .average, imageData: imageData)
+        if let cached = colorCache.object(forKey: cacheKey) {
+            return cached.colors
+        }
+        let rgb = await Task.detached(priority: .userInitiated) {
+            averageColorComponents(from: imageData)
+        }.value
+        let colors = rgb.map { [PlatformColor(red: $0.red, green: $0.green, blue: $0.blue, alpha: 1)] } ?? []
+        colorCache.setObject(CachedPlatformColors(colors: colors), forKey: cacheKey)
+        return colors
+    }
+
+    /// Cache-only counterpart of `cachedAverageColor`: `nil` until computed.
+    @MainActor
+    static func cachedAverageColorIfAvailable(id: String, imageData: Data) -> [PlatformColor]? {
+        let cacheKey = ArtworkColorCacheKey(id: id, variant: .average, imageData: imageData)
+        return colorCache.object(forKey: cacheKey)?.colors
+    }
+
+    nonisolated private static func averageColorComponents(
+        from imageData: Data
+    ) -> (red: CGFloat, green: CGFloat, blue: CGFloat)? {
+        guard let ciImage = CIImage(data: imageData),
+              let filter = CIFilter(
+                  name: "CIAreaAverage",
+                  parameters: [
+                      kCIInputImageKey: ciImage,
+                      kCIInputExtentKey: CIVector(cgRect: ciImage.extent)
+                  ]
+              ),
+              let output = filter.outputImage else { return nil }
+        var pixel = [UInt8](repeating: 0, count: 4)
+        CIContext(options: [.workingColorSpace: NSNull()]).render(
+            output,
+            toBitmap: &pixel,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+        return (CGFloat(pixel[0]) / 255, CGFloat(pixel[1]) / 255, CGFloat(pixel[2]) / 255)
+    }
+
     /// Cache-only lookup for synchronous SwiftUI styling helpers. `nil` means
     /// the cache has not computed this artwork yet (owning view should schedule
     /// the async loader). An empty array means extraction finished with no
@@ -458,6 +505,7 @@ private final class ArtworkColorCacheKey: NSObject {
         case dominant
         case lightGradient
         case darkGradient
+        case average
     }
 
     let id: String

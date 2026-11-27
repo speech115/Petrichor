@@ -161,7 +161,16 @@ struct NowPlayingScreen: View {
         let shouldUseArtwork = useArtworkColors
 
         paletteTask = Task { @MainActor in
-            let resolved = await PlayerPalette.make(for: sourceTrack, useArtworkColors: shouldUseArtwork)
+            // A skipped-to track turns current before its artwork is loaded.
+            // Painting it neutral meanwhile dipped the surface to grey between
+            // two covers; the old one holds until the artwork lands (which
+            // restarts this task) or plainly isn't coming.
+            if shouldUseArtwork, hasAppliedPalette, let sourceTrack, sourceTrack.displayArtwork == nil {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, track?.id == sourceTrackID else { return }
+            }
+            // Read again: the artwork may have arrived during the wait.
+            let resolved = await PlayerPalette.make(for: track, useArtworkColors: shouldUseArtwork)
             guard !Task.isCancelled,
                   track?.id == sourceTrackID,
                   useArtworkColors == shouldUseArtwork else { return }
