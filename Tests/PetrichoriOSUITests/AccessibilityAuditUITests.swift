@@ -70,14 +70,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     func testHomeScreenPassesAccessibilityAudit() async throws {
         let app = launchSeededApp()
 
-        // The Favorites tile is one button over Music's star cover: the
-        // audit measures contrast across the whole tile and reads the red
-        // star on its grey square (~3.4:1). The star is a decorative image,
-        // outside WCAG's text contrast rule; the tile's text is black on
-        // white. Every other contrast issue on Home stays fatal.
-        try app.auditRetryingTimeouts { issue in
-            issue.auditType == .contrast && issue.element?.identifier == "home.favorites"
-        }
+        try app.auditRetryingTimeouts()
 
         attachBestEffortScreenshot(of: app, named: "AX-Home")
     }

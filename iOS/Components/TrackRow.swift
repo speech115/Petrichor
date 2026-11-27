@@ -179,9 +179,10 @@ extension View {
     /// (56 pt in all), 20 pt in from the edge, the "…" close to the right
     /// edge, and a light line between rows. Callers apply it after
     /// `.equatable()`: list-row settings made inside an `EquatableView` never
-    /// reach the list, which then pads the row to 78 pt.
-    func songRowListStyle() -> some View {
-        listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 9))
+    /// reach the list, which then pads the row to 78 pt. Lists with the A–Z
+    /// index pass a wider `trailing` so the "…" stays clear of the index.
+    func songRowListStyle(trailing: CGFloat = 9) -> some View {
+        listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: trailing))
             .listRowSeparatorTint(Color.primary.opacity(0.12))
     }
 }
