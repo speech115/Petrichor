@@ -330,15 +330,20 @@ struct NowPlayingScreen: View {
         .offset(x: coverDrag)
         .contentShape(Rectangle())
         .gesture(coverSwipe(side: side, gap: gap))
-        .onChange(of: track?.id) { _, newID in
-            // The player caught up with the swipe: show its own cover again.
-            guard let swipedInTrack, swipedInTrack.id == newID else { return }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                self.swipedInTrack = nil
-                coverDrag = 0
-            }
+        .onChange(of: track?.id) { _, _ in
+            // The player moved on, to the swiped-in song or anywhere else:
+            // show its own cover again.
+            releaseSwipeHold()
+        }
+    }
+
+    private func releaseSwipeHold() {
+        guard swipedInTrack != nil else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            swipedInTrack = nil
+            coverDrag = 0
         }
     }
 
@@ -365,14 +370,25 @@ struct NowPlayingScreen: View {
                 coverDrag = travel
             } completion: {
                 // Re-centre on the slid-in cover in one frame, then ask the
-                // player for that song.
+                // player for that song. When the player already shows that
+                // song (it advanced during the animation, or the queue holds
+                // the same song twice) no track change will come to release
+                // a hold, so none is taken.
+                let alreadyShown = track?.id == neighbor.track.id
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
                 withTransaction(transaction) {
-                    swipedInTrack = neighbor.track
+                    if !alreadyShown { swipedInTrack = neighbor.track }
                     coverDrag = 0
                 }
-                playlistManager.playFromQueue(at: neighbor.index)
+                if playlistManager.currentQueueIndex != neighbor.index {
+                    playlistManager.playFromQueue(at: neighbor.index)
+                }
+                // A jump that fails never changes the track: let go anyway.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(2))
+                    if swipedInTrack?.id == neighbor.track.id { releaseSwipeHold() }
+                }
             }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
